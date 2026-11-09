@@ -29,14 +29,12 @@ unsafe impl Send for Handle {}
 impl Context {
     /// Creates a cuBLASXt context for the current CUDA device.
     ///
-    /// This is the single-device convenience constructor. Use
-    /// [`Context::create_for`] to select an explicit set of devices.
+    /// This is the single-device convenience constructor.
+    /// Use [`Context::create_for`] to select an explicit set of devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the current device, cuBLASXt cannot
-    /// initialize that device, cuBLASXt cannot allocate the handle, or cuBLASXt
-    /// returns a null handle.
+    /// Returns an error if CUDA cannot query the current device, cuBLASXt cannot initialize that device, cuBLASXt cannot allocate the handle, or cuBLASXt returns a null handle.
     pub fn create() -> Result<Self> {
         let device = Device::current()?;
         Self::create_for(&[device])
@@ -44,15 +42,12 @@ impl Context {
 
     /// Creates a cuBLASXt context for `devices`.
     ///
-    /// cuBLASXt treats device selection as static for a handle, so the selected
-    /// device set is part of context construction. Create another context to use
-    /// a different device set.
+    /// cuBLASXt treats device selection as static for a handle, so the selected device set is part of context construction.
+    /// Create another context to use a different device set.
     ///
     /// # Errors
     ///
-    /// Returns an error if `devices` is empty, too long for cuBLASXt, contains
-    /// invalid device IDs, cuBLASXt cannot initialize one of the devices,
-    /// cuBLASXt cannot allocate the handle, or cuBLASXt returns a null handle.
+    /// Returns an error if `devices` is empty, too long for cuBLASXt, contains invalid device IDs, cuBLASXt cannot initialize one of the devices, cuBLASXt cannot allocate the handle, or cuBLASXt returns a null handle.
     pub fn create_for(devices: &[Device]) -> Result<Self> {
         if devices.is_empty() {
             return Err(Error::LengthMismatch {
@@ -83,10 +78,8 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuBLASXt handle whose devices have already
-    /// been selected exactly once with `cublasXtDeviceSelect`. It must not be
-    /// destroyed elsewhere or reconfigured with `cublasXtDeviceSelect` after
-    /// calling this function.
+    /// `handle` must be a valid cuBLASXt handle whose devices have already been selected exactly once with `cublasXtDeviceSelect`.
+    /// It must not be destroyed elsewhere or reconfigured with `cublasXtDeviceSelect` after calling this function.
     ///
     /// # Errors
     ///
@@ -121,8 +114,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if `block_dim` is zero, too large for cuBLASXt, or
-    /// rejected by the library.
+    /// Returns an error if `block_dim` is zero, too large for cuBLASXt, or rejected by the library.
     pub fn set_block_dim(&self, block_dim: usize) -> Result<()> {
         if block_dim == 0 {
             return Err(Error::InvalidMatrixShape);
@@ -179,8 +171,7 @@ impl Context {
         Ok(mode.into())
     }
 
-    /// Sets the fraction of work cuBLASXt should offload to a caller-provided
-    /// CPU BLAS routine for the selected operation and type.
+    /// Sets the fraction of work cuBLASXt should offload to a caller-provided CPU BLAS routine for the selected operation and type.
     ///
     /// # Errors
     ///
@@ -210,8 +201,7 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `routine` must point to a CPU BLAS function with the ABI, signature, and
-    /// lifetime expected by cuBLASXt for `operation` and `operation_type`.
+    /// `routine` must point to a CPU BLAS function with the ABI, signature, and lifetime expected by cuBLASXt for `operation` and `operation_type`.
     /// cuBLASXt may call it during subsequent operations on this context.
     ///
     /// # Errors
@@ -256,8 +246,10 @@ impl Drop for Handle {
         // SAFETY: `cublasXtDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasXtDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublasxt context: {error}");
+                eprintln!(
+                    "failed to destroy cublasxt context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

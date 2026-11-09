@@ -17,17 +17,13 @@ where
     Self: ErrorMetricImage<T, L>,
 {
     /// Computes the native maximum error between two image ROIs.
-    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result
-    /// across the image channels, including the fourth channel in C4.
+    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result across the image channels, including the fourth channel in C4.
     /// The supplied output view must contain exactly one element.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// The output view must have the exact result count described above.
     pub fn maximum_error_into(
@@ -40,17 +36,13 @@ where
     }
 
     /// Computes the native average error between two image ROIs.
-    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result
-    /// across the image channels, including the fourth channel in C4.
+    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result across the image channels, including the fourth channel in C4.
     /// The supplied output view must contain exactly one element.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// The output view must have the exact result count described above.
     pub fn average_error_into(
@@ -63,17 +55,13 @@ where
     }
 
     /// Computes the native maximum error between two image ROIs.
-    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result
-    /// across the image channels, including the fourth channel in C4.
+    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result across the image channels, including the fourth channel in C4.
     /// Allocates owned device storage for the single result.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// Result allocation or source view construction can also fail.
     pub fn maximum_error(self, other: &ImageView<'_, T, L>) -> Result<ImageStatistic<f64>> {
@@ -81,17 +69,13 @@ where
     }
 
     /// Computes the native average error between two image ROIs.
-    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result
-    /// across the image channels, including the fourth channel in C4.
+    /// The provided C1, C3, and C4 implementations produce one aggregate `f64` result across the image channels, including the fourth channel in C4.
     /// Allocates owned device storage for the single result.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// Result allocation or source view construction can also fail.
     pub fn average_error(self, other: &ImageView<'_, T, L>) -> Result<ImageStatistic<f64>> {

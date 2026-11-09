@@ -56,12 +56,14 @@ pub fn parse_version_from_header_defines(
             major = caps.get(1).map(|m| m.as_str().to_string());
             continue; // Move to next line once found
         }
+
         if minor.is_none()
             && let Some(caps) = minor_re.captures(trimmed_line)
         {
             minor = caps.get(1).map(|m| m.as_str().to_string());
             continue;
         }
+
         if patch.is_none()
             && let Some(caps) = patch_re.captures(trimmed_line)
         {

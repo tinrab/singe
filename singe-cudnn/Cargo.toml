@@ -1,13 +1,13 @@
 [package]
 name = "singe-cudnn"
-description = "Safe Rust wrappers for the NVIDIA cuDNN deep neural network library. Includes backend and frontend APIs."
-version = "0.1.0-alpha.7"
+description = "Safe Rust wrappers for NVIDIA cuDNN, the deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend."
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "cudnn", "tensor", "deep-learning"]
-include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*", "docs/**/*.md"]
+include.workspace = true
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--html-in-header", "dist/katex_header.html"]

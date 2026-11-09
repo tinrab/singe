@@ -8,8 +8,7 @@ use crate::{context::StreamContext, error::Result};
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context creation, stream creation, or constructing the
-/// NPP stream context fails.
+/// Returns an error if CUDA context creation, stream creation, or constructing the NPP stream context fails.
 pub fn create_stream_context() -> Result<(Stream, StreamContext)> {
     let context = Context::create()?;
     let stream = context.create_stream()?;

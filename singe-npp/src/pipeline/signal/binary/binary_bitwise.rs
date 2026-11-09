@@ -105,7 +105,8 @@ impl_scaled_round_divide_helpers!(
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait BitwiseSignal<T> {
     /// Computes the element-wise bitwise AND of `left` and `right` into `destination`.

@@ -161,7 +161,7 @@ pub enum cufftCompatibility_t {
 pub use self::cufftCompatibility_t as cufftCompatibility;
 /// A handle type used to store and access cuFFT plans. The user receives a handle after creating a cuFFT plan and uses this handle to execute the plan.
 pub type cufftHandle = ::core::ffi::c_int;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a 1D FFT plan configuration for a specified signal size and data type. The `batch` input parameter tells cuFFT how many 1D transforms to configure.
     ///
     /// This call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.
@@ -194,7 +194,7 @@ unsafe extern "C" {
         batch: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a 2D FFT plan configuration according to specified signal sizes and data type.
     ///
     /// This call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.
@@ -227,7 +227,7 @@ unsafe extern "C" {
         type_: cufftType,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a 3D FFT plan configuration according to specified signal sizes and data type. This function is the same as [`cufftPlan2d`] except that it takes a third size parameter `nz`.
     ///
     /// This call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.
@@ -262,7 +262,7 @@ unsafe extern "C" {
         type_: cufftType,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.
     ///
     /// The [`cufftPlanMany`] API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.
@@ -317,7 +317,7 @@ unsafe extern "C" {
         batch: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Following a call to [`cufftCreate`] makes a 1D FFT plan configuration for a specified signal size and data type. The `batch` input parameter tells cuFFT how many 1D transforms to configure.
     ///
     /// This call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.
@@ -354,7 +354,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Following a call to [`cufftCreate`] makes a 2D FFT plan configuration according to specified signal sizes and data type.
     ///
     /// This call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.
@@ -391,7 +391,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Following a call to [`cufftCreate`] makes a 3D FFT plan configuration according to specified signal sizes and data type. This function is the same as [`cufftPlan2d`] except that it takes a third size parameter `nz`.
     ///
     /// This call can only be used once for a given handle. It will fail and return [`cufftResult::CUFFT_INVALID_PLAN`] if the plan is locked, i.e. the handle was previously used with a different `cufftPlan` or `cufftMakePlan` call.
@@ -430,7 +430,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Following a call to [`cufftCreate`] makes a FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.
     ///
     /// The [`cufftPlanMany`] API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.
@@ -487,7 +487,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Following a call to [`cufftCreate`] makes a FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.
     ///
     /// This API is identical to [`cufftMakePlanMany`] except that the arguments specifying sizes and strides are 64 bit integers. This API makes very large transforms possible. cuFFT includes kernels that use 32 bit indexes, and kernels that use 64 bit indexes. cuFFT planning selects 32 bit kernels whenever possible to avoid any overhead due to 64 bit arithmetic.
@@ -548,7 +548,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimateSizeMany()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// This API is identical to [`cufftMakePlanMany`] except that the arguments specifying sizes and strides are 64 bit integers. This API makes very large transforms possible. cuFFT includes kernels that use 32 bit indexes, and kernels that use 64 bit indexes. cuFFT planning selects 32 bit kernels whenever possible to avoid any overhead due to 64 bit arithmetic.
@@ -596,7 +596,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings.
     ///
     /// # Parameters
@@ -626,7 +626,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// # Parameters
@@ -656,7 +656,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// # Parameters
@@ -688,7 +688,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// During plan execution, cuFFT requires a work area for temporary storage of intermediate results. This call returns an estimate for the size of the work area required, given the specified parameters, and assuming default plan settings. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// The [`cufftEstimateMany`] API supports more complicated input and output data layouts via the advanced data layout parameters: `inembed`, `istride`, `idist`, `onembed`, `ostride`, and `odist`.
@@ -736,7 +736,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates only an opaque handle, and allocates small data structures on the host. The `cufftMakePlan*()` calls actually do the plan generation.
     ///
     /// # Return value
@@ -748,7 +748,7 @@ unsafe extern "C" {
     /// - [`cufftResult::CUFFT_SUCCESS`]: cuFFT successfully created the FFT plan.
     pub fn cufftCreate(handle: *mut cufftHandle) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This call gives a more accurate estimate of the work area size required for a plan than [`cufftEstimate1d`], given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// # Parameters
@@ -777,7 +777,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This call gives a more accurate estimate of the work area size required for a plan than [`cufftEstimate2d`], given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// # Parameters
@@ -806,7 +806,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This call gives a more accurate estimate of the work area size required for a plan than [`cufftEstimate3d`], given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// # Parameters
@@ -837,7 +837,7 @@ unsafe extern "C" {
         workSize: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimateSizeMany()`, given the specified parameters, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// # Parameters
@@ -877,7 +877,7 @@ unsafe extern "C" {
         workArea: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Once plan generation has been done, either with the original API or the extensible API, this call returns the actual size of the work area required to support the plan. Callers who choose to manage work area allocation within their application must use this call after plan generation, and after any `cufftSet*()` calls subsequent to plan generation, if those calls might alter the required work space size.
     ///
     /// # Parameters
@@ -893,7 +893,7 @@ unsafe extern "C" {
     /// - [`cufftResult::CUFFT_SUCCESS`]: cuFFT successfully returned the size of the work space.
     pub fn cufftGetSize(handle: cufftHandle, workSize: *mut size_t) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftSetWorkArea`] overrides the work area pointer associated with a plan. If the work area was auto-allocated, cuFFT frees the auto-allocated space. The `cufftExec*()` calls assume that the work area pointer is valid, aligned to the complex type of the plan (`cufftComplex` for single precision and `cufftDoubleComplex` for double precision transforms), and that it points to a contiguous region in device memory that does not overlap with any other work area. If the work area is misaligned, `cufftExec*()` fails with [`cufftResult::CUFFT_INVALID_VALUE`]. Other assumption violations yield indeterminate results.
     ///
     /// # Parameters
@@ -912,7 +912,7 @@ unsafe extern "C" {
         workArea: *mut ::core::ffi::c_void,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftSetAutoAllocation`] indicates that the caller intends to allocate and manage work areas for plans that have been generated. cuFFT default behavior is to allocate the work area at plan generation time. If [`cufftSetAutoAllocation`] has been called with autoAllocate set to 0 (“false”) prior to one of the `cufftMakePlan*()` calls, cuFFT does not allocate the work area. This is the preferred sequence for callers wishing to manage work area allocation.
     ///
     /// # Parameters
@@ -930,7 +930,7 @@ unsafe extern "C" {
         autoAllocate: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftExecC2C`] ([`cufftExecZ2Z`]) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by the `idata` parameter as input data. This function stores the Fourier coefficients in the `odata` array. If `idata` and `odata` are the same, this method does an in-place transform.
     ///
     /// # Parameters
@@ -957,7 +957,7 @@ unsafe extern "C" {
         direction: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftExecR2C`] ([`cufftExecD2Z`]) executes a single-precision (double-precision) real-to-complex, implicitly forward, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. This function stores the nonredundant Fourier coefficients in the `odata` array. Pointers to `idata` and `odata` are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` data type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform. Note the data layout differences between in-place and out-of-place transforms as described in [Parameter cufftType](https://docs.nvidia.com/cuda/archive/13.4.2/cufft/index.html#cufft-transform-types).
     ///
     /// # Parameters
@@ -982,7 +982,7 @@ unsafe extern "C" {
         odata: *mut cufftComplex,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftExecC2R`] ([`cufftExecZ2D`]) executes a single-precision (double-precision) complex-to-real, implicitly inverse, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. The input array holds only the nonredundant complex Fourier coefficients. This function stores the real output values in the `odata` array. and pointers are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform.
     ///
     /// # Parameters
@@ -1007,7 +1007,7 @@ unsafe extern "C" {
         odata: *mut cufftReal,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftExecC2C`] ([`cufftExecZ2Z`]) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by the `idata` parameter as input data. This function stores the Fourier coefficients in the `odata` array. If `idata` and `odata` are the same, this method does an in-place transform.
     ///
     /// # Parameters
@@ -1034,7 +1034,7 @@ unsafe extern "C" {
         direction: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftExecR2C`] ([`cufftExecD2Z`]) executes a single-precision (double-precision) real-to-complex, implicitly forward, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. This function stores the nonredundant Fourier coefficients in the `odata` array. Pointers to `idata` and `odata` are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` data type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform. Note the data layout differences between in-place and out-of-place transforms as described in [Parameter cufftType](https://docs.nvidia.com/cuda/archive/13.4.2/cufft/index.html#cufft-transform-types).
     ///
     /// # Parameters
@@ -1059,7 +1059,7 @@ unsafe extern "C" {
         odata: *mut cufftDoubleComplex,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftExecC2R`] ([`cufftExecZ2D`]) executes a single-precision (double-precision) complex-to-real, implicitly inverse, cuFFT transform plan. cuFFT uses as input data the GPU memory pointed to by the `idata` parameter. The input array holds only the nonredundant complex Fourier coefficients. This function stores the real output values in the `odata` array. and pointers are both required to be aligned to `cufftComplex` data type in single-precision transforms and `cufftDoubleComplex` type in double-precision transforms. If `idata` and `odata` are the same, this method does an in-place transform.
     ///
     /// # Parameters
@@ -1084,7 +1084,7 @@ unsafe extern "C" {
         odata: *mut cufftDoubleReal,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Associates a CUDA stream with a cuFFT plan. All kernel launches made during plan execution are now done through the associated stream, enabling overlap with activity in other streams (e.g. data copying). The association remains until the plan is destroyed or the stream is changed with another call to [`cufftSetStream`].
     ///
     /// Note that starting from CUDA 11.2 (cuFFT 10.4.0), [`cufftSetStream`] is supported on multi-GPU plans. When associating a stream with a plan, `cufftXtMemcpy()` remains synchronous across the multiple GPUs. For previous versions of cuFFT, [`cufftSetStream`] will return an error in multiple GPU plans.
@@ -1102,7 +1102,7 @@ unsafe extern "C" {
     /// - [`cufftResult::CUFFT_SUCCESS`]: The stream was associated with the plan.
     pub fn cufftSetStream(plan: cufftHandle, stream: cudaStream_t) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all GPU resources associated with a cuFFT plan and destroys the internal plan data structure. This function should be called once a plan is no longer needed, to avoid wasting GPU memory.
     /// In the case of multi-GPU plans, the plan created first should be destroyed last.
     ///
@@ -1116,7 +1116,7 @@ unsafe extern "C" {
     /// - [`cufftResult::CUFFT_SUCCESS`]: cuFFT successfully destroyed the FFT plan.
     pub fn cufftDestroy(plan: cufftHandle) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the version number of cuFFT.
     ///
     /// # Parameters
@@ -1126,7 +1126,7 @@ unsafe extern "C" {
     /// Contains the version number.
     pub fn cufftGetVersion(version: *mut ::core::ffi::c_int) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Return in `*value` the number for the property described by `type` of the dynamically linked CUFFT library.
     ///
     /// # Parameters
@@ -1169,7 +1169,7 @@ pub enum cufftProperty_t {
     NVFFT_PLAN_PROPERTY_INT64_DISABLE_FMA = 4,
 }
 pub use self::cufftProperty_t as cufftProperty;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Associates a cuFFT plan with a property identified by the key `property`. The value for the property is given by value `propertyValueInt64`, which is a signed long long integer.
     ///
     /// # Parameters
@@ -1189,7 +1189,7 @@ unsafe extern "C" {
         inputValueInt: ::core::ffi::c_longlong,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Retrieves the property value identified by the key `property` associated with the cuFFT plan `plan`. The value for the property, which is a signed long long integer, is set in the address space pointed by `propertyValueInt64`.
     ///
     /// # Parameters
@@ -1209,7 +1209,7 @@ unsafe extern "C" {
         returnPtrValue: *mut ::core::ffi::c_longlong,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Resets the value of the property identified by the key `property`, associated with the cuFFT plan `plan`, to its default value.
     ///
     /// # Parameters

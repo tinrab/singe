@@ -31,6 +31,7 @@ impl Engine {
                 if self.lanes[lane].frames.len() >= self.options.call_depth {
                     return Err(ExecutionError::CallDepth);
                 }
+
                 let charge = frame_charge(self.code.function(*function))?;
                 global.reserve_execution(self.grid, charge)?;
                 let values: Vec<_> = arguments
@@ -61,6 +62,7 @@ impl Engine {
                         "noreturn function returned to its caller".into(),
                     ));
                 }
+
                 self.lanes[lane].carry = None;
                 let frame = self.current(lane);
                 let function = &self.code.function(frame.function);
@@ -79,6 +81,7 @@ impl Engine {
                             .map_err(|_| ExecutionError::ExecutionStateLimit)?,
                     ));
                 }
+
                 for (source, destination, size) in copies {
                     global.copy_parameter(
                         source,
@@ -88,6 +91,7 @@ impl Engine {
                         cancellation,
                     )?;
                 }
+
                 self.pop(lane, global);
                 return Ok(Step::Hold);
             }

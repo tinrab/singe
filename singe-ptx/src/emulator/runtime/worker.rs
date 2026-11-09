@@ -2,7 +2,7 @@ use std::{
     collections::BTreeSet,
     mem,
     panic::{AssertUnwindSafe, catch_unwind},
-    sync::{Arc, PoisonError, atomic::Ordering},
+    sync::{Arc, atomic::Ordering},
     task::Poll,
 };
 
@@ -26,6 +26,7 @@ use crate::{
             module::Loaded,
             options::{ExecutionReport, LaunchConfig},
             submit::RetainedFailure,
+            wait,
         },
     },
 };
@@ -109,11 +110,13 @@ impl Worker {
             if self.failure.is_none() {
                 self.failure = Some(RetainedFailure::new(error.clone(), Some(storage)));
             }
+
             let mut state = lock(&self.shared.admission);
             state.debug.faulted = true;
             if state.phase == Phase::Running {
                 state.phase = Phase::Faulted;
             }
+
             drop(state);
             debug::finish_observers(&self.shared, &ExecutionError::Faulted);
         }
@@ -205,6 +208,7 @@ impl ModuleLoad {
                     if storage.space != StateSpace::Shared {
                         worker.transfer_checkpoint(initialized, size);
                     }
+
                     self.phase = if ready {
                         LoadPhase::Zero {
                             variable: variable + 1,
@@ -324,6 +328,7 @@ impl LaunchWork {
         if let Some(error) = terminal {
             return Poll::Ready(Err(self.stop(worker, error)));
         }
+
         if self.engine.is_none() {
             match self.build_grid(worker) {
                 Poll::Ready(Ok(())) => {}
@@ -331,6 +336,7 @@ impl LaunchWork {
                 Poll::Pending => return Poll::Pending,
             }
         }
+
         let Some(engine) = self.engine.as_mut() else {
             return Poll::Ready(Err(ExecutionError::Invalid("missing launch state".into())));
         };
@@ -340,6 +346,7 @@ impl LaunchWork {
                 return Poll::Pending;
             }
         }
+
         if self.pause.take().is_some() {
             engine.resume();
         }
@@ -348,6 +355,7 @@ impl LaunchWork {
         if let Some(hook) = lock(&worker.shared.hooks.launch).as_mut() {
             hook(engine);
         }
+
         worker.reclaim();
         #[cfg(test)]
         let trace_start = engine.trace.len();
@@ -385,6 +393,7 @@ impl LaunchWork {
                     }),
             );
         }
+
         let result = match step {
             Ok(None) => return Poll::Pending,
             Ok(Some(report)) => Ok(Box::new(move |_| report) as Pending<ExecutionReport>),
@@ -394,12 +403,14 @@ impl LaunchWork {
         if let Err(error) = &result {
             worker.fault(error, Arc::clone(&result_storage));
         }
+
         self.result_storage = Some(result_storage);
         engine.release(&mut worker.memory);
         #[cfg(test)]
         {
             *lock(&worker.shared.hooks.trace) = engine.trace.clone();
         }
+
         self.engine = None;
         Poll::Ready(result)
     }
@@ -409,6 +420,7 @@ impl LaunchWork {
         if let Some(pause) = self.pause.take() {
             pause.finish(&error);
         }
+
         if let Some(builder) = self.builder.take() {
             builder.release(&mut worker.memory);
         }
@@ -437,6 +449,7 @@ impl LaunchWork {
                 &mut worker.memory,
             )?);
         }
+
         let builder = self
             .builder
             .as_mut()
@@ -451,6 +464,7 @@ impl LaunchWork {
         if let Some(hook) = lock(&worker.shared.hooks.initialization).as_mut() {
             hook(self.staging.launch_id.unwrap_or_default());
         }
+
         match advanced {
             Ok(false) => return Poll::Pending,
             Ok(true) => {}
@@ -460,6 +474,7 @@ impl LaunchWork {
                 return Poll::Ready(Err(error));
             }
         }
+
         self.engine = self.builder.take().map(GridBuilder::finish);
         if let Some(engine) = &mut self.engine {
             engine.identify(self.staging.launch_id.unwrap_or_default(), self.stream_id);
@@ -494,37 +509,31 @@ pub fn run_worker(shared: &Arc<Shared>) {
                 worker.release(reclaimable);
                 continue;
             }
+
             if let Some(command) = select_command(shared, &mut state, &active, &worker) {
                 if command.kind == CommandKind::Dependency {
                     state.pending_dependencies += 1;
                 }
+
                 drop(state);
                 active.push_back(command);
             } else if active.is_empty() {
                 if matches!(state.phase, Phase::Draining | Phase::Cancelling) {
                     break;
                 }
-                drop(
-                    shared
-                        .changed
-                        .wait(state)
-                        .unwrap_or_else(PoisonError::into_inner),
-                );
+
+                drop(wait(&shared.changed, state));
                 continue;
             } else if active.iter().all(|command| command.control.is_suspended())
                 && worker.failure.is_none()
                 && !shared.cancel.load(Ordering::Acquire)
             {
-                drop(
-                    shared
-                        .changed
-                        .wait(state)
-                        .unwrap_or_else(PoisonError::into_inner),
-                );
+                drop(wait(&shared.changed, state));
                 continue;
             } else {
                 drop(state);
             }
+
             run_next(&mut worker, &mut active);
         }
     }));
@@ -536,8 +545,7 @@ pub fn run_worker(shared: &Arc<Shared>) {
     close(shared, worker, active, failure);
 }
 
-/// Picks the first queued command that may start: one per stream, behind no running
-/// command of its stream, and within the active-grid limit unless the emulator is stopping.
+/// Picks the first queued command that may start: one per stream, behind no running command of its stream, and within the active-grid limit unless the emulator is stopping.
 fn select_command(
     shared: &Shared,
     state: &mut Admission,
@@ -556,6 +564,7 @@ fn select_command(
     {
         return None;
     }
+
     let mut streams = BTreeSet::new();
     let index = state.queue.iter().position(|command| {
         streams.insert(command.stream)
@@ -584,6 +593,7 @@ fn run_next(worker: &mut Worker, active: &mut ActiveCommands) {
         if command.kind == CommandKind::Dependency {
             command.control.suspended.store(true, Ordering::Release);
         }
+
         active.push_back(command);
     } else {
         for dependency in active.iter() {

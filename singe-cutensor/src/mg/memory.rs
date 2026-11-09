@@ -39,7 +39,8 @@ struct HostWorkspace {
 impl<T> DistributedDeviceMemory<T> {
     /// Allocates initialized zero-filled partitions on the selected devices.
     ///
-    /// `len_per_pointer` counts elements of `T`, not bytes. Each entry in `devices` receives a separate allocation in its retained CUDA context.
+    /// `len_per_pointer` counts elements of `T`, not bytes.
+    /// Each entry in `devices` receives a separate allocation in its retained CUDA context.
     ///
     /// # Errors
     ///
@@ -74,7 +75,8 @@ impl<T> DistributedDeviceMemory<T> {
 
     /// Allocates uninitialized partitions on the selected devices.
     ///
-    /// `len_per_pointer` counts elements of `T`, not bytes. Each entry in `devices` receives a separate allocation in its retained CUDA context.
+    /// `len_per_pointer` counts elements of `T`, not bytes.
+    /// Each entry in `devices` receives a separate allocation in its retained CUDA context.
     ///
     /// # Errors
     ///
@@ -175,8 +177,7 @@ impl<T> DistributedDeviceMemory<MaybeUninit<T>> {
     ///
     /// # Safety
     ///
-    /// Each element must contain a valid initialized `T`, with its producer
-    /// ordered before every consumer on every participating device.
+    /// Each element must contain a valid initialized `T`, with its producer ordered before every consumer on every participating device.
     #[must_use]
     pub unsafe fn assume_init(self) -> DistributedDeviceMemory<T> {
         DistributedDeviceMemory {
@@ -195,7 +196,8 @@ impl<T> DistributedDeviceMemory<MaybeUninit<T>> {
 impl WorkspaceMemory {
     /// Allocates pending device byte buffers and pinned host storage for workspace requirements.
     ///
-    /// Device buffers follow context device order. Pinned host storage uses the first participating device's CUDA context; zero host requirements use no allocation.
+    /// Device buffers follow context device order.
+    /// Pinned host storage uses the first participating device's CUDA context; zero host requirements use no allocation.
     ///
     /// # Errors
     ///
@@ -230,6 +232,7 @@ impl WorkspaceMemory {
                 actual: self.device.len(),
             });
         }
+
         for ((buffer, &device), bytes) in self
             .device
             .iter()
@@ -246,6 +249,7 @@ impl WorkspaceMemory {
                 });
             }
         }
+
         let bytes = required.host_size_bytes()?;
         let actual = self.host.memory.as_ref().map_or(0, PinnedHostMemory::len);
         if actual < bytes {

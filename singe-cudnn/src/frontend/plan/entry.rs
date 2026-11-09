@@ -92,7 +92,7 @@ impl fmt::Display for PlanFailureStage {
 
 /// A candidate-specific failure with its original typed cause.
 #[derive(Debug, Clone, thiserror::Error)]
-#[error("`{plan}` failed during {stage}: {source}")]
+#[error("`{plan}` failed during {stage}")]
 pub struct PlanFailure {
     /// Stable identity of the failed candidate.
     pub plan: PlanId,

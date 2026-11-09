@@ -96,6 +96,7 @@ impl Graph {
         if self.tensor_spec(attention_scale)?.data_type == compute_type {
             return Ok(attention_scale);
         }
+
         let converted = self.pointwise(
             PointwiseOperation::unary(
                 PointwiseMode::Identity,

@@ -18,9 +18,8 @@ use crate::{
 
 /// Serializable frontend operation node.
 ///
-/// Each variant records tensor IDs and operation-specific attributes for one
-/// node in the declarative cuDNN frontend graph. The graph is later lowered into
-/// backend descriptors and planned with cuDNN engines.
+/// Each variant records tensor IDs and operation-specific attributes for one node in the declarative cuDNN frontend graph.
+/// The graph is later lowered into backend descriptors and planned with cuDNN engines.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "operation")]
 #[non_exhaustive]
@@ -72,6 +71,7 @@ impl Operation {
         if let Self::Convolution(operation) = self {
             uses.read(operation.reads_destination(policy));
         }
+
         for subgraph in self.score_subgraphs() {
             uses.read(subgraph.captured_tensor_ids());
         }

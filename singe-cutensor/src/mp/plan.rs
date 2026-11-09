@@ -61,7 +61,8 @@ pub struct Workspace {
 impl<'comm> OperationDescriptor<'comm> {
     /// Describes `D = alpha * op_a(A) * op_b(B) + beta * op_c(C)` across communicator ranks.
     ///
-    /// The wrapper records each local shard's native sample type and required storage span for checked execution. Half and bfloat16 accumulated tensors use single-precision scaling factors.
+    /// The wrapper records each local shard's native sample type and required storage span for checked execution.
+    /// Half and bfloat16 accumulated tensors use single-precision scaling factors.
     ///
     /// # Errors
     ///
@@ -142,9 +143,8 @@ impl<'comm> OperationDescriptor<'comm> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMp operation descriptor associated with
-    /// `context`. The returned value takes ownership of `handle` and destroys
-    /// it on drop.
+    /// `handle` must be a valid cuTENSORMp operation descriptor associated with `context`.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -226,9 +226,9 @@ impl<'comm> PlanPreference<'comm> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMp plan preference associated with
-    /// `context`. Metadata arguments must describe the raw preference. The
-    /// returned value takes ownership of `handle` and destroys it on drop.
+    /// `handle` must be a valid cuTENSORMp plan preference associated with `context`.
+    /// Metadata arguments must describe the raw preference.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -294,7 +294,9 @@ impl<'comm> PlanPreference<'comm> {
 impl<'comm> Plan<'comm> {
     /// Collectively plans a distributed operation with optional algorithm and local workspace preferences.
     ///
-    /// All communicator ranks must provide matching operation descriptions and algorithm choices. Workspace limits are local resource budgets and may differ by rank. Plans created from raw descriptors without tracked signatures require explicit raw execution.
+    /// All communicator ranks must provide matching operation descriptions and algorithm choices.
+    /// Workspace limits are local resource budgets and may differ by rank.
+    /// Plans created from raw descriptors without tracked signatures require explicit raw execution.
     ///
     /// # Errors
     ///
@@ -338,8 +340,8 @@ impl<'comm> Plan<'comm> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMp plan associated with `context`. The
-    /// returned value takes ownership of `handle` and destroys it on drop.
+    /// `handle` must be a valid cuTENSORMp plan associated with `context`.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -383,7 +385,9 @@ impl<'comm> Plan<'comm> {
 
     /// Submits a distributed contraction using checked local device allocations.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending. All participating communicator ranks must issue matching operations. Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// All participating communicator ranks must issue matching operations.
+    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
     ///
     /// # Errors
     ///
@@ -424,6 +428,7 @@ impl<'comm> Plan<'comm> {
                 memory: TScalar::data_type(),
             });
         }
+
         workspace.prepare(&self.context, self.workspace()?)?;
         // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
         unsafe {
@@ -442,7 +447,9 @@ impl<'comm> Plan<'comm> {
 
     /// Submits a distributed contraction with C and D sharing the same local storage.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending. All participating communicator ranks must issue matching operations. Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// All participating communicator ranks must issue matching operations.
+    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
     ///
     /// # Errors
     ///
@@ -481,6 +488,7 @@ impl<'comm> Plan<'comm> {
                 memory: TScalar::data_type(),
             });
         }
+
         workspace.prepare(&self.context, self.workspace()?)?;
         // SAFETY: the tensors, scalars and workspace were validated against this plan context above and stay borrowed for the call.
         unsafe {
@@ -501,14 +509,13 @@ impl<'comm> Plan<'comm> {
     ///
     /// # Safety
     ///
-    /// Pointers must refer to the local rank's tensor shards and workspaces
-    /// matching the descriptors and plan. Scalars must have the type expected by
-    /// cuTENSORMp for the data-type combination. All pointers must remain valid
-    /// for the duration of the launched operation, and `d`, `device_workspace`,
-    /// and `host_workspace` must be writable according to the plan's workspace
-    /// requirements.
+    /// Pointers must refer to the local rank's tensor shards and workspaces matching the descriptors and plan.
+    /// Scalars must have the type expected by cuTENSORMp for the data-type combination.
+    /// All pointers must remain valid for the duration of the launched operation, and `d`, `device_workspace`, and `host_workspace` must be writable according to the plan's workspace requirements.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending. All participating communicator ranks must issue matching operations. Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// All participating communicator ranks must issue matching operations.
+    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
     ///
     /// # Errors
     ///
@@ -524,7 +531,7 @@ impl<'comm> Plan<'comm> {
         device_workspace: *mut (),
         host_workspace: *mut (),
     ) -> Result<()> {
-        let _lock = self.context.lock_execution();
+        let _lock = self.context.lock_execution()?;
         self.context.bind()?;
         // SAFETY: `cutensorMpContract` receives live handles owned by the wrappers.
         unsafe {
@@ -593,7 +600,6 @@ impl Workspace {
 impl Drop for OperationDescriptor<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
             eprintln!(
                 "failed to bind cutensormp context before destroying operation descriptor: {error}"
             );
@@ -602,8 +608,10 @@ impl Drop for OperationDescriptor<'_> {
         // SAFETY: `cutensorMpDestroyOperationDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyOperationDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormp operation descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensormp operation descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -612,7 +620,6 @@ impl Drop for OperationDescriptor<'_> {
 impl Drop for PlanPreference<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
             eprintln!(
                 "failed to bind cutensormp context before destroying plan preference: {error}"
             );
@@ -621,8 +628,10 @@ impl Drop for PlanPreference<'_> {
         // SAFETY: `cutensorMpDestroyPlanPreference` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyPlanPreference(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormp plan preference: {error}");
+                eprintln!(
+                    "failed to destroy cutensormp plan preference: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -631,15 +640,19 @@ impl Drop for PlanPreference<'_> {
 impl Drop for Plan<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cutensormp context before destroying plan: {error}");
+            eprintln!(
+                "failed to bind cutensormp context before destroying plan: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cutensorMpDestroyPlan` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyPlan(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormp plan: {error}");
+                eprintln!(
+                    "failed to destroy cutensormp plan: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -676,6 +689,7 @@ impl Shard {
                 memory: T::data_type(),
             });
         }
+
         if (memory.byte_len() as u64) < self.bytes {
             return Err(Error::InsufficientWorkspaceSize {
                 required: self.bytes,
@@ -767,6 +781,7 @@ impl<'comm> OperationDescriptor<'comm> {
                 source_modes.as_ptr()
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -795,8 +810,8 @@ impl<'comm> OperationDescriptor<'comm> {
     }
 
     /// Creates an operation descriptor for a distributed tensor folding (matrix -> tensor).
-    /// The groups describe the destination tensor. Replication factors may differ;
-    /// the planner broadcasts data or drops redundant replicas as needed.
+    /// The groups describe the destination tensor.
+    /// Replication factors may differ; the planner broadcasts data or drops redundant replicas as needed.
     ///
     /// # Errors
     ///
@@ -839,6 +854,7 @@ impl<'comm> OperationDescriptor<'comm> {
         if matrix.rank() != 2 || sorted != (0..tensor.rank() as usize).collect::<Vec<_>>() {
             return Err(Error::out_of_range("mode groups"));
         }
+
         for (axis, group) in [groups.rows, groups.columns].into_iter().enumerate() {
             let extent = group.iter().try_fold(1u64, |a, &index| {
                 a.checked_mul(tensor.shape()[index])
@@ -848,6 +864,7 @@ impl<'comm> OperationDescriptor<'comm> {
                 return Err(Error::out_of_range("matrix extent"));
             }
         }
+
         let indices = indices
             .iter()
             .map(|&i| i32::try_from(i).map_err(|_| Error::out_of_range("mode index")))
@@ -887,6 +904,7 @@ impl<'comm> OperationDescriptor<'comm> {
                 TransferKind::Redistribute => unreachable!(),
             }
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -910,7 +928,8 @@ impl<'comm> Plan<'comm> {
         if self.context.cuda_context() != stream.context() {
             return Err(Error::StreamContextMismatch);
         }
-        let _lock = self.context.lock_execution();
+
+        let _lock = self.context.lock_execution()?;
         self.context.bind()?;
         self.context.cuda_context().synchronize()?;
         // SAFETY: `cutensorMpSetStream` receives live handles owned by the wrappers.
@@ -921,13 +940,16 @@ impl<'comm> Plan<'comm> {
                 stream.as_raw().cast()
             ))?;
         }
+
         self.stream = Some(stream.clone());
         Ok(())
     }
 
     /// Performs a distributed tensor redistribution across multiple processes.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending. All participating communicator ranks must issue matching operations. Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// All participating communicator ranks must issue matching operations.
+    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
     ///
     /// # Errors
     ///
@@ -943,7 +965,9 @@ impl<'comm> Plan<'comm> {
 
     /// Performs a distributed tensor unfolding (tensor -> matrix) across multiple processes.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending. All participating communicator ranks must issue matching operations. Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// All participating communicator ranks must issue matching operations.
+    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
     ///
     /// # Errors
     ///
@@ -959,7 +983,9 @@ impl<'comm> Plan<'comm> {
 
     /// Performs a distributed tensor folding (matrix -> tensor) across multiple processes.
     ///
-    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending. All participating communicator ranks must issue matching operations. Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
+    /// Execution uses the plan's configured stream or the handle stream and may leave CUDA work pending.
+    /// All participating communicator ranks must issue matching operations.
+    /// Preserve input readiness and retain allocations, plans, and workspace through host and device completion on every path.
     ///
     /// # Errors
     ///
@@ -991,10 +1017,11 @@ impl<'comm> Plan<'comm> {
         if *expected != kind {
             return Err(operation_mismatch("matching transfer"));
         }
+
         src.validate(source, "source")?;
         dst.validate(destination, "destination")?;
         workspace.prepare(&self.context, self.workspace()?)?;
-        let _lock = self.context.lock_execution();
+        let _lock = self.context.lock_execution()?;
         self.context.bind()?;
         // SAFETY: `cutensorMpRedistribute`, `cutensorMpUnfold`, `cutensorMpFold` receive live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {

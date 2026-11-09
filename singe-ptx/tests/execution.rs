@@ -1,6 +1,6 @@
-use std::{error::Error, result::Result as StdResult};
-
 mod support;
+
+use std::{error::Error, result::Result as StdResult};
 
 use singe_ptx::emulator::{Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
 use support::Observe;

@@ -32,13 +32,12 @@ impl fmt::Debug for RetainedRegion {
 impl Bindings<'_> {
     /// Binds a retained byte range in the tensor's native storage encoding.
     /// Supports packed encodings, subranges and stream-ordered allocations.
-    /// Owned execution derives access declarations from the graph
-    /// and retain this range independently of the returned output and graph replay handles.
+    /// Owned execution derives access declarations from the graph and retain this range independently of the returned output and graph replay handles.
     /// Cloning bindings shares the retained owner; rebinding releases only this binding's reference.
     /// `access` limits native uses, including captures and storage views resolved to this binding.
     ///
-    /// This establishes ownership and capacity, not initialization, valid addressing metadata
-    /// or permission for concurrent access. Execution retains its unsafe access contract.
+    /// This establishes ownership and capacity, not initialization, valid addressing metadata or permission for concurrent access.
+    /// Execution retains its unsafe access contract.
     /// Effective layout capacity and alignment are checked when preparing execution.
     ///
     /// # Errors
@@ -86,6 +85,7 @@ impl Bindings<'_> {
                 resources.retain(Arc::clone(owner));
             }
         }
+
         resources.retain(Arc::new(self.scalar_storage));
     }
 }

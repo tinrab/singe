@@ -73,6 +73,7 @@ fn run() -> Result<()> {
     if let Some(tensor) = seed_tensor {
         config = config.with_seed_source(RandomNumberSeedSource::Device { tensor, offset });
     }
+
     let distribution = config.distribution();
     let random =
         graph.random_number_generator(shape, config, TensorOutputConfig::new().virtual_tensor())?;
@@ -103,6 +104,7 @@ fn run() -> Result<()> {
     if let Some((tensor, memory)) = seed_tensor.zip(seed_device.as_ref()) {
         bindings.set_input(tensor, memory)?;
     }
+
     bindings.set(output, &mut output_device)?;
     // SAFETY: inputs, RNG state, writable output and workspace remain live through stream completion.
     ctx.execute_and_wait(|context| unsafe {

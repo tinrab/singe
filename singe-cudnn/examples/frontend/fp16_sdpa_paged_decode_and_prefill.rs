@@ -75,6 +75,7 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
         let capacity = query_spec.storage_byte_len(None)?;
         query_spec = query_spec.with_ragged_byte_capacity(capacity);
     }
+
     let q = graph.tensor(query_spec);
     let q_offsets = if is_ragged_prefill {
         let id = graph.tensor(
@@ -224,6 +225,7 @@ fn run_phase(example: &common::ExampleContext, phase: Phase, block_size: i64) ->
     if let Some((id, memory)) = &q_offsets_dev {
         bindings.set_input(*id, memory)?;
     }
+
     bindings.set(o, &mut o_dev)?;
     bindings.set(stats, &mut stats_dev)?;
     // SAFETY: initialized cache/index inputs, writable results and workspace remain live through stream completion.

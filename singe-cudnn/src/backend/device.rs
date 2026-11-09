@@ -88,6 +88,7 @@ impl DeviceProperties {
                 if device.id() < 0 {
                     return Err(Error::out_of_range("device properties device id"));
                 }
+
                 descriptor
                     .set_attribute_i32(BackendAttributeName::DevicePropDeviceId, device.id())?;
                 descriptor.finalize()?;
@@ -107,6 +108,7 @@ impl DeviceProperties {
                         context.as_raw(),
                     )?;
                 }
+
                 descriptor.finalize()?;
                 sm_version_for_device(context.cuda_context().device())?
             }

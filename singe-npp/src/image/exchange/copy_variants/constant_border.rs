@@ -164,7 +164,8 @@ pub unsafe fn copy_constant_border_u8_c4(
     Ok(())
 }
 
-/// Copies the source image into the destination at pixel offset `(left, top)` and fills the surrounding border with `value`. The destination alpha channel is not processed.
+/// Copies the source image into the destination at pixel offset `(left, top)` and fills the surrounding border with `value`.
+/// The destination alpha channel is not processed.
 ///
 /// Calls [`sys::nppiCopyConstBorder_8u_AC4R_Ctx`].
 ///

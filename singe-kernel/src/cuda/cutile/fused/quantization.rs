@@ -21,7 +21,8 @@ use crate::{
 /// # Safety
 /// Pointers must cover the configured ranges in the stream context.
 /// Writable ranges must not overlap each other or any input; read-only inputs may alias.
-/// Retain them through completion and replay. `dtype` must name T's cuTile storage type.
+/// Retain them through completion and replay.
+/// `dtype` must name T's cuTile storage type.
 pub unsafe fn rms_norm_add_quantize_fp8<T: DType + ElementType + Send>(
     stream: &Arc<Stream>,
     out: DevicePointer<f8e4m3fn>,
@@ -39,14 +40,17 @@ pub unsafe fn rms_norm_add_quantize_fp8<T: DType + ElementType + Send>(
     if !norm_eps.is_finite() || norm_eps < 0.0 || !weight_offset.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     if config.rows == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&scales)?;
     for ptr in [residual_out, input, residual, weight] {
         checked_device_pointer(&ptr)?;
     }
+
     let bn = config
         .columns
         .checked_next_power_of_two()
@@ -92,7 +96,8 @@ pub unsafe fn rms_norm_add_quantize_fp8<T: DType + ElementType + Send>(
 /// # Safety
 /// Pointers must cover the configured ranges in the stream context.
 /// Writable ranges must not overlap each other or any input; read-only inputs may alias.
-/// Retain them through completion and replay. `dtype` must name T's cuTile storage type.
+/// Retain them through completion and replay.
+/// `dtype` must name T's cuTile storage type.
 pub unsafe fn silu_mul_quantize_fp8<T: DType + ElementType + Send>(
     stream: &Arc<Stream>,
     out: DevicePointer<f8e4m3fn>,
@@ -106,6 +111,7 @@ pub unsafe fn silu_mul_quantize_fp8<T: DType + ElementType + Send>(
     if config.rows == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&scales)?;
     checked_device_pointer(&gate)?;

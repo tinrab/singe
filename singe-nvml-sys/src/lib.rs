@@ -9,7 +9,6 @@
     unused_imports,
     unused_qualifications,
     non_upper_case_globals,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -22,9 +21,24 @@
 )]
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+pub use singe_loader::LoadError;
 
 #[cfg(feature = "nvml_615")]
 include!("nvml_sys_13.rs");
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::nvml();
+
+// Loads NVML, which every function otherwise does on first call, returning `NVML_ERROR_LIBRARY_NOT_FOUND` when it cannot.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "nvml_615")]
+singe_loader::missing_status!(
+    nvmlReturn_t,
+    library: nvmlReturn_t::NVML_ERROR_LIBRARY_NOT_FOUND,
+    symbol: nvmlReturn_t::NVML_ERROR_FUNCTION_NOT_FOUND,
+);
 
 #[cfg(feature = "nvml_615")]
 pub use self::{

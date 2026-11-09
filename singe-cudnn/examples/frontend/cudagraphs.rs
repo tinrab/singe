@@ -69,6 +69,7 @@ fn build_graph(
             .collect();
         b_spec = b_spec.with_workspace_data(bytes)?;
     }
+
     let b_tensor = graph.insert_tensor(TensorId::new(1101), b_spec)?;
     let matmul = graph
         .tensor(TensorSpec::new(DataType::F32, Shape::contiguous([b, m, n])?).virtual_tensor());
@@ -112,6 +113,7 @@ fn bind_graph<'a>(
     if let Some(b_dev) = b_dev {
         bindings.set_input(b_tensor, b_dev)?;
     }
+
     bindings.set_scalar(bias, ScalarValue::f16_bits(bias_value.to_bits()))?;
     bindings.set(d, d_dev)?;
     Ok(bindings)
@@ -179,6 +181,7 @@ fn run() -> Result<()> {
     unsafe {
         main_exec.launch(&context.stream)?;
     }
+
     context.stream.synchronize()?;
 
     let a_dev_new = DeviceMemory::from_slice(
@@ -225,6 +228,7 @@ fn run() -> Result<()> {
     unsafe {
         main_exec.launch(&context.stream)?;
     }
+
     context.stream.synchronize()?;
 
     Ok(())

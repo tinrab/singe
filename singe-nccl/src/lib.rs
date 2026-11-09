@@ -1,24 +1,30 @@
 //! NCCL communicators, raw collectives, and completed local multi-rank operations.
 //!
-//! This crate provides Rust ownership around NCCL communicators, unique IDs,
-//! grouped calls, local multi-rank orchestration, collective operations, device
-//! buffers, and NCCL memory helpers.
+//! This crate provides Rust ownership around NCCL communicators, unique IDs, grouped calls, local multi-rank orchestration, collective operations, device buffers, and NCCL memory helpers.
 
 /// Per-collective algorithm settings, vendor extensions, and launch-completion events.
 pub mod collective;
+
 /// Communicator creation, lifecycle, registration, and queued communication.
 pub mod communicator;
+
 pub mod encryption;
+
 /// NCCL status codes, wrapper errors, and result types.
 pub mod error;
+
 /// Thread-local NCCL operation groups and simulated execution.
 pub mod group;
+
 /// Completed collectives across a group of ranks hosted in one process.
 pub mod local;
+
 pub mod memory;
 pub mod parameter;
+
 /// Typed NCCL identifiers, operations, flags, and communicator configuration.
 pub mod types;
+
 pub(crate) mod utility;
 
 /// Serialized CUDA test setup for NCCL.
@@ -43,6 +49,7 @@ pub fn version() -> Result<LibraryVersion> {
     unsafe {
         try_ffi!(sys::ncclGetVersion(&raw mut value))?;
     }
+
     // NCCL encodes versions as `major * 10000 + minor * 100 + patch` since 2.9.
     let value = to_u64(value, "nccl version")?;
     Ok(LibraryVersion::new(
@@ -54,8 +61,7 @@ pub fn version() -> Result<LibraryVersion> {
 
 /// Generates a [`UniqueId`] for [`Communicator::create_rank`](crate::communicator::Communicator::create_rank).
 ///
-/// Call this once for a communicator clique and distribute the returned value to
-/// all ranks before creating per-rank communicators.
+/// Call this once for a communicator clique and distribute the returned value to all ranks before creating per-rank communicators.
 ///
 /// # Errors
 ///

@@ -32,6 +32,7 @@ pub fn compare(
             "scalar f16 setp has one destination",
         )?;
     }
+
     if ty == ScalarType::F16x2 {
         require(
             matches!(d, Operand::Pair { .. }),
@@ -39,6 +40,7 @@ pub fn compare(
             "packed setp requires paired predicates",
         )?;
     }
+
     let (destination, inverse) = paired_destination(compiler, d, ScalarType::Pred)?;
     Ok(Operation::Data(DataOperation::Compare {
         comparison,

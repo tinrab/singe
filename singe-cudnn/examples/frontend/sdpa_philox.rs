@@ -132,14 +132,17 @@ fn run() -> Result<()> {
     for input in [query, key, value] {
         bindings.set_input(input, &input_device.view())?;
     }
+
     if let Some((seed, offset, seed_memory, offset_memory)) = &rng_device {
         bindings.set_encoded_input_bytes(*seed, &seed_memory.view())?;
         bindings.set_encoded_input_bytes(*offset, &offset_memory.view())?;
     }
+
     if by_value_seed && let Some((seed, offset)) = tensor_rng {
         bindings.set_scalar(seed, seed_scalar)?;
         bindings.set_scalar(offset, offset_scalar)?;
     }
+
     bindings.set(output, &mut output_device)?;
     // SAFETY: all inputs are initialized; output and workspace are writable and disjoint from inputs.
     // Every allocation and host scalar remains live through stream completion.

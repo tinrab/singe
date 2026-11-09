@@ -2770,6 +2770,7 @@ pub unsafe fn fmha_prefill_mma<T: cutile::DType + Sync>(
     if !supports_fmha_prefill_mma(c) || !matches!(T::DTYPE.as_str(), "f16" | "bf16") {
         return Err(Error::InvalidLength);
     }
+
     checked_i32_value(checked_element_count(c.batch, c.output_batch_stride)?)?;
     checked_device_pointer(&out)?;
     checked_device_pointer(&query)?;
@@ -2778,6 +2779,7 @@ pub unsafe fn fmha_prefill_mma<T: cutile::DType + Sync>(
     if let Some(lse) = lse {
         checked_device_pointer(&lse)?;
     }
+
     let query = TensorAdapter::contiguous_4d(query, c.batch, c.query_len, c.heads, c.head_dim)?;
     let key = TensorAdapter::contiguous_4d(key, c.batch, c.key_len, c.kv_heads, c.head_dim)?;
     let value = TensorAdapter::contiguous_4d(value, c.batch, c.key_len, c.kv_heads, c.head_dim)?;

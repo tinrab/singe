@@ -121,6 +121,7 @@ fn validate_pool2d(out_len: usize, input_len: usize, config: Pool2dConfig) -> Re
     {
         return Err(Error::InvalidLength);
     }
+
     let input_hw = checked_element_count(config.input_height, config.input_width)?;
     let input_chw = checked_element_count(config.channels, input_hw)?;
     let expected_input = checked_element_count(config.batch, input_chw)?;

@@ -150,8 +150,8 @@ pub enum ArrayShape {
 bitflags::bitflags! {
     /// Usage capabilities requested when allocating an array or mipmap chain.
     ///
-    /// Layered and cube-map flags are derived from [`ArrayShape`]. CUDA validates
-    /// the supported combinations of shape, format, and usage capabilities.
+    /// Layered and cube-map flags are derived from [`ArrayShape`].
+    /// CUDA validates the supported combinations of shape, format, and usage capabilities.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
     pub struct ArrayFlags: u32 {
         /// Allows binding the array for surface loads and stores.
@@ -228,8 +228,8 @@ impl ArrayShape {
 
     /// Returns the three-dimensional transfer extent in texels.
     ///
-    /// Unused spatial dimensions become one. The last dimension counts layers for
-    /// layered arrays and faces for cube maps.
+    /// Unused spatial dimensions become one.
+    /// The last dimension counts layers for layered arrays and faces for cube maps.
     ///
     /// # Errors
     ///
@@ -334,6 +334,7 @@ impl ArrayRegion {
                 return Err(Error::InvalidMemoryAccess);
             }
         }
+
         self.len()?;
         Ok(())
     }
@@ -436,8 +437,10 @@ impl Drop for ArrayAllocation {
             // SAFETY: `cuArrayDestroy` receives live handles owned by the wrappers.
             .and_then(|()| unsafe { try_ffi!(sys::cuArrayDestroy(self.handle)) })
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy cuda array: {error}");
+            eprintln!(
+                "failed to destroy cuda array: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -521,11 +524,13 @@ impl<T: ArrayElement, S> Array<T, S> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the region is outside the array, the element count does not match the region volume, or transfer size or offset calculations overflow. Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if the region is outside the array, the element count does not match the region volume, or transfer size or offset calculations overflow.
+    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
     pub fn copy_from_host(&mut self, region: ArrayRegion, source: &[T]) -> Result<()> {
         if source.len() != region.len()? {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Host(source.as_ptr().cast()),
@@ -541,7 +546,8 @@ impl<T: ArrayElement, S> Array<T, S> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the scope belongs to another context, the source length does not match the region, the region is out of bounds, or size calculations overflow. Also propagates scope submission and CUDA copy errors.
+    /// Returns an error if the scope belongs to another context, the source length does not match the region, the region is out of bounds, or size calculations overflow.
+    /// Also propagates scope submission and CUDA copy errors.
     pub fn copy_from_host_async<'env>(
         &'env mut self,
         region: ArrayRegion,
@@ -551,9 +557,11 @@ impl<T: ArrayElement, S> Array<T, S> {
         if self.context() != scope.stream().context() {
             return Err(Error::MemoryContextMismatch);
         }
+
         if source.len() != region.len()? {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Host(source.as_ptr().cast()),
@@ -575,7 +583,8 @@ impl<T: ArrayElement, S> Array<T, S> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source belongs to another context, its length does not match the region, the region is out of bounds, or size calculations overflow. Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if the source belongs to another context, its length does not match the region, the region is out of bounds, or size calculations overflow.
+    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
     pub fn copy_from_device<B: DeviceSlice<T> + ?Sized>(
         &mut self,
         region: ArrayRegion,
@@ -584,9 +593,11 @@ impl<T: ArrayElement, S> Array<T, S> {
         if source.context() != self.context() {
             return Err(Error::MemoryContextMismatch);
         }
+
         if source.len() != region.len()? {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Device(source.as_device_ptr() as _),
@@ -605,7 +616,8 @@ impl<T: ArrayElement, S> Array<T, S> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the arrays belong to different contexts, either region is out of bounds, the regions overlap within the same array, or size calculations overflow. Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if the arrays belong to different contexts, either region is out of bounds, the regions overlap within the same array, or size calculations overflow.
+    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
     pub fn copy_from_array(
         &mut self,
         destination: [usize; 3],
@@ -615,6 +627,7 @@ impl<T: ArrayElement, S> Array<T, S> {
         if source.context() != self.context() {
             return Err(Error::MemoryContextMismatch);
         }
+
         source_region.validate(source.shape())?;
         let region = ArrayRegion::new(destination, source_region.extent);
         region.validate(self.shape())?;
@@ -626,6 +639,7 @@ impl<T: ArrayElement, S> Array<T, S> {
         {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Array(source.endpoint(source_region)?),
@@ -719,6 +733,7 @@ fn transfer<T: ArrayElement>(
             [raw.srcXInBytes, raw.srcY, raw.srcZ] = array.origin;
         }
     }
+
     match destination {
         CopyDestination::Host(pointer) => {
             raw.dstHost = pointer;
@@ -762,16 +777,18 @@ fn descriptor<T: ArrayElement>(
 impl<T: ArrayElement> Array<T, Uninitialized> {
     /// Allocates an array without initializing its texels.
     ///
-    /// `T` determines the scalar format and number of channels. The shape determines
-    /// layered and cube-map flags in addition to the supplied usage flags.
+    /// `T` determines the scalar format and number of channels.
+    /// The shape determines layered and cube-map flags in addition to the supplied usage flags.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, or CUDA rejects the requested format, dimensions, flags, or allocation. Also propagates context-binding errors and rejects a null returned handle.
+    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, or CUDA rejects the requested format, dimensions, flags, or allocation.
+    /// Also propagates context-binding errors and rejects a null returned handle.
     pub fn create(context: &Arc<Context>, shape: ArrayShape, flags: ArrayFlags) -> Result<Self> {
         if flags.bits() & !ArrayFlags::all().bits() != 0 {
             return Err(Error::InvalidValue);
         }
+
         let (descriptor, bytes) = descriptor::<T>(shape, flags)?;
         context.bind()?;
         let mut handle = ptr::null_mut();
@@ -782,6 +799,7 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
                 &raw const descriptor
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -807,7 +825,8 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source length differs from the full array volume or the full-array host copy fails. See [`Array::copy_from_host`].
+    /// Returns an error if the source length differs from the full array volume or the full-array host copy fails.
+    /// See [`Array::copy_from_host`].
     pub fn initialize(mut self, source: &[T]) -> Result<Array<T>> {
         self.copy_from_host(ArrayRegion::full(self.shape())?, source)?;
         // SAFETY: the completed full-array copy wrote valid values to every texel.
@@ -833,7 +852,8 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle is null, the expected shape or size is invalid, or the native descriptor differs from the expected typed descriptor. Also propagates context-binding and CUDA descriptor-query errors.
+    /// Returns an error if the handle is null, the expected shape or size is invalid, or the native descriptor differs from the expected typed descriptor.
+    /// Also propagates context-binding and CUDA descriptor-query errors.
     pub unsafe fn from_raw(
         handle: sys::CUarray,
         context: Arc<Context>,
@@ -843,6 +863,7 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let (expected, bytes) = descriptor::<T>(shape, flags)?;
         context.bind()?;
         let mut actual = MaybeUninit::<sys::CUDA_ARRAY3D_DESCRIPTOR>::uninit();
@@ -850,6 +871,7 @@ impl<T: ArrayElement> Array<T, Uninitialized> {
         unsafe {
             try_ffi!(sys::cuArray3DGetDescriptor_v2(actual.as_mut_ptr(), handle))?;
         }
+
         // SAFETY: `cuArray3DGetDescriptor_v2` succeeded, so it wrote the whole descriptor.
         let actual = unsafe { actual.assume_init() };
         if expected != actual {
@@ -877,7 +899,8 @@ impl<T: ArrayElement> Array<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if allocation fails or `source` does not match the full array volume. See [`Array::create`] and [`Array::initialize`].
+    /// Returns an error if allocation fails or `source` does not match the full array volume.
+    /// See [`Array::create`] and [`Array::initialize`].
     pub fn from_slice(
         context: &Arc<Context>,
         shape: ArrayShape,
@@ -891,11 +914,13 @@ impl<T: ArrayElement> Array<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the region is outside the array, the element count does not match the region volume, or transfer size or offset calculations overflow. Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if the region is outside the array, the element count does not match the region volume, or transfer size or offset calculations overflow.
+    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
     pub fn copy_to_host(&self, region: ArrayRegion, destination: &mut [T]) -> Result<()> {
         if destination.len() != region.len()? {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Array(self.endpoint(region)?),
@@ -908,7 +933,8 @@ impl<T: ArrayElement> Array<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the region is out of bounds or size calculations overflow. Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
+    /// Returns an error if the region is out of bounds or size calculations overflow.
+    /// Also propagates access-tracking, context-binding, and CUDA copy or synchronization errors.
     pub fn to_vec(&self, region: ArrayRegion) -> Result<Vec<T>> {
         region.validate(self.shape())?;
         let mut values = vec![MaybeUninit::<T>::uninit(); region.len()?];
@@ -931,7 +957,8 @@ impl<T: ArrayElement> Array<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the destination belongs to another context, its length does not match the region, the region is out of bounds, or size calculations overflow. Also propagates access-tracking, context-binding, CUDA copy or synchronization, and destination-view validation errors.
+    /// Returns an error if the destination belongs to another context, its length does not match the region, the region is out of bounds, or size calculations overflow.
+    /// Also propagates access-tracking, context-binding, CUDA copy or synchronization, and destination-view validation errors.
     pub fn copy_to_device<'a, B: DeviceOutput<T> + ?Sized>(
         &self,
         region: ArrayRegion,
@@ -940,9 +967,11 @@ impl<T: ArrayElement> Array<T> {
         if destination.context() != self.context() {
             return Err(Error::MemoryContextMismatch);
         }
+
         if destination.len() != region.len()? {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Array(self.endpoint(region)?),
@@ -965,7 +994,8 @@ impl<T: ArrayElement> Array<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the scope belongs to another context, the destination length does not match the region, the region is out of bounds, or size calculations overflow. Also propagates scope submission and CUDA copy errors.
+    /// Returns an error if the scope belongs to another context, the destination length does not match the region, the region is out of bounds, or size calculations overflow.
+    /// Also propagates scope submission and CUDA copy errors.
     pub fn copy_to_host_async<'env>(
         &'env self,
         region: ArrayRegion,
@@ -975,9 +1005,11 @@ impl<T: ArrayElement> Array<T> {
         if self.context() != scope.stream().context() {
             return Err(Error::MemoryContextMismatch);
         }
+
         if destination.len() != region.len()? {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let raw = transfer::<T>(
             region.extent,
             CopySource::Array(self.endpoint(region)?),
@@ -1073,8 +1105,10 @@ impl Drop for MipmappedAllocation {
             // SAFETY: `cuMipmappedArrayDestroy` receives live handles owned by the wrappers.
             .and_then(|()| unsafe { try_ffi!(sys::cuMipmappedArrayDestroy(self.handle)) })
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy cuda mipmapped array: {error}");
+            eprintln!(
+                "failed to destroy cuda mipmapped array: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -1115,6 +1149,7 @@ impl<T: ArrayElement, S> MipmappedArray<T, S> {
         if level >= self.levels() {
             return Err(Error::out_of_range("mipmap level"));
         }
+
         self.context().bind()?;
         let mut handle = ptr::null_mut();
         // SAFETY: `cuMipmappedArrayGetLevel` receives live handles owned by the wrappers and valid output locations.
@@ -1188,12 +1223,12 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
     /// Adopts a complete mip chain with independently owned destruction responsibility.
     ///
     /// # Safety
-    /// The handle must belong to `context`, match the exact descriptor and level count,
-    /// and have dense mapped storage before any transfer or sampling operation.
+    /// The handle must belong to `context`, match the exact descriptor and level count, and have dense mapped storage before any transfer or sampling operation.
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle is null, the shape or byte ranges are invalid, the requested level count is zero or exceeds the shape maximum, or level zero has a different typed descriptor. Also propagates context-binding and CUDA level or descriptor-query errors.
+    /// Returns an error if the handle is null, the shape or byte ranges are invalid, the requested level count is zero or exceeds the shape maximum, or level zero has a different typed descriptor.
+    /// Also propagates context-binding and CUDA level or descriptor-query errors.
     pub unsafe fn from_raw(
         handle: sys::CUmipmappedArray,
         context: Arc<Context>,
@@ -1204,6 +1239,7 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let (expected, _) = descriptor::<T>(shape, flags)?;
         let ranges = mip_level_ranges::<T>(shape, levels)?;
         context.bind()?;
@@ -1212,15 +1248,18 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
         unsafe {
             try_ffi!(sys::cuMipmappedArrayGetLevel(&raw mut level, handle, 0))?;
         }
+
         let mut actual = MaybeUninit::<sys::CUDA_ARRAY3D_DESCRIPTOR>::uninit();
         // SAFETY: `cuArray3DGetDescriptor_v2` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuArray3DGetDescriptor_v2(actual.as_mut_ptr(), level))?;
         }
+
         // SAFETY: `cuArray3DGetDescriptor_v2` succeeded, so it wrote the whole descriptor.
         if expected != unsafe { actual.assume_init() } {
             return Err(Error::InvalidMemoryAccess);
         }
+
         // SAFETY: `cuMipmappedArrayGetLevel` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuMipmappedArrayGetLevel(
@@ -1245,12 +1284,12 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
 
     /// Allocates a mipmap chain without initializing its texels.
     ///
-    /// Each level halves spatial dimensions, rounded down to a minimum of one;
-    /// layer and cube counts remain constant.
+    /// Each level halves spatial dimensions, rounded down to a minimum of one; layer and cube counts remain constant.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, or `levels` is zero or exceeds the shape maximum. Also propagates context-binding and CUDA allocation errors and rejects a null returned handle.
+    /// Returns an error if dimensions are zero, size calculations overflow, flags contain unknown bits, or `levels` is zero or exceeds the shape maximum.
+    /// Also propagates context-binding and CUDA allocation errors and rejects a null returned handle.
     pub fn create(
         context: &Arc<Context>,
         shape: ArrayShape,
@@ -1260,6 +1299,7 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
         if flags.bits() & !ArrayFlags::all().bits() != 0 {
             return Err(Error::InvalidValue);
         }
+
         let (desc, _) = descriptor::<T>(shape, flags)?;
         let ranges = mip_level_ranges::<T>(shape, levels)?;
         context.bind()?;
@@ -1272,6 +1312,7 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
                 levels
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -1291,8 +1332,8 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
 
     /// Initializes every mip level from one contiguous host slice per level.
     ///
-    /// `levels[0]` supplies the largest level. Each slice must contain all texels of
-    /// that level, including its layers or cube faces.
+    /// `levels[0]` supplies the largest level.
+    /// Each slice must contain all texels of that level, including its layers or cube faces.
     ///
     /// # Errors
     ///
@@ -1300,11 +1341,13 @@ impl<T: ArrayElement> MipmappedArray<T, Uninitialized> {
     ///
     /// # Panics
     ///
-    /// Panics if a level index cannot fit in `u32`. Construction bounds the level count by `u32`, so this condition cannot occur for a valid mipmapped array.
+    /// Panics if a level index cannot fit in `u32`.
+    /// Construction bounds the level count by `u32`, so this condition cannot occur for a valid mipmapped array.
     pub fn initialize(mut self, levels: &[&[T]]) -> Result<MipmappedArray<T>> {
         if levels.len() != self.levels() as usize {
             return Err(Error::InvalidMemoryAccess);
         }
+
         for (level, values) in levels.iter().enumerate() {
             let mut array = self.level_mut(
                 u32::try_from(level).expect("mipmap level is bounded by the u32 level count"),
@@ -1333,6 +1376,7 @@ fn mip_level_ranges<T: ArrayElement>(shape: ArrayShape, levels: u32) -> Result<V
     if levels == 0 || levels > shape.maximum_levels() {
         return Err(Error::out_of_range("mipmap level count"));
     }
+
     let mut end = 0usize;
     (0..levels)
         .map(|level| {

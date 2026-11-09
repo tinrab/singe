@@ -4,7 +4,7 @@
 [![Documentation](https://docs.rs/singe-cudnn/badge.svg)](https://docs.rs/singe-cudnn)
 ![License](https://img.shields.io/crates/l/singe-cudnn.svg)
 
-Rust wrappers for NVIDIA cuDNN, the deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend.
+Safe Rust wrappers for NVIDIA cuDNN, the deep neural network library, including a Rust port of NVIDIA's cuDNN Frontend.
 
 This crate provides:
 

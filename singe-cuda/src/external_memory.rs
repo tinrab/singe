@@ -99,13 +99,16 @@ impl ExternalMemory {
     ///
     /// # Safety
     /// `fd` must reference a compatible memory object of `size` bytes on this context's device.
-    /// CUDA takes descriptor ownership on success. Do not use it afterward.
+    /// CUDA takes descriptor ownership on success.
+    /// Do not use it afterward.
     /// Keep external backing resources alive and coordinate foreign accesses with all CUDA accesses.
     /// Do not create independently mutable imports of overlapping external storage.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size. Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle. Descriptor ownership remains with the caller if the native import fails.
+    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size.
+    /// Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
+    /// Descriptor ownership remains with the caller if the native import fails.
     #[cfg(unix)]
     pub unsafe fn import_opaque_file_descriptor(
         context: &Arc<Context>,
@@ -128,7 +131,9 @@ impl ExternalMemory {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null. Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size. Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
+    /// Returns `Error::NullHandle` if `handle` is null.
+    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size.
+    /// Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
     pub unsafe fn import_opaque_win32_handle(
         context: &Arc<Context>,
         handle: *mut c_void,
@@ -138,6 +143,7 @@ impl ExternalMemory {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let mut desc = handle_desc(ExternalMemoryHandleType::OpaqueWin32, size, flags)?;
         desc.handle.win32.handle = handle;
         desc.handle.win32.name = ptr::null();
@@ -154,7 +160,9 @@ impl ExternalMemory {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `name` is null. Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size. Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
+    /// Returns `Error::NullHandle` if `name` is null.
+    /// Returns `Error::InvalidMemoryAllocationRequest` for a zero byte size.
+    /// Also propagates context binding and native import errors, or `Error::NullHandle` for a null imported CUDA handle.
     pub unsafe fn import_opaque_win32_name(
         context: &Arc<Context>,
         name: *const c_void,
@@ -164,6 +172,7 @@ impl ExternalMemory {
         if name.is_null() {
             return Err(Error::NullHandle);
         }
+
         let mut desc = handle_desc(ExternalMemoryHandleType::OpaqueWin32, size, flags)?;
         desc.handle.win32.handle = ptr::null_mut();
         desc.handle.win32.name = name;
@@ -188,14 +197,17 @@ impl ExternalMemory {
 
     /// Consumes this import and maps uninitialized typed storage.
     ///
-    /// One import owns one native mapping. Use borrowed views and splits for subranges.
+    /// One import owns one native mapping.
+    /// Use borrowed views and splits for subranges.
     /// This avoids overlapping native mappings with distinct virtual aliases and coherence requirements.
     /// Mapping establishes no claim about externally produced values or completion.
     /// Offset and size must also satisfy the originating API's alignment requirements.
     ///
     /// # Errors
     ///
-    /// Returns an error if the typed byte count or range end overflows, the range exceeds the imported object, the context cannot be bound, or CUDA rejects the mapping. Also rejects a null nonempty mapping, a mapping address not aligned for `T`, or an invalid mapped address range. The consumed import is released on failure unless a native mapping cannot be safely freed.
+    /// Returns an error if the typed byte count or range end overflows, the range exceeds the imported object, the context cannot be bound, or CUDA rejects the mapping.
+    /// Also rejects a null nonempty mapping, a mapping address not aligned for `T`, or an invalid mapped address range.
+    /// The consumed import is released on failure unless a native mapping cannot be safely freed.
     ///
     /// # Panics
     ///
@@ -213,6 +225,7 @@ impl ExternalMemory {
         if end > self.size {
             return Err(Error::InvalidMemoryAccess);
         }
+
         self.context.bind()?;
         let mut pointer = 0;
         if bytes != 0 {
@@ -234,6 +247,7 @@ impl ExternalMemory {
                 return Err(Error::NullHandle);
             }
         }
+
         let allocation = Arc::new(MappedAllocation {
             memory: ManuallyDrop::new(self),
             ptr: pointer as *mut u8,
@@ -250,6 +264,7 @@ impl ExternalMemory {
                 bytes,
             )?
         };
+
         if bytes != 0
             && !pointer.is_multiple_of(
                 u64::try_from(align_of::<T>()).expect("alignment fits a device address"),
@@ -290,7 +305,8 @@ impl ExternalMemory {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` for a null handle or `Error::InvalidMemoryAllocationRequest` for a zero byte size. The caller must satisfy the remaining handle validity and ownership requirements.
+    /// Returns `Error::NullHandle` for a null handle or `Error::InvalidMemoryAllocationRequest` for a zero byte size.
+    /// The caller must satisfy the remaining handle validity and ownership requirements.
     pub unsafe fn from_raw(
         context: &Arc<Context>,
         handle: driver::CUexternalMemory,
@@ -299,6 +315,7 @@ impl ExternalMemory {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         if size == 0 {
             return Err(Error::InvalidMemoryAllocationRequest);
         }
@@ -328,8 +345,10 @@ impl Drop for ExternalMemory {
             // SAFETY: this wrapper owns the live unmapped import in the bound context.
             unsafe { try_ffi!(driver::cuDestroyExternalMemory(self.handle)) }
         }) {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy cuda external memory: {error}");
+            eprintln!(
+                "failed to destroy cuda external memory: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -400,10 +419,13 @@ impl Drop for MappedAllocation {
             })
         {
             // Preserve the imported memory and its context if the native mapping could still be live.
-            #[cfg(debug_assertions)]
-            eprintln!("failed to free cuda mapped external memory buffer: {error}");
+            eprintln!(
+                "failed to free cuda mapped external memory buffer: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
+
         // SAFETY: native mapping destruction completed before destroying its sole imported-memory owner.
         unsafe { ManuallyDrop::drop(&mut self.memory) };
     }
@@ -470,7 +492,8 @@ impl<T: DeviceRepr> MappedBuffer<T> {
     ///
     /// # Errors
     ///
-    /// Returns `Err(self)` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it. The returned original buffer retains its mapping unchanged.
+    /// Returns `Err(self)` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it.
+    /// The returned original buffer retains its mapping unchanged.
     pub fn cast<U: AnyBitPatternDeviceRepr>(self) -> StdResult<MappedBuffer<U>, Self>
     where
         T: NoUninitDeviceRepr,
@@ -512,7 +535,8 @@ impl<T: DeviceRepr> MappedBuffer<MaybeUninit<T>> {
     ///
     /// # Errors
     ///
-    /// Returns `Err(self)` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it. The returned original buffer retains its mapping unchanged.
+    /// Returns `Err(self)` if the target type has zero size, the byte count is not a multiple of its size, or a nonempty mapping address is not aligned for it.
+    /// The returned original buffer retains its mapping unchanged.
     pub fn cast_uninit<U: DeviceRepr>(self) -> StdResult<MappedBuffer<MaybeUninit<U>>, Self> {
         let () = U::LAYOUT;
         let bytes = self.byte_len();
@@ -551,11 +575,13 @@ impl<T: DeviceRepr> MappedBuffer<MaybeUninit<T>> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` if `length` exceeds the buffer's element count. Value validity and producer ordering remain the caller's responsibility.
+    /// Returns `Error::InvalidMemoryAccess` if `length` exceeds the buffer's element count.
+    /// Value validity and producer ordering remain the caller's responsibility.
     pub unsafe fn assume_init_prefix(mut self, length: usize) -> Result<MappedBuffer<T>> {
         if length > self.length {
             return Err(Error::InvalidMemoryAccess);
         }
+
         self.length = length;
         // SAFETY: the caller upholds this function's safety contract.
         unsafe { Ok(self.assume_init()) }

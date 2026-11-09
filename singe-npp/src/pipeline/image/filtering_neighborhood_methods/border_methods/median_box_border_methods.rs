@@ -16,26 +16,23 @@ where
 {
     /// Applies a median filter with source border control into a new owned image.
     ///
-    /// `source_offset` locates the output ROI in the full source image. The output extends
-    /// from that pixel to the lower-right source edge. `mask_size` gives the neighborhood
-    /// dimensions and `anchor` locates the source pixel within it. For AC4, copies the
-    /// source window before filtering to preserve alpha.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The output extends from that pixel to the lower-right source edge.
+    /// `mask_size` gives the neighborhood dimensions and `anchor` locates the source pixel within it.
+    /// For AC4, copies the source window before filtering to preserve alpha.
     /// Allocates temporary device scratch and retains it through native completion.
     /// Forwards `border_type` to NPP, which may reject unsupported values.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native filtering, or stream synchronization fail.
-    /// The source offset must select a source pixel; ROI endpoints must not overflow or
-    /// exceed the source image. Mask dimensions must be positive and the anchor must lie
-    /// inside the mask.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native filtering, or stream synchronization fail.
+    /// The source offset must select a source pixel; ROI endpoints must not overflow or exceed the source image.
+    /// Mask dimensions must be positive and the anchor must lie inside the mask.
     /// Scratch-size queries, checked size conversions, or scratch allocation can fail.
-    /// Output allocation or image view construction can also fail. Copying source alpha
-    /// can fail.
+    /// Output allocation or image view construction can also fail.
+    /// Copying source alpha can fail.
     pub fn filter_median_border(
         self,
         source_offset: Point,
@@ -54,6 +51,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as MedianBorderFilterImage<T, L>>::filter_median_border_image(
                 self.stream_context,
                 &source,
@@ -82,24 +80,21 @@ where
 {
     /// Applies a rectangular averaging filter with source border control into a new owned image.
     ///
-    /// `source_offset` locates the output ROI in the full source image. The output extends
-    /// from that pixel to the lower-right source edge. `mask_size` gives the neighborhood
-    /// dimensions and `anchor` locates the source pixel within it. For AC4, copies the
-    /// source window before filtering to preserve alpha.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The output extends from that pixel to the lower-right source edge.
+    /// `mask_size` gives the neighborhood dimensions and `anchor` locates the source pixel within it.
+    /// For AC4, copies the source window before filtering to preserve alpha.
     /// Forwards `border_type` to NPP, which may reject unsupported values.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native filtering, or stream synchronization fail.
-    /// The source offset must select a source pixel; ROI endpoints must not overflow or
-    /// exceed the source image. Mask dimensions must be positive and the anchor must lie
-    /// inside the mask.
-    /// Output allocation or image view construction can also fail. Copying source alpha
-    /// can fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native filtering, or stream synchronization fail.
+    /// The source offset must select a source pixel; ROI endpoints must not overflow or exceed the source image.
+    /// Mask dimensions must be positive and the anchor must lie inside the mask.
+    /// Output allocation or image view construction can also fail.
+    /// Copying source alpha can fail.
     pub fn filter_box_border(
         self,
         source_offset: Point,
@@ -118,6 +113,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as BoxBorderFilterImage<T, L>>::filter_box_border_image(
                 self.stream_context,
                 &source,

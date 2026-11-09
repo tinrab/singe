@@ -19,8 +19,7 @@ use crate::{
     },
 };
 
-/// Block dimensions a kernel accepts, from its `.reqntid` and `.maxntid` directives
-/// and the `sm_80` limits.
+/// Block dimensions a kernel accepts, from its `.reqntid` and `.maxntid` directives and the `sm_80` limits.
 #[derive(Debug, Clone)]
 pub struct LaunchRequirements {
     required: Option<[u32; 3]>,
@@ -47,8 +46,7 @@ impl LaunchRequirements {
     ///
     /// # Errors
     ///
-    /// Returns an error if a dimension is zero or exceeds the `sm_80` limits, or if
-    /// `dimensions` violates `.reqntid` or `.maxntid`.
+    /// Returns an error if a dimension is zero or exceeds the `sm_80` limits, or if `dimensions` violates `.reqntid` or `.maxntid`.
     pub fn validate_block(&self, dimensions: [u32; 3]) -> Result<()> {
         target::validate_block(dimensions, self.span)?;
         if self.required.is_some_and(|required| required != dimensions)
@@ -78,6 +76,7 @@ pub fn compile(module: &ast::Module, entry: &str) -> Result<(ir::Executable, Lau
                     CompileErrorKind::DuplicateSymbol(function.name.clone()),
                 ));
             }
+
             if let Some(previous) = definitions.get(function.name.as_str()) {
                 if (previous.body.is_some() && function.body.is_some())
                     || !same_signature(previous, function)
@@ -91,9 +90,11 @@ pub fn compile(module: &ast::Module, entry: &str) -> Result<(ir::Executable, Lau
                     continue;
                 }
             }
+
             definitions.insert(function.name.as_str(), function);
         }
     }
+
     let entry_function = definitions
         .get(entry)
         .copied()
@@ -164,6 +165,7 @@ fn thread_dimensions(function: &ast::Function, values: &[u32], span: Span) -> Re
             ),
         ));
     }
+
     let mut dimensions = [1; 3];
     dimensions[..values.len()].copy_from_slice(values);
     Ok(dimensions)
@@ -182,12 +184,14 @@ fn requirements(function: &ast::Function) -> Result<LaunchRequirements> {
             "function resource attributes",
         ));
     }
+
     if function.entry && !function.return_params.is_empty() {
         return Err(CompileError::declaration(
             function.span,
             "entry points cannot return parameters",
         ));
     }
+
     for directive in &function.directives {
         let (name, span) = match directive {
             FunctionDirective::ReqNTid { span, values }
@@ -255,6 +259,7 @@ fn requirements(function: &ast::Function) -> Result<LaunchRequirements> {
             ));
         }
     }
+
     if result.required.is_some() && result.maximum.is_some() {
         return Err(CompileError::declaration(
             function.span,
@@ -314,6 +319,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
         for parameter in function.params.iter().chain(&function.return_params) {
             layout::validate_type_version(parameter.ty, version, parameter.span)?;
         }
+
         let parameters = layout::parameters(&function.params, module.address_size)?;
         let returns = layout::parameters(&function.return_params, module.address_size)?;
         let mut result = Self {
@@ -346,6 +352,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 result.insert(0, &parameter.name, Symbol::Memory(object), function.span)?;
             }
         }
+
         let body = function.body.as_deref().ok_or_else(|| {
             CompileError::unsupported(function.span, "undefined external function")
         })?;
@@ -443,6 +450,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 "invalid register declaration",
             ));
         }
+
         if matches!(
             variable.ty,
             ScalarType::B8
@@ -459,6 +467,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 format!("register type .{}", variable.ty.suffix()),
             ));
         }
+
         let count = variable.count.unwrap_or(1);
         if count == 0
             || (count as usize)
@@ -472,6 +481,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 ),
             ));
         }
+
         for index in 0..count {
             let name = if variable.count.is_some() {
                 format!("{}{index}", variable.name)
@@ -513,6 +523,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 "invalid function storage declaration",
             ));
         }
+
         let layout = layout::variable_layout(variable)?;
         let object = self.add_object(space, layout, FrameRole::Variable, dynamic);
         self.insert(scope, &variable.name, Symbol::Memory(object), variable.span)?;
@@ -536,6 +547,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 operation,
             });
         }
+
         validate_control_flow(&instructions, self.function.span)?;
         Ok(ir::Function {
             name: self.function.name.clone(),
@@ -554,6 +566,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
             if let Some(symbol) = self.scopes[index].symbols.get(name) {
                 return Some(*symbol);
             }
+
             scope = self.scopes[index].parent;
         }
         self.module
@@ -762,6 +775,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                     }
                     return Ok(Source::Special(special));
                 }
+
                 if name == "WARP_SZ" {
                     let bits = constants::Constant::Signed(32).bits(ty, *span)?;
                     return Ok(Source::Immediate(if ty == ScalarType::Pred {
@@ -787,6 +801,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 if ty == ScalarType::Pred {
                     return Ok(Source::Immediate(u128::from(bits != 0)));
                 }
+
                 let width = layout::scalar_bytes(ty, *span)? * 8;
                 Ok(Source::Immediate(if width == 128 {
                     bits
@@ -809,6 +824,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
         {
             return Ok(Source::Special(special));
         }
+
         if let Operand::Symbol { name, span } = operand
             && name != "WARP_SZ"
             && let Some(Symbol::Memory(object)) = self.find_symbol(name)
@@ -932,6 +948,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                         "address state space disagrees with the instruction",
                     ));
                 }
+
                 if write
                     && (actual == StateSpace::Const
                         || matches!(role, FrameRole::KernelInput | FrameRole::Input))
@@ -995,6 +1012,7 @@ impl<'a, 'b> FunctionCompiler<'a, 'b> {
                 "call to an entry point or unresolved external function",
             ));
         }
+
         let arguments = self.call_arguments(
             arguments,
             &layout::parameters(&function.params, self.module.address_size)?,
@@ -1078,17 +1096,19 @@ pub enum Width {
     AtLeast,
 }
 
-/// Returns whether a register declared as `declared` can serve as an operand of type
-/// `expected`. Bit types match any same-width type.
+/// Returns whether a register declared as `declared` can serve as an operand of type `expected`.
+/// Bit types match any same-width type.
 pub fn compatible(declared: ScalarType, expected: ScalarType, width: Width) -> bool {
     use ScalarType::{Bf16, Pred, SamplerRef, SurfRef, TexRef, Tf32};
     if declared == Pred || expected == Pred {
         return declared == expected;
     }
+
     let unsupported = |ty| matches!(ty, Bf16 | Tf32 | TexRef | SamplerRef | SurfRef);
     if unsupported(declared) || unsupported(expected) {
         return false;
     }
+
     let (actual, required) = (declared.bit_width(), expected.bit_width());
     let categories = declared.is_bits()
         || expected.is_bits()
@@ -1114,6 +1134,7 @@ fn validate_control_flow(instructions: &[ir::Instruction], span: Span) -> Result
         if visited[pc] {
             continue;
         }
+
         visited[pc] = true;
         if let ir::Operation::Control(ir::ControlOperation::Branch { target }) =
             instruction.operation

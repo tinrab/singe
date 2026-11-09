@@ -33,7 +33,8 @@ pub struct Generator {
     rng_type: RngType,
 }
 
-/// A CPU generator. Host generation completes before returning borrowed slices.
+/// A CPU generator.
+/// Host generation completes before returning borrowed slices.
 #[derive(Debug)]
 pub struct HostGenerator {
     owner: HostOwner,
@@ -52,7 +53,8 @@ pub struct RawGenerator {
     pub rng_type: RngType,
 }
 
-/// Unmanaged CPU generator ownership. Dropping it does not destroy the handle.
+/// Unmanaged CPU generator ownership.
+/// Dropping it does not destroy the handle.
 #[derive(Debug)]
 pub struct RawHostGenerator {
     /// Exclusively owned native CPU-generator handle.
@@ -80,10 +82,13 @@ impl Drop for DeviceOwner {
         unsafe {
             drain_stream(&self.context, self.stream);
         }
+
         // SAFETY: `curandDestroyGenerator` receives live handles owned by the wrappers.
         if let Err(error) = unsafe { try_ffi!(sys::curandDestroyGenerator(self.raw)) } {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy curand generator: {error}");
+            eprintln!(
+                "failed to destroy curand generator: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
         // SAFETY: native destruction may enqueue stream-ordered frees; the stream is still live.
         unsafe {
@@ -104,8 +109,10 @@ impl Drop for HostOwner {
     fn drop(&mut self) {
         // SAFETY: `curandDestroyGenerator` receives live handles owned by the wrappers.
         if let Err(error) = unsafe { try_ffi!(sys::curandDestroyGenerator(self.raw)) } {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy curand generator: {error}");
+            eprintln!(
+                "failed to destroy curand generator: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -113,23 +120,19 @@ impl Drop for HostOwner {
 impl Generator {
     /// Creates a GPU generator in the stream's actual context and completes setup.
     ///
-    /// [`RngType::PseudoDefault`] selects XORWOW; [`RngType::QuasiDefault`]
-    /// selects Sobol32. Pseudorandom generators start with seed and offset zero
-    /// and the default pseudorandom ordering. Quasirandom generators start with
-    /// one dimension, offset zero, and the default quasirandom ordering.
+    /// [`RngType::PseudoDefault`] selects XORWOW; [`RngType::QuasiDefault`] selects Sobol32.
+    /// Pseudorandom generators start with seed and offset zero and the default pseudorandom ordering.
+    /// Quasirandom generators start with one dimension, offset zero, and the default quasirandom ordering.
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream is being captured or its capture state or
-    /// context cannot be accessed. Native setup can fail for an unsupported
-    /// generator kind, allocation or GPU initialization failure, a cuRAND
-    /// version mismatch, or failure to select the stream. A null generator
-    /// handle and errors while completing setup are also reported.
+    /// Returns an error if the stream is being captured or its capture state or context cannot be accessed.
+    /// Native setup can fail for an unsupported generator kind, allocation or GPU initialization failure, a cuRAND version mismatch, or failure to select the stream.
+    /// A null generator handle and errors while completing setup are also reported.
     ///
     /// # Panics
     ///
-    /// Panics if successful native setup did not install generator ownership,
-    /// which indicates an internal invariant failure.
+    /// Panics if successful native setup did not install generator ownership, which indicates an internal invariant failure.
     pub fn create(rng_type: RngType, stream: &Arc<Stream>) -> Result<Self> {
         require_eager(stream)?;
         let mut raw = ptr::null_mut();
@@ -140,6 +143,7 @@ impl Generator {
                 unsafe {
                     try_ffi!(sys::curandCreateGenerator(&raw mut raw, rng_type.into()))?;
                 }
+
                 // SAFETY: successful creation produces exclusive device ownership.
                 // Install cleanup before a completion failure can return from setup.
                 generator = Some(unsafe { Self::from_raw(raw, rng_type, stream)? });
@@ -156,9 +160,9 @@ impl Generator {
     /// Returns [`Error::NullHandle`] if `raw` is null.
     ///
     /// # Safety
-    /// The handle must be live, exclusively owned, and created in this actual
-    /// context with `rng_type`. It must use `stream`; all prior work must have
-    /// completed. Do not change its stream or kind behind this wrapper.
+    /// The handle must be live, exclusively owned, and created in this actual context with `rng_type`.
+    /// It must use `stream`; all prior work must have completed.
+    /// Do not change its stream or kind behind this wrapper.
     pub unsafe fn from_raw(
         raw: sys::curandGenerator_t,
         rng_type: RngType,
@@ -178,8 +182,8 @@ impl Generator {
         })
     }
 
-    /// Borrows the native handle. Direct native calls must preserve its actual
-    /// context and selected stream, respect exclusive access, and keep it alive.
+    /// Borrows the native handle.
+    /// Direct native calls must preserve its actual context and selected stream, respect exclusive access, and keep it alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::curandGenerator_t {
         self.owner.raw
@@ -252,19 +256,18 @@ impl Generator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the streams belong to different contexts, either
-    /// stream is being captured, a capture-state or context query fails, or
-    /// prior work cannot be completed. Native stream-selection errors are also
-    /// reported. The selected stream changes only after those checks succeed.
+    /// Returns an error if the streams belong to different contexts, either stream is being captured, a capture-state or context query fails, or prior work cannot be completed.
+    /// Native stream-selection errors are also reported.
+    /// The selected stream changes only after those checks succeed.
     ///
     /// # Panics
     ///
-    /// Panics if the native generator owner is still shared when the stream
-    /// field is updated, which violates the wrapper's ownership invariant.
+    /// Panics if the native generator owner is still shared when the stream field is updated, which violates the wrapper's ownership invariant.
     pub fn set_stream(&mut self, stream: &Arc<Stream>) -> Result<()> {
         if stream.context() != self.context() {
             return Err(CudaError::MemoryContextMismatch.into());
         }
+
         require_eager(&self.stream)?;
         require_eager(stream)?;
         self.stream.sync_scope(|_| Ok(()))?;
@@ -274,6 +277,7 @@ impl Generator {
         unsafe {
             try_ffi!(sys::curandSetStream(self.as_raw(), stream.as_raw()))?;
         }
+
         Arc::get_mut(&mut self.owner)
             .expect("live generator owner is exclusive")
             .stream = stream.as_raw();
@@ -297,15 +301,13 @@ impl Generator {
 
     /// Completes initialization of generator state in its selected stream.
     ///
-    /// Generation functions initialize state automatically. Call this method to
-    /// measure initialization separately from sample generation.
+    /// Generation functions initialize state automatically.
+    /// Call this method to measure initialization separately from sample generation.
     ///
     /// # Errors
     ///
-    /// Returns an error for active or invalid stream capture, context binding
-    /// or synchronization failure, or a native state-initialization failure.
-    /// cuRAND can report allocation failure, an earlier kernel error, or a
-    /// kernel-launch failure.
+    /// Returns an error for active or invalid stream capture, context binding or synchronization failure, or a native state-initialization failure.
+    /// cuRAND can report allocation failure, an earlier kernel error, or a kernel-launch failure.
     pub fn generate_seeds(&mut self) -> Result<()> {
         // SAFETY: `curandGenerateSeeds` receives only plain values.
         self.configure(|raw| unsafe { try_ffi!(sys::curandGenerateSeeds(raw)) })
@@ -315,13 +317,12 @@ impl Generator {
     ///
     /// # Errors
     ///
-    /// Returns a context-binding error or a cuRAND state-initialization error,
-    /// including allocation failure, an earlier kernel error, or launch failure.
+    /// Returns a context-binding error or a cuRAND state-initialization error, including allocation failure, an earlier kernel error, or launch failure.
     ///
     /// # Safety
     /// Retain the generator and stream until completion, including after errors.
-    /// Complete prior use before resetting state. During capture, retain them
-    /// through every graph replay; native setup may require warming before capture.
+    /// Complete prior use before resetting state.
+    /// During capture, retain them through every graph replay; native setup may require warming before capture.
     pub unsafe fn generate_seeds_async(&mut self) -> Result<()> {
         self.bind()?;
         // SAFETY: `curandGenerateSeeds` receives live handles owned by the wrappers.
@@ -332,16 +333,14 @@ impl Generator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `output` belongs to another context, context binding
-    /// fails, or its nonempty length cannot fit the native size type. For a
-    /// nonempty output, cuRAND errors from the selected method are propagated.
+    /// Returns an error if `output` belongs to another context, context binding fails, or its nonempty length cannot fit the native size type.
+    /// For a nonempty output, cuRAND errors from the selected method are propagated.
     /// An empty output performs no native generation call.
     ///
     /// # Safety
-    /// Establish the method's validity for this SDK and generator kind. It must
-    /// write exactly the output range with the native alignment. Retain the
-    /// output, generator, and stream until completion on every path; capture
-    /// additionally requires retaining all dependencies through graph replay.
+    /// Establish the method's validity for this SDK and generator kind.
+    /// It must write exactly the output range with the native alignment.
+    /// Retain the output, generator, and stream until completion on every path; capture additionally requires retaining all dependencies through graph replay.
     /// This entry point is marked internal by NVIDIA and is not used by completed helpers.
     pub unsafe fn generate_poisson_u32_with_method_async<B: DeviceOutput<u32> + ?Sized>(
         &mut self,
@@ -372,6 +371,7 @@ impl Generator {
         if output.context() != self.context() {
             return Err(CudaError::MemoryContextMismatch.into());
         }
+
         let stream = Arc::clone(&self.stream);
         // Native kernels use vector stores that need more than scalar alignment.
         // Preserve CUDA allocation alignment for direct calls, and stage other
@@ -419,6 +419,7 @@ impl Generator {
         if output.context() != self.context() {
             return Err(CudaError::MemoryContextMismatch.into());
         }
+
         self.bind()?;
         if output.is_empty() {
             return Ok(());
@@ -446,14 +447,13 @@ impl Drop for Generator {
 impl HostGenerator {
     /// Creates a CPU generator of `rng_type`.
     ///
-    /// Default kinds, seeds, offsets, dimensionality, and orderings match
-    /// [`Generator::create`]. Host generation completes before returning.
+    /// Default kinds, seeds, offsets, dimensionality, and orderings match [`Generator::create`].
+    /// Host generation completes before returning.
     ///
     /// # Errors
     ///
-    /// Returns the cuRAND status for an unsupported kind, allocation or
-    /// initialization failure, or a version mismatch. A successful creation
-    /// that returns a null handle is also rejected.
+    /// Returns the cuRAND status for an unsupported kind, allocation or initialization failure, or a version mismatch.
+    /// A successful creation that returns a null handle is also rejected.
     pub fn create(rng_type: RngType) -> Result<Self> {
         let mut raw = ptr::null_mut();
         // SAFETY: `curandCreateGeneratorHost` receives valid output locations.
@@ -474,8 +474,8 @@ impl HostGenerator {
     /// Returns [`Error::NullHandle`] if `raw` is null.
     ///
     /// # Safety
-    /// The handle must be a live CPU generator of `rng_type`, exclusively owned
-    /// and idle. Transfer ownership once; do not adopt a device generator here.
+    /// The handle must be a live CPU generator of `rng_type`, exclusively owned and idle.
+    /// Transfer ownership once; do not adopt a device generator here.
     pub unsafe fn from_raw(raw: sys::curandGenerator_t, rng_type: RngType) -> Result<Self> {
         if raw.is_null() {
             return Err(Error::NullHandle);
@@ -486,8 +486,8 @@ impl HostGenerator {
         })
     }
 
-    /// Borrows the CPU handle. Native calls must remain synchronous and
-    /// exclusive, and must not destroy the handle or change its target kind.
+    /// Borrows the CPU handle.
+    /// Native calls must remain synchronous and exclusive, and must not destroy the handle or change its target kind.
     #[must_use]
     pub const fn as_raw(&self) -> sys::curandGenerator_t {
         self.owner.raw
@@ -519,13 +519,12 @@ impl HostGenerator {
 
     /// Initializes the CPU generator's starting states synchronously.
     ///
-    /// Generation functions initialize state automatically. Call this method to
-    /// measure initialization separately from sample generation.
+    /// Generation functions initialize state automatically.
+    /// Call this method to measure initialization separately from sample generation.
     ///
     /// # Errors
     ///
-    /// Returns the cuRAND status if native state initialization fails, including
-    /// allocation or generator-initialization errors.
+    /// Returns the cuRAND status if native state initialization fails, including allocation or generator-initialization errors.
     pub fn generate_seeds(&mut self) -> Result<()> {
         // SAFETY: `curandGenerateSeeds` receives only plain values.
         self.configure(|raw| unsafe { try_ffi!(sys::curandGenerateSeeds(raw)) })
@@ -543,10 +542,12 @@ impl HostGenerator {
         if output.is_empty() {
             return Ok(());
         }
+
         let length = to_size_t(output.len(), "output length")?;
         if output.as_mut_ptr().addr().is_multiple_of(16) {
             return call(self.as_raw(), output.as_mut_ptr(), length);
         }
+
         let bytes = output
             .len()
             .checked_mul(size_of::<T>())
@@ -577,15 +578,13 @@ macro_rules! settings {
         impl $owner {
             /// Sets the pseudorandom seed after completing prior native work.
             ///
-            /// Every `u64` seed is valid. Different seeds select different
-            /// sequences, but the sequences are not guaranteed to be uncorrelated.
+            /// Every `u64` seed is valid.
+            /// Different seeds select different sequences, but the sequences are not guaranteed to be uncorrelated.
             ///
             /// # Errors
             ///
-            /// Returns a cuRAND error if this is not a pseudorandom generator or
-            /// the native handle is not initialized. For a device generator,
-            /// also reports active or invalid capture, context-binding errors,
-            /// and failures while completing prior work or the update.
+            /// Returns a cuRAND error if this is not a pseudorandom generator or the native handle is not initialized.
+            /// For a device generator, also reports active or invalid capture, context-binding errors, and failures while completing prior work or the update.
             pub fn set_seed(&mut self, seed: u64) -> Result<()> {
                 // SAFETY: `curandSetPseudoRandomGeneratorSeed` receives only plain values.
                 self.configure(|raw| unsafe {
@@ -594,15 +593,13 @@ macro_rules! settings {
             }
             /// Sets the absolute pseudo- or quasirandom offset after completing prior work.
             ///
-            /// `offset` selects an absolute position in the sequence, rather
-            /// than advancing relative to the current position. Skip-ahead is
-            /// unavailable for MTGP32 and MT19937 generators.
+            /// `offset` selects an absolute position in the sequence, rather than advancing relative to the current position.
+            /// Skip-ahead is unavailable for MTGP32 and MT19937 generators.
             ///
             /// # Errors
             ///
-            /// Returns the cuRAND status if the offset update fails. For a
-            /// device generator, also reports active or invalid capture,
-            /// context-binding errors, and synchronization failures.
+            /// Returns the cuRAND status if the offset update fails.
+            /// For a device generator, also reports active or invalid capture, context-binding errors, and synchronization failures.
             pub fn set_offset(&mut self, offset: u64) -> Result<()> {
                 // SAFETY: `curandSetGeneratorOffset` receives only plain values.
                 self.configure(|raw| unsafe {
@@ -611,15 +608,13 @@ macro_rules! settings {
             }
             /// Sets the native result ordering after completing prior work.
             ///
-            /// Choose a pseudorandom ordering for a pseudorandom generator and
-            /// [`Ordering::QuasiDefault`] for a quasirandom generator. Available
-            /// pseudorandom orderings depend on the generator kind and target.
+            /// Choose a pseudorandom ordering for a pseudorandom generator and [`Ordering::QuasiDefault`] for a quasirandom generator.
+            /// Available pseudorandom orderings depend on the generator kind and target.
             ///
             /// # Errors
             ///
-            /// Returns the cuRAND status if the ordering is unsupported or the
-            /// generator is not initialized. For a device generator, also
-            /// reports capture, context-binding, and synchronization errors.
+            /// Returns the cuRAND status if the ordering is unsupported or the generator is not initialized.
+            /// For a device generator, also reports capture, context-binding, and synchronization errors.
             pub fn set_ordering(&mut self, ordering: Ordering) -> Result<()> {
                 // SAFETY: `curandSetGeneratorOrdering` receives only plain values.
                 self.configure(|raw| unsafe {
@@ -628,15 +623,13 @@ macro_rules! settings {
             }
             /// Sets quasirandom dimensionality after completing prior work.
             ///
-            /// `dimensions` must be in `1..=20_000`. Subsequent output lengths
-            /// must be multiples of this dimensionality.
+            /// `dimensions` must be in `1..=20_000`.
+            /// Subsequent output lengths must be multiples of this dimensionality.
             ///
             /// # Errors
             ///
-            /// Returns the cuRAND status if the generator is not quasirandom,
-            /// the dimension count is invalid, or the handle is not initialized.
-            /// For a device generator, also reports capture, context-binding,
-            /// and synchronization errors.
+            /// Returns the cuRAND status if the generator is not quasirandom, the dimension count is invalid, or the handle is not initialized.
+            /// For a device generator, also reports capture, context-binding, and synchronization errors.
             pub fn set_quasi_random_dimensions(&mut self, dimensions: u32) -> Result<()> {
                 // SAFETY: `curandSetQuasiRandomGeneratorDimensions` receives only plain values.
                 self.configure(|raw| unsafe {
@@ -663,12 +656,9 @@ macro_rules! generation {
             ///
             /// # Errors
             ///
-            /// Returns an error if capture is active or invalid, `output`
-            /// belongs to another context, or its length cannot fit the native
-            /// size type. CUDA errors while binding the context, ordering prior
-            /// accesses, staging unaligned output, or completing work are
-            /// propagated. Native generation errors become [`Error::Curand`];
-            /// the distribution's generator and length restrictions still apply.
+            /// Returns an error if capture is active or invalid, `output` belongs to another context, or its length cannot fit the native size type.
+            /// CUDA errors while binding the context, ordering prior accesses, staging unaligned output, or completing work are propagated.
+            /// Native generation errors become [`Error::Curand`]; the distribution's generator and length restrictions still apply.
             /// Errors constructing the initialized output view are also reported.
             pub fn $name<'a, B: DeviceOutput<$ty> + ?Sized>(&mut self, output: &'a mut B $(, $arg: $arg_ty)*) -> Result<DeviceViewMut<'a, $ty>> {
                 // SAFETY: the `ffi` entry point receives only plain values.
@@ -682,16 +672,15 @@ macro_rules! generation {
             ///
             /// # Errors
             ///
-            /// Returns an error if `output` belongs to another context, context
-            /// binding fails, or its nonempty length cannot fit the native size
-            /// type. Native generation errors become [`Error::Curand`]. Empty
-            /// outputs skip native generation; no completion wait is performed.
+            /// Returns an error if `output` belongs to another context, context binding fails, or its nonempty length cannot fit the native size type.
+            /// Native generation errors become [`Error::Curand`].
+            /// Empty outputs skip native generation; no completion wait is performed.
             ///
             /// # Safety
             /// Establish output readiness and exclusive access in the selected stream.
-            /// Retain output allocations, the generator, and stream through completion,
-            /// including after native errors. During capture retain every dependency
-            /// unchanged through graph replays. Native alignment requirements apply.
+            /// Retain output allocations, the generator, and stream through completion, including after native errors.
+            /// During capture retain every dependency unchanged through graph replays.
+            /// Native alignment requirements apply.
             pub unsafe fn $enqueue<B: DeviceOutput<$ty> + ?Sized>(&mut self, output: &mut B $(, $arg: $arg_ty)*) -> Result<()> {
                 // SAFETY: the caller upholds this function's safety contract.
                 unsafe { self.enqueue(output, |raw, pointer, len| try_ffi!(sys::$ffi(raw, pointer, len $(, $arg)*))) }
@@ -704,10 +693,8 @@ macro_rules! generation {
             ///
             /// # Errors
             ///
-            /// Returns [`Error::OutOfRange`] if the output length or required
-            /// staging byte count cannot be represented. Native generation
-            /// errors become [`Error::Curand`], including unsupported generator
-            /// kinds or output lengths for the selected distribution.
+            /// Returns [`Error::OutOfRange`] if the output length or required staging byte count cannot be represented.
+            /// Native generation errors become [`Error::Curand`], including unsupported generator kinds or output lengths for the selected distribution.
             pub fn $name(&mut self, output: &mut [$ty] $(, $arg: $arg_ty)*) -> Result<()> {
                 // SAFETY: the `ffi` entry point receives only plain values.
                 self.generate(output, |raw, pointer, len| unsafe { try_ffi!(sys::$ffi(raw, pointer, len $(, $arg)*)) })

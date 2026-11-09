@@ -21,13 +21,11 @@ unsafe impl Sync for Params {}
 impl Params {
     /// Creates and initializes the parameter structure for the cuSOLVER 64-bit interface.
     ///
-    /// The returned [`Params`] owns the cuSOLVER parameter handle and destroys it
-    /// when dropped.
+    /// The returned [`Params`] owns the cuSOLVER parameter handle and destroys it when dropped.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuSOLVER cannot allocate the parameter structure or
-    /// if it does not return a valid handle.
+    /// Returns an error if cuSOLVER cannot allocate the parameter structure or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
         // SAFETY: `cusolverDnCreateParams` receives valid output locations.
@@ -46,8 +44,7 @@ impl Params {
     ///
     /// # Errors
     ///
-    /// Returns an error if `function` and `algorithm` are not a valid
-    /// combination for cuSOLVER.
+    /// Returns an error if `function` and `algorithm` are not a valid combination for cuSOLVER.
     pub fn set_adv_options(&mut self, function: Function, algorithm: AlgorithmMode) -> Result<()> {
         // SAFETY: `cusolverDnSetAdvOptions` receives live handles owned by the wrappers.
         unsafe {
@@ -70,9 +67,8 @@ impl Params {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cusolverDnParams_t` created by cuSOLVER. The
-    /// returned wrapper takes ownership and will destroy it with
-    /// `cusolverDnDestroyParams`; no other owner may destroy or keep using it.
+    /// `handle` must be a valid `cusolverDnParams_t` created by cuSOLVER.
+    /// The returned wrapper takes ownership and will destroy it with `cusolverDnDestroyParams`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -100,8 +96,10 @@ impl Drop for Params {
         // SAFETY: `cusolverDnDestroyParams` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnDestroyParams(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver params: {error}");
+                eprintln!(
+                    "failed to destroy cusolver params: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

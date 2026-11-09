@@ -221,6 +221,7 @@ where
             actual: coefficients.len(),
         });
     }
+
     let smallest_source_size = smallest_size(sources.iter().map(ImageView::size))?;
     let coefficient_memory = DeviceMemory::from_slice(allocation_context, coefficients)?;
 
@@ -269,6 +270,7 @@ where
             actual: coefficients.len(),
         });
     }
+
     let smallest_source_size = smallest_size(sources.iter().map(ImageView::size))?;
     let coefficient_memory = DeviceMemory::from_slice(allocation_context, coefficients)?;
 

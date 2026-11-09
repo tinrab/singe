@@ -14,11 +14,8 @@ use crate::{
 
 /// User-provided graph applied to SDPA score tensors.
 ///
-/// The C++ frontend exposes score modification hooks through `set_score_mod`;
-/// this type records a Rust frontend subgraph and its score input/output tensor
-/// IDs for the same role.
-/// Ordinary operation families retain their operands and attributes when imported, including
-/// convolution, normalization, block scaling, RNG, `RoPE`, resampling, paged loads and `MoE`.
+/// The C++ frontend exposes score modification hooks through `set_score_mod`; this type records a Rust frontend subgraph and its score input/output tensor IDs for the same role.
+/// Ordinary operation families retain their operands and attributes when imported, including convolution, normalization, block scaling, RNG, `RoPE`, resampling, paged loads and `MoE`.
 /// Native engine support still determines which score-modifier graph patterns can execute.
 /// Direct native SDPA nodes preserve configuration-held tensor operands during import.
 /// Nested score graphs follow remapped external captures while keeping their local tensor scopes.
@@ -73,9 +70,7 @@ pub enum AlibiBias {
 
 /// Optional SDPA score modifiers.
 ///
-/// These cover additive bias, sink token, `ALiBi`, additive/dropout masks,
-/// variable-length padding masks, causal masks, and sliding windows documented
-/// for frontend SDPA score modification options.
+/// These cover additive bias, sink token, `ALiBi`, additive/dropout masks, variable-length padding masks, causal masks, and sliding windows documented for frontend SDPA score modification options.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SdpaScoreModifiers {

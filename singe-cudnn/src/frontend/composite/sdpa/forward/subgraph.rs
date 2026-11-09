@@ -91,6 +91,7 @@ impl Graph {
         if !band.has_bounds() {
             return Ok(scores);
         }
+
         self.validate_tensor_rank(scores, 4, "attention mask score rank")?;
         if band.alignment() == AttentionDiagonalAlignment::TopLeft {
             sequence = AttentionSequenceInputs::default();
@@ -104,7 +105,7 @@ impl Graph {
                 if lengths.is_none() {
                     let length = to_i32(fixed, "attention fixed sequence length")?;
                     let tensor = self.tensor(
-                        TensorSpec::constant(length).with_shape(Shape::contiguous([1, 1, 1, 1])?),
+                        TensorSpec::scalar(length).with_shape(Shape::contiguous([1, 1, 1, 1])?),
                     );
                     *lengths = Some(SequenceLength::PerBatch(tensor));
                 }
@@ -144,22 +145,23 @@ impl Graph {
             let mut config =
                 DiagonalBandMaskConfig::new(PointwiseMode::CmpGe).with_sequence_inputs(sequence);
             if right != 0 {
-                let shift = self.tensor(
-                    TensorSpec::constant(right).with_shape(Shape::contiguous([1, 1, 1, 1])?),
-                );
+                let shift = self
+                    .tensor(TensorSpec::scalar(right).with_shape(Shape::contiguous([1, 1, 1, 1])?));
                 config = config.with_bound(DiagonalBandMaskBound::Right { shift: Some(shift) });
             }
+
             let output = self.tensor(tensor.virtual_tensor());
             self.diagonal_band_mask_into(scores, negative_inf, output, config)?;
             scores = output;
         }
+
         if let Some(left) = left_window {
             let tensor = self.tensor_spec(scores)?.clone();
             let negative_inf = self.tensor(sdpa_mask_scalar(tensor.data_type, f32::NEG_INFINITY)?);
             let bound = if sequence.is_empty() {
-                TensorSpec::constant(left as f32).with_shape(Shape::contiguous([1, 1, 1, 1])?)
+                TensorSpec::scalar(left as f32).with_shape(Shape::contiguous([1, 1, 1, 1])?)
             } else {
-                TensorSpec::constant(left).with_shape(Shape::contiguous([1, 1, 1, 1])?)
+                TensorSpec::scalar(left).with_shape(Shape::contiguous([1, 1, 1, 1])?)
             };
             let bound = self.tensor(bound);
             let output = self.tensor(tensor.virtual_tensor());
@@ -192,6 +194,7 @@ impl Graph {
         if !score_modifiers.has_pre_softmax_subgraph_modifier() && score_subgraph.is_none() {
             return Ok(None);
         }
+
         let mut tensor_captures = BTreeMap::new();
         let mut shared_tensors = self
             .tensor_records()?
@@ -223,6 +226,7 @@ impl Graph {
                 .reserved_tensor_ids
                 .extend(score_subgraph.graph().tensors.keys().copied());
         }
+
         subgraph.config.sm_version = self.config.sm_version;
         subgraph.config.data_type_policy = config
             .data_type_policy()
@@ -254,6 +258,7 @@ impl Graph {
                     id,
                 )?;
             }
+
             output = subgraph.import_score_subgraph(
                 score_subgraph,
                 output,
@@ -261,6 +266,7 @@ impl Graph {
                 Some(&tensor_captures),
             )?;
         }
+
         if let Some(bias) = score_modifiers.bias() {
             let bias = self.capture_tensor_into_subgraph(
                 &mut subgraph,
@@ -278,6 +284,7 @@ impl Graph {
                 .with_compute_type(DataType::F32),
             )?;
         }
+
         if let Some(alibi) = score_modifiers.alibi() {
             let alibi_slopes = match alibi {
                 AlibiBias::Slopes(slopes) => self.capture_tensor_into_subgraph(
@@ -301,6 +308,7 @@ impl Graph {
                 .with_compute_type(DataType::F32),
             )?;
         }
+
         if let Some(additive_mask) = score_modifiers.additive_mask() {
             let additive_mask = self.capture_tensor_into_subgraph(
                 &mut subgraph,
@@ -318,6 +326,7 @@ impl Graph {
                 .with_compute_type(DataType::F32),
             )?;
         }
+
         if let Some(band) = score_modifiers.diagonal_band() {
             let sequence = if band.has_bounds()
                 && band.alignment() == AttentionDiagonalAlignment::BottomRight
@@ -435,6 +444,7 @@ impl Graph {
             source.expand_attention_requests()?;
             source.expand_attention_backward_requests()?;
         }
+
         source_graph.tensor_spec(score_subgraph.input())?;
         source_graph.tensor_spec(score_subgraph.output())?;
 
@@ -450,6 +460,7 @@ impl Graph {
             if source_tensor_id == score_subgraph.input() {
                 continue;
             }
+
             if view_targets.contains(&source_tensor_id) {
                 let view = self.tensor(source_tensor.clone().with_ragged_offset_reference(None));
                 tensor_map.insert(source_tensor_id, view);
@@ -477,9 +488,11 @@ impl Graph {
                     ))
                     .into());
                 }
+
                 if promoted_layout {
                     self.promote_index_tensors([captured_tensor])?;
                 }
+
                 self.tensor_spec_mut(captured_tensor)?.byte_alignment = existing_tensor
                     .byte_alignment
                     .max(source_tensor.byte_alignment);
@@ -560,6 +573,7 @@ impl Graph {
             bounds.validate_for(self.tensor_spec(tensor)?)?;
             self.runtime_shape_constraints.insert(tensor, bounds);
         }
+
         for &source_tensor_id in &source_graph.vector_aligned_tensors {
             self.vector_aligned_tensors
                 .insert(Self::remap_score_subgraph_tensor(
@@ -568,6 +582,7 @@ impl Graph {
                     error_name,
                 )?);
         }
+
         AttentionBackwardHeuristicOverride::retain_into(
             &mut self.attention_backward_heuristic_overrides,
             source_graph.attention_backward_heuristic_overrides.clone(),
@@ -592,6 +607,7 @@ impl Graph {
             }
             .into());
         }
+
         if scale_tensor.reordering != Some(BackendTensorReordering::F8_128x4) {
             return Err(FrontendError::TensorLayoutMismatch {
                 tensor_id: scale,

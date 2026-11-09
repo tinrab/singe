@@ -176,9 +176,11 @@ impl CompiledGraph {
             }
             .into());
         }
+
         if artifact.plans.is_empty() {
             return Err(FrontendError::NativeArtifactMissingPlans.into());
         }
+
         if artifact.selected_plan >= artifact.plans.len() {
             return Err(FrontendError::NativeArtifactSelectionOutOfRange {
                 selected: artifact.selected_plan,
@@ -186,6 +188,7 @@ impl CompiledGraph {
             }
             .into());
         }
+
         let required_tensors = required_tensor_bindings(
             &artifact.tensors,
             &artifact.binding_replacements,
@@ -205,6 +208,7 @@ impl CompiledGraph {
         if let ExecutionPlanTarget::Context(context) = native_target {
             context.bind()?;
         }
+
         let layout =
             WorkspaceLayout::create(&artifact.tensors, &artifact.binding_template_ids, &[])?;
         let binding_template = BindingTemplate::create(
@@ -226,6 +230,7 @@ impl CompiledGraph {
             })?;
             entries.push(entry);
         }
+
         let reports = entries
             .iter()
             .map(|entry| PlanBuildReport {
@@ -299,6 +304,7 @@ fn restore_plan(
     if actual != expected {
         return Err(FrontendError::NativePlanChoiceMismatch { expected, actual }.into());
     }
+
     candidate
         .engine_config
         .tag()?

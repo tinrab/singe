@@ -32,8 +32,8 @@ impl Context {
 impl Stream {
     /// Binds the stream's context and creates a foreign stream retaining both owners.
     ///
-    /// The foreign handle borrows destruction responsibility. Its liveness
-    /// token owns a clone of this stream and therefore retains its actual context.
+    /// The foreign handle borrows destruction responsibility.
+    /// Its liveness token owns a clone of this stream and therefore retains its actual context.
     ///
     /// # Errors
     ///

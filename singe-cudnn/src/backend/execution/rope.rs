@@ -110,16 +110,16 @@ impl<T> RopeBackwardInputs<T> {
 
 /// Native rotary position embedding parameters shared by forward and backward.
 ///
-/// The trailing rotated segment uses non-interleaved halves. Frequencies are raw FP32
-/// angles with dimensions `[sequence, 1, 1, effective_rotation_dimension]`, where zero
-/// in the configuration selects the entire head dimension.
+/// The trailing rotated segment uses non-interleaved halves.
+/// Frequencies are raw FP32 angles with dimensions `[sequence, 1, 1, effective_rotation_dimension]`, where zero in the configuration selects the entire head dimension.
 /// Native engine support determines the accepted activation encodings and layouts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RopeConfig {
     /// Optional operation scope used to name inferred frontend outputs.
     #[serde(default)]
     pub name: Option<String>,
-    /// Size of the trailing rotated segment. Zero rotates the entire head dimension.
+    /// Size of the trailing rotated segment.
+    /// Zero rotates the entire head dimension.
     /// The native operation requires an even value no larger than the head dimension.
     pub rotation_dimension: i64,
     /// Scales every output component, including the leading unrotated segment.
@@ -184,7 +184,8 @@ impl RopeForwardOperation {
     ///
     /// # Errors
     ///
-    /// Returns an error for a negative rotation dimension or if native descriptor creation, attribute assignment, or finalization fails. cuDNN validates activation layouts and encodings, frequency geometry, and the effective rotation dimension.
+    /// Returns an error for a negative rotation dimension or if native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates activation layouts and encodings, frequency geometry, and the effective rotation dimension.
     pub fn create(
         inputs: RopeInputs<&Tensor>,
         output: &Tensor,
@@ -261,7 +262,8 @@ impl RopeBackwardOperation {
     ///
     /// # Errors
     ///
-    /// Returns an error for a negative rotation dimension or if native descriptor creation, attribute assignment, or finalization fails. cuDNN validates activation layouts and encodings, frequency geometry, and the effective rotation dimension.
+    /// Returns an error for a negative rotation dimension or if native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates activation layouts and encodings, frequency geometry, and the effective rotation dimension.
     pub fn create(
         inputs: RopeBackwardInputs<&Tensor>,
         input_gradient: &Tensor,

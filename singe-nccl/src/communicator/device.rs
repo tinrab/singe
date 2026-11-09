@@ -390,7 +390,8 @@ impl Communicator {
     }
 }
 
-/// An owned NCCL device communicator. Its host communicator outlives it.
+/// An owned NCCL device communicator.
+/// Its host communicator outlives it.
 /// Kernel launches must finish before destruction; destruction synchronizes the context.
 #[derive(Debug)]
 pub struct DeviceCommunicator<'a> {
@@ -487,6 +488,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         if !alignment.is_power_of_two() || signals < 0 || counters < 0 {
             return Err(Error::out_of_range("device resource requirements"));
         }
+
         let mut handle = Box::new(DeviceResource::default());
         let request = Box::new(sys::ncclDevResourceRequirements_t {
             next: ptr::null_mut(),
@@ -513,7 +515,8 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         self.communicator.bind()
     }
 
-    /// Device resource requirement for LSA barriers. Returns its resource index.
+    /// Device resource requirement for LSA barriers.
+    /// Returns its resource index.
     ///
     /// # Errors
     ///
@@ -532,6 +535,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
                 &raw mut *request
             ))?;
         }
+
         let index = self.resources.len();
         self.resources.push(Resource {
             request,
@@ -540,7 +544,8 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Device resource requirement for GIN barriers. Returns its resource index.
+    /// Device resource requirement for GIN barriers.
+    /// Returns its resource index.
     ///
     /// # Errors
     ///
@@ -560,6 +565,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
                 &raw mut *request
             ))?;
         }
+
         let index = self.resources.len();
         self.resources.push(Resource {
             request,
@@ -568,7 +574,8 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Device resource requirement for CFT barriers. Returns its resource index.
+    /// Device resource requirement for CFT barriers.
+    /// Returns its resource index.
     ///
     /// # Errors
     ///
@@ -587,6 +594,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
                 &raw mut *request
             ))?;
         }
+
         let index = self.resources.len();
         self.resources.push(Resource {
             request,
@@ -595,7 +603,8 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Device resource requirement for low-latency all-to-all. Returns its resource index.
+    /// Device resource requirement for low-latency all-to-all.
+    /// Returns its resource index.
     ///
     /// # Errors
     ///
@@ -604,6 +613,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         if blocks < 0 || slots < 0 {
             return Err(Error::out_of_range("low-latency all-to-all resources"));
         }
+
         let mut handle = Box::new(sys::ncclLLA2AHandle_t::default());
         let mut request = Box::new(sys::ncclDevResourceRequirements_t::default());
         // SAFETY: `ncclLLA2ACreateRequirement` receives only plain values.
@@ -615,6 +625,7 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
                 &raw mut *request
             ))?;
         }
+
         let index = self.resources.len();
         self.resources.push(Resource {
             request,
@@ -623,7 +634,8 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         Ok(index)
     }
 
-    /// Enable multimem on a team. Returns its team-resource index.
+    /// Enable multimem on a team.
+    /// Returns its team-resource index.
     ///
     /// # Errors
     ///
@@ -670,12 +682,15 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
         {
             return Err(Error::out_of_range("device requirements"));
         }
+
         for i in 1..self.resources.len() {
             self.resources[i - 1].request.next = &raw mut *self.resources[i].request;
         }
+
         for i in 1..self.teams.len() {
             self.teams[i - 1].request.next = &raw mut *self.teams[i].request;
         }
+
         let (connection, stride) = match r.gin_connection {
             GinConnection::None => (sys::ncclGinConnectionType_t::NCCL_GIN_CONNECTION_NONE, 1),
             GinConnection::Full => (sys::ncclGinConnectionType_t::NCCL_GIN_CONNECTION_FULL, 1),
@@ -742,7 +757,8 @@ impl<'a> DeviceCommunicatorBuilder<'a> {
 }
 
 impl DeviceCommunicator<'_> {
-    /// Borrowed kernel argument. Kernels must use the same NCCL headers as these bindings.
+    /// Borrowed kernel argument.
+    /// Kernels must use the same NCCL headers as these bindings.
     #[must_use]
     pub fn as_raw(&self) -> &sys::ncclDevComm_t {
         &self.raw
@@ -824,8 +840,10 @@ impl Drop for DeviceCommunicator<'_> {
                     self.communicator.as_raw(),
                     &raw const self.raw
                 )) {
-                    #[cfg(debug_assertions)]
-                    eprintln!("failed to destroy nccl device communicator: {error}");
+                    eprintln!(
+                        "failed to destroy nccl device communicator: {}",
+                        singe_core::ErrorChain(&error)
+                    );
                 }
             }
         }
@@ -912,6 +930,7 @@ impl Window<'_> {
         if !ptr::eq(self.communicator, multimem.communicator) {
             return Err(Error::out_of_range("multimem communicator"));
         }
+
         let mut value = ptr::null_mut();
         // SAFETY: `ncclGetMultimemDevicePointer` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -1010,6 +1029,7 @@ impl Window<'_> {
         if !ptr::eq(team.communicator, self.communicator) {
             return Err(Error::out_of_range("window team"));
         }
+
         let mut value = LogicalEndpoint { id: 0, offset: 0 };
         // SAFETY: `ncclGetCftDeviceLeInfo` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -1056,8 +1076,9 @@ impl Window<'_> {
 /// Writes a cubin for the specified physical GPU architecture to `output`.
 ///
 /// NCCL's device headers require the native CUDA compiler and its host C++ headers.
-/// Uses `NVCC`, then `CUDA_PATH/bin/nvcc`, then `nvcc` on `PATH`. `CUDA_CCBIN`, when
-/// set, selects the host compiler. Compilation uses C++17.
+/// Uses `NVCC`, then `CUDA_PATH/bin/nvcc`, then `nvcc` on `PATH`.
+/// `CUDA_CCBIN`, when set, selects the host compiler.
+/// Compilation uses C++17.
 ///
 /// # Errors
 ///
@@ -1070,6 +1091,7 @@ pub fn compile_device_kernel(
     if architecture.is_virtual() {
         return Err(Error::out_of_range("physical GPU architecture"));
     }
+
     let include = sys::DEVICE_INCLUDE_PATH
         .ok_or_else(|| Error::out_of_range("nccl device header location"))?;
     let compiler = env::var_os("NVCC")
@@ -1100,9 +1122,11 @@ pub fn compile_device_kernel(
     {
         command.arg("--include-path").arg(include);
     }
+
     if let Some(compiler) = env::var_os("CUDA_CCBIN") {
         command.arg("--compiler-bindir").arg(compiler);
     }
+
     let result = command.output().map_err(CudaError::from)?;
     if !result.status.success() {
         return Err(CudaError::Compiler {

@@ -94,6 +94,7 @@ impl<T: SupportedSignal> Signal<T> {
         if length == 0 {
             return Err(Error::out_of_range("signal length"));
         }
+
         let bytes = length
             .checked_mul(size_of::<T>())
             .ok_or_else(|| Error::out_of_range("signal allocation size"))?;
@@ -104,6 +105,7 @@ impl<T: SupportedSignal> Signal<T> {
         if pointer.is_null() {
             return Err(Error::NullHandle);
         }
+
         let parts = RawAllocation {
             pointer: pointer.cast(),
             bytes,
@@ -219,8 +221,7 @@ impl<T> Signal<T> {
 
 impl<T: DeviceRepr> Signal<T> {
     /// # Safety
-    /// The native signal allocation must contain `length` valid T values, with
-    /// pending production ordered before every consumer and host readback.
+    /// The native signal allocation must contain `length` valid T values, with pending production ordered before every consumer and host readback.
     ///
     /// # Errors
     ///
@@ -275,8 +276,8 @@ impl<T> Signal<MaybeUninit<T>> {
 
     /// Exposes every element after completed successful production.
     /// # Safety
-    /// Every element must contain a valid T; producing work must be ordered before
-    /// all consumers and host readback. Enqueue success alone is insufficient.
+    /// Every element must contain a valid T; producing work must be ordered before all consumers and host readback.
+    /// Enqueue success alone is insufficient.
     #[must_use]
     pub unsafe fn assume_init(self) -> Signal<T> {
         Signal {
@@ -297,6 +298,7 @@ impl<T> Signal<MaybeUninit<T>> {
         if length == 0 || length > self.length {
             return Err(Error::out_of_range("signal initialized prefix"));
         }
+
         self.length = length;
         // SAFETY: the caller upholds this function's safety contract.
         Ok(unsafe { self.assume_init() })

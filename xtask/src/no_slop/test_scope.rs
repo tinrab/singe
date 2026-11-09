@@ -1,6 +1,6 @@
 //! Propagate test-only scope through ordinary file-backed module declarations.
-//! A file also referenced from production remains production. Macro-generated
-//! modules and conditional path attributes are not resolved.
+//! A file also referenced from production remains production.
+//! Macro-generated modules and conditional path attributes are not resolved.
 
 use std::{
     collections::BTreeMap,
@@ -33,7 +33,7 @@ pub fn propagate(files: &mut [ParsedFile]) {
         let stem = file
             .path
             .file_stem()
-            .expect("Rust source files have a stem");
+            .expect("discovered source files have a stem");
         let directory =
             if file.is_crate_root || matches!(stem.to_str(), Some("lib" | "main" | "mod")) {
                 parent.to_owned()
@@ -50,12 +50,14 @@ pub fn propagate(files: &mut [ParsedFile]) {
             &mut edges,
         );
     }
+
     loop {
         let mut changed = false;
         for index in 0..files.len() {
             if files[index].is_test || files[index].is_crate_root {
                 continue;
             }
+
             let incoming: Vec<_> = edges.iter().filter(|edge| edge.target == index).collect();
             if !incoming.is_empty()
                 && incoming
@@ -111,6 +113,7 @@ fn collect(
             if !value.path.is_ident("path") {
                 return None;
             }
+
             let Expr::Lit(lit) = &value.value else {
                 return None;
             };
@@ -138,15 +141,17 @@ fn collect(
                 |path| vec![attribute_directory.join(path)],
             );
             for candidate in candidates {
-                if let Ok(path) = candidate.canonicalize()
-                    && let Some(&target) = paths.get(&path)
-                {
-                    edges.push(Edge {
-                        source,
-                        target,
-                        test_only,
-                    });
-                }
+                let Ok(path) = candidate.canonicalize() else {
+                    continue;
+                };
+                let Some(&target) = paths.get(&path) else {
+                    continue;
+                };
+                edges.push(Edge {
+                    source,
+                    target,
+                    test_only,
+                });
             }
         }
     }

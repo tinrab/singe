@@ -5,12 +5,11 @@ use crate::backend::execution::EngineChoice;
 /// In-process cache of selected cuDNN engine choices.
 ///
 /// This intentionally stores engine indices and knob choices rather than raw execution-plan descriptors.
-/// A cache hit rebuilds descriptors for the current context and reapplies compile filters,
-/// while skipping heuristic collection.
+/// A cache hit rebuilds descriptors for the current context and reapplies compile filters, while skipping heuristic collection.
 /// Cached choices must satisfy the prepared graph's required backward engine and knob values.
 /// Additional compatible tuning knobs remain available, and a miss falls back to normal discovery.
-/// Dynamic-shape graphs share keys across tensor dimensions and strides. Each hit builds against
-/// the current graph's tensor specifications; it does not reuse another graph's bindings or workspace.
+/// Dynamic-shape graphs share keys across tensor dimensions and strides.
+/// Each hit builds against the current graph's tensor specifications; it does not reuse another graph's bindings or workspace.
 /// Diagnostic names, runtime scalar defaults and mutable kernel-cache payloads do not distinguish entries.
 /// Rebuilding descriptors preserves the current graph's constants, scalar defaults and tensor identities.
 /// Keys normalize typed tensor IDs by operation use and omit unused declarations; cached choices never contain binding IDs.

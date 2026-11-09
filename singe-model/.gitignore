@@ -1,0 +1,2 @@
+# Written by `just prepare-tests`, and by `just prepare-tests --real` for the real-snapshot ones.
+/tests/references/

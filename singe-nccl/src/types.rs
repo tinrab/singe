@@ -59,7 +59,8 @@ impl From<sys::ncclUniqueId> for UniqueId {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum CommunicatorState {
-    /// Initialization is in progress. Poll the communicator asynchronous status before use.
+    /// Initialization is in progress.
+    /// Poll the communicator asynchronous status before use.
     Initializing,
     /// The communicator is initialized and can enqueue operations.
     Active,
@@ -173,15 +174,17 @@ impl_enum_conversion!(sys::ncclScalarResidence_t, ScalarResidence);
 #[repr(u32)]
 #[non_exhaustive]
 pub enum CtaPolicy {
-    /// Use the default CTA policy for NCCL communicator. In this policy, NCCL will automatically adjust resource usage and achieve
-    /// maximal performance. This policy is suitable for most applications.
+    /// Use the default CTA policy for NCCL communicator.
+    /// In this policy, NCCL will automatically adjust resource usage and achieve maximal performance.
+    /// This policy is suitable for most applications.
     Default = sys::NCCL_CTA_POLICY_DEFAULT,
-    /// Use the CTA efficiency policy for NCCL communicator. In this policy, NCCL will optimize CTA usage and use minimal
-    /// number of CTAs to achieve the decent performance when possible. This policy is suitable for applications which require
-    /// better compute and communication overlap.
+    /// Use the CTA efficiency policy for NCCL communicator.
+    /// In this policy, NCCL will optimize CTA usage and use minimal number of CTAs to achieve the decent performance when possible.
+    /// This policy is suitable for applications which require better compute and communication overlap.
     Efficiency = sys::NCCL_CTA_POLICY_EFFICIENCY,
-    /// Use the Zero-CTA policy for NCCL communicator. In this policy, NCCL will use zero CTA whenever it can, even when that choice
-    /// may sacrifice some performance. Select this mode when your application must preserve the maximum number of CTAs for compute kernels.
+    /// Use the Zero-CTA policy for NCCL communicator.
+    /// In this policy, NCCL will use zero CTA whenever it can, even when that choice may sacrifice some performance.
+    /// Select this mode when your application must preserve the maximum number of CTAs for compute kernels.
     Zero = sys::NCCL_CTA_POLICY_ZERO,
 }
 
@@ -191,7 +194,8 @@ bitflags::bitflags! {
     pub struct ShrinkFlags: u32 {
         /// These flags modify the behavior of the `ncclCommShrink` operation.
         ///
-        /// Default behavior. Shrink the parent communicator without affecting ongoing operations.
+        /// Default behavior.
+        /// Shrink the parent communicator without affecting ongoing operations.
         /// Value: `0x00`.
         const DEFAULT = sys::NCCL_SHRINK_DEFAULT;
         /// First, terminate ongoing parent communicator operations, and then proceed with shrinking the communicator.
@@ -212,13 +216,12 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     /// Options controlling registration and access to an NCCL communication window.
     pub struct WindowFlags: u32 {
-        /// Register buffer into NCCL window with default behavior. The default behavior allows users to
-        /// pass any offset to the buffer head address as the input of NCCL collective operations. However,
-        /// this behavior can cause suboptimal performance in NCCL due to the asymmetric buffer usage.
+        /// Register buffer into NCCL window with default behavior.
+        /// The default behavior allows users to pass any offset to the buffer head address as the input of NCCL collective operations.
+        /// However, this behavior can cause suboptimal performance in NCCL due to the asymmetric buffer usage.
         const DEFAULT = sys::NCCL_WIN_DEFAULT;
-        /// Register buffer into NCCL window, and users need to guarantee the offset to the buffer head address
-        /// from all ranks must be equal when calling NCCL collective operations. It allows NCCL to operate
-        /// buffer in a symmetric way and provide the best performance.
+        /// Register buffer into NCCL window, and users need to guarantee the offset to the buffer head address from all ranks must be equal when calling NCCL collective operations.
+        /// It allows NCCL to operate buffer in a symmetric way and provide the best performance.
         const COLLECTIVE_SYMMETRIC = sys::NCCL_WIN_COLL_SYMMETRIC;
         /// Register buffer into NCCL window while ensuring strict ordering for window operations using the IB Verbs transport.
         /// This flag is mostly intended for buffers used for GIN VA Signals (see [Signals and Counters](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/device_gin.html#devapi-signals)).

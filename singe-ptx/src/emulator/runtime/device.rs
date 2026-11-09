@@ -32,8 +32,8 @@ use crate::emulator::{
 
 /// An emulated device with its own memory, served by one worker thread.
 ///
-/// Clones share the device. Dropping the last clone and every handle created from it
-/// requests a draining shutdown without waiting for it.
+/// Clones share the device.
+/// Dropping the last clone and every handle created from it requests a draining shutdown without waiting for it.
 #[derive(Clone)]
 pub struct Emulator {
     pub(crate) client: Arc<Client>,
@@ -50,8 +50,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `options.active_grids` is zero or the worker thread cannot be
-    /// spawned.
+    /// Returns an error if `options.active_grids` is zero or the worker thread cannot be spawned.
     pub fn create(options: EmulatorOptions) -> Result<Self, io::Error> {
         if options.active_grids == 0 {
             return Err(io::Error::new(
@@ -59,6 +58,7 @@ impl Emulator {
                 "active grid limit must be positive",
             ));
         }
+
         let shared = Arc::new(Shared {
             execution_budget: Arc::new(Budget::new(options.execution_storage_bytes)),
             #[cfg(test)]
@@ -93,8 +93,8 @@ impl Emulator {
 
     /// Stops accepting commands and drains or cancels the accepted ones.
     ///
-    /// Calling it again returns the same result. A later [`ShutdownMode::Cancel`] can
-    /// interrupt an earlier drain.
+    /// Calling it again returns the same result.
+    /// A later [`ShutdownMode::Cancel`] can interrupt an earlier drain.
     pub fn shutdown(&self, mode: ShutdownMode) -> Shutdown {
         self.client.shared.shutdown(mode);
         Shutdown::new(Arc::clone(&self.client.shared))
@@ -102,13 +102,13 @@ impl Emulator {
 
     /// Loads `parsed`, allocating and initializing its global and constant variables.
     ///
-    /// The module's storage layout is validated before the command is queued. Each load
-    /// gets its own variables.
+    /// The module's storage layout is validated before the command is queued.
+    /// Each load gets its own variables.
     ///
     /// # Errors
     ///
-    /// Returns an error if the layout or an initializer is invalid, or if the command is
-    /// not admitted. Allocation failures are reported through the submission.
+    /// Returns an error if the layout or an initializer is invalid, or if the command is not admitted.
+    /// Allocation failures are reported through the submission.
     pub fn load(&self, parsed: ParsedModule) -> Result<Submission<Module>, SubmitError> {
         let layout = parsed.layout()?;
         submit_poll(
@@ -157,8 +157,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the emulator is closed or faulted, or if stream identifiers
-    /// are exhausted.
+    /// Returns an error if the emulator is closed or faulted, or if stream identifiers are exhausted.
     pub fn create_stream(&self) -> Result<Stream, SubmitError> {
         let mut state = lock(&self.client.shared.admission);
         admission(state.phase, false)?;
@@ -190,8 +189,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the byte size overflows, staging storage cannot hold the copy,
-    /// or the command is not admitted.
+    /// Returns an error if the byte size overflows, staging storage cannot hold the copy, or the command is not admitted.
     pub fn upload<T: PtxScalar>(&self, values: &[T]) -> Result<Submission<Buffer<T>>, SubmitError> {
         self.default_stream().upload(values)
     }
@@ -202,8 +200,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `view` belongs to another emulator or is read-only, the lengths
-    /// differ, staging storage cannot hold the copy, or the command is not admitted.
+    /// Returns an error if `view` belongs to another emulator or is read-only, the lengths differ, staging storage cannot hold the copy, or the command is not admitted.
     pub fn write<T: PtxScalar>(
         &self,
         view: &BufferView<T>,
@@ -218,8 +215,7 @@ impl Emulator {
     ///
     /// # Errors
     ///
-    /// Returns an error if `view` belongs to another emulator, staging storage cannot hold
-    /// the result, or the command is not admitted.
+    /// Returns an error if `view` belongs to another emulator, staging storage cannot hold the result, or the command is not admitted.
     pub fn download<T: PtxScalar>(
         &self,
         view: &BufferView<T>,
@@ -227,13 +223,11 @@ impl Emulator {
         self.default_stream().download(view)
     }
 
-    /// Returns a submission that completes after every earlier command on the default
-    /// stream.
+    /// Returns a submission that completes after every earlier command on the default stream.
     ///
     /// # Errors
     ///
-    /// Returns an error if the emulator is closed or faulted, or the command is not
-    /// admitted.
+    /// Returns an error if the emulator is closed or faulted, or the command is not admitted.
     pub fn synchronize(&self) -> Result<Submission<()>, SubmitError> {
         self.default_stream().synchronize()
     }
@@ -241,9 +235,8 @@ impl Emulator {
 
 /// An ordered queue of commands.
 ///
-/// Commands on one stream run in submission order. The worker interleaves commands
-/// from different streams; use [`Stream::record_event`] and [`Stream::wait_event`] to
-/// order them.
+/// Commands on one stream run in submission order.
+/// The worker interleaves commands from different streams; use [`Stream::record_event`] and [`Stream::wait_event`] to order them.
 #[derive(Clone)]
 pub struct Stream {
     pub(crate) client: Arc<Client>,
@@ -257,7 +250,8 @@ impl Debug for Stream {
 }
 
 impl Stream {
-    /// Returns the stream identifier. The default stream is zero.
+    /// Returns the stream identifier.
+    /// The default stream is zero.
     #[must_use]
     pub fn id(&self) -> u64 {
         self.id
@@ -267,8 +261,7 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Returns an error if the emulator is closed or faulted, or the command is not
-    /// admitted.
+    /// Returns an error if the emulator is closed or faulted, or the command is not admitted.
     pub fn synchronize(&self) -> Result<Submission<()>, SubmitError> {
         submit_poll(
             &self.client,
@@ -286,14 +279,12 @@ impl Stream {
 
     /// Records an event that completes after every earlier command on this stream.
     ///
-    /// The returned submission observes the event once. The [`Event`] itself can be
-    /// passed to [`wait_event`](Self::wait_event) on any stream and queried with
-    /// [`Event::status`] at any time.
+    /// The returned submission observes the event once.
+    /// The [`Event`] itself can be passed to [`wait_event`](Self::wait_event) on any stream and queried with [`Event::status`] at any time.
     ///
     /// # Errors
     ///
-    /// Returns an error if the emulator is closed or faulted, or the command is not
-    /// admitted.
+    /// Returns an error if the emulator is closed or faulted, or the command is not admitted.
     pub fn record_event(&self) -> Result<(Event, Submission<()>), SubmitError> {
         let submission = submit_poll(&self.client, self.id, CommandKind::Event, false, 0, |_| {
             |_: &mut Worker, terminal| {
@@ -309,13 +300,12 @@ impl Stream {
 
     /// Makes later commands on this stream wait for `event`.
     ///
-    /// Neither the host nor the worker blocks while the stream waits. If the event's
-    /// commands fail, the returned submission reports that failure.
+    /// Neither the host nor the worker blocks while the stream waits.
+    /// If the event's commands fail, the returned submission reports that failure.
     ///
     /// # Errors
     ///
-    /// Returns an error if `event` belongs to another emulator or the command is not
-    /// admitted.
+    /// Returns an error if `event` belongs to another emulator or the command is not admitted.
     pub fn wait_event(&self, event: &Event) -> Result<Submission<()>, SubmitError> {
         foreign(&self.client, &event.client)?;
         let completion = Arc::clone(&event.completion);
@@ -345,9 +335,8 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Returns an error if `kernel` belongs to another emulator, `config` does not meet
-    /// the kernel's block requirements, an argument does not match its parameter, or the
-    /// command is not admitted. Execution faults are reported through the submission.
+    /// Returns an error if `kernel` belongs to another emulator, `config` does not meet the kernel's block requirements, an argument does not match its parameter, or the command is not admitted.
+    /// Execution faults are reported through the submission.
     pub fn launch(
         &self,
         kernel: &Kernel,
@@ -357,7 +346,8 @@ impl Stream {
         kernel.launch_on(self, config, args)
     }
 
-    /// Allocates `len` zeroed elements. Zero-length buffers are allowed.
+    /// Allocates `len` zeroed elements.
+    /// Zero-length buffers are allowed.
     ///
     /// # Errors
     ///
@@ -379,9 +369,11 @@ impl Stream {
                     if let Some(error) = terminal {
                         return Poll::Ready(Err(error));
                     }
+
                     if allocation.is_none() {
                         allocation = Some(worker.reserve_allocation(size)?);
                     }
+
                     let Some(current) = &allocation else {
                         return Poll::Ready(Err(ExecutionError::Memory(
                             "missing allocation reservation".into(),
@@ -393,9 +385,11 @@ impl Stream {
                         initialized = initialized.saturating_add(CHUNK_BYTES).min(size);
                         worker.transfer_checkpoint(initialized, size);
                     }
+
                     if !ready {
                         return Poll::Pending;
                     }
+
                     let allocation = allocation.take().ok_or_else(|| {
                         ExecutionError::Memory("missing allocation reservation".into())
                     })?;
@@ -415,14 +409,12 @@ impl Stream {
 
     /// Copies `values` into a new buffer.
     ///
-    /// The values are copied into staging storage before this returns, so `values` can be
-    /// reused immediately.
+    /// The values are copied into staging storage before this returns, so `values` can be reused immediately.
     ///
     /// # Errors
     ///
-    /// Returns an error if the byte size overflows, staging storage cannot hold the copy,
-    /// or the command is not admitted. Allocation failures are reported through the
-    /// submission.
+    /// Returns an error if the byte size overflows, staging storage cannot hold the copy, or the command is not admitted.
+    /// Allocation failures are reported through the submission.
     pub fn upload<T: PtxScalar>(&self, values: &[T]) -> Result<Submission<Buffer<T>>, SubmitError> {
         let len = values.len();
         let size = byte_size::<T>(len)?;
@@ -441,9 +433,11 @@ impl Stream {
                     if let Some(error) = terminal {
                         return Poll::Ready(Err(error));
                     }
+
                     if allocation.is_none() {
                         allocation = Some(worker.reserve_allocation(size)?);
                     }
+
                     let Some(current) = &allocation else {
                         return Poll::Ready(Err(ExecutionError::Memory(
                             "missing allocation reservation".into(),
@@ -463,6 +457,7 @@ impl Stream {
                     if !ready {
                         return Poll::Pending;
                     }
+
                     drop(bytes.take());
                     drop(staging.take());
                     let allocation = allocation.take().ok_or_else(|| {
@@ -482,15 +477,14 @@ impl Stream {
         )
     }
 
-    /// Overwrites all of `view` with `values`. Use a subview to write part of a buffer.
+    /// Overwrites all of `view` with `values`.
+    /// Use a subview to write part of a buffer.
     ///
     /// The values are copied into staging storage before this returns.
     ///
     /// # Errors
     ///
-    /// Returns an error if `view` belongs to another emulator or is read-only, the lengths
-    /// differ, the byte size overflows, staging storage cannot hold the copy, or the
-    /// command is not admitted.
+    /// Returns an error if `view` belongs to another emulator or is read-only, the lengths differ, the byte size overflows, staging storage cannot hold the copy, or the command is not admitted.
     pub fn write<T: PtxScalar>(
         &self,
         view: &BufferView<T>,
@@ -502,6 +496,7 @@ impl Stream {
                 "write length or read-only storage".into(),
             ));
         }
+
         let size = byte_size::<T>(values.len())?;
         let allocation = view.allocation.clone();
         let address = view.address();
@@ -520,6 +515,7 @@ impl Stream {
                     if let Some(error) = terminal {
                         return Poll::Ready(Err(error));
                     }
+
                     let end = offset.saturating_add(CHUNK_BYTES).min(size);
                     let snapshot = bytes
                         .as_ref()
@@ -537,6 +533,7 @@ impl Stream {
                     if offset < size {
                         return Poll::Pending;
                     }
+
                     drop(bytes.take());
                     drop(staging.take());
                     Poll::Ready(Ok(Box::new(|_| ()) as Pending<()>))
@@ -547,13 +544,11 @@ impl Stream {
 
     /// Copies `view` into a vector.
     ///
-    /// Downloads are still accepted after a kernel fault, so completed writes can be read
-    /// until shutdown starts.
+    /// Downloads are still accepted after a kernel fault, so completed writes can be read until shutdown starts.
     ///
     /// # Errors
     ///
-    /// Returns an error if `view` belongs to another emulator, the byte size overflows,
-    /// staging storage cannot hold the result, or the command is not admitted.
+    /// Returns an error if `view` belongs to another emulator, the byte size overflows, staging storage cannot hold the result, or the command is not admitted.
     pub fn download<T: PtxScalar>(
         &self,
         view: &BufferView<T>,
@@ -579,12 +574,14 @@ impl Stream {
                     if let Some(error) = terminal {
                         return Poll::Ready(Err(error));
                     }
+
                     if !started {
                         output
                             .try_reserve_exact(len)
                             .map_err(|_| ExecutionError::MemoryLimit)?;
                         started = true;
                     }
+
                     let end = offset.saturating_add(CHUNK_BYTES).min(size);
                     let chunk =
                         worker
@@ -597,6 +594,7 @@ impl Stream {
                     if offset < size {
                         return Poll::Pending;
                     }
+
                     let output = mem::take(&mut output);
                     let staging = staging.take();
                     Poll::Ready(Ok(Box::new(move |_| {

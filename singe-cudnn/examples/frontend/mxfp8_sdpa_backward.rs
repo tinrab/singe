@@ -22,6 +22,7 @@ fn run() -> Result<()> {
         println!("frontend_mxfp8_sdpa_backward: skipped, requires Blackwell Computing GPU");
         return Ok(());
     }
+
     // The attention request below overrides the graph's FP16 compute default with FP32.
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(

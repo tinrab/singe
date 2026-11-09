@@ -1,5 +1,5 @@
-//! MLA with shared scores and online softmax. MODE selects dense prefill,
-//! contiguous decode, sparse prefill, paged decode, or split decode.
+//! MLA with shared scores and online softmax.
+//! MODE selects dense prefill, contiguous decode, sparse prefill, paged decode, or split decode.
 #[cutile::module]
 mod kernels {
     use cutile::core::*;
@@ -180,9 +180,11 @@ mod kernels {
         if MODE == 0 {
             limit = min(key_len, (pid.1 + 1i32) * BM);
         }
+
         if MODE == 2 {
             limit = topk;
         }
+
         if MODE == 3 {
             let batch_index: Tile<i32, { [1] }> = broadcast_scalar(batch, const_shape![1]);
             let length_active: Tile<bool, { [1] }> = constant(true, const_shape![1]);
@@ -190,10 +192,12 @@ mod kernels {
             let length: i32 = tile_to_scalar(length.reshape(const_shape![]));
             limit = max(0i32, min(length, table_stride * block_size));
         }
+
         if MODE == 4 {
             key_start = split * per_split;
             limit = max(0i32, min(per_split, key_len - key_start));
         }
+
         let mut row_max: Tile<f32, { [BM] }> = constant(f32::NEG_INFINITY, const_shape![BM]);
         let mut row_sum: Tile<f32, { [BM] }> = constant(0.0f32, const_shape![BM]);
         let mut acc: Tile<f32, { [BM, D] }> = constant(0.0f32, const_shape![BM, D]);
@@ -223,6 +227,7 @@ mod kernels {
                     & lt_tile(logical, context_length)
                     & le_tile(logical, causal_query);
             }
+
             let key_batch: Tile<i32, { [32] }> =
                 broadcast_scalar(batch * key_len, const_shape![32]);
             let kv_head_count: Tile<i32, { [32] }> = broadcast_scalar(kv_heads, const_shape![32]);
@@ -247,6 +252,7 @@ mod kernels {
                     broadcast_scalar(block_size, const_shape![32]);
                 key_row = physical * page_token_stride + logical - block * page_token_length;
             }
+
             let mut scores: Tile<f32, { [BM, 32] }> = constant(0.0f32, const_shape![BM, 32]);
             // Content and positional channels contribute to one shared score tile.
             let content: Tile<f32, { [BM, 32] }> = unsafe {
@@ -293,6 +299,7 @@ mod kernels {
                             .broadcast(const_shape![BM, 32]),
                     );
             }
+
             let score_scale: Tile<f32, { [BM, 32] }> =
                 broadcast_scalar(scale, const_shape![BM, 32]);
             let masked_score: Tile<f32, { [BM, 32] }> =
@@ -354,8 +361,10 @@ mod kernels {
                         .reshape(const_shape![1, D])
                         .broadcast(const_shape![BM, D]);
             }
+
             row_max = next;
         }
+
         let denominator_zero: Tile<f32, { [BM] }> = constant(0.0f32, const_shape![BM]);
         let denominator_one: Tile<f32, { [BM] }> = constant(1.0f32, const_shape![BM]);
         let denominator = select(eq_tile(row_sum, denominator_zero), denominator_one, row_sum);
@@ -376,6 +385,7 @@ mod kernels {
         if MODE == 4 {
             output_row = split_output_row;
         }
+
         let output_channel_start: Tile<i32, { [D] }> =
             broadcast_scalar(value_tile * D, const_shape![D]);
         let output_channel = d + output_channel_start;

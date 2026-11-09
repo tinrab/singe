@@ -138,7 +138,8 @@ impl ErrataRule {
         self
     }
 
-    /// Limits matching to `[start, end)`. An absent end has no upper bound.
+    /// Limits matching to `[start, end)`.
+    /// An absent end has no upper bound.
     ///
     /// # Errors
     /// Returns an error when a supplied end is no greater than the start.
@@ -148,12 +149,14 @@ impl ErrataRule {
         {
             return Err(Error::ErrataVersionRangeInvalid { start, end });
         }
+
         self.version_start = start;
         self.version_end = end;
         Ok(self)
     }
 
-    /// Sets a four-dimensional input pattern. `None` entries are wildcards.
+    /// Sets a four-dimensional input pattern.
+    /// `None` entries are wildcards.
     /// Passing `None` for the complete pattern removes the input-shape condition.
     /// Removing the condition does not require input dimensions when matching plans.
     ///
@@ -387,7 +390,8 @@ impl Errata {
     ///
     /// # Errors
     ///
-    /// Returns an error if the JSON cannot be decoded or a rule has an empty operation, negative engine index, invalid version range, malformed or unrepresentable knob value, or invalid shape dimensions or format. Rule-validation errors include the zero-based rule index.
+    /// Returns an error if the JSON cannot be decoded or a rule has an empty operation, negative engine index, invalid version range, malformed or unrepresentable knob value, or invalid shape dimensions or format.
+    /// Rule-validation errors include the zero-based rule index.
     pub fn from_json(json: &str) -> Result<Self> {
         let document: JsonErrata = serde_json::from_str(json)?;
         let rules = document
@@ -544,12 +548,14 @@ fn parse_rule(json: JsonRule) -> Result<ErrataRule> {
             })?;
         rule = rule.with_knob(kind, value);
     }
+
     if let Some(shape) = json.input_shape {
         let format = json.shape_format.ok_or(Error::ErrataRuleSyntax {
             reason: "input_shape requires shape_format",
         })?;
         rule = rule.with_input_shape(format, parse_shape(shape)?)?;
     }
+
     if let Some(shape) = json.filter_shape {
         rule = rule.with_filter_shape(parse_shape(shape)?)?;
     }

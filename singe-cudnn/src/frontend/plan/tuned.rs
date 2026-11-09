@@ -214,6 +214,7 @@ impl TunedPlan {
             })?;
             self.require_context(&context)?;
         }
+
         validate_context_pair(
             Some(&self.context),
             Some(workspace.region().context()),

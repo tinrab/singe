@@ -43,8 +43,7 @@ impl Graph {
 
     /// Compiles this graph for a live context, or deviceless with `None`.
     ///
-    /// cuDNN heuristics return engine configurations ranked by expected
-    /// performance; the usual workflow is to build the first supported choice.
+    /// cuDNN heuristics return engine configurations ranked by expected performance; the usual workflow is to build the first supported choice.
     /// An attached plan cache is consulted before preparation and updated after compilation.
     ///
     /// # Errors
@@ -94,7 +93,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, or target-property resolution, incompatible attention planning overrides, engine discovery or configuration metadata failure. Successfully queried configurations excluded by filters yield an empty result.
+    /// Returns an error for unsupported runtime features, invalid declarations, operation geometry, references, runtime bounds or shared layouts, an empty graph, target-resolution failure, or native descriptor construction failure, or target-property resolution, incompatible attention planning overrides, engine discovery or configuration metadata failure.
+    /// Successfully queried configurations excluded by filters yield an empty result.
     pub fn engine_configs(
         &self,
         context: Option<&Context>,
@@ -162,8 +162,7 @@ impl Graph {
 
     /// Compiles this graph with specific engine indices and knob choices.
     ///
-    /// This corresponds to the custom execution plan workflow for creating
-    /// plans from chosen engines and knobs.
+    /// This corresponds to the custom execution plan workflow for creating plans from chosen engines and knobs.
     ///
     /// # Errors
     ///
@@ -211,6 +210,7 @@ impl ValidatedGraph {
         if expanded.operations.is_empty() {
             return Err(FrontendError::GraphEmpty.into());
         }
+
         logging::diagnostic!(
             "preparing validated graph {:?}: {} operations, deviceless={}",
             recipe.name(),

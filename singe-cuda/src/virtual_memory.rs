@@ -99,7 +99,8 @@ impl AllocationOptions {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if RDMA usage over PCI Express is selected without enabling RDMA capability. Also propagates native granularity query errors for invalid or unsupported allocation properties and an error if the returned byte granularity does not fit `usize`.
+    /// Returns `Error::InvalidValue` if RDMA usage over PCI Express is selected without enabling RDMA capability.
+    /// Also propagates native granularity query errors for invalid or unsupported allocation properties and an error if the returned byte granularity does not fit `usize`.
     pub fn granularity(self, recommended: bool) -> Result<usize> {
         let mut size = 0;
         let flag = if recommended {
@@ -132,7 +133,8 @@ impl Allocation {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for a zero size, a size not divisible by the minimum allocation granularity, or RDMA usage over PCI Express without RDMA capability. Also propagates context binding, granularity query, and physical allocation errors.
+    /// Returns `Error::InvalidValue` for a zero size, a size not divisible by the minimum allocation granularity, or RDMA usage over PCI Express without RDMA capability.
+    /// Also propagates context binding, granularity query, and physical allocation errors.
     pub fn create(
         context: &Arc<Context>,
         size: usize,
@@ -143,6 +145,7 @@ impl Allocation {
         if size == 0 || !size.is_multiple_of(granularity) {
             return Err(Error::InvalidValue);
         }
+
         let mut handle = 0;
         // SAFETY: `cuMemCreate` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
@@ -181,12 +184,13 @@ impl Allocation {
     /// Takes ownership of an existing allocation reference.
     ///
     /// # Safety
-    /// `handle` must be a live allocation reference owned by the caller, with
-    /// at least `size` bytes, valid for `context`. Ownership is transferred.
+    /// `handle` must be a live allocation reference owned by the caller, with at least `size` bytes, valid for `context`.
+    /// Ownership is transferred.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if `handle` or `size` is zero. The caller must satisfy the remaining allocation validity and ownership requirements.
+    /// Returns `Error::InvalidValue` if `handle` or `size` is zero.
+    /// The caller must satisfy the remaining allocation validity and ownership requirements.
     pub unsafe fn from_raw(
         context: &Arc<Context>,
         handle: sys::CUmemGenericAllocationHandle,
@@ -216,7 +220,8 @@ impl Allocation {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot export this allocation as a POSIX file descriptor, including when it was not created with the required export handle type. The returned descriptor is owned by the caller.
+    /// Returns an error if CUDA cannot export this allocation as a POSIX file descriptor, including when it was not created with the required export handle type.
+    /// The returned descriptor is owned by the caller.
     #[cfg(unix)]
     pub fn export_fd(&self) -> Result<OwnedFd> {
         use std::os::fd::FromRawFd;
@@ -236,12 +241,14 @@ impl Allocation {
     /// Imports an allocation from an opaque file descriptor.
     ///
     /// # Safety
-    /// `size` must be the size of the exported allocation. The descriptor must
-    /// refer to a CUDA allocation accessible in `context`.
+    /// `size` must be the size of the exported allocation.
+    /// The descriptor must refer to a CUDA allocation accessible in `context`.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if `size` is zero or CUDA returns a zero allocation handle. Also propagates context binding and native import errors. The supplied file descriptor remains borrowed; this method does not take descriptor ownership.
+    /// Returns `Error::InvalidValue` if `size` is zero or CUDA returns a zero allocation handle.
+    /// Also propagates context binding and native import errors.
+    /// The supplied file descriptor remains borrowed; this method does not take descriptor ownership.
     #[cfg(unix)]
     pub unsafe fn import_fd(
         context: &Arc<Context>,
@@ -252,6 +259,7 @@ impl Allocation {
         if size == 0 {
             return Err(Error::InvalidValue);
         }
+
         context.bind()?;
         let mut handle = 0;
         // SAFETY: the caller upholds this function's safety contract.
@@ -271,8 +279,10 @@ impl Drop for Allocation {
         // SAFETY: `cuMemRelease` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuMemRelease(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to release cuda memory allocation handle: {error}");
+                eprintln!(
+                    "failed to release cuda memory allocation handle: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -291,11 +301,14 @@ impl AddressReservation {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for zero `size` or a nonzero alignment that is not a power of two. Also propagates context binding and native reservation errors, including unsupported size or alignment. An alignment of zero requests CUDA's default alignment.
+    /// Returns `Error::InvalidValue` for zero `size` or a nonzero alignment that is not a power of two.
+    /// Also propagates context binding and native reservation errors, including unsupported size or alignment.
+    /// An alignment of zero requests CUDA's default alignment.
     pub fn create(context: &Arc<Context>, size: usize, alignment: usize) -> Result<Self> {
         if size == 0 || (alignment != 0 && !alignment.is_power_of_two()) {
             return Err(Error::InvalidValue);
         }
+
         context.bind()?;
         let mut address = 0;
         // SAFETY: `cuMemAddressReserve` receives valid output locations.
@@ -322,7 +335,8 @@ impl AddressReservation {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if `size` is zero or `address` is null. The caller must satisfy the remaining reservation validity and ownership requirements.
+    /// Returns `Error::InvalidValue` if `size` is zero or `address` is null.
+    /// The caller must satisfy the remaining reservation validity and ownership requirements.
     pub unsafe fn from_raw(
         context: &Arc<Context>,
         address: DevicePtr,
@@ -367,7 +381,9 @@ impl AddressReservation {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the reservation and allocation have different actual contexts or `offset + reservation_size` overflows or exceeds the physical allocation. Also propagates context binding and native mapping errors, including native granularity or offset restrictions. The consumed reservation is released on failure.
+    /// Returns `Error::InvalidValue` if the reservation and allocation have different actual contexts or `offset + reservation_size` overflows or exceeds the physical allocation.
+    /// Also propagates context binding and native mapping errors, including native granularity or offset restrictions.
+    /// The consumed reservation is released on failure.
     pub fn map(self, allocation: Arc<Allocation>, offset: usize) -> Result<Mapping> {
         if self.context.as_raw() != allocation.context.as_raw()
             || offset
@@ -376,6 +392,7 @@ impl AddressReservation {
         {
             return Err(Error::InvalidValue);
         }
+
         self.context.bind()?;
         // SAFETY: `cuMemMap` receives only plain values.
         unsafe {
@@ -399,8 +416,10 @@ impl Drop for AddressReservation {
         // SAFETY: `cuMemAddressFree` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuMemAddressFree(self.address, self.size as _)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to free cuda virtual address range: {error}");
+                eprintln!(
+                    "failed to free cuda virtual address range: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -437,12 +456,12 @@ impl Mapping {
     /// Sets the access flags for the mapped virtual address range.
     ///
     /// # Safety
-    /// No operation may access the mapping while permissions are changed, and
-    /// all queued uses must finish before this mapping is dropped.
+    /// No operation may access the mapping while permissions are changed, and all queued uses must finish before this mapping is dropped.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA rejects the target locations, access flags, mapped address range, or permission change. No Rust-side access permission or initialization claim is established by the descriptors.
+    /// Returns an error if CUDA rejects the target locations, access flags, mapped address range, or permission change.
+    /// No Rust-side access permission or initialization claim is established by the descriptors.
     pub unsafe fn set_access(&mut self, access: &[MemoryAccessDescriptor]) -> Result<()> {
         let raw = access
             .iter()
@@ -464,7 +483,8 @@ impl Mapping {
     ///
     /// # Errors
     ///
-    /// Propagates native access-query errors. Returns an error if the returned flags do not fit `u32`, or `Error::InvalidValue` if they are not a recognized [`MemoryAccessFlag`].
+    /// Propagates native access-query errors.
+    /// Returns an error if the returned flags do not fit `u32`, or `Error::InvalidValue` if they are not a recognized [`MemoryAccessFlag`].
     pub fn access(&self, location: MemoryLocation) -> Result<MemoryAccessFlag> {
         let mut flags = 0;
         // SAFETY: `cuMemGetAccess` receives valid output locations and pointers into buffers borrowed for the call.
@@ -488,8 +508,10 @@ impl Drop for Mapping {
                 self.reservation.address,
                 self.reservation.size as _
             )) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to unmap cuda virtual memory: {error}");
+                eprintln!(
+                    "failed to unmap cuda virtual memory: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

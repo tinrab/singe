@@ -8,7 +8,8 @@ use crate::{
 
 /// Owns native options and completed convergence results for Jacobi singular value decompositions.
 ///
-/// Complete solver work before inspecting results or changing the options. Raw execution must retain the object and exclude concurrent access until completion.
+/// Complete solver work before inspecting results or changing the options.
+/// Raw execution must retain the object and exclude concurrent access until completion.
 #[derive(Debug)]
 pub struct GesvdjInfo {
     handle: sys::gesvdjInfo_t,
@@ -25,8 +26,7 @@ impl GesvdjInfo {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuSOLVER cannot allocate the parameter storage or if
-    /// it does not return a valid handle.
+    /// Returns an error if cuSOLVER cannot allocate the parameter storage or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
         // SAFETY: `cusolverDnCreateGesvdjInfo` receives valid output locations.
@@ -98,8 +98,7 @@ impl GesvdjInfo {
     ///
     /// # Errors
     ///
-    /// Returns an error if the info handle was used with `gesvdjBatched`,
-    /// which does not report a residual.
+    /// Returns an error if the info handle was used with `gesvdjBatched`, which does not report a residual.
     pub fn residual(&self, context: &Context) -> Result<f64> {
         context.bind()?;
 
@@ -121,8 +120,7 @@ impl GesvdjInfo {
     ///
     /// # Errors
     ///
-    /// Returns an error if the info handle was used with `gesvdjBatched`,
-    /// which does not report a sweep count.
+    /// Returns an error if the info handle was used with `gesvdjBatched`, which does not report a sweep count.
     pub fn executed_sweeps(&self, context: &Context) -> Result<i32> {
         context.bind()?;
 
@@ -148,9 +146,8 @@ impl GesvdjInfo {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `gesvdjInfo_t` created by cuSOLVER. The
-    /// returned wrapper takes ownership and will destroy it with
-    /// `cusolverDnDestroyGesvdjInfo`; no other owner may destroy or keep using it.
+    /// `handle` must be a valid `gesvdjInfo_t` created by cuSOLVER.
+    /// The returned wrapper takes ownership and will destroy it with `cusolverDnDestroyGesvdjInfo`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -178,8 +175,10 @@ impl Drop for GesvdjInfo {
         // SAFETY: `cusolverDnDestroyGesvdjInfo` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnDestroyGesvdjInfo(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver gesvdj info: {error}");
+                eprintln!(
+                    "failed to destroy cusolver gesvdj info: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

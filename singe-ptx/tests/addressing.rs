@@ -105,3 +105,33 @@ fn test_pointer_annotations_must_match_the_module_address_size() -> Result {
     }
     Ok(())
 }
+
+#[test]
+fn test_non_coherent_global_loads_read_like_weak_loads_and_are_global_only() -> Result {
+    let source = ".version 9.3 .target sm_80 .address_size 64
+        .entry k(.param .u64 input, .param .u64 output) {
+            .reg .u64 from; .reg .u64 to; .reg .u32 a; .reg .u32 b; .reg .u32 c;
+            ld.param.u64 from,[input]; ld.param.u64 to,[output];
+            ld.global.nc.u32 a,[from];
+            ld.global.nc.v2.u32 {b,c},[from+8];
+            add.u32 a,a,b; add.u32 a,a,c;
+            st.global.u32 [to],a; ret;
+        }";
+    let device = Emulator::create(EmulatorOptions::default())?;
+    let module = device.load(ParsedModule::parse(source)?)?.wait()?;
+    let input = device.upload(&[1u32, 0, 20, 300])?.wait()?;
+    let output = device.zeroed::<u32>(1)?.wait()?;
+    module
+        .kernel("k")?
+        .launch(
+            LaunchConfig::create([1, 1, 1], [1, 1, 1], 0)?,
+            [(&input).into(), (&output).into()],
+        )?
+        .wait()?;
+    assert_eq!(device.download(&output)?.wait()?, [321]);
+
+    let shared = source.replace("ld.global.nc.u32 a,[from]", "ld.shared.nc.u32 a,[from]");
+    assert!(ParsedModule::parse(&shared)?.compile("k").is_err());
+    device.shutdown(ShutdownMode::Drain).wait()?;
+    Ok(())
+}

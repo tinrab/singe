@@ -56,6 +56,7 @@ impl StftConfig {
         if !self.center {
             return Ok(input_len);
         }
+
         let pad = self.n_fft / 2;
         input_len
             .checked_add(pad)
@@ -120,9 +121,11 @@ fn validate_stft_config(config: StftConfig) -> Result<()> {
     if config.n_fft == 0 || config.hop_length == 0 || config.win_length == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.win_length > config.n_fft {
         return Err(Error::InvalidLength);
     }
+
     if !config.n_fft.is_multiple_of(2) {
         return Err(Error::UnsupportedParameter {
             op: "stft".into(),
@@ -141,6 +144,7 @@ fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     if config.sample_rate == 0 || config.frequency_bin_count == 0 || config.mel_bin_count == 0 {
         return Err(Error::InvalidLength);
     }
+
     let nyquist = config.sample_rate as f32 / 2.0;
     if !config.min_frequency.is_finite()
         || !config.max_frequency.is_finite()
@@ -161,11 +165,13 @@ fn validate_log_mel_config(config: LogMelConfig) -> Result<()> {
     {
         return Err(Error::InvalidLength);
     }
+
     if let Some(dynamic_range) = config.dynamic_range
         && (!dynamic_range.is_finite() || dynamic_range <= 0.0)
     {
         return Err(Error::InvalidLength);
     }
+
     if let Some(reference_max) = config.reference_max
         && !reference_max.is_finite()
     {

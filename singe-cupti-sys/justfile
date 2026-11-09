@@ -42,6 +42,9 @@ generate:
 
     mv bindings.rs ./src/cupti_sys_${CUPTI_API_VERSION}.rs
 
+    # Each declared function loads its symbol at run time, through singe-loader.
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::LIBRARY;/' ./src/cupti_sys_*.rs
+
 clean:
     rm -rf ./dist
     rm -f ./src/cupti_sys_*.rs

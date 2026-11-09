@@ -53,6 +53,7 @@ mod kernels {
             squares = squares + resident * resident;
             unsafe { store_1d(residual_out, offset, rounded, valid) };
         }
+
         let sum: Tile<f32, { [] }> = reduce_sum(squares, 0i32);
         let n: f32 = convert_scalar(columns);
         let normalization_width: Tile<f32, { [] }> = scalar_to_tile(n);

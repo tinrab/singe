@@ -88,7 +88,8 @@ impl BuiltPlanCandidates {
     impl_engine_config_filter_methods!();
 
     /// Retains candidates in the requested order, including their build outcomes and exclusions.
-    /// Omitted entries are removed. Compilation selects the first available entry in this order.
+    /// Omitted entries are removed.
+    /// Compilation selects the first available entry in this order.
     ///
     /// # Errors
     /// Returns an error for an empty order, duplicate identities or identities absent from this collection.
@@ -181,13 +182,15 @@ impl BuiltPlanCandidates {
     /// Uses this collection's filters, resource limits and shared kernel cache.
     /// Batch build policies and plan-count limits do not prevent explicit requests.
     ///
-    /// Already built candidates are reused. Failed candidates are retried, replacing only
-    /// their own diagnostics. Filtered candidates remain excluded. A native build failure
-    /// is recorded in the returned report; setup and logging failures return `Err`.
+    /// Already built candidates are reused.
+    /// Failed candidates are retried, replacing only their own diagnostics.
+    /// Filtered candidates remain excluded.
+    /// A native build failure is recorded in the returned report; setup and logging failures return `Err`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the plan identity is absent or target device properties cannot be resolved. Candidate construction failures are retained in the returned build report.
+    /// Returns an error if the plan identity is absent or target device properties cannot be resolved.
+    /// Candidate construction failures are retained in the returned build report.
     pub fn build_plan(
         &mut self,
         context: Option<&Context>,
@@ -202,9 +205,11 @@ impl BuiltPlanCandidates {
         if matches!(entry.exclusion, Some(PlanExclusion::BuildLimit { .. })) {
             entry.exclusion = None;
         }
+
         if entry.exclusion.is_some() || matches!(entry.outcome, PlanBuildOutcome::Built(_)) {
             return Ok(entry.report(self.artifacts.graph_name.as_deref()));
         }
+
         let device_properties = self.graph.resolved_device_properties()?;
         build_execution_plan_entry(
             context,
@@ -331,6 +336,7 @@ impl BuiltPlanCandidates {
                 bindings.set_scalar(record.id, value)?;
             }
         }
+
         for &(id, value) in &self.artifacts.scalar_bindings {
             bindings.set_scalar(id, value)?;
         }

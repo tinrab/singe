@@ -118,6 +118,7 @@ impl SliceConfig {
                 actual: self.slices.len(),
             });
         }
+
         check_range!(
             "slice stride",
             self.strides.iter().all(|&stride| stride > 0)
@@ -158,11 +159,13 @@ impl SliceOperation {
                 name: "slice output dimensions".into(),
             });
         }
+
         if x.data_type() != y.data_type() {
             return Err(Error::DescriptorMismatch {
                 name: "slice data type".into(),
             });
         }
+
         let starts = config
             .slices()
             .iter()

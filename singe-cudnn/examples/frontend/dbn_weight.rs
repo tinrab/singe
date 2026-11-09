@@ -139,6 +139,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     for (id, value) in [
         (mean, 0.0_f32),
         (inv_variance, 1.0),
@@ -153,6 +154,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     let drelu_dev = DeviceMemory::<f16>::zeroed(cuda, graph.shape(drelu)?.storage_span()?)?;
     bindings.set_owned_region(
         drelu,
@@ -174,6 +176,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: bindings retain initialized inputs and independent writable results.
     // Convolution and pointwise intermediates need no caller storage, and all resources

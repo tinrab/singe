@@ -128,6 +128,7 @@ fn run() -> Result<()> {
         bindings.set_input(*scale, scale_dev)?;
         bindings.set_input(*bias, bias_dev)?;
     }
+
     bindings.set(dw, &mut dw_dev)?;
     // SAFETY: initialized inputs, accumulated output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {

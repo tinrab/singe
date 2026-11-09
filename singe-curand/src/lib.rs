@@ -1,13 +1,14 @@
 //! Safe cuRAND host API wrappers for CUDA random number generation.
 //!
-//! GPU generators retain their actual context and stream. Completed generation
-//! returns initialized output views; public unsafe enqueues expose native work.
+//! GPU generators retain their actual context and stream.
+//! Completed generation returns initialized output views; public unsafe enqueues expose native work.
 //! Separate CPU generators produce host values synchronously.
 
 pub mod distribution;
 pub mod error;
 pub mod generator;
 pub mod quasi;
+
 /// Generator kinds, output orderings, and Sobol direction-vector sets.
 pub mod types;
 
@@ -32,6 +33,7 @@ pub fn version() -> Result<LibraryVersion> {
     unsafe {
         try_ffi!(sys::curandGetVersion(&raw mut version))?;
     }
+
     let version = version as u64;
     Ok(LibraryVersion::new(
         version / 1000,

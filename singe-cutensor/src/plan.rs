@@ -49,8 +49,7 @@ impl PlanPreference {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context is not initialized, cuTENSOR rejects the
-    /// requested algorithm or JIT mode, or cuTENSOR does not return a valid handle.
+    /// Returns an error if the context is not initialized, cuTENSOR rejects the requested algorithm or JIT mode, or cuTENSOR does not return a valid handle.
     pub fn create(context: &Context, algorithm: Algorithm, jit_mode: JitMode) -> Result<Self> {
         context.bind()?;
 
@@ -79,10 +78,8 @@ impl PlanPreference {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSOR plan-preference handle associated with
-    /// `context`. Ownership of `handle` is transferred to the returned preference,
-    /// and the handle must not be destroyed elsewhere after calling this
-    /// function.
+    /// `handle` must be a valid cuTENSOR plan-preference handle associated with `context`.
+    /// Ownership of `handle` is transferred to the returned preference, and the handle must not be destroyed elsewhere after calling this function.
     ///
     /// # Errors
     ///
@@ -264,8 +261,7 @@ impl PlanPreference {
     ///
     /// # Errors
     ///
-    /// Returns an error if `gpu_arch` cannot be represented for cuTENSOR or if
-    /// cuTENSOR rejects the architecture value.
+    /// Returns an error if `gpu_arch` cannot be represented for cuTENSOR or if cuTENSOR rejects the architecture value.
     pub fn set_gpu_arch(&mut self, gpu_arch: u32) -> Result<()> {
         let gpu_arch = to_i32(gpu_arch, "gpu_arch")?;
         self.set_attribute(PlanPreferenceAttribute::GpuArch, &gpu_arch)
@@ -277,8 +273,7 @@ impl PlanPreference {
         self.handle
     }
 
-    /// Consumes the preference and returns the raw cuTENSOR handle without
-    /// destroying it.
+    /// Consumes the preference and returns the raw cuTENSOR handle without destroying it.
     ///
     /// The returned record retains the native library owner and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
@@ -312,15 +307,19 @@ impl PlanPreference {
 impl Drop for PlanPreference {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cutensor context before destroying plan preference: {error}");
+            eprintln!(
+                "failed to bind cutensor context before destroying plan preference: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cutensorDestroyPlanPreference` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorDestroyPlanPreference(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor plan preference: {error}");
+                eprintln!(
+                    "failed to destroy cutensor plan preference: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -357,9 +356,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `operation` and
-    /// `preference` do not belong to a compatible context, cuTENSOR rejects the
-    /// workspace preference, or cuTENSOR cannot estimate the workspace size.
+    /// Returns an error if the context cannot be bound, `operation` and `preference` do not belong to a compatible context, cuTENSOR rejects the workspace preference, or cuTENSOR cannot estimate the workspace size.
     pub fn estimate_workspace_size(
         context: &Context,
         operation: &OperationDescriptor,
@@ -384,7 +381,9 @@ impl Plan {
 
     /// Selects a kernel and prepares an execution plan under a workspace limit.
     ///
-    /// `workspace_size_limit` is measured in bytes. The actual requirement is stored with the plan and can be queried with [`Self::required_workspace_size`]. The plan targets the active CUDA device; creation must not be captured in a CUDA graph when JIT compilation is enabled.
+    /// `workspace_size_limit` is measured in bytes.
+    /// The actual requirement is stored with the plan and can be queried with [`Self::required_workspace_size`].
+    /// The plan targets the active CUDA device; creation must not be captured in a CUDA graph when JIT compilation is enabled.
     ///
     /// # Errors
     ///
@@ -437,11 +436,9 @@ impl Plan {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSOR plan handle associated with `context` and
-    /// compatible with `signature`. `required_workspace_size` must match the
-    /// plan's required workspace size. Ownership of `handle` is transferred to
-    /// the returned plan, and the handle must not be destroyed elsewhere after
-    /// calling this function.
+    /// `handle` must be a valid cuTENSOR plan handle associated with `context` and compatible with `signature`.
+    /// `required_workspace_size` must match the plan's required workspace size.
+    /// Ownership of `handle` is transferred to the returned plan, and the handle must not be destroyed elsewhere after calling this function.
     pub unsafe fn from_raw_parts(
         handle: sys::cutensorPlan_t,
         context: &Context,
@@ -485,8 +482,7 @@ impl Plan {
         self.handle
     }
 
-    /// Consumes the plan and returns the raw cuTENSOR plan handle without
-    /// destroying it.
+    /// Consumes the plan and returns the raw cuTENSOR plan handle without destroying it.
     ///
     /// The returned record retains the native library owner and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
@@ -524,15 +520,19 @@ impl Plan {
 impl Drop for Plan {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cutensor context before destroying plan: {error}");
+            eprintln!(
+                "failed to bind cutensor context before destroying plan: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cutensorDestroyPlan` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorDestroyPlan(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor plan: {error}");
+                eprintln!(
+                    "failed to destroy cutensor plan: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

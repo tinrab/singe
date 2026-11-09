@@ -13,9 +13,7 @@ macro_rules! impl_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, the source length cannot be
-        /// represented by the native interface, NPP rejects the query, or the returned
-        /// scratch size cannot be represented as `usize`.
+        /// Returns an error if CUDA context binding fails, the source length cannot be represented by the native interface, NPP rejects the query, or the returned scratch size cannot be represented as `usize`.
         pub fn $buffer_size_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -40,19 +38,15 @@ macro_rules! impl_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another
-        /// CUDA context, `destination` does not contain exactly one element, a length or
-        /// queried size exceeds its native integer range, or NPP reports a failure.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
         /// Returns an error if `scratch` is smaller than the queried requirement.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and every captured graph replay; destination writes must not conflict with other access.
-        /// `scratch` must belong to this CUDA context, remain live and exclusively writable
-        /// through completion, and be disjoint from source and destination storage.
+        /// Retain the source, destination, and stream context through queued completion and every captured graph replay; destination writes must not conflict with other access.
+        /// `scratch` must belong to this CUDA context, remain live and exclusively writable through completion, and be disjoint from source and destination storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -88,17 +82,14 @@ macro_rules! impl_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another
-        /// CUDA context, `destination` does not contain exactly one element, a length or
-        /// queried size exceeds its native integer range, or NPP reports a failure.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
         /// Scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and every captured graph replay; destination writes must not conflict with other access.
+        /// Retain the source, destination, and stream context through queued completion and every captured graph replay; destination writes must not conflict with other access.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -134,9 +125,7 @@ macro_rules! impl_mixed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, the source length cannot be
-        /// represented by the native interface, NPP rejects the query, or the returned
-        /// scratch size cannot be represented as `usize`.
+        /// Returns an error if CUDA context binding fails, the source length cannot be represented by the native interface, NPP rejects the query, or the returned scratch size cannot be represented as `usize`.
         pub fn $buffer_size_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -161,19 +150,15 @@ macro_rules! impl_mixed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another
-        /// CUDA context, `destination` does not contain exactly one element, a length or
-        /// queried size exceeds its native integer range, or NPP reports a failure.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
         /// Returns an error if `scratch` is smaller than the queried requirement.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and every captured graph replay; destination writes must not conflict with other access.
-        /// `scratch` must belong to this CUDA context, remain live and exclusively writable
-        /// through completion, and be disjoint from source and destination storage.
+        /// Retain the source, destination, and stream context through queued completion and every captured graph replay; destination writes must not conflict with other access.
+        /// `scratch` must belong to this CUDA context, remain live and exclusively writable through completion, and be disjoint from source and destination storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -209,17 +194,14 @@ macro_rules! impl_mixed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another
-        /// CUDA context, `destination` does not contain exactly one element, a length or
-        /// queried size exceeds its native integer range, or NPP reports a failure.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
         /// Scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and every captured graph replay; destination writes must not conflict with other access.
+        /// Retain the source, destination, and stream context through queued completion and every captured graph replay; destination writes must not conflict with other access.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -292,10 +274,8 @@ macro_rules! impl_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $type>,
@@ -347,8 +327,7 @@ macro_rules! impl_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $type>,
@@ -430,10 +409,8 @@ macro_rules! impl_mixed_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_type>,
@@ -485,8 +462,7 @@ macro_rules! impl_mixed_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_type>,
@@ -569,10 +545,8 @@ macro_rules! impl_heterogeneous_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_1_type>,
@@ -624,8 +598,7 @@ macro_rules! impl_heterogeneous_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_1_type>,
@@ -708,10 +681,8 @@ macro_rules! impl_scaled_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_type>,
@@ -766,8 +737,7 @@ macro_rules! impl_scaled_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_type>,
@@ -853,10 +823,8 @@ macro_rules! impl_scaled_heterogeneous_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_1_type>,
@@ -911,8 +879,7 @@ macro_rules! impl_scaled_heterogeneous_binary_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_1_type>,
@@ -958,9 +925,7 @@ macro_rules! impl_scaled_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, the source length cannot be
-        /// represented by the native interface, NPP rejects the query, or the returned
-        /// scratch size cannot be represented as `usize`.
+        /// Returns an error if CUDA context binding fails, the source length cannot be represented by the native interface, NPP rejects the query, or the returned scratch size cannot be represented as `usize`.
         pub fn $buffer_size_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -986,19 +951,15 @@ macro_rules! impl_scaled_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another
-        /// CUDA context, `destination` does not contain exactly one element, a length or
-        /// queried size exceeds its native integer range, or NPP reports a failure.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
         /// Returns an error if `scratch` is smaller than the queried requirement.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and every captured graph replay; destination writes must not conflict with other access.
-        /// `scratch` must belong to this CUDA context, remain live and exclusively writable
-        /// through completion, and be disjoint from source and destination storage.
+        /// Retain the source, destination, and stream context through queued completion and every captured graph replay; destination writes must not conflict with other access.
+        /// `scratch` must belong to this CUDA context, remain live and exclusively writable through completion, and be disjoint from source and destination storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -1037,17 +998,14 @@ macro_rules! impl_scaled_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another
-        /// CUDA context, `destination` does not contain exactly one element, a length or
-        /// queried size exceeds its native integer range, or NPP reports a failure.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or queried size exceeds its native integer range, or NPP reports a failure.
         /// Scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and every captured graph replay; destination writes must not conflict with other access.
+        /// Retain the source, destination, and stream context through queued completion and every captured graph replay; destination writes must not conflict with other access.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -1127,10 +1085,8 @@ macro_rules! impl_error_metric {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_type>,
@@ -1182,8 +1138,7 @@ macro_rules! impl_error_metric {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source_1: &SignalView<'_, $source_type>,
@@ -1263,10 +1218,8 @@ macro_rules! impl_mean_stddev {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1317,8 +1270,7 @@ macro_rules! impl_mean_stddev {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1400,10 +1352,8 @@ macro_rules! impl_scaled_mean_stddev {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -1457,8 +1407,7 @@ macro_rules! impl_scaled_mean_stddev {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -1540,10 +1489,8 @@ macro_rules! impl_indexed_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1594,8 +1541,7 @@ macro_rules! impl_indexed_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1669,10 +1615,8 @@ macro_rules! impl_pair_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1723,8 +1667,7 @@ macro_rules! impl_pair_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1798,10 +1741,8 @@ macro_rules! impl_indexed_pair_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1860,8 +1801,7 @@ macro_rules! impl_indexed_pair_statistic {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1912,8 +1852,7 @@ macro_rules! impl_every_statistic_in_place {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Both signals must contain initialized values ready for the selected stream.
         /// Keep the source read-only and the destination exclusively writable and disjoint from the source.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $type>,
@@ -1991,10 +1930,8 @@ macro_rules! impl_zero_crossing {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
-        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable
-        /// through completion, disjoint from all source and result storage.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
+        /// `scratch` must belong to the same CUDA context and remain live and exclusively writable through completion, disjoint from all source and result storage.
         pub unsafe fn $with_scratch_name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,
@@ -2043,8 +1980,7 @@ macro_rules! impl_zero_crossing {
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Source values must be initialized and ready when the selected stream reads them.
         /// Result storage must be exclusively writable and disjoint from all source and other result storage.
-        /// Retain signal allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_type>,

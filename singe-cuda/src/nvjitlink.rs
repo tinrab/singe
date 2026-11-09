@@ -133,7 +133,8 @@ pub enum OutputKind {
     LtoIr,
 }
 
-/// Supported link options. Architecture is required by nvJitLink.
+/// Supported link options.
+/// Architecture is required by nvJitLink.
 #[derive(Debug, Clone)]
 pub struct LinkOptions {
     /// Target architecture; nvJitLink requires `-arch=sm_NN`.
@@ -168,7 +169,8 @@ pub struct LinkedArtifact {
     /// Format of the owned linked output.
     pub kind: OutputKind,
     bytes: Vec<u8>,
-    /// Linker informational diagnostics. Empty if the native log is unavailable or its retrieval failed.
+    /// Linker informational diagnostics.
+    /// Empty if the native log is unavailable or its retrieval failed.
     pub info_log: String,
 }
 
@@ -198,21 +200,26 @@ impl Linker {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if PTX or LTO IR output is requested without link-time optimization, or the option count exceeds the native integer range. Also returns an error for interior NUL bytes in option strings, a native linker initialization failure, or a null returned handle.
+    /// Returns `Error::InvalidValue` if PTX or LTO IR output is requested without link-time optimization, or the option count exceeds the native integer range.
+    /// Also returns an error for interior NUL bytes in option strings, a native linker initialization failure, or a null returned handle.
     pub fn create(options: LinkOptions) -> Result<Self> {
         if options.output != OutputKind::Cubin && !options.lto {
             return Err(Error::InvalidValue);
         }
+
         let mut arguments = vec![format!("-arch={}", options.architecture)];
         if options.lto {
             arguments.push("-lto".into());
         }
+
         if options.output == OutputKind::Ptx {
             arguments.push("-ptx".into());
         }
+
         if options.line_info {
             arguments.push("-lineinfo".into());
         }
+
         arguments.extend(options.raw_options);
         let args = arguments
             .into_iter()
@@ -270,7 +277,8 @@ impl Linker {
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` contains an interior NUL or the native linker rejects the input image, format, or handle. Native failure status and linker diagnostics are retained in `Error::NvJitLink`.
+    /// Returns an error if `name` contains an interior NUL or the native linker rejects the input image, format, or handle.
+    /// Native failure status and linker diagnostics are retained in `Error::NvJitLink`.
     pub fn add_data(&mut self, kind: InputType, bytes: &[u8], name: &str) -> Result<()> {
         let name = CString::new(name)?;
         // SAFETY: `__nvJitLinkAddData_13_4` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
@@ -289,7 +297,8 @@ impl Linker {
     ///
     /// # Errors
     ///
-    /// Returns an error if `file` contains an interior NUL or the native linker cannot read or accept the file for the selected input type. Native failure status and linker diagnostics are retained in `Error::NvJitLink`.
+    /// Returns an error if `file` contains an interior NUL or the native linker cannot read or accept the file for the selected input type.
+    /// Native failure status and linker diagnostics are retained in `Error::NvJitLink`.
     pub fn add_file(&mut self, kind: InputType, file: &str) -> Result<()> {
         let file = CString::new(file)?;
         // SAFETY: `__nvJitLinkAddFile_13_4` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
@@ -300,7 +309,8 @@ impl Linker {
     ///
     /// # Errors
     ///
-    /// Returns an error if native linking fails or the selected output size or contents cannot be retrieved. The consumed linker is destroyed on both success and failure; successful output owns its bytes independently.
+    /// Returns an error if native linking fails or the selected output size or contents cannot be retrieved.
+    /// The consumed linker is destroyed on both success and failure; successful output owns its bytes independently.
     pub fn complete(self) -> Result<LinkedArtifact> {
         // SAFETY: `__nvJitLinkComplete_13_4` receives live handles owned by the wrappers.
         self.check(unsafe { sys::__nvJitLinkComplete_13_4(self.handle) })?;
@@ -349,6 +359,10 @@ impl Linker {
     fn check(&self, status: sys::nvJitLinkResult) -> Result<()> {
         if status == sys::nvJitLinkResult::NVJITLINK_SUCCESS {
             Ok(())
+        } else if status == sys::nvJitLinkResult::NVJITLINK_ERROR_INTERNAL
+            && let Err(error) = singe_cuda_sys::load_nvjitlink()
+        {
+            Err(Error::Load(error))
         } else {
             Err(Error::NvJitLink {
                 code: Status::from(status as u32),
@@ -372,6 +386,7 @@ impl Linker {
             if result != sys::nvJitLinkResult::NVJITLINK_SUCCESS || size == 0 {
                 return String::new();
             }
+
             let mut bytes = vec![0u8; size];
             let result = if error {
                 sys::__nvJitLinkGetErrorLog_13_4(self.handle, bytes.as_mut_ptr().cast())
@@ -395,7 +410,6 @@ impl Drop for Linker {
             unsafe {
                 let status = sys::__nvJitLinkDestroy_13_4(&raw mut self.handle);
                 if status != sys::nvJitLinkResult::NVJITLINK_SUCCESS {
-                    #[cfg(debug_assertions)]
                     eprintln!(
                         "failed to destroy nvjitlink linker: {}",
                         Status::from(status as u32)

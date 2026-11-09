@@ -15,7 +15,8 @@ use crate::{
 
 /// A shared CUDA library and its retained lookup context.
 ///
-/// Clones, kernels, and modules share ownership. The native library is unloaded when its last owner is dropped, unless ownership has been transferred with [`Self::into_raw`].
+/// Clones, kernels, and modules share ownership.
+/// The native library is unloaded when its last owner is dropped, unless ownership has been transferred with [`Self::into_raw`].
 #[derive(Debug, Clone)]
 pub struct Library {
     inner: Arc<LibraryInner>,
@@ -30,7 +31,8 @@ struct LibraryInner {
 
 /// The address and byte size of a global or managed variable in a CUDA library.
 ///
-/// This view borrows the library to keep its code and variable storage loaded. It does not establish host accessibility, initialization, or exclusive access to the variable.
+/// This view borrows the library to keep its code and variable storage loaded.
+/// It does not establish host accessibility, initialization, or exclusive access to the variable.
 #[derive(Debug, Clone, Copy)]
 pub struct LibraryGlobal<'a> {
     ptr: *mut (),
@@ -63,7 +65,8 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null. The caller is responsible for the remaining handle validity and ownership requirements.
+    /// Returns `Error::NullHandle` if `handle` is null.
+    /// The caller is responsible for the remaining handle validity and ownership requirements.
     pub unsafe fn from_raw(handle: driver::CUlibrary, context: Arc<Context>) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -83,9 +86,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` contains an interior NUL byte, if the CUDA
-    /// context cannot be bound, if CUDA Driver cannot find the kernel, or if it
-    /// returns a null handle.
+    /// Returns an error if `name` contains an interior NUL byte, if the CUDA context cannot be bound, if CUDA Driver cannot find the kernel, or if it returns a null handle.
     pub fn kernel(&self, name: &str) -> Result<LibraryKernel> {
         let c_name = CString::new(name)?;
         let mut handle = ptr::null_mut();
@@ -98,6 +99,7 @@ impl Library {
                 c_name.as_ptr(),
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -111,8 +113,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if CUDA Driver
-    /// cannot report the kernel count.
+    /// Returns an error if the CUDA context cannot be bound or if CUDA Driver cannot report the kernel count.
     pub fn kernel_count(&self) -> Result<usize> {
         let mut count = 0;
         self.inner.context.bind()?;
@@ -131,8 +132,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, if CUDA Driver
-    /// cannot find the module, or if it returns a null handle.
+    /// Returns an error if the CUDA context cannot be bound, if CUDA Driver cannot find the module, or if it returns a null handle.
     pub fn module(&self) -> Result<Module> {
         let mut handle = ptr::null_mut();
         self.inner.context.bind()?;
@@ -143,6 +143,7 @@ impl Library {
                 self.inner.handle
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -158,8 +159,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` contains an interior NUL byte, if the CUDA
-    /// context cannot be bound, or if CUDA Driver cannot find the global.
+    /// Returns an error if `name` contains an interior NUL byte, if the CUDA context cannot be bound, or if CUDA Driver cannot find the global.
     pub fn global(&self, name: &str) -> Result<LibraryGlobal<'_>> {
         let c_name = CString::new(name)?;
         let mut ptr = 0;
@@ -187,9 +187,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` contains an interior NUL byte, if the CUDA
-    /// context cannot be bound, or if CUDA Driver cannot find the managed
-    /// allocation.
+    /// Returns an error if `name` contains an interior NUL byte, if the CUDA context cannot be bound, or if CUDA Driver cannot find the managed allocation.
     pub fn managed(&self, name: &str) -> Result<LibraryGlobal<'_>> {
         let c_name = CString::new(name)?;
         let mut ptr = 0;
@@ -217,9 +215,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `symbol` contains an interior NUL byte, if the CUDA
-    /// context cannot be bound, or if CUDA Driver cannot find the unified
-    /// function.
+    /// Returns an error if `symbol` contains an interior NUL byte, if the CUDA context cannot be bound, or if CUDA Driver cannot find the unified function.
     pub fn unified_function(&self, symbol: &str) -> Result<*mut ()> {
         let c_symbol = CString::new(symbol)?;
         let mut ptr = ptr::null_mut();
@@ -232,6 +228,7 @@ impl Library {
                 c_symbol.as_ptr(),
             ))?;
         }
+
         if ptr.is_null() {
             return Err(Error::NullHandle);
         }
@@ -244,16 +241,15 @@ impl Library {
         self.inner.handle
     }
 
-    /// Consumes the library and returns the raw CUDA library handle without
-    /// unloading it.
+    /// Consumes the library and returns the raw CUDA library handle without unloading it.
     ///
-    /// The caller becomes responsible for eventually unloading the returned
-    /// handle with CUDA while retaining the returned context.
+    /// The caller becomes responsible for eventually unloading the returned handle with CUDA while retaining the returned context.
     /// Returns the unchanged wrapper while kernels, modules, graphs or other clones retain this library.
     ///
     /// # Errors
     ///
-    /// Returns `Err(self)` if another library clone, kernel, module, or retained graph owner still shares the library. The returned wrapper remains usable and retains ownership.
+    /// Returns `Err(self)` if another library clone, kernel, module, or retained graph owner still shares the library.
+    /// The returned wrapper remains usable and retains ownership.
     pub fn into_raw(self) -> StdResult<(driver::CUlibrary, Arc<Context>), Self> {
         match Arc::try_unwrap(self.inner) {
             Ok(mut inner) => {
@@ -280,17 +276,22 @@ impl Drop for LibraryInner {
         if !self.owns_handle {
             return;
         }
+
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind context before unloading library: {error}");
+            eprintln!(
+                "failed to bind context before unloading library: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
 
         // SAFETY: `cuLibraryUnload` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(driver::cuLibraryUnload(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to unload cuda library: {error}");
+                eprintln!(
+                    "failed to unload cuda library: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -340,8 +341,7 @@ impl LibraryKernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, if CUDA Driver
-    /// cannot find the function, or if it returns a null handle.
+    /// Returns an error if the CUDA context cannot be bound, if CUDA Driver cannot find the function, or if it returns a null handle.
     pub fn function(&self) -> Result<KernelFunction> {
         self.library.inner.context.bind()?;
         let mut handle = ptr::null_mut();
@@ -349,9 +349,11 @@ impl LibraryKernel {
         unsafe {
             try_ffi!(driver::cuKernelGetFunction(&raw mut handle, self.handle))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let module = self.library.module()?;
         // SAFETY: CUDA returned this function handle for the module retained by the kernel.
         Ok(unsafe { KernelFunction::from_raw(DeviceFunction::from_raw(handle), &module) })
@@ -361,16 +363,15 @@ impl LibraryKernel {
     ///
     /// # Safety
     ///
-    /// The caller must ensure every pointer value passed through `params`
-    /// remains valid for every graph instantiation, update, and launch that can
-    /// execute the created node. Mutable pointer arguments must remain
-    /// exclusive for the work ordered by those launches.
+    /// The caller must ensure every pointer value passed through `params` remains valid for every graph instantiation, update, and launch that can execute the created node.
+    /// Mutable pointer arguments must remain exclusive for the work ordered by those launches.
     /// Arguments must match the function ABI and satisfy its value and access requirements.
     /// Keep the graph, executable or another code owner alive until queued executions complete.
     ///
     /// # Errors
     ///
-    /// Propagates errors from resolving this kernel's function and module. Also returns an error if the graph belongs to another context, a dependency belongs to another graph, the context cannot be bound, CUDA rejects the node or its launch attributes.
+    /// Propagates errors from resolving this kernel's function and module.
+    /// Also returns an error if the graph belongs to another context, a dependency belongs to another graph, the context cannot be bound, CUDA rejects the node or its launch attributes.
     pub unsafe fn add_to_graph<'a, P>(
         &self,
         graph: &mut Graph,
@@ -390,17 +391,16 @@ impl LibraryKernel {
     ///
     /// # Safety
     ///
-    /// The caller must ensure every pointer value passed through `params`
-    /// remains valid for every future launch that can execute `node`. Mutable
-    /// pointer arguments must remain exclusive for the work ordered by those
-    /// launches.
+    /// The caller must ensure every pointer value passed through `params` remains valid for every future launch that can execute `node`.
+    /// Mutable pointer arguments must remain exclusive for the work ordered by those launches.
     /// Arguments must match the function ABI and satisfy its value and access requirements.
     /// Keep the graph, executable or another code owner alive until queued executions complete.
     /// Launch attributes are preserved; they must remain compatible with this kernel and geometry.
     ///
     /// # Errors
     ///
-    /// Propagates errors from resolving this kernel's function and module. Also returns an error if the executable belongs to another context, the node does not belong to its source graph, the context cannot be bound, CUDA rejects the parameter update.
+    /// Propagates errors from resolving this kernel's function and module.
+    /// Also returns an error if the executable belongs to another context, the node does not belong to its source graph, the context cannot be bound, CUDA rejects the parameter update.
     pub unsafe fn set_graph_node_params<'a, P>(
         &self,
         executable: &mut ExecutableGraph,
@@ -445,7 +445,8 @@ impl LibraryKernel {
     ///
     /// # Errors
     ///
-    /// Propagates errors from querying [`FunctionAttribute::SharedMemoryMode`]. Returns `Error::InvalidValue` if the returned native value is not a recognized [`SharedMemoryMode`].
+    /// Propagates errors from querying [`FunctionAttribute::SharedMemoryMode`].
+    /// Returns `Error::InvalidValue` if the returned native value is not a recognized [`SharedMemoryMode`].
     pub fn shared_memory_mode(&self) -> Result<SharedMemoryMode> {
         SharedMemoryMode::try_from(self.attribute(FunctionAttribute::SharedMemoryMode)? as u32)
             .map_err(|_| Error::InvalidValue)
@@ -493,8 +494,7 @@ impl LibraryKernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if CUDA Driver
-    /// rejects the cache configuration.
+    /// Returns an error if the CUDA context cannot be bound or if CUDA Driver rejects the cache configuration.
     pub fn set_cache_config(&self, config: FunctionCache) -> Result<()> {
         self.library.inner.context.bind()?;
         // SAFETY: `cuKernelSetCacheConfig` receives live handles owned by the wrappers.
@@ -509,13 +509,12 @@ impl LibraryKernel {
     }
 
     /// Queries the kernel parameter at the given index, returning the offset and size where the parameter resides in the device-side parameter layout.
-    /// Use this information to update kernel node parameters from the device. The index must be less than the number of parameters that the kernel takes.
+    /// Use this information to update kernel node parameters from the device.
+    /// The index must be less than the number of parameters that the kernel takes.
     ///
     /// # Errors
     ///
-    /// Returns an error if the library context cannot be bound, `index` is not a valid kernel
-    /// parameter index, CUDA cannot query the parameter layout, or a previous asynchronous launch
-    /// reported an error.
+    /// Returns an error if the library context cannot be bound, `index` is not a valid kernel parameter index, CUDA cannot query the parameter layout, or a previous asynchronous launch reported an error.
     pub fn param_info(&self, index: usize) -> Result<KernelParamInfo> {
         self.library.inner.context.bind()?;
         let mut offset = 0;

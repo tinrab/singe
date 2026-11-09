@@ -13,8 +13,7 @@ macro_rules! impl_generic_binary_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -103,8 +102,7 @@ macro_rules! impl_generic_binary_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -192,8 +190,7 @@ macro_rules! impl_generic_scaled_binary_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -285,8 +282,7 @@ macro_rules! impl_generic_scaled_binary_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -377,8 +373,7 @@ macro_rules! impl_generic_round_scaled_binary_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -487,8 +482,7 @@ macro_rules! impl_generic_round_scaled_binary_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -594,8 +588,7 @@ macro_rules! impl_generic_unary_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -681,8 +674,7 @@ macro_rules! impl_generic_unary_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -763,8 +755,7 @@ macro_rules! impl_generic_scaled_unary_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -853,8 +844,7 @@ macro_rules! impl_generic_scaled_unary_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -938,8 +928,7 @@ macro_rules! impl_generic_alpha_comp_constant {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -1053,8 +1042,7 @@ macro_rules! impl_generic_alpha_comp {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -1146,8 +1134,7 @@ macro_rules! impl_generic_constant_scalar_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         /// Associated constant types must match the operand representation expected by the native routine.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             /// Scalar representation of the native constant operand for this pixel type and layout.
@@ -1242,8 +1229,7 @@ macro_rules! impl_generic_constant_scalar_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         /// Associated constant types must match the operand representation expected by the native routine.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             /// Scalar representation of the native constant operand for this pixel type and layout.
@@ -1334,8 +1320,7 @@ macro_rules! impl_generic_constant_array_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         /// Associated constant types must match the operand representation expected by the native routine.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             /// Scalar representation of the native constant operand for this pixel type and layout.
@@ -1431,8 +1416,7 @@ macro_rules! impl_generic_constant_array_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         /// Associated constant types must match the operand representation expected by the native routine.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             /// Scalar representation of the native constant operand for this pixel type and layout.
@@ -1522,8 +1506,7 @@ macro_rules! impl_generic_scaled_constant_scalar_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -1615,8 +1598,7 @@ macro_rules! impl_generic_scaled_constant_scalar_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -1704,8 +1686,7 @@ macro_rules! impl_generic_scaled_constant_array_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -1798,8 +1779,7 @@ macro_rules! impl_generic_scaled_constant_array_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -1886,8 +1866,7 @@ macro_rules! impl_generic_device_constant_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         /// Associated constant types must match the operand representation expected by the native routine.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             /// Scalar representation of the native constant operand for this pixel type and layout.
@@ -1984,8 +1963,7 @@ macro_rules! impl_generic_device_constant_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         /// Associated constant types must match the operand representation expected by the native routine.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             /// Scalar representation of the native constant operand for this pixel type and layout.
@@ -2077,8 +2055,7 @@ macro_rules! impl_generic_scaled_device_constant_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -2172,8 +2149,7 @@ macro_rules! impl_generic_scaled_device_constant_operation_in_place {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native pixel and layout ABI, preserve operand order,
-        /// and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
+        /// Implementations must match the native pixel and layout ABI, preserve operand order, and uphold the method's initialization, capacity, lifetime, and exclusivity contract.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///

@@ -10,23 +10,19 @@ use crate::{
 
 impl ImagePipeline<'_, u8, C1> {
     /// Computes a C1 integral image and an integral of squared source samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
-    /// The squared output sums squared samples over the same prefixes and adds
-    /// `squared_value`, which also fills its top and left borders.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
+    /// The squared output sums squared samples over the same prefixes and adds `squared_value`, which also fills its top and left borders.
     /// Produces `i32` integral samples and `i32` squared-integral samples.
     /// Both supplied destinations must have the complete expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     /// Both outputs must have matching expanded dimensions.
     pub fn squared_integral_to_i32_i32_into(
         stream_context: &StreamContext,
@@ -56,23 +52,19 @@ impl ImagePipeline<'_, u8, C1> {
     }
 
     /// Computes a C1 integral image and an integral of squared source samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
-    /// The squared output sums squared samples over the same prefixes and adds
-    /// `squared_value`, which also fills its top and left borders.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
+    /// The squared output sums squared samples over the same prefixes and adds `squared_value`, which also fills its top and left borders.
     /// Produces `i32` integral samples and `f64` squared-integral samples.
     /// Both supplied destinations must have the complete expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     /// Both outputs must have matching expanded dimensions.
     pub fn squared_integral_to_i32_f64_into(
         stream_context: &StreamContext,
@@ -102,23 +94,19 @@ impl ImagePipeline<'_, u8, C1> {
     }
 
     /// Computes a C1 integral image and an integral of squared source samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
-    /// The squared output sums squared samples over the same prefixes and adds
-    /// `squared_value`, which also fills its top and left borders.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
+    /// The squared output sums squared samples over the same prefixes and adds `squared_value`, which also fills its top and left borders.
     /// Produces `f32` integral samples and `f64` squared-integral samples.
     /// Both supplied destinations must have the complete expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     /// Both outputs must have matching expanded dimensions.
     pub fn squared_integral_to_f32_f64_into(
         stream_context: &StreamContext,

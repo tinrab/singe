@@ -19,22 +19,18 @@ where
     Self: BilateralGaussBorderFilterImage<T, L>,
 {
     /// Applies bilateral Gaussian filtering with replicated borders.
-    /// `radius` gives the neighborhood radius; `step_between_source_pixels` gives the spacing
-    /// between sampled source pixels. `value_square_sigma` and `position_square_sigma` are the
-    /// squared sigmas for relative intensity and geometric distances respectively.
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions set its extent.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `radius` gives the neighborhood radius; `step_between_source_pixels` gives the spacing between sampled source pixels.
+    /// `value_square_sigma` and `position_square_sigma` are the squared sigmas for relative intensity and geometric distances respectively.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions set its extent.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
-    /// `radius` must be in `1..=32`, the sample step must be positive, both squared sigmas must
-    /// compare greater than zero, and `border_type` must be `BorderType::Replicate`.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel and the destination-sized ROI must fit inside the source without coordinate overflow.
+    /// `radius` must be in `1..=32`, the sample step must be positive, both squared sigmas must compare greater than zero, and `border_type` must be `BorderType::Replicate`.
     pub fn filter_bilateral_gauss_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -67,22 +63,18 @@ where
     Self: BilateralGaussBorderFilterImage<T, L>,
 {
     /// Applies bilateral Gaussian filtering with replicated borders.
-    /// `radius` gives the neighborhood radius; `step_between_source_pixels` gives the spacing
-    /// between sampled source pixels. `value_square_sigma` and `position_square_sigma` are the
-    /// squared sigmas for relative intensity and geometric distances respectively.
-    /// `source_offset` locates the output ROI in the full source image. Allocates a new
-    /// owned output from that offset to the lower-right source edge.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `radius` gives the neighborhood radius; `step_between_source_pixels` gives the spacing between sampled source pixels.
+    /// `value_square_sigma` and `position_square_sigma` are the squared sigmas for relative intensity and geometric distances respectively.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// Allocates a new owned output from that offset to the lower-right source edge.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
-    /// `radius` must be in `1..=32`, the sample step must be positive, both squared sigmas must
-    /// compare greater than zero, and `border_type` must be `BorderType::Replicate`.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel and the destination-sized ROI must fit inside the source without coordinate overflow.
+    /// `radius` must be in `1..=32`, the sample step must be positive, both squared sigmas must compare greater than zero, and `border_type` must be `BorderType::Replicate`.
     /// Image allocation or view construction can also fail.
     pub fn filter_bilateral_gauss_border(
         self,
@@ -104,6 +96,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_source.view())?;
             }
+
             <Self as BilateralGaussBorderFilterImage<T, L>>::filter_bilateral_gauss_border_image(
                 self.stream_context,
                 &source,

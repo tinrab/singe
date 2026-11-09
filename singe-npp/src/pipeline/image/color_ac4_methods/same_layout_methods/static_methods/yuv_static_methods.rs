@@ -9,7 +9,8 @@ use crate::{
 };
 
 impl ImagePipeline<'_, u8, AC4> {
-    /// Converts RGB color values to YUV color values. The destination alpha channel is not processed.
+    /// Converts RGB color values to YUV color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`rgb_to_yuv_u8_ac4`](crate::image::raw::color::rgb_to_yuv_u8_ac4).
     ///
@@ -37,7 +38,8 @@ impl ImagePipeline<'_, u8, AC4> {
             .sync_scope(|| unsafe { color::rgb_to_yuv_u8_ac4(stream_context, source, destination) })
     }
 
-    /// Converts YUV color values to RGB color values. The destination alpha channel is not processed.
+    /// Converts YUV color values to RGB color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`yuv_to_rgb_u8_ac4`](crate::image::raw::color::yuv_to_rgb_u8_ac4).
     ///
@@ -65,7 +67,8 @@ impl ImagePipeline<'_, u8, AC4> {
             .sync_scope(|| unsafe { color::yuv_to_rgb_u8_ac4(stream_context, source, destination) })
     }
 
-    /// Converts RGB color values to YCbCr color values. The destination alpha channel is not processed.
+    /// Converts RGB color values to YCbCr color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`rgb_to_ycbcr_u8_ac4`](crate::image::raw::color::rgb_to_ycbcr_u8_ac4).
     ///
@@ -94,7 +97,8 @@ impl ImagePipeline<'_, u8, AC4> {
         })
     }
 
-    /// Converts YCbCr color values to RGB color values. The destination alpha channel is not processed.
+    /// Converts YCbCr color values to RGB color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`ycbcr_to_rgb_u8_ac4`](crate::image::raw::color::ycbcr_to_rgb_u8_ac4).
     ///
@@ -123,7 +127,8 @@ impl ImagePipeline<'_, u8, AC4> {
         })
     }
 
-    /// Converts RGB color values to YCC color values. The destination alpha channel is not processed.
+    /// Converts RGB color values to YCC color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`rgb_to_ycc_u8_ac4`](crate::image::raw::color::rgb_to_ycc_u8_ac4).
     ///
@@ -151,7 +156,8 @@ impl ImagePipeline<'_, u8, AC4> {
             .sync_scope(|| unsafe { color::rgb_to_ycc_u8_ac4(stream_context, source, destination) })
     }
 
-    /// Converts YCC color values to RGB color values. The destination alpha channel is not processed.
+    /// Converts YCC color values to RGB color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`ycc_to_rgb_u8_ac4`](crate::image::raw::color::ycc_to_rgb_u8_ac4).
     ///
@@ -179,7 +185,8 @@ impl ImagePipeline<'_, u8, AC4> {
             .sync_scope(|| unsafe { color::ycc_to_rgb_u8_ac4(stream_context, source, destination) })
     }
 
-    /// Converts BGR color values to YUV color values. The destination alpha channel is not processed.
+    /// Converts BGR color values to YUV color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`bgr_to_yuv_u8_ac4`](crate::image::raw::color::bgr_to_yuv_u8_ac4).
     ///
@@ -207,7 +214,8 @@ impl ImagePipeline<'_, u8, AC4> {
             .sync_scope(|| unsafe { color::bgr_to_yuv_u8_ac4(stream_context, source, destination) })
     }
 
-    /// Converts YUV color values to BGR color values. The destination alpha channel is not processed.
+    /// Converts YUV color values to BGR color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`yuv_to_bgr_u8_ac4`](crate::image::raw::color::yuv_to_bgr_u8_ac4).
     ///
@@ -235,7 +243,8 @@ impl ImagePipeline<'_, u8, AC4> {
             .sync_scope(|| unsafe { color::yuv_to_bgr_u8_ac4(stream_context, source, destination) })
     }
 
-    /// Converts BGR color values to HLS color values. The destination alpha channel is not processed.
+    /// Converts BGR color values to HLS color values.
+    /// The destination alpha channel is not processed.
     ///
     /// Uses [`bgr_to_hls_u8_ac4`](crate::image::raw::color::bgr_to_hls_u8_ac4).
     ///

@@ -24,9 +24,8 @@ use crate::{
 
 /// NCCL's native allocation owner, independent of typed initialization and access.
 ///
-/// Retaining this owner keeps every subrange live without granting read or write
-/// access. NCCL may allocate additional physical capacity; only requested bytes
-/// are exposed through this owner.
+/// Retaining this owner keeps every subrange live without granting read or write access.
+/// NCCL may allocate additional physical capacity; only requested bytes are exposed through this owner.
 #[derive(Debug)]
 pub struct Allocation {
     pointer: *mut u8,
@@ -42,8 +41,7 @@ unsafe impl Sync for Allocation {}
 
 /// A uniquely accessible typed range in an NCCL allocation.
 ///
-/// Allocate `MaybeUninit<T>` storage through [`Self::create_uninit`], then expose
-/// only values established by successful completed production.
+/// Allocate `MaybeUninit<T>` storage through [`Self::create_uninit`], then expose only values established by successful completed production.
 #[derive(Debug)]
 pub struct Memory<T: DeviceRepr> {
     allocation: Arc<Allocation>,
@@ -52,8 +50,7 @@ pub struct Memory<T: DeviceRepr> {
 }
 
 /// Native allocation ownership transferred with its bounds, identity, and context.
-/// Free `pointer` with `ncclMemFree` before releasing the context, or transfer the
-/// complete value through [`Memory::from_raw`].
+/// Free `pointer` with `ncclMemFree` before releasing the context, or transfer the complete value through [`Memory::from_raw`].
 #[derive(Debug)]
 pub struct RawMemory<T: DeviceRepr> {
     /// The transferred native allocation pointer.
@@ -106,6 +103,7 @@ impl<T: DeviceRepr> Memory<T> {
                 return Err(Error::NullPointer);
             }
         }
+
         let allocation = Arc::new(Allocation {
             pointer: pointer.cast(),
             bytes,
@@ -137,11 +135,10 @@ impl<T: DeviceRepr> Memory<T> {
     /// Takes ownership of an NCCL allocation and its typed range.
     ///
     /// # Safety
-    /// `parts.pointer` must be the base of a uniquely owned NCCL allocation in
-    /// `parts.context`, covering `parts.allocation_bytes` bytes. Every exposed
-    /// element must be a valid T, with pending writes ordered before consumers.
-    /// Reuse the allocation identity for all aliases and retain those aliases'
-    /// owners through their accesses. Empty allocations may use a null pointer.
+    /// `parts.pointer` must be the base of a uniquely owned NCCL allocation in `parts.context`, covering `parts.allocation_bytes` bytes.
+    /// Every exposed element must be a valid T, with pending writes ordered before consumers.
+    /// Reuse the allocation identity for all aliases and retain those aliases' owners through their accesses.
+    /// Empty allocations may use a null pointer.
     ///
     /// # Errors
     ///
@@ -159,6 +156,7 @@ impl<T: DeviceRepr> Memory<T> {
         {
             return Err(Error::out_of_range("nccl allocation range"));
         }
+
         let pointer = if parts.allocation_bytes == 0 {
             ptr::NonNull::<T>::dangling().as_ptr()
         } else {
@@ -268,8 +266,8 @@ impl<T: DeviceRepr> Memory<MaybeUninit<T>> {
     /// Exposes every element after caller-established initialization.
     ///
     /// # Safety
-    /// Every element must contain a valid T, with producer writes ordered before
-    /// every consumer and host readback. Enqueue success alone is insufficient.
+    /// Every element must contain a valid T, with producer writes ordered before every consumer and host readback.
+    /// Enqueue success alone is insufficient.
     #[must_use]
     pub unsafe fn assume_init(self) -> Memory<T> {
         Memory {
@@ -282,8 +280,8 @@ impl<T: DeviceRepr> Memory<MaybeUninit<T>> {
     /// Exposes an initialized prefix while retaining the complete allocation.
     ///
     /// # Safety
-    /// The first `length` elements must contain valid T values. Producing work
-    /// must be ordered before every consumer and host readback.
+    /// The first `length` elements must contain valid T values.
+    /// Producing work must be ordered before every consumer and host readback.
     ///
     /// # Errors
     ///
@@ -292,6 +290,7 @@ impl<T: DeviceRepr> Memory<MaybeUninit<T>> {
         if length > self.length {
             return Err(Error::out_of_range("initialized prefix"));
         }
+
         self.length = length;
         // SAFETY: the caller established initialization of the narrowed range.
         Ok(unsafe { self.assume_init() })
@@ -359,14 +358,17 @@ impl Drop for Allocation {
         if self.bytes == 0 {
             return;
         }
+
         if self.context.bind().is_err() {
             return;
         }
         // SAFETY: the last owner releases the native base in its actual context.
         unsafe {
             if let Err(error) = try_ffi!(sys::ncclMemFree(self.pointer.cast())) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to free nccl memory: {error}");
+                eprintln!(
+                    "failed to free nccl memory: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

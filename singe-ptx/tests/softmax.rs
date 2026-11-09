@@ -1,10 +1,9 @@
 //! Stable row softmax compared with an independent binary64 host reference.
 
-use anyhow::Result;
-use singe_ptx::emulator::{Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
-
 mod support;
 
+use anyhow::Result;
+use singe_ptx::emulator::{Emulator, EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
 use support::Observe;
 
 #[test]

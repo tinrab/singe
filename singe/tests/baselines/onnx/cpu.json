@@ -1,0 +1,2000 @@
+[
+  {
+    "name": "Abs_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Abs_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Acos_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Acos_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Acos_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Acosh_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Acosh_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Acosh_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Add_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Add_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Add_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ArgMax_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ArgMax_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ArgMin_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ArgMin_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Asin_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Asin_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Asin_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Asinh_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Asinh_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Asinh_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Atan_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Atan_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Atan_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Atanh_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Atanh_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Atanh_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Attention_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "BatchNormalization_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "BatchNormalization_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "BatchNormalization_15",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "BatchNormalization_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Ceil_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Ceil_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Clip_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Clip_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Concat_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Concat_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Constant_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Constant_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Constant_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Constant_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Constant_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Constant_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ConstantOfShape_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ConstantOfShape_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ConstantOfShape_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ConstantOfShape_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ConstantOfShape_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ConstantOfShape_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Conv_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Conv_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Conv_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cos_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cos_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cos_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cosh_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cosh_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cosh_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DequantizeLinear_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "DequantizeLinear_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Div_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Div_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Div_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Dropout_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Dropout_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Dropout_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Equal_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Equal_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Equal_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Erf_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Erf_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Exp_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Exp_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Expand_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Expand_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Flatten_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Flatten_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Flatten_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Flatten_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Flatten_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Floor_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Floor_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gelu_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gelu_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gemm_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gemm_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GlobalAveragePool_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GlobalAveragePool_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GlobalAveragePool_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Greater_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Greater_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GreaterOrEqual_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GreaterOrEqual_16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "GreaterOrEqual_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Identity_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LeakyRelu_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LeakyRelu_16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LeakyRelu_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Less_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Less_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LessOrEqual_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LessOrEqual_16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LessOrEqual_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Log_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Log_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LogSoftmax_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LogSoftmax_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "MatMul_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "MatMul_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Max_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Max_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "MaxPool_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "MaxPool_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "MaxPool_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Min_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Min_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Mul_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Mul_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Mul_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Neg_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Neg_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pad_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pow_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pow_15",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Pow_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QLinearMatMul_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QLinearMatMul_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reciprocal_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reciprocal_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceL1_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceL1_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceL1_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceL2_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceL2_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceL2_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceLogSum_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceLogSum_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceLogSum_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceLogSumExp_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceLogSumExp_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceLogSumExp_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMax_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMax_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMax_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMax_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMean_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMean_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMean_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMin_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMin_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMin_20",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceMin_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceProd_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceProd_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceProd_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceSum_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceSum_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceSumSquare_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceSumSquare_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ReduceSumSquare_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Reshape_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ScatterElements_16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ScatterElements_18",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "ScatterElements_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_15",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_19",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Shape_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sigmoid_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sigmoid_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sin_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sin_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sin_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sinh_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sinh_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sinh_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Slice_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Slice_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Softmax_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Softmax_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sqrt_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sqrt_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Squeeze_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Squeeze_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Squeeze_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Squeeze_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Squeeze_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sub_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sub_14",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Sub_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Swish_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Swish_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Tan_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Tan_22",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Tan_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Tanh_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Tanh_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "TopK_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "TopK_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "TopK_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Transpose_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Transpose_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Transpose_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Transpose_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Transpose_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Unsqueeze_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Unsqueeze_21",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Unsqueeze_23",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Unsqueeze_24",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Unsqueeze_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Where_13",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Where_16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Where_25",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_13_edges",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Clip_13_edges",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_int8_0",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_int8_3",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_uint8_0",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_uint8_3",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_13_edges_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Clip_13_edges_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_int8_0_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_int8_3_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_uint8_0_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_13_halfway_uint8_3_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_18_edges",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Clip_18_edges",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_int8_0",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_int8_3",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_uint8_0",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_uint8_3",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Relu_18_edges_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Clip_18_edges_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_int8_0_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_int8_3_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_uint8_0_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "QuantizeLinear_18_halfway_uint8_3_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gelu_20_exact",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_19_dilation_one",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_20_dilation_one",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f32_transposed",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f16_transposed",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_bf16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_bf16_transposed",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_f16_f32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_bf16_f32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_f32_f16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_f32_bf16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_f16_f32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_bf16_f32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_f32_f16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_f32_bf16",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_matrix_float32_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_matrix_float16_int32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_matrix_bfloat16_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_scalar_float32_int32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_scalar_float16_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_empty_float32_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_empty_float16_int32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_bits_int64_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_bits_bool_int32",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_bits_float64_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_zero_float32_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_last_float32_int64",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gelu_20_exact_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_19_dilation_one_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "AveragePool_20_dilation_one_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f32_transposed_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f16_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_f16_transposed_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_bf16_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "LayerNormalization_17_bf16_transposed_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_f16_f32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_bf16_f32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_f32_f16_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_18_f32_bf16_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_f16_f32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_bf16_f32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_f32_f16_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Cast_20_f32_bf16_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_matrix_float32_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_matrix_float16_int32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_matrix_bfloat16_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_scalar_float32_int32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_scalar_float16_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_empty_float32_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_empty_float16_int32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_bits_int64_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_bits_bool_int32_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_bits_float64_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_zero_float32_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  },
+  {
+    "name": "Gather_13_last_float32_int64_constant",
+    "importable": true,
+    "eager": true,
+    "compiled": true
+  }
+]

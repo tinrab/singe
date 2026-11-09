@@ -285,7 +285,7 @@ pub enum curandMethod {
     CURAND_POISSON = 13,
 }
 pub use self::curandMethod as curandMethod_t;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Create new random number generator.
     ///
     /// # Parameters
@@ -305,7 +305,7 @@ unsafe extern "C" {
         rng_type: curandRngType_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Create new host CPU random number generator.
     ///
     /// # Parameters
@@ -325,7 +325,7 @@ unsafe extern "C" {
         rng_type: curandRngType_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroy an existing generator.
     ///
     /// # Parameters
@@ -338,7 +338,7 @@ unsafe extern "C" {
     /// - [`curandStatus::CURAND_STATUS_SUCCESS`]: if generator was destroyed successfully.
     pub fn curandDestroyGenerator(generator: curandGenerator_t) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Return the version number of the library.
     ///
     /// # Parameters
@@ -350,7 +350,7 @@ unsafe extern "C" {
     /// - [`curandStatus::CURAND_STATUS_SUCCESS`]: if the version number was successfully returned.
     pub fn curandGetVersion(version: *mut ::core::ffi::c_int) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Return the value of the curand property.
     ///
     /// # Parameters
@@ -367,7 +367,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_int,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the current stream for CURAND kernel launches.
     ///
     /// # Parameters
@@ -384,7 +384,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the seed value of the pseudo-random number generator.
     ///
     /// # Parameters
@@ -402,7 +402,7 @@ unsafe extern "C" {
         seed: ::core::ffi::c_ulonglong,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the absolute offset of the pseudo or quasirandom number generator.
     ///
     /// # Parameters
@@ -419,7 +419,7 @@ unsafe extern "C" {
         offset: ::core::ffi::c_ulonglong,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the ordering of results of the pseudo or quasirandom number generator.
     ///
     /// # Parameters
@@ -437,7 +437,7 @@ unsafe extern "C" {
         order: curandOrdering_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the number of dimensions.
     ///
     /// # Parameters
@@ -456,7 +456,7 @@ unsafe extern "C" {
         num_dimensions: ::core::ffi::c_uint,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate 32-bit pseudo or quasirandom numbers.
     ///
     /// # Parameters
@@ -480,7 +480,7 @@ unsafe extern "C" {
         num: size_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate 64-bit quasirandom numbers.
     ///
     /// # Parameters
@@ -503,7 +503,7 @@ unsafe extern "C" {
         num: size_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate uniformly distributed floats.
     ///
     /// # Parameters
@@ -526,7 +526,7 @@ unsafe extern "C" {
         num: size_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate uniformly distributed doubles.
     ///
     /// # Parameters
@@ -550,7 +550,7 @@ unsafe extern "C" {
         num: size_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate normally distributed doubles.
     ///
     /// # Parameters
@@ -577,7 +577,7 @@ unsafe extern "C" {
         stddev: f32,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate normally distributed doubles.
     ///
     /// # Parameters
@@ -605,7 +605,7 @@ unsafe extern "C" {
         stddev: f64,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate log-normally distributed floats.
     ///
     /// # Parameters
@@ -632,7 +632,7 @@ unsafe extern "C" {
         stddev: f32,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate log-normally distributed doubles.
     ///
     /// # Parameters
@@ -660,7 +660,7 @@ unsafe extern "C" {
         stddev: f64,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Construct the histogram array for a Poisson distribution.
     ///
     /// # Parameters
@@ -682,7 +682,7 @@ unsafe extern "C" {
         discrete_distribution: *mut curandDiscreteDistribution_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroy the histogram array for a discrete distribution (e.g. Poisson).
     ///
     /// # Parameters
@@ -697,7 +697,7 @@ unsafe extern "C" {
         discrete_distribution: curandDiscreteDistribution_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generate Poisson-distributed unsigned ints.
     ///
     /// # Parameters
@@ -724,7 +724,7 @@ unsafe extern "C" {
         lambda: f64,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// just for internal usage
     pub fn curandGeneratePoissonMethod(
         generator: curandGenerator_t,
@@ -734,7 +734,7 @@ unsafe extern "C" {
         method: curandMethod_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generates `num` unsigned integer samples from a binomial distribution with `n` trials and success probability `p`, writing them to `outputPtr` using `generator`. Returns a cuRAND status code.
     pub fn curandGenerateBinomial(
         generator: curandGenerator_t,
@@ -744,7 +744,7 @@ unsafe extern "C" {
         p: f64,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// just for internal usage
     pub fn curandGenerateBinomialMethod(
         generator: curandGenerator_t,
@@ -755,7 +755,7 @@ unsafe extern "C" {
         method: curandMethod_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Setup starting states.
     ///
     /// # Parameters
@@ -771,7 +771,7 @@ unsafe extern "C" {
     /// - [`curandStatus::CURAND_STATUS_SUCCESS`]: if the seeds were generated successfully.
     pub fn curandGenerateSeeds(generator: curandGenerator_t) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get direction vectors for 32-bit quasirandom number generation.
     ///
     /// # Parameters
@@ -788,7 +788,7 @@ unsafe extern "C" {
         set: curandDirectionVectorSet_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get scramble constants for 32-bit scrambled Sobol' .
     ///
     /// # Parameters
@@ -802,7 +802,7 @@ unsafe extern "C" {
         constants: *mut *mut ::core::ffi::c_uint,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get direction vectors for 64-bit quasirandom number generation.
     ///
     /// # Parameters
@@ -819,7 +819,7 @@ unsafe extern "C" {
         set: curandDirectionVectorSet_t,
     ) -> curandStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get scramble constants for 64-bit scrambled Sobol' .
     ///
     /// # Parameters

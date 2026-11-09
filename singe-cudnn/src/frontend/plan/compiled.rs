@@ -338,7 +338,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if this handle does not retain `plan`. Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
+    /// Returns an error if this handle does not retain `plan`.
+    /// Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
     pub fn computed_intermediate_ids_for(&self, plan: &PlanId) -> Result<Vec<IntermediateId>> {
         self.execution_plan_for(plan)?.computed_intermediate_ids()
     }
@@ -356,7 +357,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if this handle does not retain `plan`. Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
+    /// Returns an error if this handle does not retain `plan`.
+    /// Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
     pub fn run_only_intermediate_ids_for(&self, plan: &PlanId) -> Result<Vec<IntermediateId>> {
         self.execution_plan_for(plan)?.run_only_intermediate_ids()
     }
@@ -374,7 +376,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if this handle does not retain `plan`. Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
+    /// Returns an error if this handle does not retain `plan`.
+    /// Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
     pub fn native_plan_json_for(&self, plan: &PlanId) -> Result<String> {
         self.execution_plan_for(plan)?.json_representation()
     }
@@ -383,7 +386,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts. A missing cache is returned as `None`.
+    /// Returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
+    /// A missing cache is returned as `None`.
     pub fn kernel_cache_json(&self) -> Result<Option<KernelCacheJson>> {
         self.execution_plan().kernel_cache_json()
     }
@@ -392,7 +396,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if this handle does not retain `plan`. Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
+    /// Returns an error if this handle does not retain `plan`.
+    /// Also returns an error if context binding or the native attribute query fails, including invalid or persistently changing payload counts.
     pub fn kernel_cache_json_for(&self, plan: &PlanId) -> Result<Option<KernelCacheJson>> {
         self.execution_plan_for(plan)?.kernel_cache_json()
     }

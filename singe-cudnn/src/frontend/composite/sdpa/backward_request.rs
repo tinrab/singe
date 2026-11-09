@@ -98,6 +98,7 @@ impl Graph {
                 _ => {}
             }
         }
+
         for id in &self.vector_aligned_tensors {
             let tensor = self
                 .tensors
@@ -178,12 +179,14 @@ impl Graph {
         if total <= 0 {
             return Err(Error::out_of_range("attention total token bound"));
         }
+
         let mut strides = source.shape.strides().to_vec();
         for axis in [0, 2] {
             strides[axis] = strides[axis]
                 .checked_mul(head_multiplier)
                 .ok_or_else(|| Error::out_of_range("packed workspace stride"))?;
         }
+
         let dimensions = tensor.shape.dimensions().to_vec();
         let packed_span = Shape::with_strides(
             vec![1, dimensions[1], total, dimensions[3]],
@@ -215,6 +218,7 @@ impl Graph {
         {
             return self.matmul_into(a, b, output, config);
         }
+
         let mut dimensions = output_tensor.shape.dimensions().to_vec();
         dimensions[1] = a_heads;
         let mut spec =
@@ -227,6 +231,7 @@ impl Graph {
                 a_heads / output_heads,
             )?;
         }
+
         let full_heads = self.tensor(spec);
         let compute_type = config.compute_type();
         self.matmul_into(a, b, full_heads, config)?;
@@ -248,6 +253,7 @@ impl Graph {
         for input in inputs {
             self.validate_tensor_rank(input, 4, "attention backward input")?;
         }
+
         let [query, key, value] = [
             (inputs[0], outputs.query_gradient),
             (inputs[1], outputs.key_gradient),
@@ -303,6 +309,7 @@ impl Graph {
         {
             return Ok(());
         }
+
         let sm = self
             .sm_version()
             .filter(|sm| *sm > 0)
@@ -388,6 +395,7 @@ impl Graph {
                             ),
                         });
                     }
+
                     self.expand_floating_attention_backward(inputs, outputs, config, accumulation)?;
                 }
                 AttentionBackwardRequest::Fp8 {
@@ -427,6 +435,7 @@ impl Graph {
                     self.expand_mxfp8_attention_backward(inputs, outputs, &config)?;
                 }
             }
+
             AttentionBackwardHeuristicOverride::retain_into(
                 &mut self.attention_backward_heuristic_overrides,
                 choice,

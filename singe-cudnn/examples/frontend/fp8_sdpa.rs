@@ -31,6 +31,7 @@ fn run() -> Result<()> {
         println!("frontend_fp8_sdpa: skipped, requires SM90 or newer");
         return Ok(());
     }
+
     let [b, h, s, d] = [2_i64, 2, 512, 128];
     let mut graph = Graph::with_config(
         GraphConfig::new().with_data_type_policy(
@@ -126,9 +127,11 @@ fn run() -> Result<()> {
         let shape = Shape::contiguous([1; 4])?;
         graph.modify_tensor(id, |tensor| tensor.with_shape(shape).output_tensor())?;
     }
+
     if let Some(stats) = stats {
         graph.mark_as_output(stats)?;
     }
+
     let compiled = graph.compile(
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::A, HeuristicMode::Fallback]),
@@ -159,12 +162,14 @@ fn run() -> Result<()> {
     for id in [descale_q, descale_k, descale_v, descale_s, scale_s, scale_o] {
         bindings.set_input(id, &scales)?;
     }
+
     bindings.set(output, &mut output_device)?;
     bindings.set(absolute_max_s, &mut score_amax)?;
     bindings.set(absolute_max_o, &mut output_amax)?;
     if let Some((id, memory)) = &mut statistics {
         bindings.set(*id, memory)?;
     }
+
     // SAFETY: the interleaved QKV owner, initialized scales, writable outputs and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(

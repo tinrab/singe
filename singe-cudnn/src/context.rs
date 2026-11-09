@@ -13,8 +13,8 @@ use crate::{
 
 /// A stateful cuDNN handle.
 ///
-/// Use one context per host thread or concurrent task. The handle is movable
-/// between threads, but it is intentionally not `Clone` or `Sync`.
+/// Use one context per host thread or concurrent task.
+/// The handle is movable between threads, but it is intentionally not `Clone` or `Sync`.
 /// Streams installed through `set_stream` are retained until replacement or destruction.
 #[derive(Debug)]
 pub struct Context {
@@ -40,6 +40,7 @@ impl ScopedStream<'_> {
         if self.restored {
             return Ok(());
         }
+
         self.context.bind()?;
         // SAFETY: the saved binding retains an owned stream or borrows the context's original external stream.
         unsafe {
@@ -48,6 +49,7 @@ impl ScopedStream<'_> {
                 self.previous.as_raw(),
             ))?;
         }
+
         self.context.stream = self.previous_owner.take();
         self.restored = true;
         Ok(())
@@ -57,8 +59,10 @@ impl ScopedStream<'_> {
 impl Drop for ScopedStream<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.restore() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to restore cudnn stream: {error}");
+            eprintln!(
+                "failed to restore cudnn stream: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -76,7 +80,8 @@ pub struct RawContext {
     pub handle: sys::cudnnHandle_t,
     /// Actual CUDA context needed for native handle use and destruction.
     pub cuda_context: Arc<CudaContext>,
-    /// Retained installed stream, if one was selected through this wrapper. External stream ownership remains a caller obligation.
+    /// Retained installed stream, if one was selected through this wrapper.
+    /// External stream ownership remains a caller obligation.
     pub stream: Option<Stream>,
 }
 
@@ -85,24 +90,20 @@ unsafe impl Send for RawContext {}
 
 impl Context {
     /// Initializes cuDNN and creates a library handle.
-    /// Creating the handle allocates host and device resources and must happen
-    /// before using other cuDNN operations through this context.
+    /// Creating the handle allocates host and device resources and must happen before using other cuDNN operations through this context.
     ///
     /// The cuDNN handle is tied to the current CUDA context.
     /// To use the library on multiple devices, create one cuDNN handle for each device.
     ///
-    /// For a given device, multiple cuDNN handles with different configurations
-    /// (for example, different current CUDA streams) may be created.
-    /// Because [`Context::create`] allocates some internal resources, destroying the handle may implicitly synchronize the current CUDA device. Create and destroy handles outside performance-critical code paths.
+    /// For a given device, multiple cuDNN handles with different configurations (for example, different current CUDA streams) may be created.
+    /// Because [`Context::create`] allocates some internal resources, destroying the handle may implicitly synchronize the current CUDA device.
+    /// Create and destroy handles outside performance-critical code paths.
     ///
     /// For multithreaded applications that use the same device from different threads, create one or a few cuDNN handles per thread and reuse each handle for the thread lifetime.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDNN cannot allocate host or CUDA resources, if the
-    /// GPU architecture is unsupported, if cuDNN rejects the handle creation
-    /// inputs, if license validation fails, or if CUDA/cuDNN initialization
-    /// cannot find a compatible enabled GPU.
+    /// Returns an error if cuDNN cannot allocate host or CUDA resources, if the GPU architecture is unsupported, if cuDNN rejects the handle creation inputs, if license validation fails, or if CUDA/cuDNN initialization cannot find a compatible enabled GPU.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
         cuda_context.bind()?;
 
@@ -130,11 +131,9 @@ impl Context {
     /// # Safety
     ///
     /// `handle` must be a valid cuDNN handle associated with `cuda_context`.
-    /// Ownership of `handle` is transferred to the returned context, and the
-    /// handle must not be destroyed elsewhere after calling this function.
-    /// A supplied stream is installed and retained. If no owned stream is
-    /// supplied, externally configured streams must remain valid until this
-    /// handle is destroyed or another stream is installed.
+    /// Ownership of `handle` is transferred to the returned context, and the handle must not be destroyed elsewhere after calling this function.
+    /// A supplied stream is installed and retained.
+    /// If no owned stream is supplied, externally configured streams must remain valid until this handle is destroyed or another stream is installed.
     ///
     /// # Errors
     ///
@@ -217,13 +216,12 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDNN rejects the handle, if `stream` belongs to a
-    /// different context than the cuDNN handle, if CUDA stream APIs fail, or if
-    /// the stream priority is out of range.
+    /// Returns an error if cuDNN rejects the handle, if `stream` belongs to a different context than the cuDNN handle, if CUDA stream APIs fail, or if the stream priority is out of range.
     pub fn set_stream(&mut self, stream: Option<&Stream>) -> Result<()> {
         if stream.is_some_and(|stream| self.cuda_context() != stream.context()) {
             return Err(Error::StreamContextMismatch);
         }
+
         self.bind()?;
 
         // SAFETY: `cudnnSetStream` receives live handles owned by the wrappers.
@@ -233,6 +231,7 @@ impl Context {
                 stream.map_or_else(ptr::null_mut, Stream::as_raw),
             ))?;
         }
+
         self.stream = stream.cloned();
         Ok(())
     }
@@ -272,8 +271,7 @@ impl Context {
 
     /// Returns the raw cuDNN handle.
     ///
-    /// The returned handle is borrowed and remains valid only while this
-    /// context and its underlying CUDA context are alive.
+    /// The returned handle is borrowed and remains valid only while this context and its underlying CUDA context are alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cudnnHandle_t {
         self.handle.raw
@@ -294,6 +292,7 @@ impl Context {
         if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         if raw
             .stream
             .as_ref()
@@ -327,16 +326,21 @@ impl Drop for Handle {
         if self.raw.is_null() {
             return;
         }
+
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cudnn handle: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying cudnn handle: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cudnnDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudnn context: {error}");
+                eprintln!(
+                    "failed to destroy cudnn context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

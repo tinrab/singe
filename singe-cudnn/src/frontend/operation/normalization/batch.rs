@@ -117,9 +117,7 @@ pub struct BatchNormalizationBackwardOutputs<T = TensorId> {
 
 /// Attributes for batch normalization finalize.
 ///
-/// `bn_finalize` computes the equivalent scale/bias and statistics consumed by
-/// later batchnorm steps, optionally including next running mean and variance.
-///
+/// `bn_finalize` computes the equivalent scale/bias and statistics consumed by later batchnorm steps, optionally including next running mean and variance.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchNormalizationFinalizeConfig {
     pub(crate) name: Option<String>,
@@ -233,9 +231,7 @@ impl BatchNormalizationFinalizeConfig {
 
 /// Attributes for batch normalization forward.
 ///
-/// Batchnorm forward can optionally consume and produce running statistics, and
-/// can include peer statistics for multi-GPU batch normalization patterns.
-///
+/// Batchnorm forward can optionally consume and produce running statistics, and can include peer statistics for multi-GPU batch normalization patterns.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchNormalizationConfig {
     pub(crate) name: Option<String>,
@@ -310,8 +306,7 @@ impl BatchNormalizationConfig {
 
 /// Attributes for batch normalization backward.
 ///
-/// DBN computes input, scale, and `bias_gradients` and can include peer
-/// statistics for multi-GPU normalization patterns.
+/// DBN computes input, scale, and `bias_gradients` and can include peer statistics for multi-GPU normalization patterns.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BatchNormalizationBackwardConfig {
     pub(crate) name: Option<String>,

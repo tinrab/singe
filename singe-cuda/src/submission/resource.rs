@@ -14,11 +14,14 @@ use crate::{
 /// Access to a byte range by a submitted operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AccessMode {
-    /// Reads the declared bytes without modifying them. Concurrent tracked reads do not conflict.
+    /// Reads the declared bytes without modifying them.
+    /// Concurrent tracked reads do not conflict.
     Read,
-    /// Writes the declared bytes without requiring their previous contents. Conflicts with overlapping tracked reads and writes.
+    /// Writes the declared bytes without requiring their previous contents.
+    /// Conflicts with overlapping tracked reads and writes.
     Write,
-    /// Reads and modifies the declared bytes. Conflicts with overlapping tracked reads and writes.
+    /// Reads and modifies the declared bytes.
+    /// Conflicts with overlapping tracked reads and writes.
     ReadWrite,
 }
 

@@ -9,12 +9,13 @@ use crate::{
 };
 
 impl ImagePipeline<'_, u8, C2> {
-    /// Converts `YCbCr422` color values to BGR color values. Writes `alpha` to every destination alpha component.
+    /// Converts `YCbCr422` color values to BGR color values.
+    /// Writes `alpha` to every destination alpha component.
     ///
     /// Writes converted values into `destination` using [`ycbcr422_to_bgr_u8_c2_to_c4`](crate::image::raw::color::ycbcr422_to_bgr_u8_c2_to_c4).
     /// Sets every output alpha sample to `alpha`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -37,12 +38,13 @@ impl ImagePipeline<'_, u8, C2> {
         })
     }
 
-    /// Converts `CbYCr422` color values to BGR color values. Writes `alpha` to every destination alpha component.
+    /// Converts `CbYCr422` color values to BGR color values.
+    /// Writes `alpha` to every destination alpha component.
     ///
     /// Writes converted values into `destination` using [`cbycr422_to_bgr_u8_c2_to_c4`](crate::image::raw::color::cbycr422_to_bgr_u8_c2_to_c4).
     /// Sets every output alpha sample to `alpha`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -65,12 +67,13 @@ impl ImagePipeline<'_, u8, C2> {
         })
     }
 
-    /// Converts `CbYCr422` color values to BGR color values. Writes `alpha` to every destination alpha component.
+    /// Converts `CbYCr422` color values to BGR color values.
+    /// Writes `alpha` to every destination alpha component.
     ///
     /// Writes converted values into `destination` using [`cbycr422_to_bgr_709hdtv_u8_c2_to_c4`](crate::image::raw::color::cbycr422_to_bgr_709hdtv_u8_c2_to_c4).
     /// Sets every output alpha sample to `alpha`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

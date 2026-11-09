@@ -12,24 +12,20 @@ use crate::{
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait CompareEqualEpsilonImage<L> {
     /// Compares corresponding pixels in two images for equality within `epsilon`.
-    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison,
-    /// and `0` otherwise. AC4 input alpha is excluded.
-    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded
-    /// to NPP without validation.
+    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison, and `0` otherwise.
+    /// AC4 input alpha is excluded.
+    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded to NPP without validation.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     fn compare_equal_epsilon_image(
         stream_context: &StreamContext,
@@ -44,30 +40,25 @@ pub unsafe trait CompareEqualEpsilonImage<L> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait CompareEqualEpsilonConstantImage<L> {
     /// Scalar constant for C1 or an array with one value per processed source channel.
     /// The provided C3 and AC4 implementations use three values; C4 uses four.
     type Constant;
 
     /// Compares source pixels with the supplied constant for equality within `epsilon`.
-    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison,
-    /// and `0` otherwise. AC4 input alpha is excluded.
-    /// The provided implementations use a scalar constant for C1, three constants for C3
-    /// and AC4, and four constants for C4.
-    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded
-    /// to NPP without validation.
+    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison, and `0` otherwise.
+    /// AC4 input alpha is excluded.
+    /// The provided implementations use a scalar constant for C1, three constants for C3 and AC4, and four constants for C4.
+    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded to NPP without validation.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     fn compare_equal_epsilon_constant_image(
         stream_context: &StreamContext,

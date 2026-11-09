@@ -41,8 +41,7 @@ use crate::{
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn masked_bmm_f32(
     stream: &Arc<Stream>,
@@ -116,8 +115,7 @@ pub unsafe fn masked_bmm_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn masked_bmm_f16(
     stream: &Arc<Stream>,
@@ -191,8 +189,7 @@ pub unsafe fn masked_bmm_f16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn masked_bmm_bf16(
     stream: &Arc<Stream>,
@@ -263,8 +260,7 @@ pub unsafe fn masked_bmm_bf16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn ragged_bmm_f32(
@@ -331,8 +327,7 @@ pub unsafe fn ragged_bmm_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn ragged_bmm_f16(
@@ -399,8 +394,7 @@ pub unsafe fn ragged_bmm_f16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn ragged_bmm_bf16(
@@ -466,8 +460,7 @@ pub unsafe fn ragged_bmm_bf16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn group_gemm_f32(
@@ -534,8 +527,7 @@ pub unsafe fn group_gemm_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn group_gemm_f16(
@@ -602,8 +594,7 @@ pub unsafe fn group_gemm_f16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn group_gemm_bf16(
@@ -669,8 +660,7 @@ pub unsafe fn group_gemm_bf16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn grouped_gemm_f32(
@@ -743,8 +733,7 @@ pub unsafe fn grouped_gemm_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn grouped_gemm_f16(
@@ -817,8 +806,7 @@ pub unsafe fn grouped_gemm_f16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn grouped_gemm_bf16(
@@ -891,8 +879,7 @@ pub unsafe fn grouped_gemm_bf16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
@@ -972,8 +959,7 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
@@ -1053,8 +1039,7 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 /// Device metadata must describe valid input ranges and in-bounds, nonoverlapping output writes.
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(

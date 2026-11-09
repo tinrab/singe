@@ -84,6 +84,7 @@ mod kernels {
                 };
                 score = score + q * k;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 selected_valid
@@ -130,6 +131,7 @@ mod kernels {
                 };
                 score = score + q * k;
             }
+
             let weight = exp(score * broadcast_scalar(scale, tile_shape) - max_score);
             denom = denom + select(selected_valid, weight, zero_f32);
         }
@@ -158,6 +160,7 @@ mod kernels {
                 };
                 score = score + q * k;
             }
+
             let weight = exp(score * broadcast_scalar(scale, tile_shape) - max_score) / denom;
             let v = unsafe {
                 load_vector(
@@ -241,6 +244,7 @@ mod kernels {
                 let before = other_not_local & other_not_candidate & (score_greater | tie_before);
                 rank = rank + select(before, broadcast_scalar(1i32, tile_shape), zero_offsets);
             }
+
             let non_local_slot = cmpi(slot, zero_offsets, predicate::NotEqual);
             let candidate_not_local = cmpi(candidate_tile, local, predicate::NotEqual);
             let candidate_selected = slot_valid
@@ -347,6 +351,7 @@ mod kernels {
                 unsafe { load_vector(scores, source_base + key_index, key_valid, -1.0e30f32) };
             max_score = max_tile(max_score, value);
         }
+
         unsafe { store_vector(out, offsets, max_score, valid) };
     }
 
@@ -409,6 +414,7 @@ mod kernels {
                 };
                 inner = inner + query * key;
             }
+
             let zero_inner: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
             let inner = max_tile(inner, zero_inner);
             let weight = unsafe {
@@ -421,6 +427,7 @@ mod kernels {
             };
             score = score + weight * inner;
         }
+
         unsafe { store_vector(out, offsets, score, valid) };
     }
 
@@ -505,6 +512,7 @@ mod kernels {
                 let before = other_valid & other_not_candidate & (score_greater | tie_before);
                 rank = rank + select(before, broadcast_scalar(1i32, tile_shape), zero_tile);
             }
+
             let candidate_selected =
                 slot_valid & candidate_valid & cmpi(rank, slot, predicate::Equal);
             selected = select(candidate_selected, candidate_tile, selected);
@@ -596,6 +604,7 @@ mod kernels {
                 };
                 score = score + query_value * key_value;
             }
+
             let scaled = score * broadcast_scalar(scale, tile_shape);
             max_score = select(key_valid, max_tile(max_score, scaled), max_score);
         }
@@ -628,6 +637,7 @@ mod kernels {
                 };
                 score = score + query_value * key_value;
             }
+
             let weight = select(
                 key_valid,
                 exp(score * broadcast_scalar(scale, tile_shape) - max_score),
@@ -664,6 +674,7 @@ mod kernels {
                 };
                 score = score + query_value * key_value;
             }
+
             let weight = select(
                 key_valid,
                 exp(score * broadcast_scalar(scale, tile_shape) - max_score) / denom,
@@ -679,6 +690,7 @@ mod kernels {
             };
             sum = sum + weight * value;
         }
+
         unsafe { store_vector(out, offsets, sum, valid) };
     }
 
@@ -751,8 +763,10 @@ mod kernels {
                 };
                 logit = logit + hidden_value * weight;
             }
+
             max_logit = max_tile(max_logit, logit);
         }
+
         for row in 0i32..compression_block {
             let token = (block - broadcast_scalar(1i32, tile_shape))
                 * broadcast_scalar(compression_block, tile_shape)
@@ -787,6 +801,7 @@ mod kernels {
                 };
                 logit = logit + hidden_value * weight;
             }
+
             let next_max_logit: Tile<f32, { [128] }> =
                 select(has_prev, max_tile(max_logit, logit), max_logit);
             max_logit = next_max_logit;
@@ -836,10 +851,12 @@ mod kernels {
                 value = value + hidden_value * kv_weight;
                 logit = logit + hidden_value * z_weight;
             }
+
             let weight = exp(logit - max_logit);
             denom = denom + weight;
             sum = sum + weight * value;
         }
+
         for row in 0i32..compression_block {
             let token = (block - broadcast_scalar(1i32, tile_shape))
                 * broadcast_scalar(compression_block, tile_shape)
@@ -884,11 +901,13 @@ mod kernels {
                 value = value + hidden_value * kv_weight;
                 logit = logit + hidden_value * z_weight;
             }
+
             let zero_weight: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
             let weight = select(stream_valid, exp(logit - max_logit), zero_weight);
             denom = denom + weight;
             sum = sum + weight * value;
         }
+
         unsafe { store_vector(out, offsets, sum / denom, valid) };
     }
 
@@ -957,6 +976,7 @@ mod kernels {
                 };
                 logit = logit + hidden_value * weight;
             }
+
             max_logit = max_tile(max_logit, logit);
         }
 
@@ -1004,10 +1024,12 @@ mod kernels {
                 value = value + hidden_value * kv_weight;
                 logit = logit + hidden_value * z_weight;
             }
+
             let weight = exp(logit - max_logit);
             denom = denom + weight;
             sum = sum + weight * value;
         }
+
         unsafe { store_vector(out, offsets, sum / denom, valid) };
     }
 
@@ -1098,6 +1120,7 @@ mod kernels {
                                 };
                                 score = score + q * kv;
                             }
+
                             score = score * broadcast_scalar(scale, tile_shape);
                             let next_max_score: Tile<f32, { [128] }> = select(
                                 block_valid
@@ -1150,6 +1173,7 @@ mod kernels {
                                 };
                                 score = score + q * kv;
                             }
+
                             let weight =
                                 exp(score * broadcast_scalar(scale, tile_shape) - max_score);
                             let zero_weight: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -1166,6 +1190,7 @@ mod kernels {
                             denom = denom + weight;
                             head_value = head_value + weight * value;
                         }
+
                         let zero_i32: Tile<i32, { [128] }> = constant(0i32, tile_shape);
                         let has_blocks = cmpi(visible_blocks, zero_i32, predicate::GreaterThan);
                         let zero_head_value: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -1186,6 +1211,7 @@ mod kernels {
                         inter = inter + head_value * group_weight;
                     }
                 }
+
                 let final_weight = unsafe {
                     load_vector(
                         weight_final,
@@ -1346,6 +1372,7 @@ mod kernels {
             let value_tile = unsafe { load_vector(value, value_offsets, key_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
+
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let output = select(valid, output, zero);
@@ -1545,6 +1572,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + query_index * broadcast_scalar(qpe_features, tile_shape)
@@ -1597,6 +1625,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + query_index * broadcast_scalar(qpe_features, tile_shape)
@@ -1641,6 +1670,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key_value, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + head * broadcast_scalar(pe_dim, tile_shape)
@@ -1685,6 +1715,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key_value, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + head * broadcast_scalar(pe_dim, tile_shape)
@@ -1695,6 +1726,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key_pe, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         let _ = q_features;
         let _ = qpe_features;
         score * broadcast_scalar(scale, tile_shape)
@@ -1733,6 +1765,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key_value_cache, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + head * broadcast_scalar(pe_dim, tile_shape)
@@ -1745,6 +1778,7 @@ mod kernels {
             let key_values = unsafe { load_vector(key_pe_cache, key_offsets, valid, 0.0f32) };
             score = score + query_values * key_values;
         }
+
         let _ = q_features;
         let _ = qpe_features;
         score * broadcast_scalar(scale, tile_shape)
@@ -1783,6 +1817,7 @@ mod kernels {
             let key_values = unsafe { load_vector_f16_as_f32(key_value_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + head * broadcast_scalar(pe_dim, tile_shape)
@@ -1795,6 +1830,7 @@ mod kernels {
             let key_values = unsafe { load_vector_f16_as_f32(key_pe_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
+
         let _ = q_features;
         let _ = qpe_features;
         score * broadcast_scalar(scale, tile_shape)
@@ -1834,6 +1870,7 @@ mod kernels {
                 unsafe { load_vector_bf16_as_f32(key_value_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
+
         for dim_index in 0i32..pe_dim {
             let query_offsets = query_pe_batch_base
                 + head * broadcast_scalar(pe_dim, tile_shape)
@@ -1846,6 +1883,7 @@ mod kernels {
             let key_values = unsafe { load_vector_bf16_as_f32(key_pe_cache, key_offsets, valid) };
             score = score + query_values * key_values;
         }
+
         let _ = q_features;
         let _ = qpe_features;
         score * broadcast_scalar(scale, tile_shape)
@@ -2083,6 +2121,7 @@ mod kernels {
                         predicate::GreaterThanOrEqual,
                     );
             }
+
             let score = attention_score::<HEAD_DIM>(
                 query,
                 key,
@@ -2135,6 +2174,7 @@ mod kernels {
                         predicate::GreaterThanOrEqual,
                     );
             }
+
             let score = attention_score::<HEAD_DIM>(
                 query,
                 key,
@@ -2676,6 +2716,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 valid
@@ -2706,6 +2747,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -2797,6 +2839,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -2833,6 +2876,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -2935,6 +2979,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -2971,6 +3016,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3074,6 +3120,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3111,6 +3158,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3243,6 +3291,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 key_valid
@@ -3280,6 +3329,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -3393,6 +3443,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3435,6 +3486,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3551,6 +3603,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3593,6 +3646,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3710,6 +3764,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3753,6 +3808,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = softcapped_attention_score(
                 score * broadcast_scalar(scale, tile_shape),
                 soft_cap,
@@ -3900,6 +3956,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 key_valid
@@ -3954,6 +4011,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector(key, key_offsets, key_valid, 0.0f32) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -4077,6 +4135,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 key_valid
@@ -4131,6 +4190,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -4255,6 +4315,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 key_valid
@@ -4310,6 +4371,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -5012,6 +5074,7 @@ mod kernels {
                         predicate::GreaterThanOrEqual,
                     );
             }
+
             let score = attention_score_f16::<HEAD_DIM>(
                 query,
                 key,
@@ -5062,6 +5125,7 @@ mod kernels {
                         predicate::GreaterThanOrEqual,
                     );
             }
+
             let score = attention_score_f16::<HEAD_DIM>(
                 query,
                 key,
@@ -5186,6 +5250,7 @@ mod kernels {
                         predicate::GreaterThanOrEqual,
                     );
             }
+
             let score = attention_score_bf16::<HEAD_DIM>(
                 query,
                 key,
@@ -5236,6 +5301,7 @@ mod kernels {
                         predicate::GreaterThanOrEqual,
                     );
             }
+
             let score = attention_score_bf16::<HEAD_DIM>(
                 query,
                 key,
@@ -5333,6 +5399,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 valid
@@ -5363,6 +5430,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -5448,6 +5516,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 valid
@@ -5478,6 +5547,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -5580,6 +5650,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 key_valid
@@ -5617,6 +5688,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_f16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -5726,6 +5798,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             max_score = select(
                 key_valid
@@ -5764,6 +5837,7 @@ mod kernels {
                 let key_tile = unsafe { load_vector_bf16_as_f32(key, key_offsets, key_valid) };
                 score = score + query_tile * key_tile;
             }
+
             score = score * broadcast_scalar(scale, tile_shape);
             let weight = exp(score - max_score);
             let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
@@ -5935,6 +6009,7 @@ mod kernels {
             let value_tile = unsafe { load_vector_f16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
+
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let output = select(valid, output, zero);
@@ -6084,6 +6159,7 @@ mod kernels {
             let value_tile = unsafe { load_vector_bf16_as_f32(value, value_offsets, key_valid) };
             sum = sum + weight * value_tile;
         }
+
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let output = select(valid, output, zero);
@@ -6350,6 +6426,7 @@ mod kernels {
                 unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
+
         let output = (sum / denom) * broadcast_scalar(output_scale, tile_shape);
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let output = select(valid, output, zero);
@@ -6516,6 +6593,7 @@ mod kernels {
                 unsafe { load_vector(value_cache, value_offsets, block_valid, 0.0f32) };
             sum = sum + weight * value_tile;
         }
+
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let one: Tile<f32, { [128] }> = constant(1.0f32, tile_shape);
         let has_denominator = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
@@ -6683,6 +6761,7 @@ mod kernels {
                 unsafe { load_vector_f16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
+
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let one: Tile<f32, { [128] }> = constant(1.0f32, tile_shape);
         let has_denominator = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
@@ -6850,6 +6929,7 @@ mod kernels {
                 unsafe { load_vector_bf16_as_f32(value_cache, value_offsets, block_valid) };
             sum = sum + weight * value_tile;
         }
+
         let zero: Tile<f32, { [128] }> = constant(0.0f32, tile_shape);
         let one: Tile<f32, { [128] }> = constant(1.0f32, tile_shape);
         let has_denominator = cmpf(denom, zero, predicate::GreaterThan, cmp_ordering::Ordered);
@@ -6917,6 +6997,7 @@ mod kernels {
             query_index = select(in_batch, global_token - seq_offset, query_index);
             seq_len_q = select(in_batch, candidate_seq_len, seq_len_q);
         }
+
         let valid_query = valid
             & cmpi(
                 batch_index,
@@ -6950,6 +7031,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let (physical_block, block_token) = unsafe {
                 paged_block_lookup(
                     block_table,
@@ -7019,6 +7101,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let (physical_block, block_token) = unsafe {
                 paged_block_lookup(
                     block_table,
@@ -7141,6 +7224,7 @@ mod kernels {
             query_index = select(in_batch, global_token - seq_offset, query_index);
             seq_len_q = select(in_batch, candidate_seq_len, seq_len_q);
         }
+
         let valid_query = valid
             & cmpi(
                 batch_index,
@@ -7174,6 +7258,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let (physical_block, block_token) = unsafe {
                 paged_block_lookup(
                     block_table,
@@ -7243,6 +7328,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let (physical_block, block_token) = unsafe {
                 paged_block_lookup(
                     block_table,
@@ -7365,6 +7451,7 @@ mod kernels {
             query_index = select(in_batch, global_token - seq_offset, query_index);
             seq_len_q = select(in_batch, candidate_seq_len, seq_len_q);
         }
+
         let valid_query = valid
             & cmpi(
                 batch_index,
@@ -7398,6 +7485,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let (physical_block, block_token) = unsafe {
                 paged_block_lookup(
                     block_table,
@@ -7467,6 +7555,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let (physical_block, block_token) = unsafe {
                 paged_block_lookup(
                     block_table,
@@ -7593,6 +7682,7 @@ mod kernels {
             seq_offset = select(in_batch, candidate_offset, seq_offset);
             seq_len_q = select(in_batch, candidate_seq_len, seq_len_q);
         }
+
         let valid_query = valid
             & cmpi(
                 batch_index,
@@ -7622,6 +7712,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let score = attention_score::<HEAD_DIM>(
                 query,
                 key,
@@ -7671,6 +7762,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let score = attention_score::<HEAD_DIM>(
                 query,
                 key,
@@ -7775,6 +7867,7 @@ mod kernels {
             seq_offset = select(in_batch, candidate_offset, seq_offset);
             seq_len_q = select(in_batch, candidate_seq_len, seq_len_q);
         }
+
         let valid_query = valid
             & cmpi(
                 batch_index,
@@ -7804,6 +7897,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let score = attention_score_f16::<HEAD_DIM>(
                 query,
                 key,
@@ -7851,6 +7945,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let score = attention_score_f16::<HEAD_DIM>(
                 query,
                 key,
@@ -7953,6 +8048,7 @@ mod kernels {
             seq_offset = select(in_batch, candidate_offset, seq_offset);
             seq_len_q = select(in_batch, candidate_seq_len, seq_len_q);
         }
+
         let valid_query = valid
             & cmpi(
                 batch_index,
@@ -7982,6 +8078,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let score = attention_score_bf16::<HEAD_DIM>(
                 query,
                 key,
@@ -8029,6 +8126,7 @@ mod kernels {
                         predicate::LessThanOrEqual,
                     );
             }
+
             let score = attention_score_bf16::<HEAD_DIM>(
                 query,
                 key,
@@ -8427,6 +8525,7 @@ mod kernels {
                     );
                 sum_active = sum_active + select(active, score - tau_mid, zero_values);
             }
+
             let above_one = cmpf(
                 sum_active,
                 one_values,
@@ -8504,6 +8603,7 @@ mod kernels {
                     );
                 sum_active = sum_active + select(active, score - tau_mid, zero_values);
             }
+
             let above_one = cmpf(
                 sum_active,
                 one_values,
@@ -8582,6 +8682,7 @@ mod kernels {
                     );
                 sum_active = sum_active + select(active, score - tau_mid, zero_values);
             }
+
             let above_one = cmpf(
                 sum_active,
                 one_values,

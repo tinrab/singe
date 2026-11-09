@@ -137,6 +137,7 @@ impl LocalCommunicatorGroup {
         if device_count < rank_count {
             return Err(Error::out_of_range("visible device count"));
         }
+
         let device_ids = (0..rank_count)
             .map(|device_id| to_i32(device_id, "device_id"))
             .collect::<Result<Vec<_>>>()?;
@@ -159,6 +160,7 @@ impl LocalCommunicatorGroup {
                     name: "local communicator clique".into(),
                 });
             }
+
             let id = RankId::create(communicator.rank()?)?;
             let stream = communicator.cuda_context().create_stream()?;
             ranks.push(LocalRank {
@@ -167,6 +169,7 @@ impl LocalCommunicatorGroup {
                 stream,
             });
         }
+
         ranks.sort_by_key(|rank| rank.id);
         for (index, rank) in ranks.iter().enumerate() {
             if rank.id.to_index()? != index {
@@ -446,6 +449,7 @@ impl LocalCommunicatorGroup {
                 name: "reduce recv".into(),
             });
         }
+
         let root_index = root.id().to_index()?;
         self.with_completed_group(|| {
             // SAFETY: all views remain borrowed until the completed group drains.
@@ -529,6 +533,7 @@ impl LocalCommunicatorGroup {
                 name: "gather recv".into(),
             });
         }
+
         let root_index = root.id().to_index()?;
         self.with_completed_group(|| {
             // SAFETY: all views remain borrowed until the completed group drains.
@@ -585,6 +590,7 @@ impl LocalCommunicatorGroup {
                 name: "scatter send".into(),
             });
         }
+
         let root_index = root.id().to_index()?;
         self.with_completed_group(|| {
             // SAFETY: all views remain borrowed until the completed group drains.
@@ -746,15 +752,13 @@ impl LocalCommunicatorGroup {
 
     /// Runs raw operations for these ranks as one completed NCCL group.
     ///
-    /// Polls native submission and device execution, checks asynchronous errors,
-    /// and drains every stream before returning. An error or unwind cancels the
-    /// group before releasing borrowed resources. Open groups and capture are rejected.
+    /// Polls native submission and device execution, checks asynchronous errors, and drains every stream before returning.
+    /// An error or unwind cancels the group before releasing borrowed resources.
+    /// Open groups and capture are rejected.
     ///
     /// # Safety
-    /// The closure must issue matching collective or point-to-point calls using
-    /// these communicators and streams, including on error and unwind paths.
-    /// Retain backing buffers and referenced device resources outside the closure
-    /// through this call, and uphold each raw operation's access rules.
+    /// The closure must issue matching collective or point-to-point calls using these communicators and streams, including on error and unwind paths.
+    /// Retain backing buffers and referenced device resources outside the closure through this call, and uphold each raw operation's access rules.
     ///
     /// # Errors
     ///
@@ -785,6 +789,7 @@ impl LocalCommunicatorGroup {
                 }) => {}
                 Err(error) => return Err(error),
             }
+
             // Nonblocking native submission must finish before CUDA stream waits.
             drain.wait()?;
             drain.completed = true;
@@ -1002,6 +1007,7 @@ impl CollectiveDrain<'_> {
                     Some(status) => return Err(status.into()),
                 }
             }
+
             if !pending {
                 let mut ready = true;
                 for rank in self.ranks {
@@ -1017,6 +1023,7 @@ impl CollectiveDrain<'_> {
                     return Ok(());
                 }
             }
+
             thread::yield_now();
         }
     }
@@ -1032,11 +1039,13 @@ impl Drop for CollectiveDrain<'_> {
             if communicator.bind().is_err() {
                 process::abort();
             }
+
             // SAFETY: this guard owns cancellation of the incomplete local group.
             let status = unsafe { sys::ncclCommAbort(communicator.as_raw()) };
             if status != sys::ncclResult_t::ncclSuccess {
                 process::abort();
             }
+
             communicator.set_state(CommunicatorState::Aborted);
         }
     }

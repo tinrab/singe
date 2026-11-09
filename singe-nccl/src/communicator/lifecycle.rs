@@ -77,6 +77,7 @@ impl Communicator {
                 sys::NCCL_SUSPEND_MEM.cast_signed()
             ))?;
         }
+
         self.set_state(CommunicatorState::Suspended);
         Ok(())
     }
@@ -95,6 +96,7 @@ impl Communicator {
         unsafe {
             try_ffi!(sys::ncclCommResume(self.as_raw()))?;
         }
+
         self.set_state(CommunicatorState::Active);
         Ok(())
     }
@@ -113,6 +115,7 @@ impl Communicator {
                 state: self.state().name().into(),
             });
         }
+
         self.cuda_context().bind()?;
         let query = |stat| -> Result<u64> {
             let mut value = 0;
@@ -162,8 +165,7 @@ impl Communicator {
     /// # Errors
     ///
     /// Returns [`Error::NullPointer`] if a single-rank parent omits `unique_id`.
-    /// Also returns an error if the communicator is inactive, the rank count does not
-    /// increase, CUDA synchronization fails, or NCCL rejects initialization.
+    /// Also returns an error if the communicator is inactive, the rank count does not increase, CUDA synchronization fails, or NCCL rejects initialization.
     pub fn grow(
         &self,
         rank_count: i32,
@@ -175,9 +177,11 @@ impl Communicator {
         if rank_count <= parent_rank_count {
             return Err(Error::out_of_range("rank_count"));
         }
+
         if parent_rank_count == 1 && unique_id.is_none() {
             return Err(Error::NullPointer);
         }
+
         let id = unique_id.map(UniqueId::into_raw);
         self.cuda_context().synchronize()?;
         let communicator = grow(
@@ -212,6 +216,7 @@ impl Communicator {
         if rank < 0 || rank >= rank_count {
             return Err(Error::out_of_range("rank"));
         }
+
         let id = unique_id.into_raw();
         grow(
             context,

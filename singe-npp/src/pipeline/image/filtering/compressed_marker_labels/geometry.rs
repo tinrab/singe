@@ -29,10 +29,8 @@ impl Contours {
     ///
     /// # Errors
     ///
-    /// Returns an error during capture, if contexts differ, or if `labels` is empty, reversed,
-    /// or ends beyond the native label count. Scratch-size queries, byte-count conversions,
-    /// image-size arithmetic, allocation or readback, native geometry generation, stream
-    /// synchronization, and validating generated geometry spans can also fail.
+    /// Returns an error during capture, if contexts differ, or if `labels` is empty, reversed, or ends beyond the native label count.
+    /// Scratch-size queries, byte-count conversions, image-size arithmetic, allocation or readback, native geometry generation, stream synchronization, and validating generated geometry spans can also fail.
     pub fn geometry(
         mut self,
         stream_context: &StreamContext,
@@ -43,6 +41,7 @@ impl Contours {
         if labels.start >= labels.end || labels.end > self.labels.label_count() {
             return Err(Error::out_of_range("contour label range"));
         }
+
         let total = self.totals.total_image_pixel_contour_count;
         let count = self.labels.label_count();
         let geometry_count = self.offsets_host[count as usize];
@@ -171,17 +170,16 @@ impl ContourGeometry {
     }
 
     /// Returns the completed host records for this selected contour.
-    /// Only `contour_ordered_geometry_location` describes each ordered point;
-    /// the other fields retain NPP's working metadata.
+    /// Only `contour_ordered_geometry_location` describes each ordered point; the other fields retain NPP's working metadata.
     ///
     /// # Errors
     ///
-    /// Returns an error if `label` lies outside the selected range, offset or count tables have
-    /// no entry for it, or the resulting span overflows or exceeds the host geometry capacity.
+    /// Returns an error if `label` lies outside the selected range, offset or count tables have no entry for it, or the resulting span overflows or exceeds the host geometry capacity.
     pub fn records(&self, label: u32) -> Result<&[ContourPixelGeometryInfo]> {
         if !self.labels.contains(&label) {
             return Err(Error::out_of_range("contour label"));
         }
+
         let span = geometry_span(
             &self.contours.offsets_host,
             &self.found_host,
@@ -210,8 +208,7 @@ impl ContourGeometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if selecting points for `label`, allocating independent device storage,
-    /// or uploading the points fails.
+    /// Returns an error if selecting points for `label`, allocating independent device storage, or uploading the points fails.
     pub fn copy_points_to_device(&self, label: u32) -> Result<DeviceMemory<Point>> {
         DeviceMemory::from_slice(self.context(), &self.points(label)?.collect::<Vec<_>>())
             .map_err(Into::into)
@@ -221,13 +218,13 @@ impl ContourGeometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if `label` is outside the selected range, its offset or count is missing,
-    /// or its span overflows or exceeds the device geometry capacity. Constructing or slicing
-    /// the device view can also fail.
+    /// Returns an error if `label` is outside the selected range, its offset or count is missing, or its span overflows or exceeds the device geometry capacity.
+    /// Constructing or slicing the device view can also fail.
     pub fn working_records(&self, label: u32) -> Result<DeviceView<'_, ContourPixelGeometryInfo>> {
         if !self.labels.contains(&label) {
             return Err(Error::out_of_range("contour label"));
         }
+
         let span = geometry_span(
             &self.contours.offsets_host,
             &self.found_host,
@@ -249,8 +246,7 @@ impl ContourGeometry {
     ///
     /// # Errors
     ///
-    /// Returns an error if the retained device count allocation cannot cover the native
-    /// label-count range.
+    /// Returns an error if the retained device count allocation cannot cover the native label-count range.
     pub fn pixels_found_device(&self) -> Result<DeviceView<'_, u32>> {
         DeviceView::from_memory(&self.found)
             .slice(..self.contours.labels.label_count() as usize)
@@ -274,8 +270,7 @@ impl ContourGeometry {
 ///
 /// # Errors
 ///
-/// Returns an error if either table has no entry for `label`, offset plus count overflows,
-/// or the resulting end exceeds `capacity`.
+/// Returns an error if either table has no entry for `label`, offset plus count overflows, or the resulting end exceeds `capacity`.
 pub fn geometry_span(
     offsets: &[u32],
     counts: &[u32],

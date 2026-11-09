@@ -306,6 +306,7 @@ fn render_elementwise_entries(dtype: Dtype) -> String {
     for (name, op) in [("add", 0), ("sub", 1), ("mul", 2), ("div", 3), ("pow", 8)] {
         push_binary_entry(&mut out, dtype, name, "binary_store", op);
     }
+
     push_fma_entry(&mut out, dtype);
     for (name, op) in [
         ("maximum", 4),
@@ -319,6 +320,7 @@ fn render_elementwise_entries(dtype: Dtype) -> String {
     ] {
         push_binary_entry(&mut out, dtype, name, "binary_store", op);
     }
+
     for (name, op) in [
         ("equal", 0),
         ("not_equal", 1),
@@ -329,6 +331,7 @@ fn render_elementwise_entries(dtype: Dtype) -> String {
     ] {
         push_binary_entry(&mut out, dtype, name, "cmp_store", op);
     }
+
     for (name, op) in [
         ("equal_bool", 0),
         ("not_equal_bool", 1),
@@ -347,21 +350,26 @@ fn render_cast_entries(dtype: Dtype) -> String {
     if dtype.name == "f16" {
         push_bf16_to_f32_cast_entry(&mut out);
     }
+
     for target in ["f16", "f32", "f64"] {
         if target != dtype.name {
             push_float_cast_entry(&mut out, dtype, target);
         }
     }
+
     if dtype.name == "f32" {
         push_f32_to_bf16_cast_entry(&mut out);
     }
+
     for target in ["u32", "u8", "i8", "i32", "u64", "i64"] {
         push_float_to_int_cast_entry(&mut out, dtype, target);
     }
+
     push_bool_cast_entry(&mut out, dtype);
     for source in ["u32", "i32", "u64", "i64", "u8", "i8"] {
         push_int_to_float_cast_entry(&mut out, dtype, source);
     }
+
     push_float_to_bool_cast_entry(&mut out, dtype);
     out
 }
@@ -393,9 +401,11 @@ fn render_activation_entries(dtype: Dtype) -> String {
     ] {
         push_unary_entry(&mut out, dtype, name, "activation_unary_store", op);
     }
+
     for name in ["leaky_relu", "elu", "celu", "hardshrink", "softshrink"] {
         push_unary_param_entry(&mut out, dtype, name, "alpha", false);
     }
+
     push_threshold_entry(&mut out, dtype);
     push_hardtanh_entry(&mut out, dtype);
     out
@@ -435,6 +445,7 @@ fn render_unary_entries(dtype: Dtype) -> String {
     ] {
         push_unary_entry(&mut out, dtype, name, "unary_store", op);
     }
+
     push_unary_entry(&mut out, dtype, "sign", "unary_store", 27);
     push_nan_to_num_entry(&mut out, dtype);
     for (name, op) in [
@@ -445,6 +456,7 @@ fn render_unary_entries(dtype: Dtype) -> String {
     ] {
         push_unary_entry(&mut out, dtype, name, "unary_store", op);
     }
+
     for (name, op) in [
         ("is_nan_bool", 0),
         ("is_inf_bool", 1),
@@ -488,6 +500,7 @@ fn render_scalar_entries(dtype: Dtype) -> String {
     ] {
         push_scalar_entry(&mut out, dtype, name, "scalar_store", op);
     }
+
     for (name, op) in [
         ("equal_scalar_bool", 0),
         ("not_equal_scalar_bool", 1),
@@ -635,8 +648,10 @@ fn render_reduction_entries(dtype: Dtype) -> String {
         for bn in [1, 8, 32, 64, 128, 256, 512, 1024] {
             push_reduce_entry(&mut out, dtype, name, op, bn, has_divisor);
         }
+
         out.push('\n');
     }
+
     for (name, op) in [("variance", 5), ("std", 6)] {
         let name = format_ident!("reduce_{name}_{}", dtype.name);
         let ty = ty(dtype.name);
@@ -677,6 +692,7 @@ fn render_arg_reduction_entries(dtype: Dtype) -> String {
                 }
             }));
         }
+
         out.push('\n');
     }
     out

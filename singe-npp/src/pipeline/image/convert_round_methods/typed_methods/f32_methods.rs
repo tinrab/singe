@@ -5,17 +5,15 @@ impl<'a> ImagePipeline<'a, f32, C1> {
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Allocates a new owned image with the same pixel dimensions and channel layout.
-    /// Processes every physical channel. Row padding remains unwritten.
+    /// Processes every physical channel.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
-    /// Allocating the output image, calculating its size, or checking the source producer
-    /// for capture can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
+    /// Allocating the output image, calculating its size, or checking the source producer for capture can also fail.
     pub fn convert_scaled_to_u8(
         self,
         round_mode: RoundMode,
@@ -28,17 +26,15 @@ impl<'a> ImagePipeline<'a, f32, C1> {
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Allocates a new owned image with the same pixel dimensions and channel layout.
-    /// Processes every physical channel. Row padding remains unwritten.
+    /// Processes every physical channel.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
-    /// Allocating the output image, calculating its size, or checking the source producer
-    /// for capture can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
+    /// Allocating the output image, calculating its size, or checking the source producer for capture can also fail.
     pub fn convert_scaled_to_i8(
         self,
         round_mode: RoundMode,
@@ -51,17 +47,15 @@ impl<'a> ImagePipeline<'a, f32, C1> {
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Allocates a new owned image with the same pixel dimensions and channel layout.
-    /// Processes every physical channel. Row padding remains unwritten.
+    /// Processes every physical channel.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
-    /// Allocating the output image, calculating its size, or checking the source producer
-    /// for capture can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
+    /// Allocating the output image, calculating its size, or checking the source producer for capture can also fail.
     pub fn convert_scaled_to_u16(
         self,
         round_mode: RoundMode,
@@ -74,17 +68,15 @@ impl<'a> ImagePipeline<'a, f32, C1> {
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Allocates a new owned image with the same pixel dimensions and channel layout.
-    /// Processes every physical channel. Row padding remains unwritten.
+    /// Processes every physical channel.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
-    /// Allocating the output image, calculating its size, or checking the source producer
-    /// for capture can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
+    /// Allocating the output image, calculating its size, or checking the source producer for capture can also fail.
     pub fn convert_scaled_to_i16(
         self,
         round_mode: RoundMode,
@@ -97,17 +89,15 @@ impl<'a> ImagePipeline<'a, f32, C1> {
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Allocates a new owned image with the same pixel dimensions and channel layout.
-    /// Processes every physical channel. Row padding remains unwritten.
+    /// Processes every physical channel.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
-    /// Allocating the output image, calculating its size, or checking the source producer
-    /// for capture can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
+    /// Allocating the output image, calculating its size, or checking the source producer for capture can also fail.
     pub fn convert_scaled_to_u32(
         self,
         round_mode: RoundMode,
@@ -120,17 +110,15 @@ impl<'a> ImagePipeline<'a, f32, C1> {
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Allocates a new owned image with the same pixel dimensions and channel layout.
-    /// Processes every physical channel. Row padding remains unwritten.
+    /// Processes every physical channel.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
-    /// Allocating the output image, calculating its size, or checking the source producer
-    /// for capture can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
+    /// Allocating the output image, calculating its size, or checking the source producer for capture can also fail.
     pub fn convert_scaled_to_i32(
         self,
         round_mode: RoundMode,

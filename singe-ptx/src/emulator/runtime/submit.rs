@@ -61,8 +61,8 @@ impl<T> Drop for Producer<T> {
     }
 }
 
-/// Admits a command whose closure, built once its staging token exists, is polled by the
-/// worker until it returns a result. `terminal` carries cancellation or a prior fault.
+/// Admits a command whose closure, built once its staging token exists, is polled by the worker until it returns a result.
+/// `terminal` carries cancellation or a prior fault.
 pub fn submit_poll<T: Send + 'static, F, B>(
     client: &Arc<Client>,
     stream: u64,
@@ -83,8 +83,7 @@ where
     })
 }
 
-/// Returns the execution storage charged while a command is queued or running: its queue
-/// node, its closure and producer, a reserved error report, and its stream entry.
+/// Returns the execution storage charged while a command is queued or running: its queue node, its closure and producer, a reserved error report, and its stream entry.
 fn command_charge<T, F>() -> Result<usize, SubmitError> {
     [
         size_of::<Command>()
@@ -102,8 +101,7 @@ fn command_charge<T, F>() -> Result<usize, SubmitError> {
     .ok_or(SubmitError::ExecutionStateLimit)
 }
 
-/// [`submit_poll`] for commands that keep storage alive with their result, such as a launch
-/// whose fault report retains diagnostics.
+/// [`submit_poll`] for commands that keep storage alive with their result, such as a launch whose fault report retains diagnostics.
 pub fn submit_retained<T: Send + 'static, F, B>(
     client: &Arc<Client>,
     stream: u64,
@@ -124,6 +122,7 @@ where
     {
         return Err(SubmitError::QueueFull);
     }
+
     let staged = state
         .staged
         .checked_add(size)
@@ -168,6 +167,7 @@ where
         drop(run);
         return Err(error);
     }
+
     let completion = Arc::new(Completion::create(
         Some(completion_storage),
         kind == CommandKind::Event,
@@ -203,10 +203,12 @@ where
                     .as_mut()
                     .map(|storage| Arc::new(storage.split(TERMINAL_ERROR_BYTES)));
             }
+
             drop(execution.take());
             if kind == CommandKind::Dependency {
                 lock(&worker.shared.admission).pending_dependencies -= 1;
             }
+
             producer.finished = true;
             producer.completion.publish_retained(retained);
             true

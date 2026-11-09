@@ -131,8 +131,7 @@ impl ModuleVariable {
         self.layout
     }
 
-    /// Returns whether this is an `.extern .shared` array sized at launch by
-    /// [`LaunchConfig::create`](crate::emulator::LaunchConfig::create).
+    /// Returns whether this is an `.extern .shared` array sized at launch by [`LaunchConfig::create`](crate::emulator::LaunchConfig::create).
     #[must_use]
     pub fn is_dynamic(&self) -> bool {
         self.dynamic
@@ -195,6 +194,7 @@ impl ModuleLayout {
                             CompileErrorKind::DuplicateSymbol(variable.name.clone()),
                         ));
                     }
+
                     variables.push(layout);
                 }
                 TopLevelItem::Pragma { span, value } => validate_pragma(value, *span)?,
@@ -212,6 +212,7 @@ impl ModuleLayout {
                 | TopLevelItem::Section(_) => {}
             }
         }
+
         for item in &module.items {
             if let TopLevelItem::Variable(variable) = item
                 && let Some(initializer) = &variable.initializer
@@ -223,6 +224,7 @@ impl ModuleLayout {
                         "shared variables cannot have initializers",
                     ));
                 }
+
                 let id = symbols[&variable.name];
                 let dimensions = variable_dimensions(variable)?;
                 let mut initial_values = Vec::new();
@@ -248,6 +250,7 @@ impl ModuleLayout {
                         ));
                     }
                 }
+
                 variables[id.0].initial_values = initial_values;
             }
         }
@@ -311,12 +314,14 @@ pub fn parameters(
                 "non-parameter-space function arguments",
             ));
         }
+
         if !names.insert(&parameter.name) {
             return Err(CompileError::new(
                 parameter.span,
                 CompileErrorKind::DuplicateSymbol(parameter.name.clone()),
             ));
         }
+
         let element = scalar_bytes(parameter.ty, parameter.span)?;
         let mut size = u64::from(element);
         for bound in &parameter.array_bounds {
@@ -330,6 +335,7 @@ pub fn parameters(
                 CompileError::new(parameter.span, CompileErrorKind::LayoutOverflow)
             })?;
         }
+
         let alignment = parameter.alignment.unwrap_or(element);
         let layout = StorageLayout::create(size, alignment, parameter.span)?;
         if alignment < element {
@@ -338,6 +344,7 @@ pub fn parameters(
                 "parameter alignment is smaller than its element alignment",
             ));
         }
+
         if let Some(pointer) = parameter.pointer {
             let pointer_type = match address_size {
                 AddressSize::Bits32 => ScalarType::U32,
@@ -349,6 +356,7 @@ pub fn parameters(
                     "pointer parameters must be scalar unsigned values of the module address size",
                 ));
             }
+
             if pointer.state_space.is_some_and(|space| {
                 !matches!(
                     space,
@@ -364,6 +372,7 @@ pub fn parameters(
                 StorageLayout::create(0, alignment, parameter.span)?;
             }
         }
+
         offset = align_up(offset, alignment, parameter.span)?;
         result.push(ParameterLayout {
             name: parameter.name.clone(),
@@ -410,6 +419,7 @@ fn variable_dimensions(variable: &VariableDecl) -> Result<Vec<u64>> {
         };
         dimensions.push(count);
     }
+
     if let Some(vector) = variable.vector {
         dimensions.push(match vector {
             VectorSize::V2 => 2,
@@ -427,6 +437,7 @@ pub fn variable_layout(variable: &VariableDecl) -> Result<StorageLayout> {
             "half storage cannot have an initializer; initialize through bit storage or host transfers",
         ));
     }
+
     let element = scalar_bytes(variable.ty, variable.span)?;
     let lanes = match variable.vector {
         None => 1,
@@ -442,6 +453,7 @@ pub fn variable_layout(variable: &VariableDecl) -> Result<StorageLayout> {
             "vector declarations cannot exceed 128 bits",
         ));
     }
+
     let alignment = variable.alignment.unwrap_or(natural);
     if alignment < natural {
         return Err(CompileError::declaration(
@@ -449,6 +461,7 @@ pub fn variable_layout(variable: &VariableDecl) -> Result<StorageLayout> {
             "alignment is smaller than the element alignment",
         ));
     }
+
     let size = if is_dynamic_shared(variable) {
         0
     } else {
@@ -482,6 +495,7 @@ fn initialize(
                 "too many initializer elements",
             ));
         }
+
         let stride = tail
             .iter()
             .try_fold(u64::from(scalar_bytes(ty, *span)?), |size, count| {
@@ -541,12 +555,14 @@ fn module_variable(variable: &VariableDecl, version: PtxVersion) -> Result<Modul
             "external, weak, or common module storage",
         ));
     }
+
     if variable.count.is_some() || !variable.attributes.is_empty() {
         return Err(CompileError::unsupported(
             variable.span,
             "module register ranges or resource attributes",
         ));
     }
+
     let layout = variable_layout(variable)?;
     Ok(ModuleVariable {
         name: variable.name.clone(),

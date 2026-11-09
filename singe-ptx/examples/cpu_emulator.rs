@@ -1,7 +1,6 @@
 //! Inspect, execute, compare, and diagnose PTX without CUDA.
 
 use std::{
-    error::Error,
     future::Future,
     pin::pin,
     sync::Arc,
@@ -9,12 +8,13 @@ use std::{
     thread,
 };
 
+use anyhow::{Error, Result, anyhow};
 use singe_ptx::emulator::{
     CompiledKernel, Emulator, EmulatorOptions, ExecutionError, LaunchConfig, ParsedModule,
     ShutdownMode,
 };
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let parsed = ParsedModule::parse(include_str!("../tests/fixtures/frontend/kernels.ptx"))?;
     println!("syntax: {} module items", parsed.syntax().items.len());
     let layout = parsed.layout()?;
@@ -110,7 +110,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             report.instructions
         );
         device.shutdown(ShutdownMode::Drain).await?;
-        Ok::<_, Box<dyn Error>>(())
+        Ok::<_, Error>(())
     })?;
     inspect_fault()
 }
@@ -123,7 +123,7 @@ fn reuse_compiled(
     left_values: &[i32],
     right_values: &[i32],
     expected: &[i32],
-) -> Result<(), Box<dyn Error>> {
+) -> Result<()> {
     let other = Emulator::create(EmulatorOptions::default())?;
     let other_module = other.load(parsed)?.wait()?;
     let other_kernel = other_module.bind(compiled)?;
@@ -147,7 +147,7 @@ fn reuse_compiled(
     Ok(())
 }
 
-fn inspect_fault() -> Result<(), Box<dyn Error>> {
+fn inspect_fault() -> Result<()> {
     let source = r".version 9.4
 .target sm_80
 .address_size 64
@@ -193,6 +193,7 @@ fn inspect_fault() -> Result<(), Box<dyn Error>> {
             }
         }
     }
+
     // This stream can read memory while the default stream's launch is suspended.
     assert_eq!(
         diagnostic.download(&module.global("output")?)?.wait()?,
@@ -201,7 +202,7 @@ fn inspect_fault() -> Result<(), Box<dyn Error>> {
     device.resume(&breakpoint.id)?.wait()?;
     let result = launch.wait();
     let Err(error) = result else {
-        return Err("expected the demonstration kernel to trap".into());
+        return Err(anyhow!("expected the demonstration kernel to trap"));
     };
     assert!(matches!(error.root_cause(), ExecutionError::Trap));
     println!("fault: {}", error.with_source(source));
@@ -211,12 +212,13 @@ fn inspect_fault() -> Result<(), Box<dyn Error>> {
             report.launch_id, report.completed_lanes, report.instructions
         );
     }
+
     let output = device.download(&module.global("output")?)?.wait()?;
     assert_eq!(output, 42u32.to_le_bytes());
     println!("completed write: {output:?}");
     // Shutdown also reports the original kernel fault.
     let Err(error) = device.shutdown(ShutdownMode::Drain).wait() else {
-        return Err("expected shutdown to retain the kernel fault".into());
+        return Err(anyhow!("expected shutdown to retain the kernel fault"));
     };
     assert!(matches!(error.root_cause(), ExecutionError::Trap));
     Ok(())

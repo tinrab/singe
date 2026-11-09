@@ -6,8 +6,7 @@ use crate::{context::StreamContext, error::Result, image::view::ImageView};
 ///
 /// # Safety
 ///
-/// Successful submission must write every requested bin with valid counts,
-/// ordered on the supplied stream before subsequent consumers.
+/// Successful submission must write every requested bin with valid counts, ordered on the supplied stream before subsequent consumers.
 pub unsafe trait HistogramEvenImage<T, L> {
     fn histogram_even(
         stream_context: &StreamContext,
@@ -23,8 +22,7 @@ pub unsafe trait HistogramEvenImage<T, L> {
 ///
 /// # Safety
 ///
-/// Successful submission must write every requested bin with valid counts,
-/// ordered on the supplied stream before subsequent consumers.
+/// Successful submission must write every requested bin with valid counts, ordered on the supplied stream before subsequent consumers.
 pub unsafe trait HistogramEvenChannelsImage<T, L, const C: usize> {
     fn histogram_even_channels(
         stream_context: &StreamContext,
@@ -40,8 +38,7 @@ pub unsafe trait HistogramEvenChannelsImage<T, L, const C: usize> {
 ///
 /// # Safety
 ///
-/// Successful submission must write every requested bin with valid counts,
-/// ordered on the supplied stream before subsequent consumers.
+/// Successful submission must write every requested bin with valid counts, ordered on the supplied stream before subsequent consumers.
 pub unsafe trait HistogramRangeImage<T, L, Level> {
     fn histogram_range(
         stream_context: &StreamContext,
@@ -55,8 +52,7 @@ pub unsafe trait HistogramRangeImage<T, L, Level> {
 ///
 /// # Safety
 ///
-/// Successful submission must write every requested bin with valid counts,
-/// ordered on the supplied stream before subsequent consumers.
+/// Successful submission must write every requested bin with valid counts, ordered on the supplied stream before subsequent consumers.
 pub unsafe trait HistogramRangeChannelsImage<T, L, Level, const C: usize> {
     fn histogram_range_channels(
         stream_context: &StreamContext,

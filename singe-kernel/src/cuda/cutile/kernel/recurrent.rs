@@ -317,6 +317,7 @@ mod kernels {
                 query_values = query_values * query_scale;
                 key_values = key_values * key_scale;
             }
+
             query_values = query_values * broadcast_scalar(scale, tile_shape);
 
             let value_offset = ((idx_b * time + idx_t) * value_heads + idx_hv) * value_dim + idx_v;
@@ -408,6 +409,7 @@ mod kernels {
             query_values = query_values * query_scale;
             key_values = key_values * key_scale;
         }
+
         query_values = query_values * broadcast_scalar(scale, tile_shape);
 
         let value_offset = (idx_b * value_heads + idx_hv) * value_dim + idx_v;
@@ -498,6 +500,7 @@ mod kernels {
             query_values = query_values * query_scale;
             key_values = key_values * key_scale;
         }
+
         query_values = query_values * broadcast_scalar(scale, tile_shape);
 
         let value_offset = (idx_b * value_heads + idx_hv) * value_dim + idx_v;
@@ -588,6 +591,7 @@ mod kernels {
             query_values = query_values * query_scale;
             key_values = key_values * key_scale;
         }
+
         query_values = query_values * broadcast_scalar(scale, tile_shape);
 
         let value_offset = (idx_b * value_heads + idx_hv) * value_dim + idx_v;
@@ -687,6 +691,7 @@ mod kernels {
                 query_values = query_values * query_scale;
                 key_values = key_values * key_scale;
             }
+
             query_values = query_values * broadcast_scalar(scale, tile_shape);
 
             let value_offset = ((idx_b * time + idx_t) * value_heads + idx_hv) * value_dim + idx_v;
@@ -784,6 +789,7 @@ mod kernels {
                 query_values = query_values * query_scale;
                 key_values = key_values * key_scale;
             }
+
             query_values = query_values * broadcast_scalar(scale, tile_shape);
 
             let value_offset = ((idx_b * time + idx_t) * value_heads + idx_hv) * value_dim + idx_v;

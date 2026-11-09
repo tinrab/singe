@@ -12,30 +12,41 @@ use singe_core::{impl_enum_conversion, impl_enum_display};
 
 /// CUDA driver JIT compilation and loading options with borrowed diagnostic outputs.
 ///
-/// Unset fields omit the native option and leave its default to CUDA. Builders do not reject incompatible option combinations; CUDA validates them when loading code.
+/// Unset fields omit the native option and leave its default to CUDA.
+/// Builders do not reject incompatible option combinations; CUDA validates them when loading code.
 #[derive(Debug, Default)]
 pub struct JitOptions<'a> {
     /// Maximum registers per thread requested from the JIT compiler.
     pub max_registers: Option<u32>,
-    /// Minimum thread-block size targeted by compilation. The native actual target is returned in the encoded value array; this input setting is not updated. Cannot be combined with `target`.
+    /// Minimum thread-block size targeted by compilation.
+    /// The native actual target is returned in the encoded value array; this input setting is not updated.
+    /// Cannot be combined with `target`.
     pub threads_per_block: Option<u32>,
-    /// Output for elapsed JIT compiler and linker time in milliseconds. The encoded artifact copies the native value slot here when it drops.
+    /// Output for elapsed JIT compiler and linker time in milliseconds.
+    /// The encoded artifact copies the native value slot here when it drops.
     pub wall_time: Option<&'a mut f32>,
-    /// Borrowed output buffer for informational JIT diagnostics. Its capacity includes any NUL terminator and is capped at `u32::MAX` bytes when encoded.
+    /// Borrowed output buffer for informational JIT diagnostics.
+    /// Its capacity includes any NUL terminator and is capped at `u32::MAX` bytes when encoded.
     pub info_log_buffer: Option<&'a mut [u8]>,
-    /// Borrowed output buffer for JIT error diagnostics. Its capacity includes any NUL terminator and is capped at `u32::MAX` bytes when encoded.
+    /// Borrowed output buffer for JIT error diagnostics.
+    /// Its capacity includes any NUL terminator and is capped at `u32::MAX` bytes when encoded.
     pub error_log_buffer: Option<&'a mut [u8]>,
-    /// Requested optimization level, clamped to `0..=4` during encoding. CUDA defaults to level four when the option is omitted.
+    /// Requested optimization level, clamped to `0..=4` during encoding.
+    /// CUDA defaults to level four when the option is omitted.
     pub optimization_level: Option<u32>,
-    /// Presence of `Some(())` emits the option selecting the current CUDA context's target. No native value is required.
+    /// Presence of `Some(())` emits the option selecting the current CUDA context's target.
+    /// No native value is required.
     pub target_from_cuda_context: Option<()>,
-    /// Explicit JIT target architecture. Cannot be combined with `threads_per_block`.
+    /// Explicit JIT target architecture.
+    /// Cannot be combined with `threads_per_block`.
     pub target: Option<JitTarget>,
     /// Choice between PTX compilation and compatible binary fallback when no exact cubin match exists.
     pub fallback_strategy: Option<JitFallback>,
-    /// Whether to emit device debugging information. `None` leaves the native default unchanged.
+    /// Whether to emit device debugging information.
+    /// `None` leaves the native default unchanged.
     pub generate_debug_info: Option<bool>,
-    /// Whether to request verbose JIT diagnostics. `None` leaves the native default unchanged.
+    /// Whether to request verbose JIT diagnostics.
+    /// `None` leaves the native default unchanged.
     pub log_verbose: Option<bool>,
     /// Whether to emit line-number information for the compiled device code.
     pub generate_line_info: Option<bool>,
@@ -48,8 +59,8 @@ pub struct JitOptions<'a> {
 pub struct JitOptionsArtifact<'a> {
     /// Native option identifiers, in the same order as `values`.
     pub names: Vec<driver::CUjit_option>,
-    /// Native value slots. Integers and returned wall time occupy the slot bits;
-    /// log-buffer entries point to borrowed output storage.
+    /// Native value slots.
+    /// Integers and returned wall time occupy the slot bits; log-buffer entries point to borrowed output storage.
     pub values: Vec<*mut ()>,
     wall_time: Option<&'a mut f32>,
     _log_buffers: PhantomData<&'a mut [u8]>,
@@ -78,28 +89,32 @@ impl<'a> JitOptions<'a> {
         self
     }
 
-    /// Sets the minimum thread-block size targeted by compilation. See [`JitOption::ThreadsPerBlock`] for its resource and option restrictions.
+    /// Sets the minimum thread-block size targeted by compilation.
+    /// See [`JitOption::ThreadsPerBlock`] for its resource and option restrictions.
     #[must_use]
     pub fn with_threads_per_block(mut self, value: u32) -> Self {
         self.threads_per_block = Some(value);
         self
     }
 
-    /// Selects borrowed storage for elapsed JIT time in milliseconds. The encoded artifact copies the native output here when it drops.
+    /// Selects borrowed storage for elapsed JIT time in milliseconds.
+    /// The encoded artifact copies the native output here when it drops.
     #[must_use]
     pub fn with_wall_time(mut self, value: &'a mut f32) -> Self {
         self.wall_time = Some(value);
         self
     }
 
-    /// Selects a borrowed informational diagnostic buffer. The encoded capacity includes the terminating NUL and is capped at `u32::MAX` bytes.
+    /// Selects a borrowed informational diagnostic buffer.
+    /// The encoded capacity includes the terminating NUL and is capped at `u32::MAX` bytes.
     #[must_use]
     pub fn with_info_log(mut self, buffer: &'a mut [u8]) -> Self {
         self.info_log_buffer = Some(buffer);
         self
     }
 
-    /// Selects a borrowed error diagnostic buffer. The encoded capacity includes the terminating NUL and is capped at `u32::MAX` bytes.
+    /// Selects a borrowed error diagnostic buffer.
+    /// The encoded capacity includes the terminating NUL and is capped at `u32::MAX` bytes.
     #[must_use]
     pub fn with_error_log(mut self, buffer: &'a mut [u8]) -> Self {
         self.error_log_buffer = Some(buffer);
@@ -121,7 +136,8 @@ impl<'a> JitOptions<'a> {
         self
     }
 
-    /// Sets an explicit JIT target architecture. CUDA rejects combining this option with the thread-block compilation target.
+    /// Sets an explicit JIT target architecture.
+    /// CUDA rejects combining this option with the thread-block compilation target.
     #[must_use]
     pub fn with_target(mut self, target: JitTarget) -> Self {
         self.target = Some(target);
@@ -165,13 +181,12 @@ impl<'a> JitOptions<'a> {
 
     /// Prepares parallel native option and value arrays.
     ///
-    /// Scalar options occupy the pointer-sized value slots directly. Log-buffer
-    /// entries point to borrowed output storage. CUDA returns elapsed time in
-    /// its value slot, which is copied to `wall_time` when the artifact drops.
+    /// Scalar options occupy the pointer-sized value slots directly.
+    /// Log-buffer entries point to borrowed output storage.
+    /// CUDA returns elapsed time in its value slot, which is copied to `wall_time` when the artifact drops.
     /// Moving the artifact preserves its encoded values and pointers.
     /// Keep the arrays and their borrowed storage live for the native operation.
-    /// Output options passed to `cuLinkCreate` must remain live until the native
-    /// link state is destroyed.
+    /// Output options passed to `cuLinkCreate` must remain live until the native link state is destroyed.
     pub fn build(&mut self) -> JitOptionsArtifact<'_> {
         let mut artifact = JitOptionsArtifact {
             names: Vec::new(),
@@ -190,15 +205,18 @@ impl<'a> JitOptions<'a> {
                 ptr::without_provenance_mut(value as usize),
             );
         }
+
         if let Some(value) = self.threads_per_block {
             push(
                 JitOption::ThreadsPerBlock,
                 ptr::without_provenance_mut(value as usize),
             );
         }
+
         if artifact.wall_time.is_some() {
             push(JitOption::WallTime, ptr::null_mut());
         }
+
         if let Some(buffer) = self.info_log_buffer.as_deref_mut() {
             push(JitOption::InfoLogBuffer, buffer.as_mut_ptr().cast());
             let size = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
@@ -207,6 +225,7 @@ impl<'a> JitOptions<'a> {
                 ptr::without_provenance_mut(size as usize),
             );
         }
+
         if let Some(buffer) = self.error_log_buffer.as_deref_mut() {
             push(JitOption::ErrorLogBuffer, buffer.as_mut_ptr().cast());
             let size = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
@@ -215,45 +234,53 @@ impl<'a> JitOptions<'a> {
                 ptr::without_provenance_mut(size as usize),
             );
         }
+
         if let Some(value) = self.optimization_level {
             push(
                 JitOption::OptimizationLevel,
                 ptr::without_provenance_mut(value.min(4) as usize),
             );
         }
+
         if self.target_from_cuda_context.is_some() {
             push(JitOption::TargetFromCudaContext, ptr::null_mut());
         }
+
         if let Some(value) = self.target {
             push(
                 JitOption::Target,
                 ptr::without_provenance_mut(value as usize),
             );
         }
+
         if let Some(value) = self.fallback_strategy {
             push(
                 JitOption::FallbackStrategy,
                 ptr::without_provenance_mut(value as usize),
             );
         }
+
         if let Some(value) = self.generate_debug_info {
             push(
                 JitOption::GenerateDebugInfo,
                 ptr::without_provenance_mut(usize::from(value)),
             );
         }
+
         if let Some(value) = self.log_verbose {
             push(
                 JitOption::LogVerbose,
                 ptr::without_provenance_mut(usize::from(value)),
             );
         }
+
         if let Some(value) = self.generate_line_info {
             push(
                 JitOption::GenerateLineInfo,
                 ptr::without_provenance_mut(usize::from(value)),
             );
         }
+
         if let Some(value) = self.cache_mode {
             push(
                 JitOption::CacheMode,
@@ -266,7 +293,8 @@ impl<'a> JitOptions<'a> {
 
 /// CUDA JIT option selectors for native compilation, linking, and module loading.
 ///
-/// Each selector defines the type and direction of its corresponding native value slot. The selected native operation determines which options it accepts.
+/// Each selector defines the type and direction of its corresponding native value slot.
+/// The selected native operation determines which options it accepts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -277,7 +305,10 @@ pub enum JitOption {
     ///
     /// Applies to: compiler only
     MaxRegisters = runtime::cudaJitOption::CU_JIT_MAX_REGISTERS as _,
-    /// Input: Specifies minimum number of threads per block to target compilation for Output: Returns the number of threads the compiler actually targeted. This restricts the resource utilization of the compiler (e.g. max registers) such that a block with the given number of threads should be able to launch based on register limitations. Note, this option does not currently take into account any other resource limitations, such as shared memory utilization. Cannot be combined with [`Self::Target`].
+    /// Input: Specifies minimum number of threads per block to target compilation for Output: Returns the number of threads the compiler actually targeted.
+    /// This restricts the resource utilization of the compiler (e.g. max registers) such that a block with the given number of threads should be able to launch based on register limitations.
+    /// Note, this option does not currently take into account any other resource limitations, such as shared memory utilization.
+    /// Cannot be combined with [`Self::Target`].
     ///
     /// Native value type: unsigned int
     ///
@@ -295,7 +326,8 @@ pub enum JitOption {
     ///
     /// Applies to: compiler and linker
     InfoLogBuffer = runtime::cudaJitOption::CU_JIT_INFO_LOG_BUFFER as _,
-    /// Input: Log buffer size in bytes.  Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
+    /// Input: Log buffer size in bytes.
+    /// Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
     ///
     /// Native value type: unsigned int
     ///
@@ -307,7 +339,8 @@ pub enum JitOption {
     ///
     /// Applies to: compiler and linker
     ErrorLogBuffer = runtime::cudaJitOption::CU_JIT_ERROR_LOG_BUFFER as _,
-    /// Input: Log buffer size in bytes.  Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
+    /// Input: Log buffer size in bytes.
+    /// Log messages will be capped at this size (including null terminator) Output: Amount of log buffer filled with messages
     ///
     /// Native value type: unsigned int
     ///
@@ -319,19 +352,23 @@ pub enum JitOption {
     ///
     /// Applies to: compiler only
     OptimizationLevel = runtime::cudaJitOption::CU_JIT_OPTIMIZATION_LEVEL as _,
-    /// No option value required. Determines the target based on the current attached context (default)
+    /// No option value required.
+    /// Determines the target based on the current attached context (default)
     ///
     /// Native value type: No option value needed
     ///
     /// Applies to: compiler and linker
     TargetFromCudaContext = runtime::cudaJitOption::CU_JIT_TARGET_FROM_CUCONTEXT as _,
-    /// Target is chosen based on supplied [`JitTarget`].  Cannot be combined with [`Self::ThreadsPerBlock`].
+    /// Target is chosen based on supplied [`JitTarget`].
+    /// Cannot be combined with [`Self::ThreadsPerBlock`].
     ///
     /// Native value type: unsigned int for enumerated type [`JitTarget`]
     ///
     /// Applies to: compiler and linker
     Target = runtime::cudaJitOption::CU_JIT_TARGET as _,
-    /// Specifies choice of fallback strategy if matching cubin is not found. Choice is based on supplied [`JitFallback`].  This option cannot be used with native linker APIs as the linker requires exact matches.
+    /// Specifies choice of fallback strategy if matching cubin is not found.
+    /// Choice is based on supplied [`JitFallback`].
+    /// This option cannot be used with native linker APIs as the linker requires exact matches.
     ///
     /// Native value type: unsigned int for enumerated type [`JitFallback`]
     ///
@@ -366,13 +403,18 @@ pub enum JitOption {
     NewSm3xOpt = runtime::cudaJitOption::CU_JIT_NEW_SM3X_OPT as _,
     /// This jit option is used for internal purpose only.
     FastCompile = runtime::cudaJitOption::CU_JIT_FAST_COMPILE as _,
-    /// Array of device symbol names that will be relocated to the corresponding host addresses stored in [`Self::GlobalSymbolAddresses`]. Must contain [`Self::GlobalSymbolCount`] entries. When loading a device module, driver will relocate all encountered unresolved symbols to the host addresses. It is only allowed to register symbols that correspond to unresolved global variables. It is illegal to register the same device symbol at multiple addresses.
+    /// Array of device symbol names that will be relocated to the corresponding host addresses stored in [`Self::GlobalSymbolAddresses`].
+    /// Must contain [`Self::GlobalSymbolCount`] entries.
+    /// When loading a device module, driver will relocate all encountered unresolved symbols to the host addresses.
+    /// It is only allowed to register symbols that correspond to unresolved global variables.
+    /// It is illegal to register the same device symbol at multiple addresses.
     ///
     /// Native value type: const char **
     ///
     /// Applies to: dynamic linker only
     GlobalSymbolNames = runtime::cudaJitOption::CU_JIT_GLOBAL_SYMBOL_NAMES as _,
-    /// Array of host addresses that will be used to relocate corresponding device symbols stored in [`Self::GlobalSymbolNames`]. Must contain [`Self::GlobalSymbolCount`] entries.
+    /// Array of host addresses that will be used to relocate corresponding device symbols stored in [`Self::GlobalSymbolNames`].
+    /// Must contain [`Self::GlobalSymbolCount`] entries.
     ///
     /// Native value type: void **
     ///
@@ -384,7 +426,8 @@ pub enum JitOption {
     ///
     /// Applies to: dynamic linker only
     GlobalSymbolCount = runtime::cudaJitOption::CU_JIT_GLOBAL_SYMBOL_COUNT as _,
-    /// Deprecated: Enable link-time optimization (-dlto) for device code (Disabled by default). This option is not supported on 32-bit platforms.
+    /// Deprecated: Enable link-time optimization (-dlto) for device code (Disabled by default).
+    /// This option is not supported on 32-bit platforms.
     ///
     /// Native value type: int
     ///
@@ -429,7 +472,13 @@ pub enum JitOption {
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
     #[deprecated]
     Fma = runtime::cudaJitOption::CU_JIT_FMA as _,
-    /// Deprecated: Array of kernel names that should be preserved at link time while others can be removed. Must contain [`Self::ReferencedKernelCount`] entries. Note that kernel names can be mangled by the compiler in which case the mangled name needs to be specified. Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name. It is important to note that the wildcard "*" is also added implicitly. For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all kernels with those names. This can be avoided by providing a more specific name like "barfoobaz".
+    /// Deprecated: Array of kernel names that should be preserved at link time while others can be removed.
+    /// Must contain [`Self::ReferencedKernelCount`] entries.
+    /// Note that kernel names can be mangled by the compiler in which case the mangled name needs to be specified.
+    /// Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name.
+    /// It is important to note that the wildcard "*" is also added implicitly.
+    /// For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all kernels with those names.
+    /// This can be avoided by providing a more specific name like "barfoobaz".
     ///
     /// Native value type: const char **
     ///
@@ -447,7 +496,13 @@ pub enum JitOption {
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
     #[deprecated]
     ReferencedKernelCount = runtime::cudaJitOption::CU_JIT_REFERENCED_KERNEL_COUNT as _,
-    /// Deprecated: Array of variable names (__device__ and/or __constant__) that should be preserved at link time while others can be removed. Must contain [`Self::ReferencedVariableCount`] entries. Note that variable names can be mangled by the compiler in which case the mangled name needs to be specified. Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name. It is important to note that the wildcard "*" is also added implicitly. For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all variables with those names. This can be avoided by providing a more specific name like "barfoobaz".
+    /// Deprecated: Array of variable names (__device__ and/or __constant__) that should be preserved at link time while others can be removed.
+    /// Must contain [`Self::ReferencedVariableCount`] entries.
+    /// Note that variable names can be mangled by the compiler in which case the mangled name needs to be specified.
+    /// Wildcard "*" can be used to represent zero or more characters instead of specifying the full or mangled name.
+    /// It is important to note that the wildcard "*" is also added implicitly.
+    /// For example, specifying "foo" will match "foobaz", "barfoo", "barfoobaz" and thus preserve all variables with those names.
+    /// This can be avoided by providing a more specific name like "barfoobaz".
     ///
     /// Native value type: const char **
     ///
@@ -465,7 +520,8 @@ pub enum JitOption {
     /// Only valid with LTO-IR compiled with toolkits prior to CUDA 12.0
     #[deprecated]
     ReferencedVariableCount = runtime::cudaJitOption::CU_JIT_REFERENCED_VARIABLE_COUNT as _,
-    /// Deprecated: This option serves as a hint to enable the JIT compiler/linker to remove constant (__constant__) and device (__device__) variables unreferenced in device code (Disabled by default). Note that host references to constant and device variables using APIs like `cuModuleGetGlobal`() with this option specified may result in undefined behavior unless the variables are explicitly specified using [`Self::ReferencedVariableNames`].
+    /// Deprecated: This option serves as a hint to enable the JIT compiler/linker to remove constant (__constant__) and device (__device__) variables unreferenced in device code (Disabled by default).
+    /// Note that host references to constant and device variables using APIs like `cuModuleGetGlobal`() with this option specified may result in undefined behavior unless the variables are explicitly specified using [`Self::ReferencedVariableNames`].
     ///
     /// Native value type: int
     ///

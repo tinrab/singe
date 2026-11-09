@@ -31,12 +31,15 @@ impl Graph {
         if has_bias_gradient {
             return Ok(FloatingBackwardAccumulation::Probability);
         }
+
         if !config.deterministic_algorithm() {
             return Ok(FloatingBackwardAccumulation::Query);
         }
+
         if sm / 10 != 9 {
             return Ok(FloatingBackwardAccumulation::Probability);
         }
+
         let limit = match config.probability_gradient_workspace_limit() {
             Some(limit) => Some(limit),
             None => AttentionBackwardWorkspaceLimit::from_environment()?,

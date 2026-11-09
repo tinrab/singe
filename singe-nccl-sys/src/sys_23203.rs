@@ -527,7 +527,7 @@ pub struct ncclSimInfo_v22200 {
 }
 /// This struct will be used by ncclGroupSimulateEnd() to return information about the calls.
 pub type ncclSimInfo_t = ncclSimInfo_v22200;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Allocate a GPU buffer with `size`. Allocated buffer head address will be returned by `ptr`,
     /// and the actual allocated size can be larger than requested because of the buffer granularity
     /// requirements from all types of NCCL optimizations.
@@ -536,11 +536,11 @@ unsafe extern "C" {
         size: size_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Free memory allocated by [`ncclMemAlloc`].
     pub fn ncclMemFree(ptr: *mut ::core::ffi::c_void) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The ncclGetVersion function returns the version number of the currently linked NCCL library.
     /// The NCCL version number is returned in `version` and encoded as an integer which includes the
     /// [`NCCL_MAJOR`], [`NCCL_MINOR`] and [`NCCL_PATCH`] levels.
@@ -548,13 +548,13 @@ unsafe extern "C" {
     /// NCCL version numbers can be compared using the supplied macro `NCCL_VERSION` as `NCCL_VERSION(MAJOR,MINOR,PATCH)`.
     pub fn ncclGetVersion(version: *mut ::core::ffi::c_int) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Generates an Id to be used in ncclCommInitRank. ncclGetUniqueId should be
     /// called once when creating a communicator and the Id should be distributed to all ranks in the
     /// communicator before calling ncclCommInitRank. `uniqueId` should point to a ncclUniqueId object allocated by the user.
     pub fn ncclGetUniqueId(uniqueId: *mut ncclUniqueId) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function works the same way as [`ncclCommInitRank`] but accepts a configuration argument of extra attributes for
     /// the communicator. If config is passed as NULL, the communicator will have the default behavior, as if ncclCommInitRank
     /// was called.
@@ -568,7 +568,7 @@ unsafe extern "C" {
         config: *mut ncclConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a new communicator (multi thread/process version).
     /// `rank` must be between 0 and `nranks`-1 and unique within a communicator clique.
     /// Each rank is associated to a CUDA device, which has to be set before calling
@@ -582,7 +582,7 @@ unsafe extern "C" {
         rank: ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a clique of communicators (single process version) in a blocking way.
     /// This is a convenience function to create a single-process communicator clique.
     /// Returns an array of `ndev` newly initialized communicators in `comms`.
@@ -595,7 +595,7 @@ unsafe extern "C" {
         devlist: *const ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Finalize a communicator object `comm`. When the communicator is marked as nonblocking, [`ncclCommFinalize`] is a
     /// nonblocking function. Successful return from it will set communicator state as [`ncclResult_t::ncclInProgress`] and indicates
     /// the communicator is under finalization where all uncompleted operations and the network-related resources are
@@ -606,7 +606,7 @@ unsafe extern "C" {
     /// This function is an intra-node collective call. When a single thread finalizes multiple ranks (multiple GPUs per thread), the calls must be grouped with [`ncclGroupStart`]/[`ncclGroupEnd`] to avoid a hang.
     pub fn ncclCommFinalize(comm: ncclComm_t) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroy a communicator object `comm`. If [`ncclCommFinalize`] is called by users, users should guarantee that the state
     /// of the communicator becomes [`ncclResult_t::ncclSuccess`] before calling [`ncclCommDestroy`]. In all cases, the communicator should no
     /// longer be accessed after [`ncclCommDestroy`] returns. It is recommended that users call [`ncclCommFinalize`] and then
@@ -619,13 +619,13 @@ unsafe extern "C" {
     /// This function is an intra-node collective call, which all ranks on the same node should call to avoid a hang.
     pub fn ncclCommDestroy(comm: ncclComm_t) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`ncclCommAbort`] frees resources that are allocated to a communicator object `comm` and aborts any uncompleted
     /// operations before destroying the communicator. All active ranks are required to call this function in order to
     /// abort the NCCL communicator successfully. For more use cases, please check [Fault Tolerance](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/communicators.html#ft).
     pub fn ncclCommAbort(comm: ncclComm_t) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Revokes in-flight operations on a communicator without destroying resources. Successful return may be [`ncclResult_t::ncclInProgress`] (non-blocking) while revocation completes asynchronously; applications can query [`ncclCommGetAsyncError`] until it returns [`ncclResult_t::ncclSuccess`].
     ///
     /// `revokeFlags` must be set to [`NCCL_REVOKE_DEFAULT`] (0). Other values are reserved for future use.
@@ -636,7 +636,7 @@ unsafe extern "C" {
         revokeFlags: ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`ncclCommSplit`] is a collective function and creates a set of new communicators from an existing one. Ranks which
     /// pass the same `color` value will be part of the same group; color must be a non-negative value. If it is
     /// passed as [`NCCL_SPLIT_NOCOLOR`], it means that the rank will not be part of any group, therefore returning NULL
@@ -655,7 +655,7 @@ unsafe extern "C" {
         config: *mut ncclConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`ncclCommShrink`] function creates a new communicator by removing specified ranks from an existing communicator.
     /// It is a collective function that must be called by all participating ranks in the newly created communicator.
     /// Ranks that are part of `excludeRanksList` should not call this function.
@@ -675,7 +675,7 @@ unsafe extern "C" {
         shrinkFlags: ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`ncclCommGetUniqueId`] function generates a unique identifier for growing an
     /// existing communicator exactly once. This function must be called by only one
     /// rank (the coordinator) before each grow operation on the existing communicator.
@@ -687,7 +687,7 @@ unsafe extern "C" {
         uniqueId: *mut ncclUniqueId,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`ncclCommGrow`] function creates a new communicator by adding new ranks to an existing communicator.
     /// It must be called by both existing ranks (from the parent communicator) and new ranks (joining the communicator).
     ///
@@ -725,7 +725,7 @@ unsafe extern "C" {
         config: *mut ncclConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function works the same way as [`ncclCommInitRankConfig`] but accepts a list of ncclUniqueIds instead of a single one.
     /// If only one ncclUniqueId is passed, the communicator will be initialized as if ncclCommInitRankConfig was called.
     /// The provided ncclUniqueIds will all be used to initialize the single communicator given in argument.
@@ -740,18 +740,18 @@ unsafe extern "C" {
         config: *mut ncclConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a human-readable string corresponding to the passed error code.
     pub fn ncclGetErrorString(result: ncclResult_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a human-readable string corresponding to the last error that occurred in NCCL.
     /// Note: The error is not cleared by calling this function.
     /// Please note that the string returned by ncclGetLastError could be unrelated to the current call
     /// and can be a result of previously launched asynchronous operations, if any.
     pub fn ncclGetLastError(comm: ncclComm_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the progress and potential errors of asynchronous NCCL operations.
     /// Operations which do not require a stream argument (e.g. ncclCommFinalize) can be considered complete as soon
     /// as the function returns [`ncclResult_t::ncclSuccess`]; operations with a stream argument (e.g. ncclAllReduce) will return
@@ -768,28 +768,28 @@ unsafe extern "C" {
         asyncError: *mut ncclResult_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns in `count` the number of ranks in the NCCL communicator `comm`.
     pub fn ncclCommCount(
         comm: ncclComm_t,
         count: *mut ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns in `device` the CUDA device associated with the NCCL communicator `comm`.
     pub fn ncclCommCuDevice(
         comm: ncclComm_t,
         device: *mut ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns in `rank` the rank of the caller in the NCCL communicator `comm`.
     pub fn ncclCommUserRank(
         comm: ncclComm_t,
         rank: *mut ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Registers the buffer `buff` with `size` under communicator `comm` for zero-copy communication; `handle` is
     /// returned for future deregistration. See `buff` and `size` requirements and more instructions in [User Buffer Registration](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#user-buffer-reg).
     pub fn ncclCommRegister(
@@ -799,14 +799,14 @@ unsafe extern "C" {
         handle: *mut *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Deregister buffer represented by `handle` under communicator `comm`.
     pub fn ncclCommDeregister(
         comm: ncclComm_t,
         handle: *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Suspend communicator operations to free resources. The communicator cannot be used for any NCCL operations
     /// while suspended. There should be no outstanding NCCL operations on `comm` when this function is called.
     ///
@@ -817,7 +817,7 @@ unsafe extern "C" {
     /// A suspended communicator can be restored to an active state by calling [`ncclCommResume`].
     pub fn ncclCommSuspend(comm: ncclComm_t, flags: ::core::ffi::c_int) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Resume all previously suspended resources on communicator `comm`. After this call returns successfully, the
     /// communicator is fully operational and can be used for NCCL operations again.
     pub fn ncclCommResume(comm: ncclComm_t) -> ncclResult_t;
@@ -835,7 +835,7 @@ pub enum ncclCommMemStat_t {
     /// Total communicator allocated GPU memory that is tracked by NCCL (bytes).
     ncclStatGpuMemTotal = 3,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Query communicator memory statistics. The `stat` parameter selects which statistic to retrieve, and the
     /// result is written to *\*value*. See [`ncclCommMemStat_t`] for the list of available statistics.
     pub fn ncclCommMemStats(
@@ -844,7 +844,7 @@ unsafe extern "C" {
         value: *mut u64,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Collectively register local buffer `buff` with `size` under communicator `comm` into NCCL window. Since this is a collective call,
     /// every rank in the communicator needs to participate in the registration. Size may differ across ranks; callers are
     /// responsible for ensuring later operations only access ranges that are valid for the ranks participating in that operation. `win` is
@@ -861,12 +861,12 @@ unsafe extern "C" {
         winFlags: ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Deregister NCCL window represented by `win` under communicator `comm`. Deregistration is local to the rank, and
     /// caller needs to make sure the corresponding buffer within the window is not being accessed by any NCCL operation.
     pub fn ncclCommWindowDeregister(comm: ncclComm_t, win: ncclWindow_t) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the user pointer from the window
     pub fn ncclWinGetUserPtr(
         comm: ncclComm_t,
@@ -996,7 +996,7 @@ pub enum ncclScalarResidence_t {
     /// way.
     ncclScalarHostImmediate = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a new reduction operator which pre-multiplies input values by a given
     /// scalar locally before reducing them with peer values via summation. Both the
     /// input values and the scalar are of type `datatype`. For use
@@ -1014,13 +1014,13 @@ unsafe extern "C" {
         comm: ncclComm_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroys the reduction operator `op`. The operator must have been created by
     /// ncclRedOpCreatePreMul with the matching communicator `comm`. An operator may be
     /// destroyed as soon as the last NCCL function which is given that operator returns.
     pub fn ncclRedOpDestroy(op: ncclRedOp_t, comm: ncclComm_t) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reduce data arrays of length `count` in `sendbuff` into `recvbuff` on the `root` rank using the `op` operation.
     /// `recvbuff` is only used on rank `root` and ignored for other ranks.
     ///
@@ -1038,7 +1038,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Legacy in-place version of [`ncclBroadcast`] in a similar fashion to MPI_Bcast. A call to
     ///
     /// ```text
@@ -1061,7 +1061,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies `count` elements from `sendbuff` on the `root` rank to all ranks’ `recvbuff`.
     /// `sendbuff` is only used on rank `root` and ignored for other ranks.
     ///
@@ -1076,7 +1076,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reduces data arrays of length `count` in `sendbuff` using the `op` operation and leaves identical copies of the result in each `recvbuff`.
     ///
     /// In-place operation will happen if `sendbuff == recvbuff`.
@@ -1092,7 +1092,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reduce data in `sendbuff` from all GPUs using the `op` operation and leave the reduced result scattered over the devices so that the `recvbuff` on
     /// rank `i` will contain the i-th block of the result.
     ///
@@ -1111,7 +1111,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Gathers `sendcount` values from all GPUs and leaves identical copies of the result in each `recvbuff`, receiving data from rank `i` at offset `i*sendcount`.
     ///
     /// Note: This assumes the receive count is equal to `nranks*sendcount`, which means that `recvbuff` should have a size of at least `nranks*sendcount` elements.
@@ -1128,7 +1128,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Each rank sends `count` values to all other ranks and receives `count` values from all other ranks. Data to send to destination rank `j` is taken from `sendbuff+j*count` and data received from source rank `i` is placed at `recvbuff+i*count`.
     ///
     /// Note: This assumes both the total send and receive count is equal to `nranks*count`, which means that `sendbuff` and `recvbuff` should have a size of at least `nranks*count` elements.
@@ -1145,7 +1145,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Each rank sends `count` elements from `sendbuff` to the `root` rank. On the `root` rank, data from rank `i` is placed at `recvbuff + i*count`. On non-root ranks, `recvbuff` is not used.
     ///
     /// Note: This assumes the receive count is equal to `nranks*count`, which means that `recvbuff` should have a size of at least `nranks*count` elements.
@@ -1163,7 +1163,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Each rank receives `count` elements from the `root` rank. On the `root` rank, `count` elements from `sendbuff + i*count` are sent to rank `i`. On non-root ranks, `sendbuff` is not used.
     ///
     /// Note: This assumes the send count is equal to `nranks*count`, which means that `sendbuff` should have a size of at least `nranks*count` elements.
@@ -1181,7 +1181,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Every collective above also has an `*Config` variant that takes a trailing
     /// [`ncclCollConfig_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t "ncclCollConfig_t") argument for per-call customization (algorithm
     /// selection, CTA counts, and similar overrides described under
@@ -1201,7 +1201,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclBroadcast`].
     pub fn ncclBroadcastConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1214,7 +1214,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclReduce`].
     pub fn ncclReduceConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1228,7 +1228,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclAllGather`].
     pub fn ncclAllGatherConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1240,7 +1240,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclReduceScatter`].
     pub fn ncclReduceScatterConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1253,7 +1253,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclAlltoAll`].
     pub fn ncclAlltoAllConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1265,7 +1265,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclGather`].
     pub fn ncclGatherConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1278,7 +1278,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configurable variant of [`ncclScatter`].
     pub fn ncclScatterConfig(
         sendbuff: *const ::core::ffi::c_void,
@@ -1291,7 +1291,7 @@ unsafe extern "C" {
         config: *const ncclCollConfig_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Send data from `sendbuff` to rank `peer`.
     ///
     /// Rank `peer` needs to call ncclRecv with the same `datatype` and the same `count` as this rank.
@@ -1310,7 +1310,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Receive data from rank `peer` into `recvbuff`.
     ///
     /// Rank `peer` needs to call ncclSend with the same `datatype` and the same `count` as this rank.
@@ -1329,7 +1329,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Write data from `localbuff` to rank `peer`’s registered memory window `peerWin` at offset `peerWinOffset`
     /// and subsequently updating a remote signal.
     ///
@@ -1368,7 +1368,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Send a signal to rank `peer` without transferring data.
     ///
     /// The `sigIdx` is the signal index identifier for the operation. Prior to NCCL 2.31, it must be set to 0.
@@ -1408,7 +1408,7 @@ pub struct ncclWaitSignalDesc_t {
     /// Since NCCL 2.31, it may be set in the range `[0, numRmaCtx)` (see `numRmaCtx`).
     pub ctx: ::core::ffi::c_int,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Wait for signals as described in the signal descriptor array.
     ///
     /// The `nDesc` parameter specifies the number of signal descriptors in the `signalDescs` array.
@@ -1426,13 +1426,13 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Start a group call.
     ///
     /// All subsequent calls to NCCL until ncclGroupEnd will not block due to inter-CPU synchronization.
     pub fn ncclGroupStart() -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// End a group call.
     ///
     /// Returns when all operations since ncclGroupStart have been processed. This means the communication primitives
@@ -1441,7 +1441,7 @@ unsafe extern "C" {
     /// When used with the ncclCommInitRank call, the ncclGroupEnd call waits for all communicators to be initialized.
     pub fn ncclGroupEnd() -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Simulate a ncclGroupEnd() call and return NCCL’s simulation info in a structure passed as an argument.
     pub fn ncclGroupSimulateEnd(simInfo: *mut ncclSimInfo_t) -> ncclResult_t;
 }
@@ -1484,7 +1484,7 @@ impl Default for ncclEncryptionConfig_v23200 {
 /// A structure-based configuration used by [`ncclSetEncryption`]; a newly created configuration must be
 /// initialized by [`ncclEncryptionConfig_t::NCCL_ENCRYPTION_CONFIG_INITIALIZER`].
 pub type ncclEncryptionConfig_t = ncclEncryptionConfig_v23200;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Configures process-global encryption for NCCL-owned TCP sockets. A configuration with `mode` set to
     /// [`NCCL_ENCRYPTION_MODE_PSK`] requests TLS encryption using the supplied PSK.
     ///
@@ -1503,53 +1503,53 @@ pub struct ncclParamHandle {
 ///
 /// Handles represents parameters and are opaque (internal details hidden).
 pub type ncclParamHandle_t = *mut ncclParamHandle;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Look up the parameter identified by key and store a handle to it in out. The returned handle is owned by the parameter system and must not be freed by the caller.
     pub fn ncclParamBind(
         out: *mut ncclParamHandle_t,
         key: *const ::core::ffi::c_char,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read the value of the parameter bound to h as the type of out. Function names are suffixed with I/U and 8/16/32/64 for 8-, 16-, 32- and 64-bit signed and unsigned integers.
     pub fn ncclParamGetI8(h: ncclParamHandle_t, out: *mut i8) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 16-bit signed integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetI16(h: ncclParamHandle_t, out: *mut i16) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 32-bit signed integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetI32(h: ncclParamHandle_t, out: *mut i32) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 64-bit signed integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetI64(h: ncclParamHandle_t, out: *mut i64) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 8-bit unsigned integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetU8(h: ncclParamHandle_t, out: *mut u8) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 16-bit unsigned integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetU16(h: ncclParamHandle_t, out: *mut u16) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 32-bit unsigned integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetU32(h: ncclParamHandle_t, out: *mut u32) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads the parameter bound to `h` as a 64-bit unsigned integer and writes it to `out`. The handle remains owned by the parameter system.
     pub fn ncclParamGetU64(h: ncclParamHandle_t, out: *mut u64) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read the value of the parameter bound to h as a string. Returned pointer is owned by the parameter system and is valid until the next ncclParamGetStr() call on the same thread.
     pub fn ncclParamGetStr(
         h: ncclParamHandle_t,
         out: *mut *const ::core::ffi::c_char,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read the value of the parameter bound to h as raw binary data. The user needs to allocate a buffer for the result and the parameter value is copied into user buffer as bytes.
     pub fn ncclParamGet(
         h: ncclParamHandle_t,
@@ -1558,7 +1558,7 @@ unsafe extern "C" {
         len: *mut ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get parameter value as string by key. Returned pointer is owned by the parameter system and is valid until the next ncclParamGetParameter() call on the same thread.
     pub fn ncclParamGetParameter(
         key: *const ::core::ffi::c_char,
@@ -1566,14 +1566,14 @@ unsafe extern "C" {
         valueLen: *mut ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get all registered parameter keys. Returned pointer table is owned by the parameter system and is valid until the next ncclParamGetAllParameterKeys() call on the same thread. By default, the results include only parameters published in NCCL documentation. Setting NCCL_PARAM_DUMP_ALL=true will include all parameters.
     pub fn ncclParamGetAllParameterKeys(
         table: *mut *mut *const ::core::ffi::c_char,
         tableLen: *mut ::core::ffi::c_int,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Dump all parameters to log output. By default, the result includes only parameters published in NCCL documentation. Setting NCCL_PARAM_DUMP_ALL=true will include all parameters.
     pub fn ncclParamDumpAll();
 }
@@ -2271,7 +2271,7 @@ impl Default for ncclCommProperties {
 }
 /// A structure describing the properties of the communicator. Introduced in NCCL 2.29. Properties include.
 pub type ncclCommProperties_t = ncclCommProperties;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Exposes communicator properties by filling in `props`. Before calling this function, `props` must be initialized
     /// using `NCCL_COMM_PROPERTIES_INITIALIZER`. Introduced in NCCL 2.29.
     ///
@@ -2281,7 +2281,7 @@ unsafe extern "C" {
         props: *mut ncclCommProperties_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a new device communicator (see [`ncclDevComm`]) corresponding to the supplied host-side communicator
     /// `comm`. The result is returned in the `outDevComm` buffer (which needs to be supplied by the caller). The caller needs
     /// to also provide a filled-in list of requirements via the `reqs` argument (see [`ncclDevCommRequirements`]); the
@@ -2297,7 +2297,7 @@ unsafe extern "C" {
         outDevComm: *mut ncclDevComm_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroys a device communicator (see [`ncclDevComm`]) previously created using [`ncclDevCommCreate`] and
     /// releases any allocated resources. The caller must ensure that no device kernel that uses this device communicator could
     /// be running at the time this function is invoked.
@@ -2308,7 +2308,7 @@ unsafe extern "C" {
         devComm: *const ncclDevComm_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a multimem base pointer for the [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) team associated with the given window.
     /// This function provides host-side access to the multimem memory functionality.
     ///
@@ -2343,7 +2343,7 @@ unsafe extern "C" {
         outPtr: *mut *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a multimem base pointer using a provided multimem handle instead of the window’s internal multimem.
     /// This function enables using external or custom multimem handles for pointer calculation.
     ///
@@ -2382,7 +2382,7 @@ unsafe extern "C" {
         outPtr: *mut *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a load/store accessible pointer to the memory buffer of a specific [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) peer
     /// within the window. This function provides host-side access to LSA pointer functionality using LSA rank directly.
     ///
@@ -2412,7 +2412,7 @@ unsafe extern "C" {
         outPtr: *mut *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a load/store accessible pointer to the memory buffer of a specific world rank peer within the window.
     /// This function converts world rank to [LSA](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/usage/bufferreg.html#device-api-lsa) rank internally and provides host-side access
     /// to peer pointer functionality.
@@ -2450,7 +2450,7 @@ unsafe extern "C" {
         outPtr: *mut *mut ::core::ffi::c_void,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// CFT handle based query functions for host code
     pub fn ncclGetMultimemDeviceLeInfo(
         window: ncclWindow_t,
@@ -2459,7 +2459,7 @@ unsafe extern "C" {
         leOffset: *mut size_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the CFT logical endpoint identifier and byte offset for `offset` in a registered `window` on `peerCft` of `cftTeam`. Writes the results to `leId` and `leOffset`.
     pub fn ncclGetCftDeviceLeInfo(
         window: ncclWindow_t,
@@ -2470,7 +2470,7 @@ unsafe extern "C" {
         leOffset: *mut size_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the CFT logical endpoint identifier and byte offset for `offset` in a registered `window` on communicator peer `peerWorld`. Writes the results to `leId` and `leOffset`.
     pub fn ncclGetPeerDeviceLeInfo(
         window: ncclWindow_t,
@@ -2480,23 +2480,23 @@ unsafe extern "C" {
         leOffset: *mut size_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// ///////////////////////////////////////////////////////////////////////////// Team API:
     pub fn ncclTeamWorld(comm: ncclComm_t) -> ncclTeam_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the communicator team of ranks sharing a local address space.
     pub fn ncclTeamLsa(comm: ncclComm_t) -> ncclTeam_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the CFT team selected by `mode`: flat, factored by multimem groups, or factored by local shared-address-space groups.
     pub fn ncclTeamCft(comm: ncclComm_t, mode: ncclCftTeamMode_t) -> ncclTeam_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the communicator CFT multimem team.
     pub fn ncclTeamCftMultimem(comm: ncclComm_t) -> ncclTeam_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Maps `rank` in `team` into the full communicator rank space.
     pub fn ncclTeamRankToWorld(
         comm: ncclComm_t,
@@ -2504,7 +2504,7 @@ unsafe extern "C" {
         rank: ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Maps `rank` in `team` into the local shared-address-space rank space.
     pub fn ncclTeamRankToLsa(
         comm: ncclComm_t,
@@ -2512,11 +2512,11 @@ unsafe extern "C" {
         rank: ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the rail team formed by taking the outer factor of the communicator by its local shared-address-space team.
     pub fn ncclTeamRail(comm: ncclComm_t) -> ncclTeam_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// ///////////////////////////////////////////////////////////////////////////// Device resource requirement API:
     pub fn ncclLsaBarrierCreateRequirement(
         team: ncclTeam_t,
@@ -2525,7 +2525,7 @@ unsafe extern "C" {
         outReq: *mut ncclDevResourceRequirements_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Builds a resource requirement for `nBarriers` GIN barriers on `team` in `comm`. Writes the handle to `outHandle` and the requirement to `outReq`; include that requirement in the list passed to [`ncclDevCommCreate`].
     pub fn ncclGinBarrierCreateRequirement(
         comm: ncclComm_t,
@@ -2535,7 +2535,7 @@ unsafe extern "C" {
         outReq: *mut ncclDevResourceRequirements_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Builds a resource requirement for `nBarriers` CFT barriers on `team`. Writes the handle to `outHandle` and the requirement to `outReq`; include that requirement in the list passed to [`ncclDevCommCreate`].
     pub fn ncclCftBarrierCreateRequirement(
         team: ncclTeam_t,
@@ -2544,14 +2544,14 @@ unsafe extern "C" {
         outReq: *mut ncclDevResourceRequirements_t,
     ) -> ncclResult_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Calculates the number of low-latency all-to-all slots needed for at most `maxElts` elements of at most `maxEltSize` bytes each.
     pub fn ncclLLA2ACalcSlots(
         maxElts: ::core::ffi::c_int,
         maxEltSize: ::core::ffi::c_int,
     ) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Builds a low-latency all-to-all resource requirement for `nBlocks` blocks and `nSlots` slots per block. Writes the handle to `outHandle` and the requirement to `outReq`; include that requirement in the list passed to [`ncclDevCommCreate`].
     pub fn ncclLLA2ACreateRequirement(
         nBlocks: ::core::ffi::c_int,

@@ -20,9 +20,8 @@ use crate::{
 
 /// Frontend reduction operation.
 ///
-/// cuDNN reductions reduce an input tensor using a mode selected by
-/// [`ReduceTensorOperator`]. The reduced dimensions are inferred from the input and
-/// output tensor shapes.
+/// cuDNN reductions reduce an input tensor using a mode selected by [`ReduceTensorOperator`].
+/// The reduced dimensions are inferred from the input and output tensor shapes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum ReductionOperation {
@@ -102,6 +101,7 @@ impl ReductionOperation {
                         }
                         .into());
                     }
+
                     for id in [
                         accumulator.accumulator,
                         accumulator.current,
@@ -109,6 +109,7 @@ impl ReductionOperation {
                     ] {
                         body.tensor_spec(id)?;
                     }
+
                     let mut dimensions_after_reduction = input.shape.dimensions().to_vec();
                     for &axis in dimensions {
                         let axis = usize::try_from(axis).map_err(|_| Error::InvalidDataShape)?;
@@ -116,6 +117,7 @@ impl ReductionOperation {
                             .get_mut(axis)
                             .ok_or(Error::InvalidDataShape)? = 1;
                     }
+
                     graph.validate_tensor_dimensions(
                         output_id,
                         &dimensions_after_reduction,
@@ -226,8 +228,7 @@ pub enum ReductionOutput {
 
 /// Attributes for building a frontend reduction operation.
 ///
-/// This maps to the C++ frontend `Reduction_attributes` mode and compute data
-/// type setters, with Rust-side axis and determinism options.
+/// This maps to the C++ frontend `Reduction_attributes` mode and compute data type setters, with Rust-side axis and determinism options.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReductionConfig {
     #[serde(default)]

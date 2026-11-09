@@ -40,6 +40,7 @@ pub fn stft_r2c(input: &[f32], config: StftConfig) -> Result<Vec<f32>> {
                 real = f32::mul_add(value, dft_real[table_offset], real);
                 imag = f32::mul_add(value, dft_imag[table_offset], imag);
             }
+
             let output_offset = (frame * config.frequency_bin_count() + frequency) * 2;
             out[output_offset] = real;
             out[output_offset + 1] = imag;
@@ -82,6 +83,7 @@ pub fn log_mel(power: &[f32], frames: usize, config: AudioFrontendConfig) -> Res
     if power.len() < expected_power || config.log_mel.dynamic_range.is_none() {
         return Err(Error::InvalidLength);
     }
+
     let filters = slaney_mel_filters(config.mel)?;
     let dynamic_range = config.log_mel.dynamic_range.ok_or(Error::InvalidLength)?;
     let mut raw = vec![0.0; frames * config.mel.mel_bin_count];
@@ -95,6 +97,7 @@ pub fn log_mel(power: &[f32], frames: usize, config: AudioFrontendConfig) -> Res
                     sum,
                 );
             }
+
             raw[frame * config.mel.mel_bin_count + mel] = sum.max(config.log_mel.floor).log10();
         }
     }
@@ -189,6 +192,7 @@ pub fn reflect_index(index: isize, len: usize) -> Result<usize> {
     if len == 0 {
         return Err(Error::InvalidLength);
     }
+
     if len == 1 {
         return if index == 0 {
             Ok(0)
@@ -196,6 +200,7 @@ pub fn reflect_index(index: isize, len: usize) -> Result<usize> {
             Err(Error::InvalidLength)
         };
     }
+
     let reflected = if index < 0 {
         (-index) as usize
     } else if index
@@ -216,9 +221,11 @@ fn validate_stft_input(input_len: usize, config: StftConfig) -> Result<()> {
     if config.pad_mode != PadMode::Reflect {
         return Ok(());
     }
+
     if input_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.center && input_len <= config.n_fft / 2 {
         return Err(Error::InvalidLength);
     }
@@ -229,9 +236,11 @@ fn validate_stft_config(config: StftConfig) -> Result<()> {
     if config.n_fft == 0 || config.hop_length == 0 || config.win_length == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.win_length > config.n_fft {
         return Err(Error::InvalidLength);
     }
+
     if !config.n_fft.is_multiple_of(2) {
         return Err(Error::UnsupportedParameter {
             op: "stft".into(),
@@ -250,6 +259,7 @@ fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     if config.sample_rate == 0 || config.frequency_bin_count == 0 || config.mel_bin_count == 0 {
         return Err(Error::InvalidLength);
     }
+
     let nyquist = config.sample_rate as f32 / 2.0;
     if !config.min_frequency.is_finite()
         || !config.max_frequency.is_finite()

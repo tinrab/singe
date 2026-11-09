@@ -29,8 +29,7 @@ pub struct SlidingWindowAttentionConfig {
 
 /// Causal left-window attention with contiguous grouped-query head mapping.
 ///
-/// For a query at absolute position `q_abs`, this attends only to keys with
-/// `key_abs <= q_abs` and `key_abs + window > q_abs`.
+/// For a query at absolute position `q_abs`, this attends only to keys with `key_abs <= q_abs` and `key_abs + window > q_abs`.
 /// This is not the symmetric local attention mask used by transformer-lab's sliding-window components.
 #[must_use]
 pub fn sliding_window_attention(
@@ -61,6 +60,7 @@ pub fn sliding_window_attention(
                     if key_abs > q_abs || key_abs + config.window <= q_abs {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..config.head_dim {
                         let q_offset =
@@ -69,13 +69,16 @@ pub fn sliding_window_attention(
                             key_base + key_index * kv_features + kv_head * config.head_dim + dim;
                         score = query[q_offset].mul_add(key[k_offset], score);
                     }
+
                     score *= config.scale;
                     *score_slot = score;
                     max_score = max_score.max(score);
                 }
+
                 if !max_score.is_finite() {
                     continue;
                 }
+
                 let mut denom = 0.0f32;
                 for score in &scores {
                     if score.is_finite() {
@@ -94,6 +97,7 @@ pub fn sliding_window_attention(
                             sum = weight.mul_add(value[v_offset], sum);
                         }
                     }
+
                     out[output_base + q_index * q_features + head * config.head_dim + dim] =
                         sum * config.output_scale;
                 }
@@ -101,95 +105,6 @@ pub fn sliding_window_attention(
         }
     }
     out
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_sliding_window_attention_f32_uses_contiguous_gqa_groups() {
-        let config = SlidingWindowAttentionConfig {
-            batch: 1,
-            query_len: 1,
-            key_len: 1,
-            heads: 4,
-            kv_heads: 2,
-            head_dim: 1,
-            query_start: 0,
-            key_start: 0,
-            window: 1,
-            query_batch_stride: 4,
-            key_batch_stride: 2,
-            value_batch_stride: 2,
-            output_batch_stride: 4,
-            query_sequence_stride: 4,
-            key_sequence_stride: 2,
-            value_sequence_stride: 2,
-            output_sequence_stride: 4,
-            query_head_stride: 1,
-            key_head_stride: 1,
-            value_head_stride: 1,
-            output_head_stride: 1,
-            scale: 1.0,
-            output_scale: 1.0,
-        };
-        let query = vec![1.0f32; 4];
-        let key = vec![1.0f32, 1.0];
-        let value = vec![10.0f32, 20.0];
-
-        let out = sliding_window_attention(&query, &key, &value, config);
-
-        assert_eq!(out, vec![10.0, 10.0, 20.0, 20.0]);
-    }
-
-    #[test]
-    fn test_sliding_window_attention_uses_contiguous_gqa_groups() {
-        let query = vec![1.0f32; 4];
-        let key = vec![1.0f32, 1.0];
-        let value = vec![10.0f32, 20.0];
-
-        let out =
-            sliding_window_attention_f32(&query, &key, &value, 1, 1, 1, 4, 2, 1, 0, 0, 1, 1.0, 1.0);
-
-        assert_eq!(out, vec![10.0, 10.0, 20.0, 20.0]);
-    }
-
-    #[test]
-    fn test_sliding_window_attention_is_causal_left_not_symmetric() {
-        let config = SlidingWindowAttentionConfig {
-            batch: 1,
-            query_len: 1,
-            key_len: 3,
-            heads: 1,
-            kv_heads: 1,
-            head_dim: 1,
-            query_start: 1,
-            key_start: 0,
-            window: 1,
-            query_batch_stride: 1,
-            key_batch_stride: 3,
-            value_batch_stride: 3,
-            output_batch_stride: 1,
-            query_sequence_stride: 1,
-            key_sequence_stride: 1,
-            value_sequence_stride: 1,
-            output_sequence_stride: 1,
-            query_head_stride: 1,
-            key_head_stride: 1,
-            value_head_stride: 1,
-            output_head_stride: 1,
-            scale: 1.0,
-            output_scale: 1.0,
-        };
-        let query = vec![1.0f32];
-        let key = vec![1.0f32, 1.0, 1.0];
-        let value = vec![10.0f32, 20.0, 30.0];
-
-        let out = sliding_window_attention(&query, &key, &value, config);
-
-        assert_eq!(out, vec![20.0]);
-    }
 }
 
 pub fn fused_neighborhood_attention_f32(
@@ -218,14 +133,17 @@ pub fn fused_neighborhood_attention_f32(
                     if key_index.abs_diff(query_index) % dilation != 0 {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_head_base + query_index * head_dim + dim;
                         let key_offset = batch_head_base + key_index * head_dim + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -241,6 +159,7 @@ pub fn fused_neighborhood_attention_f32(
                         let value_offset = batch_head_base + key_index * head_dim + dim;
                         sum = f32::mul_add(weight, value[value_offset], sum);
                     }
+
                     out[batch_head_base + query_index * head_dim + dim] = sum;
                 }
             }
@@ -353,6 +272,7 @@ pub fn minimax_sparse_attention_block_max_f32(
                     let offset = (batch_index * config.rows + row) * config.key_len + key_index;
                     max_score = max_score.max(scores[offset]);
                 }
+
                 out[(batch_index * config.rows + row) * blocks + block] = max_score;
             }
         }
@@ -384,6 +304,7 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
                     if valid_mask[sparse_base + selected] == 0 {
                         continue;
                     }
+
                     any_valid = true;
                     let key_index = positions[sparse_base + selected] as usize;
                     let mut score = 0.0f32;
@@ -399,17 +320,21 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     score *= config.scale;
                     max_score = max_score.max(score);
                 }
+
                 if !any_valid {
                     continue;
                 }
+
                 let mut denom = 0.0f32;
                 for selected in 0..config.selected_keys {
                     if valid_mask[sparse_base + selected] == 0 {
                         continue;
                     }
+
                     let key_index = positions[sparse_base + selected] as usize;
                     let mut score = 0.0f32;
                     for dim in 0..config.head_dim {
@@ -424,6 +349,7 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     denom += score.mul_add(config.scale, -max_score).exp();
                 }
                 for dim in 0..config.head_dim {
@@ -432,6 +358,7 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
                         if valid_mask[sparse_base + selected] == 0 {
                             continue;
                         }
+
                         let key_index = positions[sparse_base + selected] as usize;
                         let mut score = 0.0f32;
                         for score_dim in 0..config.head_dim {
@@ -447,6 +374,7 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
                                 + score_dim;
                             score = query[query_offset].mul_add(key[key_offset], score);
                         }
+
                         let weight = score.mul_add(config.scale, -max_score).exp() / denom;
                         let value_offset = ((batch_index * config.kv_heads + kv_head)
                             * config.key_len
@@ -455,6 +383,7 @@ pub fn minimax_sparse_attention_gathered_gqa_f32(
                             + dim;
                         sum = weight.mul_add(value[value_offset], sum);
                     }
+
                     let output_offset =
                         ((batch_index * config.query_len + query_index) * config.heads + head)
                             * config.head_dim
@@ -491,6 +420,7 @@ pub fn minimax_sparse_attention_select_topk_blocks_f32(
             if k_eff == 0 {
                 continue;
             }
+
             out[output_base] =
                 i32::try_from(local).expect("kernel dimension or index exceeds the i32 interface");
             for slot in 1..k_eff {
@@ -500,6 +430,7 @@ pub fn minimax_sparse_attention_select_topk_blocks_f32(
                     if candidate == local {
                         continue;
                     }
+
                     let candidate_score =
                         block_scores[(batch_index * config.rows + row) * config.blocks + candidate];
                     let mut rank = 0usize;
@@ -507,6 +438,7 @@ pub fn minimax_sparse_attention_select_topk_blocks_f32(
                         if other == local || other == candidate {
                             continue;
                         }
+
                         let other_score =
                             block_scores[(batch_index * config.rows + row) * config.blocks + other];
                         if other_score > candidate_score
@@ -521,6 +453,7 @@ pub fn minimax_sparse_attention_select_topk_blocks_f32(
                         break;
                     }
                 }
+
                 out[output_base + slot] = selected;
             }
         }
@@ -608,10 +541,12 @@ pub fn compressed_sparse_attention_compress_f32(
                         logit = hidden_value
                             .mul_add(weight_a_z[hidden_dim * config.head_dim + dim], logit);
                     }
+
                     logits[row] = logit;
                     values[row] = value;
                     max_logit = max_logit.max(logit);
                 }
+
                 for row in 0..config.compression_block {
                     let slot = config.compression_block + row;
                     if block == 0 {
@@ -619,6 +554,7 @@ pub fn compressed_sparse_attention_compress_f32(
                         values[slot] = 0.0;
                         continue;
                     }
+
                     let token = (block - 1) * config.compression_block + row;
                     let hidden_base = (batch_index * config.seq_len + token) * config.hidden_dim;
                     let mut value = 0.0f32;
@@ -630,6 +566,7 @@ pub fn compressed_sparse_attention_compress_f32(
                         logit = hidden_value
                             .mul_add(weight_b_z[hidden_dim * config.head_dim + dim], logit);
                     }
+
                     logits[slot] = logit;
                     values[slot] = value;
                     max_logit = max_logit.max(logit);
@@ -639,10 +576,12 @@ pub fn compressed_sparse_attention_compress_f32(
                 for logit in &logits {
                     denom += (*logit - max_logit).exp();
                 }
+
                 let mut sum = 0.0f32;
                 for row in 0..config.compression_block * 2 {
                     sum = ((logits[row] - max_logit).exp() / denom).mul_add(values[row], sum);
                 }
+
                 out[(batch_index * blocks + block) * config.head_dim + dim] = sum;
             }
         }
@@ -674,11 +613,13 @@ pub fn compressed_sparse_attention_lightning_indexer_f32(
                             (batch_index * config.blocks + block) * config.index_dim + dim;
                         inner = indexer_query[query_offset].mul_add(indexer_key[key_offset], inner);
                     }
+
                     let weight_offset = (batch_index * config.query_len + query_index)
                         * config.index_heads
                         + index_head;
                     score = indexer_weight[weight_offset].mul_add(inner.max(0.0), score);
                 }
+
                 out[(batch_index * config.query_len + query_index) * config.blocks + block] = score;
             }
         }
@@ -716,6 +657,7 @@ pub fn compressed_sparse_attention_topk_selector_f32(
                         if other == candidate {
                             continue;
                         }
+
                         let other_score = scores[(batch_index * config.query_len + query_index)
                             * config.blocks
                             + other];
@@ -731,6 +673,7 @@ pub fn compressed_sparse_attention_topk_selector_f32(
                         break;
                     }
                 }
+
                 selected[(batch_index * config.query_len + query_index) * config.top_k + slot] =
                     selected_block;
                 for dim in 0..config.head_dim {
@@ -767,6 +710,7 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
                     if valid_mask[mask_base + key_index] == 0 {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..config.head_dim {
                         let query_offset =
@@ -780,13 +724,16 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
                             + dim;
                         score = query[query_offset].mul_add(kv_entries[key_offset], score);
                     }
+
                     max_score = max_score.max(score * config.scale);
                 }
+
                 let mut denom = (sink_value - max_score).exp();
                 for key_index in 0..config.kv_len {
                     if valid_mask[mask_base + key_index] == 0 {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..config.head_dim {
                         let query_offset =
@@ -800,6 +747,7 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
                             + dim;
                         score = query[query_offset].mul_add(kv_entries[key_offset], score);
                     }
+
                     denom += score.mul_add(config.scale, -max_score).exp();
                 }
                 for dim in 0..config.head_dim {
@@ -808,6 +756,7 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
                         if valid_mask[mask_base + key_index] == 0 {
                             continue;
                         }
+
                         let mut score = 0.0f32;
                         for score_dim in 0..config.head_dim {
                             let query_offset = ((batch_index * config.query_len + query_index)
@@ -822,6 +771,7 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
                                 + score_dim;
                             score = query[query_offset].mul_add(kv_entries[key_offset], score);
                         }
+
                         let weight = score.mul_add(config.scale, -max_score).exp() / denom;
                         let value_offset = ((batch_index * config.query_len + query_index)
                             * config.kv_len
@@ -830,6 +780,7 @@ pub fn compressed_sparse_attention_shared_mqa_f32(
                             + dim;
                         sum = weight.mul_add(kv_entries[value_offset], sum);
                     }
+
                     let output_offset =
                         ((batch_index * config.query_len + query_index) * config.heads + head)
                             * config.head_dim
@@ -870,6 +821,7 @@ pub fn heavily_compressed_attention_compress_f32(
                         logit = hidden_value
                             .mul_add(weight_z[hidden_dim * config.head_dim + dim], logit);
                     }
+
                     logits[row] = logit;
                     values[row] = value;
                     max_logit = max_logit.max(logit);
@@ -879,10 +831,12 @@ pub fn heavily_compressed_attention_compress_f32(
                 for logit in &logits {
                     denom += (*logit - max_logit).exp();
                 }
+
                 let mut sum = 0.0f32;
                 for row in 0..config.compression_block {
                     sum = ((logits[row] - max_logit).exp() / denom).mul_add(values[row], sum);
                 }
+
                 out[(batch_index * blocks + block) * config.head_dim + dim] = sum;
             }
         }
@@ -925,10 +879,12 @@ pub fn heavily_compressed_attention_f32(
                             let kv_offset = (batch_index * blocks + block) * config.head_dim + dim;
                             score = query[query_offset].mul_add(compressed_kv[kv_offset], score);
                         }
+
                         score /= (config.head_dim as f32).sqrt();
                         *score_slot = score;
                         max_score = max_score.max(score);
                     }
+
                     let denom = scores
                         .iter()
                         .map(|score| (*score - max_score).exp())
@@ -940,6 +896,7 @@ pub fn heavily_compressed_attention_f32(
                             let kv_offset = (batch_index * blocks + block) * config.head_dim + dim;
                             sum = f32::mul_add(weight, compressed_kv[kv_offset], sum);
                         }
+
                         heads[head * config.head_dim + dim] = sum;
                     }
                 }
@@ -960,6 +917,7 @@ pub fn heavily_compressed_attention_f32(
                                 .mul_add(weight_group[weight_offset], sum);
                         }
                     }
+
                     inter[group * config.group_dim + group_out] = sum;
                 }
             }
@@ -972,6 +930,7 @@ pub fn heavily_compressed_attention_f32(
                         sum,
                     );
                 }
+
                 out[(batch_index * config.seq_len + query_index) * config.hidden_dim
                     + output_dim] = sum;
             }
@@ -1043,6 +1002,7 @@ pub fn multi_token_attention_f32(
                     if output_col > output_row {
                         continue;
                     }
+
                     let mut sum = bias.map_or(0.0f32, |bias| bias[output_channel]);
                     for local_input_channel in 0..channels_in_per_group {
                         let input_channel = group * channels_in_per_group + local_input_channel;
@@ -1062,6 +1022,7 @@ pub fn multi_token_attention_f32(
                                 if input_col >= seq_len || input_col > input_row {
                                     continue;
                                 }
+
                                 let prob_offset = ((batch_index * channels_in + input_channel)
                                     * seq_len
                                     + input_row)
@@ -1078,6 +1039,7 @@ pub fn multi_token_attention_f32(
                             }
                         }
                     }
+
                     out[out_offset] = sum;
                 }
             }
@@ -1103,6 +1065,7 @@ pub fn sparsemax_tau(values: &[f32]) -> f32 {
             support = index + 1;
         }
     }
+
     let support_sum = sorted.iter().take(support).sum::<f32>();
     (support_sum - 1.0) / support as f32
 }
@@ -1154,6 +1117,7 @@ pub fn sliding_window_attention_f32(
                     if key_abs > query_abs || key_abs + window <= query_abs {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_index * query_len * q_features
@@ -1166,11 +1130,14 @@ pub fn sliding_window_attention_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 if scores.is_empty() {
                     continue;
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1189,6 +1156,7 @@ pub fn sliding_window_attention_f32(
                             + dim;
                         sum = f32::mul_add(weight, value[value_offset], sum);
                     }
+
                     let output_offset = batch_index * query_len * q_features
                         + query_index * q_features
                         + head * head_dim
@@ -1238,11 +1206,14 @@ pub fn paged_kv_decode_attention_f32(
                         + dim;
                     score = query[query_offset].mul_add(key_cache[key_offset], score);
                 }
+
                 scores.push(score * scale);
             }
+
             if scores.is_empty() {
                 continue;
             }
+
             let max_score = scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
             let denom = scores
                 .iter()
@@ -1266,6 +1237,7 @@ pub fn paged_kv_decode_attention_f32(
                         sum,
                     );
                 }
+
                 out[(batch_index * heads + head) * head_dim + dim] = sum;
             }
         }
@@ -1310,6 +1282,7 @@ pub fn paged_kv_prefill_attention_f32(
                     if causal && key_index > query_index {
                         continue;
                     }
+
                     let block = block_table
                         [batch_index * block_table_batch_stride + key_index / block_size]
                         as usize;
@@ -1323,12 +1296,15 @@ pub fn paged_kv_prefill_attention_f32(
                             + dim;
                         score = query[query_offset].mul_add(key_cache[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 if scores.is_empty() {
                     lse[global_token * heads + head] = -1.0e20;
                     continue;
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1355,6 +1331,7 @@ pub fn paged_kv_prefill_attention_f32(
                             sum,
                         );
                     }
+
                     out[global_token * features + head * head_dim + dim] = sum;
                 }
             }
@@ -1396,6 +1373,7 @@ pub fn ragged_kv_prefill_attention_f32(
                     if causal && key_index > query_index {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = global_token * features + head * head_dim + dim;
@@ -1403,12 +1381,15 @@ pub fn ragged_kv_prefill_attention_f32(
                             (seq_offset + key_index) * kv_features + kv_head * head_dim + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 if scores.is_empty() {
                     lse[global_token * heads + head] = -1.0e20;
                     continue;
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1429,6 +1410,7 @@ pub fn ragged_kv_prefill_attention_f32(
                             sum,
                         );
                     }
+
                     out[global_token * features + head * head_dim + dim] = sum;
                 }
             }
@@ -1463,13 +1445,16 @@ pub fn mla_decode_lse_f32(
                     let key_offset = batch_index * key_len * head_dim + key_index * head_dim + dim;
                     score = query[query_offset].mul_add(key_value[key_offset], score);
                 }
+
                 for dim in 0..pe_dim {
                     let query_offset = batch_index * qpe_features + head * pe_dim + dim;
                     let key_offset = batch_index * key_len * pe_dim + key_index * pe_dim + dim;
                     score = query_pe[query_offset].mul_add(key_pe[key_offset], score);
                 }
+
                 scores.push((key_index, score * scale));
             }
+
             let max_score = scores
                 .iter()
                 .map(|(_, score)| *score)
@@ -1487,6 +1472,7 @@ pub fn mla_decode_lse_f32(
                         batch_index * key_len * head_dim + key_index * head_dim + dim;
                     sum = f32::mul_add(weight, key_value[value_offset], sum);
                 }
+
                 out[batch_index * q_features + head * head_dim + dim] = sum;
             }
         }
@@ -1531,17 +1517,21 @@ pub fn paged_mla_decode_attention_f32(
                     let key_offset = block * cache_block_stride + block_token * head_dim + dim;
                     score = query[query_offset].mul_add(key_value_cache[key_offset], score);
                 }
+
                 for dim in 0..pe_dim {
                     let query_offset = batch_index * qpe_features + head * pe_dim + dim;
                     let key_offset = block * pe_cache_block_stride + block_token * pe_dim + dim;
                     score = query_pe[query_offset].mul_add(key_pe_cache[key_offset], score);
                 }
+
                 scores.push((key_index, score * scale));
             }
+
             if scores.is_empty() {
                 lse[batch_index * heads + head] = -1.0e20;
                 continue;
             }
+
             let max_score = scores
                 .iter()
                 .map(|(_, score)| *score)
@@ -1565,6 +1555,7 @@ pub fn paged_mla_decode_attention_f32(
                         sum,
                     );
                 }
+
                 out[batch_index * q_features + head * head_dim + dim] = sum * output_scale;
             }
         }
@@ -1602,6 +1593,7 @@ pub fn mla_prefill_f32(
                     if key_index > query_index {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_index * query_len * q_features
@@ -1614,6 +1606,7 @@ pub fn mla_prefill_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     for dim in 0..pe_dim {
                         let query_offset = batch_index * query_len * qpe_features
                             + query_index * qpe_features
@@ -1625,8 +1618,10 @@ pub fn mla_prefill_f32(
                             + dim;
                         score = query_pe[query_offset].mul_add(key_pe[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1645,6 +1640,7 @@ pub fn mla_prefill_f32(
                             + dim;
                         sum = f32::mul_add(weight, value[value_offset], sum);
                     }
+
                     let output_offset = batch_index * query_len * q_features
                         + query_index * q_features
                         + head * head_dim
@@ -1693,10 +1689,12 @@ pub fn sparse_mla_prefill_f32(
                     if key_index < 0 {
                         continue;
                     }
+
                     let key_index = key_index as usize;
                     if key_index >= key_len || key_index > query_index {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_index * query_len * q_features
@@ -1709,6 +1707,7 @@ pub fn sparse_mla_prefill_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     for dim in 0..pe_dim {
                         let query_offset = batch_index * query_len * qpe_features
                             + query_index * qpe_features
@@ -1717,11 +1716,14 @@ pub fn sparse_mla_prefill_f32(
                         let key_offset = batch_index * key_len * pe_dim + key_index * pe_dim + dim;
                         score = query_pe[query_offset].mul_add(key_pe[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 if scores.is_empty() {
                     continue;
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1740,6 +1742,7 @@ pub fn sparse_mla_prefill_f32(
                             + dim;
                         sum = f32::mul_add(weight, value[value_offset], sum);
                     }
+
                     let output_offset = batch_index * query_len * q_features
                         + query_index * q_features
                         + head * head_dim
@@ -1779,6 +1782,7 @@ pub fn fmha_prefill_lse_f32(
                     if causal && key_index > query_index {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_index * query_len * q_features
@@ -1791,8 +1795,10 @@ pub fn fmha_prefill_lse_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     scores.push((key_index, score * scale));
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1813,6 +1819,7 @@ pub fn fmha_prefill_lse_f32(
                             + dim;
                         sum = f32::mul_add(weight, value[value_offset], sum);
                     }
+
                     let output_offset = batch_index * query_len * q_features
                         + query_index * q_features
                         + head * head_dim
@@ -1853,12 +1860,14 @@ pub fn softcapped_window_attention_f32(
                     if causal && key_index > query_index {
                         continue;
                     }
+
                     if window_size > 0
                         && (key_index + window_size < query_index
                             || key_index > query_index + window_size)
                     {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_index * heads * query_head_stride
@@ -1871,15 +1880,19 @@ pub fn softcapped_window_attention_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     let mut score = score * scale;
                     if let Some(soft_cap) = soft_cap {
                         score = (score / soft_cap).tanh() * soft_cap;
                     }
+
                     scores.push((key_index, score));
                 }
+
                 if scores.is_empty() {
                     continue;
                 }
+
                 let max_score = scores
                     .iter()
                     .map(|(_, score)| *score)
@@ -1898,6 +1911,7 @@ pub fn softcapped_window_attention_f32(
                             + dim;
                         sum = f32::mul_add(weight, value[value_offset], sum);
                     }
+
                     let output_offset = batch_index * heads * query_head_stride
                         + head * query_head_stride
                         + query_index * head_dim
@@ -1936,6 +1950,7 @@ pub fn softcapped_window_decode_lse_f32(
                 if window_size > 0 && key_index + window_size < query_position {
                     continue;
                 }
+
                 let mut score = 0.0f32;
                 for dim in 0..head_dim {
                     let query_offset = batch_index * heads * head_dim + head * head_dim + dim;
@@ -1945,12 +1960,15 @@ pub fn softcapped_window_decode_lse_f32(
                         + dim;
                     score = query[query_offset].mul_add(key[key_offset], score);
                 }
+
                 let mut score = score * scale;
                 if let Some(soft_cap) = soft_cap {
                     score = (score / soft_cap).tanh() * soft_cap;
                 }
+
                 scores.push((key_index, score));
             }
+
             let max_score = scores
                 .iter()
                 .map(|(_, score)| *score)
@@ -1970,6 +1988,7 @@ pub fn softcapped_window_decode_lse_f32(
                         + dim;
                     sum = f32::mul_add(weight, value[value_offset], sum);
                 }
+
                 let output_offset = batch_index * heads * head_dim + head * head_dim + dim;
                 out[output_offset] = sum;
             }
@@ -2010,6 +2029,7 @@ pub fn attention_sink_decode_f32(
                 if key_index > start_q || key_index < window_start {
                     continue;
                 }
+
                 let mut score = 0.0f32;
                 for dim in 0..head_dim {
                     let query_offset = batch_index * q_features + head * head_dim + dim;
@@ -2019,9 +2039,11 @@ pub fn attention_sink_decode_f32(
                         + dim;
                     score = query[query_offset].mul_add(key[key_offset], score);
                 }
+
                 scores.push(score * scale);
                 key_indices.push(key_index);
             }
+
             let max_score = scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
             let weights = scores
                 .iter()
@@ -2086,6 +2108,7 @@ pub fn attention_sink_prefill_f32(
                     {
                         continue;
                     }
+
                     let mut score = 0.0f32;
                     for dim in 0..head_dim {
                         let query_offset = batch_index * query_len * q_features
@@ -2098,9 +2121,11 @@ pub fn attention_sink_prefill_f32(
                             + dim;
                         score = query[query_offset].mul_add(key[key_offset], score);
                     }
+
                     scores.push(score * scale);
                     key_indices.push(key_index);
                 }
+
                 let max_score = scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
                 let weights = scores
                     .iter()
@@ -2159,9 +2184,99 @@ pub fn splitk_reduce_f32(
                         + dim;
                     sum = weight.mul_add(attn[attn_offset], sum);
                 }
+
                 out[batch_index * heads * head_dim + head * head_dim + dim] = sum / denom;
             }
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sliding_window_attention_f32_uses_contiguous_gqa_groups() {
+        let config = SlidingWindowAttentionConfig {
+            batch: 1,
+            query_len: 1,
+            key_len: 1,
+            heads: 4,
+            kv_heads: 2,
+            head_dim: 1,
+            query_start: 0,
+            key_start: 0,
+            window: 1,
+            query_batch_stride: 4,
+            key_batch_stride: 2,
+            value_batch_stride: 2,
+            output_batch_stride: 4,
+            query_sequence_stride: 4,
+            key_sequence_stride: 2,
+            value_sequence_stride: 2,
+            output_sequence_stride: 4,
+            query_head_stride: 1,
+            key_head_stride: 1,
+            value_head_stride: 1,
+            output_head_stride: 1,
+            scale: 1.0,
+            output_scale: 1.0,
+        };
+        let query = vec![1.0f32; 4];
+        let key = vec![1.0f32, 1.0];
+        let value = vec![10.0f32, 20.0];
+
+        let out = sliding_window_attention(&query, &key, &value, config);
+
+        assert_eq!(out, vec![10.0, 10.0, 20.0, 20.0]);
+    }
+
+    #[test]
+    fn test_sliding_window_attention_uses_contiguous_gqa_groups() {
+        let query = vec![1.0f32; 4];
+        let key = vec![1.0f32, 1.0];
+        let value = vec![10.0f32, 20.0];
+
+        let out =
+            sliding_window_attention_f32(&query, &key, &value, 1, 1, 1, 4, 2, 1, 0, 0, 1, 1.0, 1.0);
+
+        assert_eq!(out, vec![10.0, 10.0, 20.0, 20.0]);
+    }
+
+    #[test]
+    fn test_sliding_window_attention_is_causal_left_not_symmetric() {
+        let config = SlidingWindowAttentionConfig {
+            batch: 1,
+            query_len: 1,
+            key_len: 3,
+            heads: 1,
+            kv_heads: 1,
+            head_dim: 1,
+            query_start: 1,
+            key_start: 0,
+            window: 1,
+            query_batch_stride: 1,
+            key_batch_stride: 3,
+            value_batch_stride: 3,
+            output_batch_stride: 1,
+            query_sequence_stride: 1,
+            key_sequence_stride: 1,
+            value_sequence_stride: 1,
+            output_sequence_stride: 1,
+            query_head_stride: 1,
+            key_head_stride: 1,
+            value_head_stride: 1,
+            output_head_stride: 1,
+            scale: 1.0,
+            output_scale: 1.0,
+        };
+        let query = vec![1.0f32];
+        let key = vec![1.0f32, 1.0, 1.0];
+        let value = vec![10.0f32, 20.0, 30.0];
+
+        let out = sliding_window_attention(&query, &key, &value, config);
+
+        assert_eq!(out, vec![20.0]);
+    }
 }

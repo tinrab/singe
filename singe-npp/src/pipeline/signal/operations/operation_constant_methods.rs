@@ -19,7 +19,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: ConstantSignal<T>,
 {
-    /// Adds `value` to each pipeline element. Returns an owned pipeline containing the result.
+    /// Adds `value` to each pipeline element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -58,7 +59,8 @@ where
         Ok(self)
     }
 
-    /// Subtracts `value` from each pipeline element. Returns an owned pipeline containing the result.
+    /// Subtracts `value` from each pipeline element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -97,7 +99,8 @@ where
         Ok(self)
     }
 
-    /// Multiplies each pipeline element by `value`. Returns an owned pipeline containing the result.
+    /// Multiplies each pipeline element by `value`.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -136,7 +139,8 @@ where
         Ok(self)
     }
 
-    /// Divides each pipeline element by `value`. Returns an owned pipeline containing the result.
+    /// Divides each pipeline element by `value`.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -181,7 +185,8 @@ where
     T: Copy,
     Self: ConstantSignal<T>,
 {
-    /// Adds `value` to each source element. Writes the result to `destination`.
+    /// Adds `value` to each source element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -198,7 +203,8 @@ where
         <Self as ConstantSignal<T>>::add_constant_signal(stream_context, source, value, destination)
     }
 
-    /// Adds `value` to each signal element. Updates the signal in place.
+    /// Adds `value` to each signal element.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -213,7 +219,8 @@ where
         <Self as ConstantSignal<T>>::add_constant_signal_in_place(stream_context, signal, value)
     }
 
-    /// Subtracts `value` from each source element. Writes the result to `destination`.
+    /// Subtracts `value` from each source element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -235,7 +242,8 @@ where
         )
     }
 
-    /// Subtracts `value` from each signal element. Updates the signal in place.
+    /// Subtracts `value` from each signal element.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -254,7 +262,8 @@ where
         )
     }
 
-    /// Multiplies each source element by `value`. Writes the result to `destination`.
+    /// Multiplies each source element by `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -276,7 +285,8 @@ where
         )
     }
 
-    /// Multiplies each signal element by `value`. Updates the signal in place.
+    /// Multiplies each signal element by `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -295,7 +305,8 @@ where
         )
     }
 
-    /// Divides each source element by `value`. Writes the result to `destination`.
+    /// Divides each source element by `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -317,7 +328,8 @@ where
         )
     }
 
-    /// Divides each signal element by `value`. Updates the signal in place.
+    /// Divides each signal element by `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -339,7 +351,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: SubtractFromConstantSignal<T>,
 {
-    /// Subtracts each pipeline element from `value`. Returns an owned pipeline containing the result.
+    /// Subtracts each pipeline element from `value`.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -364,7 +377,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: DivideIntoConstantSignal<T>,
 {
-    /// Divides `value` by each pipeline element. Returns an owned pipeline containing the result.
+    /// Divides `value` by each pipeline element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -388,7 +402,8 @@ where
     T: Copy,
     Self: SubtractFromConstantSignal<T>,
 {
-    /// Subtracts each source element from `value`. Writes the result to `destination`.
+    /// Subtracts each source element from `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -410,7 +425,8 @@ where
         )
     }
 
-    /// Subtracts each signal element from `value`. Updates the signal in place.
+    /// Subtracts each signal element from `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -435,7 +451,8 @@ where
     T: Copy,
     Self: DivideIntoConstantSignal<T>,
 {
-    /// Divides `value` by each source element. Writes the result to `destination`.
+    /// Divides `value` by each source element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -457,7 +474,8 @@ where
         )
     }
 
-    /// Divides `value` by each signal element. Updates the signal in place.
+    /// Divides `value` by each signal element.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///

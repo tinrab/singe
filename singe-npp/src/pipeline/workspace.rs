@@ -15,8 +15,7 @@ use crate::{
 };
 
 #[doc(hidden)]
-/// Implementations return exactly the requested nonempty range in the supplied
-/// context, retaining correct native ownership and the plain device ABI of T.
+/// Implementations return exactly the requested nonempty range in the supplied context, retaining correct native ownership and the plain device ABI of T.
 pub unsafe trait SignalAllocator<T> {
     fn create_signal_uninit(
         context: &Arc<CudaContext>,

@@ -59,7 +59,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, incompatible input/output ranks or batch/channel dimensions, invalid spatial geometry, unsupported saved-index mode or mismatched index dimensions, or virtual destination placement with nonzero beta. Inferred output dimensions and strides must also be representable.
+    /// Returns an error for unknown tensor identities, incompatible input/output ranks or batch/channel dimensions, invalid spatial geometry, unsupported saved-index mode or mismatched index dimensions, or virtual destination placement with nonzero beta.
+    /// Inferred output dimensions and strides must also be representable.
     pub fn resample(
         &mut self,
         input: TensorId,
@@ -170,6 +171,7 @@ impl Graph {
                 actual: output_dimensions[..2].to_vec(),
             });
         }
+
         config.resolve_geometry(input_dimensions.len() - 2)?;
         Ok(())
     }
@@ -185,6 +187,7 @@ impl Graph {
             if !matches!(mode, ResampleMode::MaxPool | ResampleMode::Nearest) {
                 return Err(FrontendError::ResampleIndicesUnsupportedMode.into());
             }
+
             self.validate_tensor_dimensions(indices, output_dimensions, shape_error)?;
         }
         Ok(())

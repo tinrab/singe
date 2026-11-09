@@ -22,9 +22,8 @@ macro_rules! gather_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         /// Device indices must be in bounds and fit the signed i32 address calculations.
         pub unsafe fn $name(
             stream: &Stream,
@@ -87,9 +86,8 @@ macro_rules! scatter_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         /// Device indices must be in bounds and fit the signed i32 address calculations.
         /// Destination indices must be distinct because the stores are non-atomic.
         pub unsafe fn $name(
@@ -152,9 +150,8 @@ macro_rules! gather_rows_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         /// Device indices must be in bounds and fit the signed i32 address calculations.
         pub unsafe fn $name(
             stream: &Stream,
@@ -221,9 +218,8 @@ macro_rules! gather_row_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         /// Device indices must be in bounds and fit the signed i32 address calculations.
         pub unsafe fn $name(
             stream: &Stream,
@@ -294,9 +290,8 @@ macro_rules! scatter_rows_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         /// Device indices must be in bounds and fit the signed i32 address calculations.
         /// Destination indices must be distinct because the stores are non-atomic.
         pub unsafe fn $name(
@@ -365,9 +360,8 @@ macro_rules! copy_indexed_rows_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         /// Device indices must be in bounds and fit the signed i32 address calculations.
         /// Destination indices must be distinct because the stores are non-atomic.
         pub unsafe fn $name(

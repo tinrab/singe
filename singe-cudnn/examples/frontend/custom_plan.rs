@@ -66,6 +66,7 @@ fn run() -> Result<()> {
             DevicePropertiesSource::Device(example.cudnn.cuda_context().device()),
         )?)?;
     }
+
     let target = if deviceless {
         None
     } else {
@@ -94,6 +95,7 @@ fn run() -> Result<()> {
             binding.bindings.len(),
         );
     }
+
     let prepared = validated.prepare(target)?;
     println!(
         "prepared native operations: {}, types={:?}",
@@ -109,6 +111,7 @@ fn run() -> Result<()> {
             tensor.spec.shape.strides(),
         );
     }
+
     let compile_config = CompileConfig::new().with_max_plans(plan_limit);
     let query_context = if args().any(|argument| argument == "--retained-target") {
         None
@@ -177,6 +180,7 @@ fn run() -> Result<()> {
         if args().any(|argument| argument == "--print-errata") {
             println!("{}", errata.to_json()?);
         }
+
         let cudnn_version = version()?.raw();
         candidates.filter_by(|candidate| {
             let plan = ErrataPlan::from_engine(
@@ -214,6 +218,7 @@ fn run() -> Result<()> {
             candidates.reorder_plans(&order)?;
         }
     }
+
     for support in candidates.support(compile_config.filter()) {
         println!(
             "{}: supported={}, workspace={} bytes, shared memory={:?} bytes",
@@ -226,6 +231,7 @@ fn run() -> Result<()> {
             println!("  excluded: {reason}");
         }
     }
+
     let mut built = candidates.into_build_candidates(&compile_config)?;
     built.build_plans(Some(&example.cudnn), BuildPlanPolicy::FirstSupported)?;
     built.build_plans(Some(&example.cudnn), BuildPlanPolicy::AllSupported)?;

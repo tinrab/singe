@@ -63,8 +63,7 @@ pub fn multiaxis_rope_qk(
 /// Applies interleaved complex-frequency `RoPE` to query and key tensors.
 ///
 /// Query and key use `[batch, seq_len, heads, head_dim]` layout.
-/// Adjacent dimensions `(0, 1)`, `(2, 3)`, and so on are treated as real/imaginary pairs
-/// and multiplied by the `[seq_len, head_dim]` complex frequency table.
+/// Adjacent dimensions `(0, 1)`, `(2, 3)`, and so on are treated as real/imaginary pairs and multiplied by the `[seq_len, head_dim]` complex frequency table.
 pub fn interleaved_complex_rope_qk(
     query: &mut [f32],
     key: &mut [f32],
@@ -175,6 +174,26 @@ fn rotate_bnsd_rope_tensor(
             }
         }
     }
+}
+
+#[cfg(feature = "dtype_f16")]
+pub fn half_vec(values: &[f32]) -> Vec<f16> {
+    values.iter().copied().map(f16::from_f32).collect()
+}
+
+#[cfg(feature = "dtype_f16")]
+pub fn half_to_f32(values: &[f16]) -> Vec<f32> {
+    values.iter().map(|value| value.to_f32()).collect()
+}
+
+#[cfg(feature = "dtype_bf16")]
+pub fn bfloat_vec(values: &[f32]) -> Vec<bf16> {
+    values.iter().copied().map(bf16::from_f32).collect()
+}
+
+#[cfg(feature = "dtype_bf16")]
+pub fn bfloat_to_f32(values: &[bf16]) -> Vec<f32> {
+    values.iter().map(|value| value.to_f32()).collect()
 }
 
 #[cfg(test)]
@@ -302,24 +321,4 @@ mod tests {
         assert_eq!(half_split, vec![-3.0, -4.0, 1.0, 2.0]);
         assert_ne!(interleaved, half_split);
     }
-}
-
-#[cfg(feature = "dtype_f16")]
-pub fn half_vec(values: &[f32]) -> Vec<f16> {
-    values.iter().copied().map(f16::from_f32).collect()
-}
-
-#[cfg(feature = "dtype_f16")]
-pub fn half_to_f32(values: &[f16]) -> Vec<f32> {
-    values.iter().map(|value| value.to_f32()).collect()
-}
-
-#[cfg(feature = "dtype_bf16")]
-pub fn bfloat_vec(values: &[f32]) -> Vec<bf16> {
-    values.iter().copied().map(bf16::from_f32).collect()
-}
-
-#[cfg(feature = "dtype_bf16")]
-pub fn bfloat_to_f32(values: &[bf16]) -> Vec<f32> {
-    values.iter().map(|value| value.to_f32()).collect()
 }

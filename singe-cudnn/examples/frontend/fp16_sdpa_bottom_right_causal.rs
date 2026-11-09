@@ -170,6 +170,7 @@ fn run() -> Result<()> {
     if let Some((stats, memory)) = stats.zip(stats_dev.as_mut()) {
         bindings.set(stats, memory)?;
     }
+
     // SAFETY: initialized inputs and exclusive output buffers match the native descriptors,
     // and all owners and the plan remain live until stream completion, including enqueue failures.
     example.execute_and_wait(|context| unsafe {

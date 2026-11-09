@@ -131,8 +131,7 @@ impl MemoryCopyToSymbolNodeParams {
     ///
     /// # Safety
     ///
-    /// `symbol` must identify a valid CUDA symbol and `src` must be valid
-    /// for reads of `count` bytes according to `kind` when CUDA evaluates the graph node using this value.
+    /// `symbol` must identify a valid CUDA symbol and `src` must be valid for reads of `count` bytes according to `kind` when CUDA evaluates the graph node using this value.
     #[must_use]
     pub const unsafe fn new(
         symbol: *const (),
@@ -186,9 +185,7 @@ impl MemoryCopyFromSymbolNodeParams {
     ///
     /// # Safety
     ///
-    /// `symbol` must identify a valid CUDA symbol and `dst` must be valid
-    /// for writes of `count` bytes according to `kind` when CUDA evaluates
-    /// the graph node using this value.
+    /// `symbol` must identify a valid CUDA symbol and `dst` must be valid for writes of `count` bytes according to `kind` when CUDA evaluates the graph node using this value.
     pub const unsafe fn new(
         dst: *mut (),
         symbol: *const (),
@@ -282,14 +279,11 @@ impl MemoryCopy1DNodeParams {
 }
 
 impl MemoryCopy3DNodeParams {
-    /// Creates three-dimensional memcpy node parameters from raw array and
-    /// pitched pointer operands.
+    /// Creates three-dimensional memcpy node parameters from raw array and pitched pointer operands.
     ///
     /// # Safety
     ///
-    /// Every array and pointer operand selected by `kind` must remain
-    /// valid for the region described by the positions, pitched pointers,
-    /// and extent whenever CUDA evaluates a graph node using this value.
+    /// Every array and pointer operand selected by `kind` must remain valid for the region described by the positions, pitched pointers, and extent whenever CUDA evaluates a graph node using this value.
     #[must_use]
     pub const unsafe fn new(
         src_array: Option<ArrayHandle>,

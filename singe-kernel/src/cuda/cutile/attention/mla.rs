@@ -609,8 +609,7 @@ mla_decode_splitk_half_fn!(mla_decode_splitk_f16, f16, mla_decode_splitk_f16);
 #[cfg(feature = "dtype_bf16")]
 mla_decode_splitk_half_fn!(mla_decode_splitk_bf16, bf16, mla_decode_splitk_bf16);
 
-/// Every optional pointer is replaced by an unused alias for specialization modes
-/// that do not read it; all actual reads remain covered by the raw caller's contract.
+/// Every optional pointer is replaced by an unused alias for specialization modes that do not read it; all actual reads remain covered by the raw caller's contract.
 unsafe fn launch_mla<
     T: ::cutile::core::ElementType + ::cutile::cuda_core::DType + Send,
     O: ::cutile::core::ElementType + ::cutile::cuda_core::DType + Send,
@@ -661,6 +660,7 @@ unsafe fn launch_mla<
     {
         return Err(Error::InvalidLength);
     }
+
     let query_rows = checked_element_count(checked_element_count(batch, query_len)?, heads)?;
     let kv_rows = if mode == 3 {
         checked_element_count(physical_blocks, block_size)?
@@ -671,6 +671,7 @@ unsafe fn launch_mla<
         checked_i32_value(checked_element_count(query_rows, width)?)?;
         checked_i32_value(checked_element_count(kv_rows, width)?)?;
     }
+
     checked_i32_value(checked_element_count(
         checked_element_count(checked_element_count(batch, query_len)?, kv_heads)?,
         topk,

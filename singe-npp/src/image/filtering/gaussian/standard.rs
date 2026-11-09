@@ -271,9 +271,8 @@ impl_filter_masked_kernel_border!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations, filter semantics,
-/// and sampling requirements. Uphold the method's validation, source-halo requirements where
-/// applicable, coefficient address-space requirements, and queued allocation lifetimes.
+/// Implementations must preserve native pixel and layout representations, filter semantics, and sampling requirements.
+/// Uphold the method's validation, source-halo requirements where applicable, coefficient address-space requirements, and queued allocation lifetimes.
 pub unsafe trait FilterGauss<L: ChannelLayout>: DataTypeLike {
     /// Applies the Gaussian filter.
     ///
@@ -385,9 +384,8 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations, filter semantics,
-/// and sampling requirements. Uphold the method's validation, source-halo requirements where
-/// applicable, coefficient address-space requirements, and queued allocation lifetimes.
+/// Implementations must preserve native pixel and layout representations, filter semantics, and sampling requirements.
+/// Uphold the method's validation, source-halo requirements where applicable, coefficient address-space requirements, and queued allocation lifetimes.
 pub unsafe trait FilterGaussBorder<L: ChannelLayout>: DataTypeLike {
     /// Applies the Gaussian filter with border control.
     ///

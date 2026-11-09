@@ -18,6 +18,9 @@ pub enum Error {
     /// The kernel compilation cache mutex is poisoned.
     #[error("kernel compilation cache lock is poisoned")]
     KernelCachePoisoned,
+    /// The tuning cache mutex is poisoned.
+    #[error("tuning cache lock is poisoned")]
+    TuneCachePoisoned,
 
     /// A logical length is invalid for the requested operation.
     #[error("invalid length")]
@@ -165,20 +168,20 @@ pub enum Error {
 
     /// A CUDA wrapper operation failed.
     #[cfg(feature = "cuda_13_4")]
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// Kernel compilation or cuTile runtime preparation failed.
     #[cfg(feature = "cutile")]
-    #[error("cutile error: {0}")]
+    #[error(transparent)]
     Cutile(#[from] CutileError),
     /// Execution of a cuTile device operation failed.
     #[cfg(feature = "cutile")]
-    #[error("cutile device error: {0}")]
+    #[error(transparent)]
     CutileDevice(#[from] CutileDeviceError),
     /// A cuTile CUDA driver operation failed.
     #[cfg(feature = "cutile")]
-    #[error("cutile driver error: {0}")]
+    #[error(transparent)]
     CutileDriver(#[from] DriverError),
 }
 

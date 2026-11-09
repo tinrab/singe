@@ -24,8 +24,7 @@ use crate::utility::workspace_root;
 ///
 /// # Errors
 ///
-/// Returns an error for an unknown target, unreadable input, invalid JSON or Rust,
-/// or an output file that cannot be written.
+/// Returns an error for an unknown target, unreadable input, invalid JSON or Rust, or an output file that cannot be written.
 pub fn document(paths: &[PathBuf], comments_only: bool) -> Result<()> {
     let root = workspace_root()?;
     let targets = document_targets(&root);
@@ -182,6 +181,12 @@ const DOCUMENT_TARGETS: &[DocumentTargetSpec] = &[
         scope_module: None,
     },
     DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvjitlink-13.4.2-headers.json"],
+        rust_path: "singe-cuda-sys/src/nvjitlink_sys_13040.rs",
+        scope_path: Some("singe-cuda-sys/src/lib.rs"),
+        scope_module: Some("nvjitlink"),
+    },
+    DocumentTargetSpec {
         json_paths: &["xtask/docs/nvrtc-13.4.2-api.json"],
         rust_path: "singe-cuda-sys/src/nvrtc_sys_13040.rs",
         scope_path: Some("singe-cuda-sys/src/lib.rs"),
@@ -200,15 +205,51 @@ const DOCUMENT_TARGETS: &[DocumentTargetSpec] = &[
         scope_module: Some("nvtx"),
     },
     DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvcomp-6.0.0-api.json"],
+        rust_path: "singe-nvcomp-sys/src/sys_6000.rs",
+        scope_path: Some("singe-nvcomp-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvcomp-6.0.0-api.json"],
+        rust_path: "singe-nvcomp-sys/src/manager_sys.rs",
+        scope_path: Some("singe-nvcomp-sys/src/lib.rs"),
+        scope_module: Some("manager"),
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvjpeg-13.4.2-api.json"],
+        rust_path: "singe-nvjpeg-sys/src/sys_130203.rs",
+        scope_path: Some("singe-nvjpeg-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvjpeg2000-0.11.0-api.json"],
+        rust_path: "singe-nvjpeg-sys/src/k2_sys_1100.rs",
+        scope_path: Some("singe-nvjpeg-sys/src/lib.rs"),
+        scope_module: Some("k2"),
+    },
+    DocumentTargetSpec {
         json_paths: &["xtask/docs/nvml-615-api.json"],
         rust_path: "singe-nvml-sys/src/nvml_sys_13.rs",
         scope_path: Some("singe-nvml-sys/src/lib.rs"),
         scope_module: None,
     },
     DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvtiff-0.8.0-api.json"],
+        rust_path: "singe-nvtiff-sys/src/sys_800.rs",
+        scope_path: Some("singe-nvtiff-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
         json_paths: &["xtask/docs/nccl-2.32.3-api.json"],
         rust_path: "singe-nccl-sys/src/sys_23203.rs",
         scope_path: Some("singe-nccl-sys/src/lib.rs"),
+        scope_module: None,
+    },
+    DocumentTargetSpec {
+        json_paths: &["xtask/docs/nvimagecodec-0.9.0-api.json"],
+        rust_path: "singe-nvimagecodec-sys/src/sys_900.rs",
+        scope_path: Some("singe-nvimagecodec-sys/src/lib.rs"),
         scope_module: None,
     },
     DocumentTargetSpec {
@@ -478,6 +519,7 @@ fn load_docs(paths: &[PathBuf]) -> Result<DocDatabase> {
             sources.push(directory.join(name));
         }
     }
+
     sources.extend_from_slice(paths);
     if let Some(directory) = paths.first().and_then(|path| path.parent()) {
         sources.push(directory.join("binding-representations.json"));
@@ -496,6 +538,7 @@ fn load_docs(paths: &[PathBuf]) -> Result<DocDatabase> {
             if !seen.insert(path.clone()) {
                 continue;
             }
+
             let contents = fs::read_to_string(&path)
                 .with_context(|| format!("failed to read {}", path.display()))?;
             let path_entries: BTreeMap<String, RawDocEntry> = serde_json::from_str(&contents)
@@ -513,6 +556,7 @@ fn load_docs(paths: &[PathBuf]) -> Result<DocDatabase> {
                     if let Some(previous) = entries.remove(&name) {
                         entry.fill_missing(previous);
                     }
+
                     entries.insert(name, entry);
                 } else if let Some(existing) = entries.get_mut(&name) {
                     existing.fill_missing(entry);
@@ -593,6 +637,7 @@ impl RawDocEntry {
         if self.doc.trim().is_empty() {
             self.doc = other.doc;
         }
+
         for (name, value) in other.parameters {
             let existing = self
                 .parameters
@@ -602,6 +647,7 @@ impl RawDocEntry {
                 existing.doc = value.doc;
             }
         }
+
         if self.return_value.is_none() {
             self.return_value = other.return_value;
         }
@@ -890,6 +936,7 @@ impl DocDatabase {
                     return Some(doc);
                 }
             }
+
             target = next;
         }
 
@@ -927,6 +974,7 @@ impl DocDatabase {
                 return Some(entry);
             }
         }
+
         for alias in symbols.aliases_for_target(name) {
             if let Some(entry) = self.entries.get(alias) {
                 return Some(entry);
@@ -960,6 +1008,7 @@ impl DocEntry {
                 if member.deprecated {
                     exact_member_deprecated.insert(name, true);
                 }
+
                 continue;
             }
 
@@ -1083,6 +1132,7 @@ fn binding_name_candidates(name: &str) -> Vec<String> {
         {
             pending.push(base.to_string());
         }
+
         if candidate.starts_with("__nvJitLink") {
             let mut parts = candidate.rsplitn(3, '_');
             if let (Some(minor), Some(major), Some(base)) =
@@ -1097,11 +1147,13 @@ fn binding_name_candidates(name: &str) -> Vec<String> {
                 pending.push(base.trim_start_matches('_').to_owned());
             }
         }
+
         for suffix in ["_v2_64", "_64", "_ptsz", "_ptds"] {
             if let Some(stripped) = candidate.strip_suffix(suffix) {
                 pending.push(stripped.to_string());
             }
         }
+
         // The native dot/ger reference pages group conjugated and
         // unconjugated complex entry points under the same <t> template.
         if let Some(operation) = candidate.strip_prefix("cublas")
@@ -1110,6 +1162,7 @@ fn binding_name_candidates(name: &str) -> Vec<String> {
         {
             pending.push(candidate[..candidate.len() - 1].to_owned());
         }
+
         // cuSOLVER reference pages group complex unitary/Hermitian routines
         // under the corresponding orthogonal/symmetric routine template.
         if let Some(operation) = candidate.strip_prefix("cusolverDn")
@@ -1147,6 +1200,7 @@ fn match_type_arguments(template: &str, concrete: &str) -> Option<BTreeMap<Strin
         let middle = concrete.strip_prefix(prefix)?.strip_suffix(suffix)?;
         return (!middle.is_empty()).then(|| BTreeMap::from([("t".to_owned(), middle.to_owned())]));
     }
+
     let (prefix, suffix) = template.split_once("<t1><t2>")?;
     let middle = concrete.strip_prefix(prefix)?.strip_suffix(suffix)?;
     let mut characters = middle.chars();
@@ -1224,10 +1278,12 @@ impl BindingDocumenter<'_> {
         if !self.symbols.bitfield_records.contains(owner) {
             return None;
         }
+
         let name = function.sig.ident.to_string();
         if name.starts_with("new_bitfield_") {
             return Some("Constructs packed native bitfield storage from the supplied field values. Only the bits assigned to each field are stored; remaining bits are zero.".to_owned());
         }
+
         let raw = name.ends_with("_raw");
         let field = name.strip_suffix("_raw").unwrap_or(&name);
         let setter = field.starts_with("set_");
@@ -1257,6 +1313,7 @@ impl BindingDocumenter<'_> {
         if self.comments_only {
             return;
         }
+
         attrs.retain(|attr| !attr.path().is_ident("deprecated"));
         if deprecated {
             attrs.insert(0, syn::parse_quote!(#[deprecated]));
@@ -1485,6 +1542,7 @@ impl VisitMut for BindingDocumenter<'_> {
                 }
             }
         }
+
         visit_mut::visit_item_impl_mut(self, item);
     }
 
@@ -1506,6 +1564,7 @@ impl VisitMut for BindingDocumenter<'_> {
                 );
             }
         }
+
         visit_mut::visit_impl_item_const_mut(self, item);
     }
 
@@ -1599,6 +1658,7 @@ fn rewrite_non_math_doc_text(doc: &str, symbols: &SymbolIndex) -> String {
                 if !rest.trim().is_empty() {
                     text_buffer.push(rest.trim_start());
                 }
+
                 continue;
             }
 
@@ -1608,6 +1668,7 @@ fn rewrite_non_math_doc_text(doc: &str, symbols: &SymbolIndex) -> String {
             if is_math_delimiter {
                 in_math_block = false;
             }
+
             continue;
         }
 
@@ -1643,6 +1704,7 @@ fn flush_rewritten_text(out: &mut String, text_buffer: &mut Vec<&str>, symbols: 
     if !out.is_empty() && !text.is_empty() {
         out.push('\n');
     }
+
     out.push_str(&text);
     text_buffer.clear();
 }
@@ -1759,6 +1821,7 @@ fn flush_line(out: &mut String, line: &str) {
     if !out.is_empty() {
         out.push('\n');
     }
+
     out.push_str(line);
 }
 
@@ -2102,6 +2165,7 @@ fn rewrite_internal_doc_link(
     if let Some(type_token) = type_token {
         label = expand_type_placeholder(&label, type_token);
     }
+
     let symbol = resolve_doc_symbol(label.strip_suffix("()").unwrap_or(&label), symbols)?;
     Some(format!("[`{symbol}`]"))
 }
@@ -2182,4 +2246,332 @@ fn is_rust_doc_symbol(text: &str) -> bool {
     }
 
     chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | ':'))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_complex_solver_routines_use_the_documented_group_template() {
+        let entries = serde_json::from_str(
+            r#"{"cusolverDn<t>orgqr":{"doc":"Forms an orthogonal or unitary matrix from QR reflectors."},"cusolverDn<t>syevd":{"doc":"Solves a symmetric or Hermitian eigenproblem."}}"#,
+        )
+        .unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let symbols = SymbolIndex::default();
+        assert_eq!(
+            docs.find_item_doc("cusolverDnCungqr", &symbols).as_deref(),
+            Some("Forms an orthogonal or unitary matrix from QR reflectors.")
+        );
+        assert_eq!(
+            docs.find_item_doc("cusolverDnZheevd", &symbols).as_deref(),
+            Some("Solves a symmetric or Hermitian eigenproblem.")
+        );
+        assert!(docs.find_item_doc("cusolverDnSungqr", &symbols).is_none());
+        assert!(docs.find_item_doc("cusolverDnXheevd", &symbols).is_none());
+        assert!(
+            docs.find_item_doc("cusolverDnCungqr_bufferSize", &symbols)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn test_primitive_aliases_do_not_inherit_an_unrelated_alias_contract() {
+        let entries = serde_json::from_str(
+            r#"{"NativeCounter":{"doc":"Counter used for local completion actions."}}"#,
+        )
+        .unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let mut file = parse_file(
+            "pub type NativeCounter = u32; pub type NativeResource = u32; pub type NativeEndpoint = u32;",
+        )
+        .unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let rendered = prettyplease::unparse(&file);
+        assert_eq!(
+            rendered
+                .matches("Counter used for local completion actions.")
+                .count(),
+            1
+        );
+        assert!(!rendered.contains("Alias for"));
+    }
+
+    #[test]
+    fn test_versioned_type_aliases_inherit_the_concrete_representation_comment() {
+        let entries =
+            serde_json::from_str(r#"{"NativeRecord":{"doc":"Native copy specification."}}"#)
+                .unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let file = parse_file("pub struct NativeRecord { pub count: u32 } pub type NativeV1 = NativeRecord; pub type Native = NativeV1; pub type CycleA = CycleB; pub type CycleB = CycleA;").unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        assert_eq!(
+            docs.find_item_doc("Native", &symbols).as_deref(),
+            Some("Native copy specification.")
+        );
+        assert!(docs.find_item_doc("CycleA", &symbols).is_none());
+    }
+
+    #[test]
+    fn test_enum_alias_comments_follow_the_actual_constant_expression() {
+        let docs = DocDatabase::from_entries(BTreeMap::new());
+        let mut file = parse_file("pub enum Mode { New = 1 } impl Mode { pub const OLD: Mode = Mode::New; pub const COUNT: u32 = 2; }").unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let rendered = prettyplease::unparse(&file);
+        assert!(rendered.contains("/// Alias for [`Mode::New`]."));
+        assert!(!rendered.contains("Alias for `2`"));
+    }
+
+    #[test]
+    fn test_full_reference_templates_take_precedence_over_short_header_comments() {
+        let entries = serde_json::from_str(r#"{"cublasSgemv":{"doc":"GEMV"},"cublas<t>gemv":{"doc":"Computes a matrix-vector product."},"cublasDgemv":{"doc":"Full double-precision matrix-vector contract."}}"#).unwrap();
+        let mut docs = DocDatabase::from_entries(entries);
+        docs.entries.get_mut("cublasSgemv").unwrap().supplemental = true;
+        let mut file =
+            parse_file("unsafe extern \"C\" { pub fn cublasSgemv(); pub fn cublasDgemv(); }")
+                .unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let rendered = prettyplease::unparse(&file);
+        assert!(rendered.contains("Computes a matrix-vector product."));
+        assert!(rendered.contains("Full double-precision matrix-vector contract."));
+        assert!(!rendered.contains("/// GEMV"));
+    }
+
+    #[test]
+    fn test_complex_blas_templates_include_parameters_and_return_values() {
+        let entries = serde_json::from_str(r#"{"cublas<t>dot":{"doc":"Computes a dot product with <t> elements.","parameters":{"x":{"doc":"Vector passed to cublas<t>dot."}},"return_value":{"kind":"enum","type":"Status","variants":{"SUCCESS":{"doc":"The dot product was computed."}}}}}"#).unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let mut file =
+            parse_file("unsafe extern \"C\" { pub fn cublasCdotc_v2_64(x: *const u8) -> u32; }")
+                .unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let rendered = prettyplease::unparse(&file);
+        assert!(rendered.contains("Computes a dot product with C elements."));
+        assert!(rendered.contains("# Parameters"));
+        assert!(rendered.contains("Vector passed to cublasCdot."));
+        assert!(rendered.contains("# Return value"));
+        assert!(rendered.contains("The dot product was computed."));
+        assert!(!binding_name_candidates("cublasSdotc").contains(&"cublasSdot".to_owned()));
+    }
+
+    #[test]
+    fn test_empty_primary_member_comments_accept_supplements_and_keep_metadata() {
+        let mut primary: RawDocEntry = serde_json::from_str(r#"{"members":{"MODE":{"deprecated":true},"TEXT":""},"parameters":{"value":{"doc":""}}}"#).unwrap();
+        let supplement = serde_json::from_str(r#"{"members":{"MODE":{"doc":"Deprecated mode."},"TEXT":"Text mode."},"parameters":{"value":{"doc":"Requested value."}}}"#).unwrap();
+        primary.fill_missing(supplement);
+        let entry = DocEntry::from_raw(primary);
+        assert_eq!(entry.find_member_doc("MODE"), Some("Deprecated mode."));
+        assert!(entry.find_member_deprecated("MODE"));
+        assert_eq!(entry.find_member_doc("TEXT"), Some("Text mode."));
+        assert_eq!(entry.parameters["value"], "Requested value.");
+    }
+
+    #[test]
+    fn test_mixed_precision_function_names_bind_both_native_type_parameters() {
+        let entries = serde_json::from_str(r#"{"cusolverDn<t1><t2>gesv":{"doc":"Solves with `<t1>` inputs and &lt;t2> factorization. See `cusolverDn&lt;T1>&lt;T2>gesv_bufferSize`."}}"#).unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let symbols = SymbolIndex::default();
+        let doc = docs.find_item_doc("cusolverDnZCgesv", &symbols).unwrap();
+        assert!(doc.contains("`Z` inputs and C factorization"));
+        assert!(doc.contains("cusolverDnZCgesv_bufferSize"));
+        assert!(docs.find_item_doc("cusolverDnZgesv", &symbols).is_none());
+        assert!(docs.find_item_doc("cusolverDnZCSgesv", &symbols).is_none());
+        assert!(match_type_arguments("cublas<t>gemm", "cublasSgemm").is_some());
+    }
+
+    #[test]
+    fn test_bitfield_setters_keep_field_semantics_and_document_raw_access() {
+        let mut file = parse_file("pub struct Record { pub _bitfield_1: [u8; 1] } impl Record { pub fn active(&self) -> u32 { 0 } pub unsafe fn set_active_raw(this: *mut Self, val: u32) {} pub fn new_bitfield_1(active: u32) -> [u8; 1] { [0] } }").unwrap();
+        let entries = serde_json::from_str(r#"{"Record":{"members":{"active":{"doc":"Whether activity collection is enabled."}}}}"#).unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let symbols = collect_symbols_from_items(&file.items);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let rendered = prettyplease::unparse(&file);
+        assert!(rendered.contains("Whether activity collection is enabled."));
+        assert!(rendered.contains("Only the low bits that fit in the field are stored."));
+        assert!(rendered.contains("# Safety"));
+        assert!(rendered.contains("exclusively accessible during the call"));
+        assert!(rendered.contains("remaining bits are zero"));
+        assert!(rendered.contains("Use the generated accessors"));
+    }
+
+    #[test]
+    fn test_header_comments_fill_gaps_without_replacing_scraped_contracts() {
+        let mut primary: RawDocEntry = serde_json::from_str(
+            r#"{
+            "doc":"Full API contract.",
+            "deprecated":true,
+            "members":{"flags":{"doc":"Only documented flags are accepted."}}
+        }"#,
+        )
+        .unwrap();
+        let header = serde_json::from_str(
+            r#"{
+            "doc":"Short header description.",
+            "members":{
+                "flags":{"doc":"Flags."},
+                "bytes":{"doc":"Number of bytes to process."}
+            }
+        }"#,
+        )
+        .unwrap();
+        primary.fill_missing(header);
+        let entry = DocEntry::from_raw(primary);
+        assert_eq!(entry.item_doc.as_deref(), Some("Full API contract."));
+        assert!(entry.deprecated);
+        assert_eq!(
+            entry.find_member_doc("flags"),
+            Some("Only documented flags are accepted.")
+        );
+        assert_eq!(
+            entry.find_member_doc("bytes"),
+            Some("Number of bytes to process.")
+        );
+    }
+
+    #[test]
+    fn test_opaque_tag_docs_require_a_declared_pointer_alias() {
+        let mut file = parse_file("pub struct NativeTag { _unused: [u8; 0] } pub type NativeHandle = *mut NativeTag; pub struct Other { pub value: u32 }").unwrap();
+        let mut docs = DocDatabase::from_entries(BTreeMap::new());
+        let symbols = collect_symbols_from_items(&file.items);
+        docs.document_opaque_tags(&file, &symbols);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let rendered = prettyplease::unparse(&file);
+        assert!(rendered.contains("Incomplete native type used by [`NativeHandle`] handles."));
+        assert!(docs.find_item_doc("Other", &symbols).is_none());
+    }
+
+    #[test]
+    fn test_versioned_and_per_thread_symbols_find_the_base_api_comment() {
+        let entries =
+            serde_json::from_str(r#"{"cuCtxCreate":{"doc":"Creates a CUDA context."}}"#).unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let symbols = SymbolIndex::default();
+        assert_eq!(
+            docs.find_item_doc("cuCtxCreate_v4", &symbols).as_deref(),
+            Some("Creates a CUDA context.")
+        );
+        assert!(
+            binding_name_candidates("cuStreamBeginCapture_v2_ptsz")
+                .contains(&"cuStreamBeginCapture".to_owned())
+        );
+        assert!(
+            binding_name_candidates("__nvJitLinkCreate_13_4")
+                .contains(&"nvJitLinkCreate".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_enum_member_comments_prefer_the_owner_and_fall_back_to_native_tables() {
+        let entries = serde_json::from_str(
+            r#"{
+            "Mode":{"members":{"FAST":"Fast mode for this enum."}},
+            "FAST":{"doc":"Native table description."}
+        }"#,
+        )
+        .unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let symbols = SymbolIndex::default();
+        assert_eq!(
+            docs.find_member_doc("Mode", "FAST", &symbols),
+            Some("Fast mode for this enum.")
+        );
+        assert_eq!(
+            docs.find_member_doc("OtherMode", "FAST", &symbols),
+            Some("Native table description.")
+        );
+        assert_eq!(docs.find_member_doc("Mode", "UNKNOWN", &symbols), None);
+    }
+
+    #[test]
+    fn test_injecting_a_table_comment_is_idempotent() {
+        let entries =
+            serde_json::from_str(r#"{"NATIVE_FAST":{"doc":"Uses the fast compute mode."}}"#)
+                .unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let mut file = parse_file("pub enum Mode { NATIVE_FAST = 1 }").unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        let mut documenter = BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        };
+        documenter.visit_file_mut(&mut file);
+        let first = prettyplease::unparse(&file);
+        documenter.visit_file_mut(&mut file);
+        assert_eq!(prettyplease::unparse(&file), first);
+        assert!(first.contains("/// Uses the fast compute mode."));
+    }
+
+    #[test]
+    fn test_comments_only_preserves_existing_deprecation_attributes() {
+        let entries = serde_json::from_str(
+            r#"{
+            "OldMode":{"doc":"Old mode values.","deprecated":false},
+            "NewMode":{"doc":"New mode values.","deprecated":true}
+        }"#,
+        )
+        .unwrap();
+        let docs = DocDatabase::from_entries(entries);
+        let mut file =
+            parse_file("#[deprecated] pub enum OldMode { A } pub enum NewMode { B }").unwrap();
+        let symbols = collect_symbols_from_items(&file.items);
+        BindingDocumenter {
+            docs: &docs,
+            symbols: &symbols,
+            comments_only: true,
+        }
+        .visit_file_mut(&mut file);
+        let syn::Item::Enum(old) = &file.items[0] else {
+            panic!("expected enum")
+        };
+        let syn::Item::Enum(new) = &file.items[1] else {
+            panic!("expected enum")
+        };
+        assert!(
+            old.attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("deprecated"))
+        );
+        assert!(
+            !new.attrs
+                .iter()
+                .any(|attr| attr.path().is_ident("deprecated"))
+        );
+    }
 }

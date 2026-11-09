@@ -15,8 +15,7 @@ impl Communicator {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, if the buffer byte
-    /// size overflows, or if NCCL cannot register the buffer.
+    /// Returns an error if the CUDA context cannot be bound, if the buffer byte size overflows, or if NCCL cannot register the buffer.
     pub fn register_buffer<'a, T: DeviceRepr>(
         &'a self,
         buffer: DeviceViewMut<'a, T>,
@@ -45,11 +44,9 @@ impl Communicator {
     }
 
     /// Collectively registers `buffer` for this rank as part of an NCCL window.
-    /// Every rank in the communicator must participate in the registration, and
-    /// by default the registered sizes must match across ranks.
-    /// Use the returned [`Window`] to deregister the mapping. If this is called
-    /// inside a group, the returned window may not be fully initialized until
-    /// [`group_end`](crate::group::end) completes.
+    /// Every rank in the communicator must participate in the registration, and by default the registered sizes must match across ranks.
+    /// Use the returned [`Window`] to deregister the mapping.
+    /// If this is called inside a group, the returned window may not be fully initialized until [`group_end`](crate::group::end) completes.
     /// `flags` controls NCCL window registration behavior.
     ///
     /// # Errors

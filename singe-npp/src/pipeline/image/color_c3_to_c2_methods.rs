@@ -19,7 +19,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -47,7 +48,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -75,7 +77,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -103,7 +106,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -131,7 +135,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -159,7 +164,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -187,7 +193,8 @@ where
     ///
     /// Writes packed 4:2:2 output into `destination` at the source image dimensions.
     /// Prepares both regions, waiting for producers on other streams, and completes the conversion before returning successfully.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -215,15 +222,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn rgb_to_yuv422(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::rgb_to_yuv422_u8_c3_to_c2)
     }
@@ -234,15 +241,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn rgb_to_ycbcr422(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::rgb_to_ycbcr422_u8_c3_to_c2)
     }
@@ -253,15 +260,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn rgb_to_ycrcb422(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::rgb_to_ycrcb422_u8_c3_to_c2)
     }
@@ -272,15 +279,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn rgb_to_cbycr422(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::rgb_to_cbycr422_u8_c3_to_c2)
     }
@@ -291,15 +298,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn rgb_to_cbycr422_gamma(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::rgb_to_cbycr422_gamma_u8_c3_to_c2)
     }
@@ -310,15 +317,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn bgr_to_ycbcr422(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::bgr_to_ycbcr422_u8_c3_to_c2)
     }
@@ -329,15 +336,15 @@ where
     ///
     /// Allocates a new owned packed two-component image with the same pixel dimensions.
     /// Prepares the input regions, waiting for producers on other streams, and returns after successful stream completion.
-    /// Stream capture is rejected. Row padding remains unwritten.
+    /// Stream capture is rejected.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
     /// Returns an error if CUDA context binding fails or a participating image belongs to another CUDA context.
     /// Source and destination image sizes must match.
     /// Returns an error if NPP rejects the image geometry or conversion parameters.
-    /// Creating the owned output, constructing views, checking capture state, preparing input regions,
-    /// waiting for producers, and synchronizing the stream can also fail.
+    /// Creating the owned output, constructing views, checking capture state, preparing input regions, waiting for producers, and synchronizing the stream can also fail.
     pub fn bgr_to_cbycr422_709hdtv(self) -> Result<ImagePipeline<'a, u8, C2>> {
         self.color_convert_to_c2(color::bgr_to_cbycr422_709hdtv_u8_c3_to_c2)
     }

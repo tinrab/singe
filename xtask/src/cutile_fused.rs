@@ -12,8 +12,7 @@ use crate::utility::{workspace_root, write_generated_file};
 ///
 /// # Errors
 ///
-/// Returns an error if the recipe file is unreadable, a recipe is invalid,
-/// or the generated Rust module cannot be written.
+/// Returns an error if the recipe file is unreadable, a recipe is invalid, or the generated Rust module cannot be written.
 pub fn generate_cutile_fused() -> Result<()> {
     let root = workspace_root()?;
     let recipe_path = root.join("singe-kernel/config/fused.toml");
@@ -229,6 +228,7 @@ fn entry_args(inputs: &[String], rust: &str, rank: &str) -> Result<Vec<TokenStre
             if inputs.len() != 2 {
                 bail!("2d_bias kernels require exactly two inputs");
             }
+
             let first = ident(&inputs[0]);
             let second = ident(&inputs[1]);
             args.push(quote!(#first: &Tensor<#rust_ty, { [-1, -1] }>));
@@ -351,6 +351,7 @@ fn validate_expr(expr: &Expr, inputs: &BTreeSet<&str>) -> Result<()> {
             ) {
                 bail!("unsupported binary op in fused expression");
             }
+
             validate_expr(&binary.left, inputs)?;
             validate_expr(&binary.right, inputs)?;
         }
@@ -358,6 +359,7 @@ fn validate_expr(expr: &Expr, inputs: &BTreeSet<&str>) -> Result<()> {
             if !matches!(unary.op, UnOp::Neg(_)) {
                 bail!("unsupported unary op in fused expression");
             }
+
             validate_expr(&unary.expr, inputs)?;
         }
         Expr::Call(call) => {
@@ -402,6 +404,7 @@ fn emit_expr(expr: &Expr, cfg: DtypeConfig, shape: Shape) -> Result<TokenStream>
             if !matches!(unary.op, UnOp::Neg(_)) {
                 bail!("unsupported unary op in fused expression");
             }
+
             let arg = emit_expr(&unary.expr, cfg, shape)?;
             let zero = constant(cfg.zero, cfg, shape)?;
             Ok(quote!((#zero - #arg)))
@@ -435,6 +438,7 @@ fn emit_call_expr(call: &ExprCall, cfg: DtypeConfig, shape: Shape) -> Result<Tok
         let false_value = emit_expr(&call.args[2], cfg, shape)?;
         return Ok(quote!(select(#condition, #true_value, #false_value)));
     }
+
     if matches!(name.as_str(), "min" | "max") {
         let left = emit_expr(&call.args[0], cfg, shape)?;
         let right = emit_expr(&call.args[1], cfg, shape)?;

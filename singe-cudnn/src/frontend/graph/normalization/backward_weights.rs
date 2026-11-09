@@ -83,7 +83,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, an output gradient whose dimensions differ from the input, or mismatched per-channel statistics, scale, gradient, or equivalent-coefficient dimensions. Inferred output strides must also be representable.
+    /// Returns an error for unknown tensor identities, input rank below two, an output gradient whose dimensions differ from the input, or mismatched per-channel statistics, scale, gradient, or equivalent-coefficient dimensions.
+    /// Inferred output strides must also be representable.
     pub fn batch_normalization_backward_weights(
         &mut self,
         inputs: BatchNormalizationBackwardWeightsInputs,

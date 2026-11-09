@@ -27,8 +27,7 @@ use crate::{
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_f32(
     stream: &Arc<Stream>,
@@ -96,8 +95,7 @@ pub unsafe fn bmm_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_f32(
     stream: &Arc<Stream>,
@@ -151,8 +149,7 @@ pub unsafe fn bmm_mma_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_f32(
     stream: &Arc<Stream>,
@@ -348,12 +345,15 @@ fn bmm_mma_transposed_f32_tile_with_compile_config<const BM: usize, const BN: us
                 if let Some(occupancy) = compile.occupancy {
                     options = options.occupancy(occupancy);
                 }
+
                 if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
                     options = options.num_cta_in_cga(num_cta_in_cga);
                 }
+
                 if let Some(max_divisibility) = compile.max_divisibility {
                     options = options.max_divisibility(max_divisibility);
                 }
+
                 op.compile_options(options).enqueue_on(stream)?;
             }
         }
@@ -366,12 +366,15 @@ fn bmm_mma_transposed_f32_tile_with_compile_config<const BM: usize, const BN: us
                 if let Some(occupancy) = compile.occupancy {
                     options = options.occupancy(occupancy);
                 }
+
                 if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
                     options = options.num_cta_in_cga(num_cta_in_cga);
                 }
+
                 if let Some(max_divisibility) = compile.max_divisibility {
                     options = options.max_divisibility(max_divisibility);
                 }
+
                 op.compile_options(options).enqueue_on(stream)?;
             }
         }
@@ -384,12 +387,15 @@ fn bmm_mma_transposed_f32_tile_with_compile_config<const BM: usize, const BN: us
                 if let Some(occupancy) = compile.occupancy {
                     options = options.occupancy(occupancy);
                 }
+
                 if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
                     options = options.num_cta_in_cga(num_cta_in_cga);
                 }
+
                 if let Some(max_divisibility) = compile.max_divisibility {
                     options = options.max_divisibility(max_divisibility);
                 }
+
                 op.compile_options(options).enqueue_on(stream)?;
             }
         }
@@ -402,12 +408,15 @@ fn bmm_mma_transposed_f32_tile_with_compile_config<const BM: usize, const BN: us
                 if let Some(occupancy) = compile.occupancy {
                     options = options.occupancy(occupancy);
                 }
+
                 if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
                     options = options.num_cta_in_cga(num_cta_in_cga);
                 }
+
                 if let Some(max_divisibility) = compile.max_divisibility {
                     options = options.max_divisibility(max_divisibility);
                 }
+
                 op.compile_options(options).enqueue_on(stream)?;
             }
         }
@@ -420,8 +429,7 @@ fn bmm_mma_transposed_f32_tile_with_compile_config<const BM: usize, const BN: us
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_f32_tuned(
     stream: &Arc<Stream>,
@@ -514,8 +522,7 @@ pub unsafe fn bmm_mma_transposed_f32_tuned(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_f32_tile_16x64(
     stream: &Arc<Stream>,
@@ -560,8 +567,7 @@ pub unsafe fn bmm_mma_transposed_f32_tile_16x64(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_f32_tile_16x64_occupancy_2(
     stream: &Arc<Stream>,
@@ -607,8 +613,7 @@ pub unsafe fn bmm_mma_transposed_f32_tile_16x64_occupancy_2(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_f32_tile_16x64_occupancy_4(
     stream: &Arc<Stream>,
@@ -654,8 +659,7 @@ pub unsafe fn bmm_mma_transposed_f32_tile_16x64_occupancy_4(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_f32_tile_32x16(
     stream: &Arc<Stream>,
@@ -701,8 +705,7 @@ pub unsafe fn bmm_mma_transposed_f32_tile_32x16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_f16_f32(
     stream: &Arc<Stream>,
@@ -757,8 +760,7 @@ pub unsafe fn bmm_mma_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
     stream: &Arc<Stream>,
@@ -781,6 +783,7 @@ pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
     if transpose_lhs || !transpose_rhs {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;
@@ -816,8 +819,7 @@ pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
     stream: &Arc<Stream>,
@@ -840,6 +842,7 @@ pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
     if !transpose_lhs || !transpose_rhs {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;
@@ -875,8 +878,7 @@ pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_bf16_f32(
     stream: &Arc<Stream>,
@@ -931,8 +933,7 @@ pub unsafe fn bmm_mma_bf16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
     stream: &Arc<Stream>,
@@ -955,6 +956,7 @@ pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
     if !transpose_lhs || !transpose_rhs {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;

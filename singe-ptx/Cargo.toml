@@ -1,13 +1,13 @@
 [package]
 name = "singe-ptx"
-description = "Owned PTX syntax, semantic validation, and asynchronous CPU execution."
-version = "0.1.0-alpha.7"
+description = "A PTX parser and a CPU emulator that runs PTX kernels without an NVIDIA GPU."
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
 readme = "README.md"
 keywords = ["cuda", "nvidia", "ptx", "parser"]
-include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*", "tests/fixtures/**"]
+include.workspace = true
 
 [features]
 cuda_tests = []

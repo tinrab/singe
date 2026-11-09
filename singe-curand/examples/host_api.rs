@@ -1,6 +1,4 @@
-//! Port of the cuRAND "Host API Example": generate uniform floats on the device
-//! with a pseudorandom generator, copy them back, and repeat the same sequence on
-//! the host generator.
+//! Port of the cuRAND "Host API Example": generate uniform floats on the device with a pseudorandom generator, copy them back, and repeat the same sequence on the host generator.
 
 use std::{error::Error, sync::Arc};
 
@@ -31,6 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for (index, value) in device_values.iter().take(8).enumerate() {
         println!("device[{index}] = {value:.6}");
     }
+
     assert!(
         device_values
             .iter()

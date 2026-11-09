@@ -136,6 +136,7 @@ fn run() -> Result<()> {
     for scalar in [descale_q, descale_k, descale_v, descale_s, scale_s, scale_o] {
         bindings.set_scalar(scalar, 1.0_f32)?;
     }
+
     bindings.set_input(sequence_length_query, &seq_len_q_dev.view())?;
     bindings.set_input(sequence_length_key_value, &seq_len_kv_dev.view())?;
     bindings.set(o, &mut o_dev)?;

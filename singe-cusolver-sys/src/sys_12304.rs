@@ -942,18 +942,18 @@ pub enum cusolverMathMode_t {
     /// Combination of [`cusolverMathMode_t::CUSOLVER_FP32_EMULATED_BF16X9_MATH`] and [`cusolverMathMode_t::CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH`].
     CUSOLVER_FP32_FP64_EMULATED_MATH = 6,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the cuSOLVER major, minor, or patch version property selected by `type_` and writes it to `value`.
     pub fn cusolverGetProperty(
         type_: libraryPropertyType,
         value: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the loaded cuSOLVER library version to `version`, encoded as `1000 * major + 100 * minor + patch`.
     pub fn cusolverGetVersion(version: *mut ::core::ffi::c_int) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the cuSolverDN library and creates a handle on the cuSolverDN context. It must be called before any other cuSolverDN API function is invoked. It allocates hardware resources necessary for accessing the GPU.
     /// This function allocates 4 MiB or 32 MiB of memory (for GPUs with Compute Capability of 9.0 and higher), which will be used as the cuBLAS workspace for the first user-defined stream on which [`cusolverDnSetStream`] is called.
     /// For the default stream and in all the other cases, cuBLAS will manage its own workspace.
@@ -970,7 +970,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The initialization succeeded.
     pub fn cusolverDnCreate(handle: *mut cusolverDnHandle_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases CPU-side resources used by the cuSolverDN library.
     ///
     /// # Parameters
@@ -983,7 +983,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The shutdown succeeded.
     pub fn cusolverDnDestroy(handle: cusolverDnHandle_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the stream to be used by the cuSolverDN library to execute its routines.
     ///
     /// # Parameters
@@ -1000,7 +1000,7 @@ unsafe extern "C" {
         streamId: cudaStream_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the stream to be used by the cuSolverDN library to execute its routines.
     ///
     /// # Parameters
@@ -1017,7 +1017,7 @@ unsafe extern "C" {
         streamId: *mut cudaStream_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the deterministic mode of all cuSolverDN functions for `handle`. For improved performance,
     /// non-deterministic results can be allowed. Affected functions are `cusolverDn&lt;t>geqrf()`, `cusolverDn&lt;t>syevd()`, `cusolverDn&lt;t>syevdx()`, `cusolverDn&lt;t>gesvd()` (if `m > n`), `cusolverDn&lt;t>gesvdj()`, [`cusolverDnXgeqrf`], [`cusolverDnXsyevd`], [`cusolverDnXsyevdx`], [`cusolverDnXgesvd`] (if `m > n`), [`cusolverDnXgesvdr`] and [`cusolverDnXgesvdp`].
     ///
@@ -1036,7 +1036,7 @@ unsafe extern "C" {
         mode: cusolverDeterministicMode_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the deterministic mode which is set for `handle`.
     ///
     /// # Parameters
@@ -1054,7 +1054,7 @@ unsafe extern "C" {
         mode: *mut cusolverDeterministicMode_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the math modes of all cuSolverDN functions for `handle`. For more information about the effects of the corresponding math modes, please refer to [`cusolverMathMode_t`]. Note that math modes can be combined, e.g., `cusolverDnSetMathMode(handle, CUSOLVER_FP32_EMULATED_BF16X9_MATH | CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH)`. Please see [`cusolverMathMode_t`] for allowed combinations.
     ///
     /// # Parameters
@@ -1072,7 +1072,7 @@ unsafe extern "C" {
         mode: cusolverMathMode_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the math modes which are set for `handle`. Note that math modes can be combined, e.g., `cusolverDnSetMathMode(handle, CUSOLVER_FP32_EMULATED_BF16X9_MATH | CUSOLVER_FP64_EMULATED_FIXEDPOINT_MATH)`. Please see [`cusolverMathMode_t`] for allowed combinations.
     ///
     /// # Parameters
@@ -1089,7 +1089,7 @@ unsafe extern "C" {
         mode: *mut cusolverMathMode_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the emulation strategy of all cuSolverDN functions for `handle`. For more information about the effects of the corresponding strategies, please refer to the analogous definition of [cublasEmulationStrategy_t](https://docs.nvidia.com/cuda/cublas/#cublasemulationstrategy-t).
     ///
     /// The emulation strategy set by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1114,7 +1114,7 @@ unsafe extern "C" {
         strategy: cudaEmulationStrategy_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the emulation strategy which is set for `handle`.
     ///
     /// The emulation strategy returned by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1138,7 +1138,7 @@ unsafe extern "C" {
         strategy: *mut cudaEmulationStrategy_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets how the number of mantissa bits is determined for fixed point FP64 emulation. For more information about the effects of the corresponding control modes, please refer to [`cudaEmulationMantissaControl_t`].
     ///
     /// The mantissa control set by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1162,7 +1162,7 @@ unsafe extern "C" {
         control: cudaEmulationMantissaControl_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries how the number of mantissa bits is determined for fixed point FP64 emulation.
     ///
     /// The mantissa control returned by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1185,7 +1185,7 @@ unsafe extern "C" {
         control: *mut cudaEmulationMantissaControl_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the maximum number of mantissa bits for fixed point FP64 emulation.
     ///
     /// The maximum mantissa bit count set by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1209,7 +1209,7 @@ unsafe extern "C" {
         mantissaBitCount: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the maximum number of mantissa bits used for fixed point FP64 emulation.
     ///
     /// The mantissa bit count returned by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1232,7 +1232,7 @@ unsafe extern "C" {
         mantissaBitCount: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the mantissa bit offset for fixed point FP64 emulation in case of dynamic mantissa control mode.
     ///
     /// The mantissa bit offset, which is set by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1263,7 +1263,7 @@ unsafe extern "C" {
         mantissaBitOffset: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the mantissa bit offset for fixed point FP64 emulation in case of dynamic mantissa control mode.
     ///
     /// The mantissa bit offset, which is returned by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1292,7 +1292,7 @@ unsafe extern "C" {
         mantissaBitOffset: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the handling of special floating point values for `handle`, which is used **once** floating point emulation is allowed.
     ///
     /// The special value support set by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1316,7 +1316,7 @@ unsafe extern "C" {
         mask: cudaEmulationSpecialValuesSupport_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the special floating point value support which is set for `handle` if floating point emulation is allowed.
     ///
     /// The special floating point value support returned by this API only has an effect, **once** one of the following math modes is enabled (see also [`cusolverMathMode_t`]):
@@ -1342,7 +1342,7 @@ unsafe extern "C" {
         mask: *mut cudaEmulationSpecialValuesSupport_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the structure of parameters for an IRS solver such as the [`cusolverDnIRSXgesv`] or the [`cusolverDnIRSXgels`] functions to default values. The params structure created by this function can be used by one or more call to the same or to a different IRS solver. Note that in CUDA 10.2, the behavior was different and a new `params` structure was needed to be created per each call to an IRS solver. Also note that the user can also change configurations of the params and then call a new IRS instance, but be careful that the previous call was done because any change to the configuration before the previous call was done could affect it.
     ///
     /// # Return value
@@ -1353,7 +1353,7 @@ unsafe extern "C" {
         params_ptr: *mut cusolverDnIRSParams_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the Params structure.
     ///
     /// # Parameters
@@ -1367,7 +1367,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The resources were released successfully.
     pub fn cusolverDnIRSParamsDestroy(params: cusolverDnIRSParams_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the refinement solver to be used in the Iterative Refinement Solver functions such as the [`cusolverDnIRSXgesv`] or the [`cusolverDnIRSXgels`] functions. Note that the user has to set the refinement algorithm before a first call to the IRS solver because it is NOT set by default with the creating of params. Details about values that can be set to and theirs meaning are described in the table below.
     ///
     /// [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_NOT_SET`]:   Solver is not set, this value is what is set when creating the params structure. IRS solver will return an error.
@@ -1401,7 +1401,7 @@ unsafe extern "C" {
         refinement_solver: cusolverIRSRefinement_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the main precision for the Iterative Refinement Solver (IRS). By main precision, we mean, the type of the Input and Output data. Note that the user has to set both the main and lowest precision before a first call to the IRS solver because they are NOT set by default with the `params` structure creation, as it depends on the Input Output data type and user request. user can set it by either calling this function or by calling [`cusolverDnIRSParamsSetSolverPrecisions`] which set both the main and the lowest precision together. All possible combinations of main/lowest precision are described in the [table](https://docs.nvidia.com/cuda/archive/13.4.2/cusolver/index.html#cusolverdnirsparamssetsolverprecisions-table-supported-inout) in the [`cusolverDnIRSParamsSetSolverPrecisions`] section above.
     ///
     /// # Parameters
@@ -1418,7 +1418,7 @@ unsafe extern "C" {
         solver_main_precision: cusolverPrecType_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the lowest precision that will be used by Iterative Refinement Solver. By lowest precision, we mean the solver is allowed to use as lowest computational precision during the LU factorization process. Note that the user has to set both the main and lowest precision before a first call to the IRS solver because they are NOT set by default with the `params` structure creation, as it depends on the Input Output data type and user request. Usually the lowest precision defines the speedup that can be achieved. The ratio of the performance of the lowest precision over the main precision (e.g., Inputs/Outputs datatype) define somehow the upper bound of the speedup that could be obtained. More precisely, it depends on many factors, but for large matrices sizes, it is the ratio of the matrix-matrix rank-k product (e.g., GEMM where K is 256 and M=N=size of the matrix) that define the possible speedup. For instance, if the inout precision is real double precision CUSOLVER_R_64F and the lowest precision is CUSOLVER_R_32F, then we can expect a speedup of at most 2X for large problem sizes. If the lowest precision was CUSOLVER_R_16F, then we can expect 3X-4X. A reasonable strategy should take the number of right-hand sides, the size of the matrix as well as the convergence rate into account.
     ///
     /// # Parameters
@@ -1434,7 +1434,7 @@ unsafe extern "C" {
         solver_lowest_precision: cusolverPrecType_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets both the main and the lowest precision for the Iterative Refinement Solver (IRS). By main precision, we mean the precision of the Input and Output datatype. By lowest precision, we mean the solver is allowed to use as lowest computational precision during the LU factorization process. Note that the user has to set both the main and lowest precision before the first call to the IRS solver because they are NOT set by default with the `params` structure creation, as it depends on the Input Output data type and user request. It is a wrapper to both [`cusolverDnIRSParamsSetSolverMainPrecision`] and [`cusolverDnIRSParamsSetSolverLowestPrecision`]. All possible combinations of main/lowest precision are described in the table below. Usually the lowest precision defines the speedup that can be achieved. The ratio of the performance of the lowest precision over the main precision (e.g., Inputs/Outputs datatype) define the upper bound of the speedup that could be obtained. More precisely, it depends on many factors, but for large matrices sizes, it is the ratio of the matrix-matrix rank-k product (e.g., GEMM where K is 256 and M=N=size of the matrix) that define the possible speedup. For instance, if the inout precision is real double precision CUSOLVER_R_64F and the lowest precision is CUSOLVER_R_32F, then we can expect a speedup of at most 2X for large problem sizes. If the lowest precision was CUSOLVER_R_16F, then we can expect 3X-4X. A reasonable strategy should take the number of right-hand sides, the size of the matrix as well as the convergence rate into account.
     ///
     /// **Supported Inputs/Outputs data type and lower precision for the IRS solver**
@@ -1462,7 +1462,7 @@ unsafe extern "C" {
         solver_lowest_precision: cusolverPrecType_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the tolerance for the refinement solver. By default it is such that all the RHS satisfy:
     ///
     /// `RNRM &lt; SQRT(N)`XNRM`ANRM`EPS`BWDMAX` where
@@ -1489,7 +1489,7 @@ unsafe extern "C" {
         val: f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the tolerance for the inner refinement solver when the refinement solver consists of two-levels solver (for example, [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`] or [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES_GMRES`] cases). It is not referenced in case of one level refinement solver such as [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL`] or [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`]. It is set to 1e-4 by default. This function sets the tolerance for the inner solver (e.g. the inner GMRES). For example, if the Refinement Solver was set to [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`], setting this tolerance mean that the inner GMRES solver will converge to that tolerance at each outer iteration of the classical refinement solver. Our goal is to give the user more control such a way he can investigate and control every detail of the IRS solver. Note the, the tolerance value is always in *real double precision* whatever the Inputs/Outputs datatype is.
     ///
     /// # Parameters
@@ -1506,7 +1506,7 @@ unsafe extern "C" {
         val: f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the total number of allowed refinement iterations after which the solver will stop. Total means any iteration which means the sum of the outer and the inner iterations (inner is meaningful when two-levels refinement solver is set). Default value is set to 50. Our goal is to give the user more control such a way he can investigate and control every detail of the IRS solver.
     ///
     /// # Parameters
@@ -1522,7 +1522,7 @@ unsafe extern "C" {
         maxiters: cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the maximal number of iterations allowed for the inner refinement solver. It is not referenced in case of one level refinement solver such as [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL`] or [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`]. The inner refinement solver will stop after reaching either the inner tolerance or the MaxItersInner value. By default, it is set to 50. Note that this value could not be larger than the MaxIters since MaxIters is the total number of allowed iterations. Note that if the user calls [`cusolverDnIRSParamsSetMaxIters`] after calling this function, `SetMaxIters` has priority and will overwrite `MaxItersInner` to the minimum value of `(MaxIters, MaxItersInner)`.
     ///
     /// # Parameters
@@ -1540,7 +1540,7 @@ unsafe extern "C" {
         maxiters_inner: cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the current setting in the `params` structure for the maximal allowed number of iterations (for example, either the default `MaxIters`, or the one set by the user in case he set it using [`cusolverDnIRSParamsSetMaxIters`]). Note that this function returns the current setting in the `params` configuration and not to be confused with the [`cusolverDnIRSInfosGetMaxIters`] which return the maximal allowed number of iterations for a particular call to an IRS solver. To be clearer, the `params` structure can be used for many calls to an IRS solver. A user can change the allowed `MaxIters` between calls while the `Infos` structure in [`cusolverDnIRSInfosGetMaxIters`] contains information about a particular call and cannot be reused for different calls, and thus, [`cusolverDnIRSInfosGetMaxIters`] returns the allowed `MaxIters` for that call.
     ///
     /// # Parameters
@@ -1557,7 +1557,7 @@ unsafe extern "C" {
         maxiters: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function enable the fallback to the main precision in case the Iterative Refinement Solver (IRS) failed to converge. In other term, if the IRS solver failed to converge, the solver will return a no convergence code (e.g., `niter` &lt; 0), but can either return the non-convergent solution as it is (e.g., disable fallback) or can fallback (e.g., enable fallback) to the main precision (which is the precision of the Inputs/Outputs data) and solve the problem from scratch returning the good solution. This is the behavior by default, and it will guarantee that the IRS solver always provide the good solution. This function is provided because we provided [`cusolverDnIRSParamsDisableFallback`] which allows the user to disable the fallback and thus this function allow the user to re-enable it.
     ///
     /// # Parameters
@@ -1572,7 +1572,7 @@ unsafe extern "C" {
         params: cusolverDnIRSParams_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function disables the fallback to the main precision in case the Iterative Refinement Solver (IRS) failed to converge. In other term, if the IRS solver failed to converge, the solver will return a no convergence code (e.g., `niter` &lt; 0), but can either return the non-convergent solution as it is (e.g., disable fallback) or can fallback (e.g., enable fallback) to the main precision (which is the precision of the Inputs/Outputs data) and solve the problem from scratch returning the good solution. This function disables the fallback and the returned solution is whatever the refinement solver was able to reach before it returns. Disabling fallback does not guarantee that the solution is the good one. However, if users want to keep getting the solution of the lower precision in case the IRS did not converge after certain number of iterations, they need to disable the fallback. The user can re-enable it by calling [`cusolverDnIRSParamsEnableFallback`].
     ///
     /// # Parameters
@@ -1587,7 +1587,7 @@ unsafe extern "C" {
         params: cusolverDnIRSParams_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the `Infos` structure. This function destroys all the information (for example, Niters performed, OuterNiters performed, residual history etc.) about a solver call; thus, this function should only be called after the user is finished with the information.
     ///
     /// # Return value
@@ -1596,7 +1596,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The resources were released successfully.
     pub fn cusolverDnIRSInfosDestroy(infos: cusolverDnIRSInfos_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the `Infos` structure that will hold the refinement information of an Iterative Refinement Solver (IRS) call. Such information includes the total number of iterations that was needed to converge (`Niters`), the outer number of iterations (meaningful when two-levels preconditioner such as [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`] is used ), the maximal number of iterations that was allowed for that call, and a pointer to the matrix of the convergence history residual norms. The `Infos` structure needs to be created before a call to an IRS solver. The `Infos` structure is valid for only one call to an IRS solver, since it holds info about that solve and thus each solve will requires its own `Infos` structure.
     ///
     /// # Return value
@@ -1607,7 +1607,7 @@ unsafe extern "C" {
         infos_ptr: *mut cusolverDnIRSInfos_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the total number of iterations performed by the IRS solver. If it was negative, it means that the IRS solver did not converge and if the user did not disable the fallback to full precision, then the fallback to a full precision solution happened and solution is good. Please refer to the description of negative `niters` values in the corresponding IRS linear solver functions such as `cusolverDnXgesv()` or `cusolverDnXgels()`.
     ///
     /// # Parameters
@@ -1624,7 +1624,7 @@ unsafe extern "C" {
         niters: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the number of iterations performed by the outer refinement loop of the IRS solver. When the refinement solver consists of a one-level solver such as [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL`] or [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES`], it is the same as `Niters`. When the refinement solver consists of a two-levels solver such as [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_CLASSICAL_GMRES`] or [`cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES_GMRES`], it is the number of iterations of the outer loop. Refer to the description of the [`cusolverIRSRefinement_t`] for more details.
     ///
     /// # Parameters
@@ -1641,7 +1641,7 @@ unsafe extern "C" {
         outer_niters: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function tells the IRS solver to store the convergence history (residual norms) of the refinement phase in a matrix that can be accessed via a pointer returned by the [`cusolverDnIRSInfosGetResidualHistory`] function.
     ///
     /// # Parameters
@@ -1656,7 +1656,7 @@ unsafe extern "C" {
         infos: cusolverDnIRSInfos_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the user called [`cusolverDnIRSInfosRequestResidual`] before the call to the IRS function, then the IRS solver will store the convergence history (residual norms) of the refinement phase in a matrix that can be accessed via a pointer returned by this function. The datatype of the residual norms depends on the input and output data type. If the Inputs/Outputs datatype is double precision real or complex (CUSOLVER_R_FP64 or CUSOLVER_C_FP64), this residual will be of type real double precision (FP64) `double`, otherwise if the Inputs/Outputs datatype is single precision real or complex (CUSOLVER_R_FP32 or CUSOLVER_C_FP32), this residual will be real single precision FP32 `float`.
     ///
     /// The residual history matrix consists of two columns (even for the multiple right-hand side case NRHS) of `MaxIters+1` row, thus a matrix of size (`MaxIters+1,2`). Only the first `OuterNiters+1` rows contains the residual norms the other (e.g., OuterNiters+2:Maxiters+1) are garbage. On the first column, each row *“i”* specify the total number of iterations happened till this outer iteration *“i”* and on the second columns the residual norm corresponding to this outer iteration *“i”*. Thus, the first row (e.g., outer iteration *“0”*) consists of the initial residual (e.g., the residual before the refinement loop start) then the consecutive rows are the residual obtained at each outer iteration of the refinement loop. Note, it only consists of the history of the outer loop.
@@ -1684,7 +1684,7 @@ unsafe extern "C" {
         residual_history: *mut *mut ::core::ffi::c_void,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the maximal allowed number of iterations that was set for the corresponding call to the IRS solver. Note that this function returns the setting that was set when that call happened and is not to be confused with the [`cusolverDnIRSParamsGetMaxIters`] which returns the current setting in the `params` configuration structure. To be clearer, the `params` structure can be used for many calls to an IRS solver. A user can change the allowed `MaxIters` between calls while the `Infos` structure in [`cusolverDnIRSInfosGetMaxIters`] contains information about a particular call and cannot be reused for different calls, thus [`cusolverDnIRSInfosGetMaxIters`] returns the allowed `MaxIters` for that call.
     ///
     /// # Parameters
@@ -1701,7 +1701,7 @@ unsafe extern "C" {
         maxiters: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while Z represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -1809,7 +1809,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while C represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -1917,7 +1917,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while K represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2025,7 +2025,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while E represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2133,7 +2133,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while Y represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2241,7 +2241,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while C represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2349,7 +2349,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while E represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2457,7 +2457,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while K represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2565,7 +2565,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while Y represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2673,7 +2673,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while D represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2781,7 +2781,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while S represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2889,7 +2889,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while H represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -2997,7 +2997,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while B represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -3105,7 +3105,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while X represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -3213,7 +3213,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while S represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -3321,7 +3321,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while H represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -3429,7 +3429,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while B represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -3537,7 +3537,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions are modelled after functions DSGESV and ZCGESV from LAPACK. They compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the LU factorization `Xgesv`. These functions are similar in term of functionalities to the full precision LU solver (`Xgesv`, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an LU factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while X represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -3645,7 +3645,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// ****************************************************************************
     pub fn cusolverDnZZgesv_bufferSize(
         handle: cusolverDnHandle_t,
@@ -3662,7 +3662,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnZCgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3683,7 +3683,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnZKgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3704,7 +3704,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnZEgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3725,7 +3725,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnZYgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3746,7 +3746,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnCCgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3767,7 +3767,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnCKgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3788,7 +3788,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnCEgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3809,7 +3809,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnCYgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3830,7 +3830,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnDDgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3851,7 +3851,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnDSgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3872,7 +3872,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnDHgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3893,7 +3893,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnDBgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3914,7 +3914,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnDXgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3935,7 +3935,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnSSgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3956,7 +3956,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnSHgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3977,7 +3977,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnSBgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -3998,7 +3998,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnSXgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -4019,7 +4019,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while Z represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4129,7 +4129,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while C represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4239,7 +4239,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while K represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4349,7 +4349,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while E represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4459,7 +4459,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The Z corresponds to the Inputs/Outputs datatype precision while Y represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4569,7 +4569,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while C represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4679,7 +4679,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while K represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4789,7 +4789,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while E represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -4899,7 +4899,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The C corresponds to the Inputs/Outputs datatype precision while Y represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5009,7 +5009,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while D represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5119,7 +5119,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while S represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5229,7 +5229,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while H represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5339,7 +5339,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while B represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5449,7 +5449,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The D corresponds to the Inputs/Outputs datatype precision while X represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5559,7 +5559,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while S represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5669,7 +5669,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while H represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5779,7 +5779,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while B represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5889,7 +5889,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions compute the solution of a system of linear equations with one or multiple right hand sides using mixed precision iterative refinement techniques based on the QR factorization Xgels. These functions are similar in term of functionalities to the full precision LAPACK QR (least squares) solver (Xgels, where X denotes Z,C,D,S) but it uses lower precision internally in order to provide faster time to solution, from here comes the name mixed precision. Mixed precision iterative refinement techniques means that the solver compute an QR factorization in lower precision and then iteratively refine the solution to achieve the accuracy of the Inputs/Outputs datatype precision. The S corresponds to the Inputs/Outputs datatype precision while X represent the internal lower precision at which the factorization will be carried on.
     /// $$
     /// A \times X = B
@@ -5999,7 +5999,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// ****************************************************************************
     pub fn cusolverDnZZgels_bufferSize(
         handle: cusolverDnHandle_t,
@@ -6016,7 +6016,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnZCgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6037,7 +6037,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnZKgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6058,7 +6058,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnZEgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6079,7 +6079,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnZYgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6100,7 +6100,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnCCgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6121,7 +6121,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnCKgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6142,7 +6142,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnCEgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6163,7 +6163,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnCYgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6184,7 +6184,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnDDgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6205,7 +6205,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnDSgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6226,7 +6226,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnDHgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6247,7 +6247,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnDBgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6268,7 +6268,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnDXgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6289,7 +6289,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnSSgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6310,7 +6310,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnSHgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6331,7 +6331,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnSBgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6352,7 +6352,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnSXgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6373,7 +6373,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is designed to perform same functionality as `cusolverDn&lt;T1>&lt;T2>gesv()` functions, but wrapped in a more generic and expert interface that gives user more control to parametrize the function as well as it provides more information on output. [`cusolverDnIRSXgesv`] allows additional control of the solver parameters such as setting:
     ///
     /// * the main precision (Inputs/Outputs precision) of the solver
@@ -6465,7 +6465,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for an LU-based linear solve with iterative refinement with [`cusolverDnIRSXgesv`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6479,7 +6479,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is designed to perform same functionality as `cusolverDn&lt;T1>&lt;T2>gels()` functions, but wrapped in a more generic and expert interface that gives user more control to parametrize the function as well as it provides more information on output. [`cusolverDnIRSXgels`] allows additional control of the solver parameters such as setting:
     ///
     /// * the main precision (Inputs/Outputs precision) of the solver,
@@ -6573,7 +6573,7 @@ unsafe extern "C" {
         d_info: *mut cusolver_int_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a QR-based least-squares solve with iterative refinement with [`cusolverDnIRSXgels`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6588,7 +6588,7 @@ unsafe extern "C" {
         lwork_bytes: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Cholesky factorization and its solver
     pub fn cusolverDnSpotrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -6599,7 +6599,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for Cholesky factorization of a positive-definite matrix with [`cusolverDnDpotrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6614,7 +6614,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for Cholesky factorization of a positive-definite matrix with [`cusolverDnCpotrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6629,7 +6629,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for Cholesky factorization of a positive-definite matrix with [`cusolverDnZpotrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -6644,7 +6644,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -6700,7 +6700,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -6756,7 +6756,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -6812,7 +6812,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -6868,7 +6868,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a system of linear equations:
     /// $$
     /// A\\*X = B
@@ -6912,7 +6912,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a system of linear equations:
     /// $$
     /// A\\*X = B
@@ -6956,7 +6956,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a system of linear equations:
     /// $$
     /// A\\*X = B
@@ -7000,7 +7000,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a system of linear equations:
     /// $$
     /// A\\*X = B
@@ -7044,7 +7044,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The S and D data types are real valued single and double precision, respectively. Please visit [cuSOLVER Library Samples - potrfBatched](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/potrfBatched) for a code example.
     ///
     /// The C and Z data types are complex valued single and double precision, respectively.
@@ -7095,7 +7095,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The S and D data types are real valued single and double precision, respectively. Please visit [cuSOLVER Library Samples - potrfBatched](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/potrfBatched) for a code example.
     ///
     /// The C and Z data types are complex valued single and double precision, respectively.
@@ -7146,7 +7146,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The S and D data types are real valued single and double precision, respectively. Please visit [cuSOLVER Library Samples - potrfBatched](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/potrfBatched) for a code example.
     ///
     /// The C and Z data types are complex valued single and double precision, respectively.
@@ -7197,7 +7197,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The S and D data types are real valued single and double precision, respectively. Please visit [cuSOLVER Library Samples - potrfBatched](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/potrfBatched) for a code example.
     ///
     /// The C and Z data types are complex valued single and double precision, respectively.
@@ -7248,7 +7248,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a sequence of linear systems:
     /// $$
     /// {A\lbrack i\rbrack}\\*{X\lbrack i\rbrack} = {B\lbrack i\rbrack}
@@ -7299,7 +7299,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a sequence of linear systems:
     /// $$
     /// {A\lbrack i\rbrack}\\*{X\lbrack i\rbrack} = {B\lbrack i\rbrack}
@@ -7350,7 +7350,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a sequence of linear systems:
     /// $$
     /// {A\lbrack i\rbrack}\\*{X\lbrack i\rbrack} = {B\lbrack i\rbrack}
@@ -7401,7 +7401,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a sequence of linear systems:
     /// $$
     /// {A\lbrack i\rbrack}\\*{X\lbrack i\rbrack} = {B\lbrack i\rbrack}
@@ -7452,7 +7452,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// s.p.d. matrix inversion (POTRI) and auxiliary routines (TRTRI and LAUUM)
     pub fn cusolverDnSpotri_bufferSize(
         handle: cusolverDnHandle_t,
@@ -7463,7 +7463,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for inversion of a positive-definite matrix from its Cholesky factors with [`cusolverDnDpotri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7478,7 +7478,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for inversion of a positive-definite matrix from its Cholesky factors with [`cusolverDnCpotri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7493,7 +7493,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for inversion of a positive-definite matrix from its Cholesky factors with [`cusolverDnZpotri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7508,7 +7508,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -7561,7 +7561,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -7614,7 +7614,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -7667,7 +7667,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the necessary size of work buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -7720,7 +7720,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for triangular matrix inversion with [`cusolverDnXtrtri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7739,7 +7739,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffers.
     ///
     /// The following routine:
@@ -7808,7 +7808,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// lauum, auxiliar routine for s.p.d matrix inversion
     pub fn cusolverDnSlauum_bufferSize(
         handle: cusolverDnHandle_t,
@@ -7819,7 +7819,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for multiplication of a triangular factor by its transpose or conjugate transpose with [`cusolverDnDlauum`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7834,7 +7834,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for multiplication of a triangular factor by its transpose or conjugate transpose with [`cusolverDnClauum`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7849,7 +7849,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for multiplication of a triangular factor by its transpose or conjugate transpose with [`cusolverDnZlauum`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7864,7 +7864,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the product of its triangular factor and its transpose (real) or conjugate transpose (complex). Upper storage computes U times its adjoint; lower storage computes the adjoint of L times L. `devInfo` reports argument or numerical status.
     pub fn cusolverDnSlauum(
         handle: cusolverDnHandle_t,
@@ -7877,7 +7877,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the product of its triangular factor and its transpose (real) or conjugate transpose (complex). Upper storage computes U times its adjoint; lower storage computes the adjoint of L times L. `devInfo` reports argument or numerical status.
     pub fn cusolverDnDlauum(
         handle: cusolverDnHandle_t,
@@ -7890,7 +7890,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the product of its triangular factor and its transpose (real) or conjugate transpose (complex). Upper storage computes U times its adjoint; lower storage computes the adjoint of L times L. `devInfo` reports argument or numerical status.
     pub fn cusolverDnClauum(
         handle: cusolverDnHandle_t,
@@ -7903,7 +7903,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the product of its triangular factor and its transpose (real) or conjugate transpose (complex). Upper storage computes U times its adjoint; lower storage computes the adjoint of L times L. `devInfo` reports argument or numerical status.
     pub fn cusolverDnZlauum(
         handle: cusolverDnHandle_t,
@@ -7916,7 +7916,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// LU Factorization
     pub fn cusolverDnSgetrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -7927,7 +7927,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for LU factorization with [`cusolverDnDgetrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7942,7 +7942,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for LU factorization with [`cusolverDnCgetrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7957,7 +7957,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for LU factorization with [`cusolverDnZgetrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -7972,7 +7972,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
@@ -8031,7 +8031,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
@@ -8090,7 +8090,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
@@ -8149,7 +8149,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
@@ -8208,7 +8208,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Row pivoting
     pub fn cusolverDnSlaswp(
         handle: cusolverDnHandle_t,
@@ -8221,7 +8221,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Applies the row interchanges specified by `ipiv` to `A`, over the one-based pivot interval `k1..=k2`. `incx` controls the traversal of pivot indices.
     pub fn cusolverDnDlaswp(
         handle: cusolverDnHandle_t,
@@ -8234,7 +8234,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Applies the row interchanges specified by `ipiv` to `A`, over the one-based pivot interval `k1..=k2`. `incx` controls the traversal of pivot indices.
     pub fn cusolverDnClaswp(
         handle: cusolverDnHandle_t,
@@ -8247,7 +8247,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Applies the row interchanges specified by `ipiv` to `A`, over the one-based pivot interval `k1..=k2`. `incx` controls the traversal of pivot indices.
     pub fn cusolverDnZlaswp(
         handle: cusolverDnHandle_t,
@@ -8260,7 +8260,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
     ///
     /// This function solves a linear system of multiple right-hand sides:
@@ -8319,7 +8319,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
     ///
     /// This function solves a linear system of multiple right-hand sides:
@@ -8378,7 +8378,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
     ///
     /// This function solves a linear system of multiple right-hand sides:
@@ -8437,7 +8437,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Please visit [cuSOLVER Library Samples - getrf](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/getrf) for a code example.
     ///
     /// This function solves a linear system of multiple right-hand sides:
@@ -8496,7 +8496,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// QR factorization
     pub fn cusolverDnSgeqrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -8507,7 +8507,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for QR factorization with [`cusolverDnDgeqrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -8522,7 +8522,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for QR factorization with [`cusolverDnCgeqrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -8537,7 +8537,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for QR factorization with [`cusolverDnZgeqrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -8552,7 +8552,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8608,7 +8608,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8664,7 +8664,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8720,7 +8720,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8776,7 +8776,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// generate unitary matrix Q from QR factorization
     pub fn cusolverDnSorgqr_bufferSize(
         handle: cusolverDnHandle_t,
@@ -8789,7 +8789,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of an orthogonal Q matrix from QR reflectors with [`cusolverDnDorgqr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -8806,7 +8806,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of a unitary Q matrix from QR reflectors with [`cusolverDnCungqr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -8823,7 +8823,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of a unitary Q matrix from QR reflectors with [`cusolverDnZungqr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -8840,7 +8840,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - orgqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/orgqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8892,7 +8892,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - orgqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/orgqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8944,7 +8944,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - orgqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/orgqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -8996,7 +8996,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - orgqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/orgqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9048,7 +9048,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// compute Q**T*b in solve min||A*x = b||
     pub fn cusolverDnSormqr_bufferSize(
         handle: cusolverDnHandle_t,
@@ -9065,7 +9065,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for application of the orthogonal Q factor from a QR factorization with [`cusolverDnDormqr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9086,7 +9086,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for application of the unitary Q factor from a QR factorization with [`cusolverDnCunmqr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9107,7 +9107,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for application of the unitary Q factor from a QR factorization with [`cusolverDnZunmqr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9128,7 +9128,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - ormqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/ormqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9207,7 +9207,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - ormqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/ormqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9286,7 +9286,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - ormqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/ormqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9365,7 +9365,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed. Please visit [cuSOLVER Library Samples - ormqr](https://github.com/NVIDIA/CUDALibrarySamples/tree/main/cuSOLVER/ormqr) for a code example.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9444,7 +9444,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// L*D*L**T,U*D*U**T factorization
     pub fn cusolverDnSsytrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -9454,7 +9454,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for symmetric indefinite factorization with [`cusolverDnDsytrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9468,7 +9468,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for symmetric indefinite factorization with [`cusolverDnCsytrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9482,7 +9482,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for symmetric indefinite factorization with [`cusolverDnZsytrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9496,7 +9496,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of the needed buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9554,7 +9554,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of the needed buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9612,7 +9612,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of the needed buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9670,7 +9670,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of the needed buffers.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -9728,7 +9728,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Symmetric / Hermitian indefinite factorization (SYTRF / HETRF), 64-bit interface. SYTRF and HETRF dispatch to a shared implementation specialized at compile time (is_hermitian template parameter): SYTRF computes A = U*D*U^T (or L*D*L^T), HETRF computes A = U*D*U^H (or L*D*L^H) with a real D-diagonal and Hermitian-aware arithmetic in the panel updates. The bufferSize and compute routines share the same argument list (workspace queries accept the pivot pointer purely for signature symmetry; the buffer size does not depend on ipiv).
     pub fn cusolverDnXsytrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -9744,7 +9744,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffers.
     ///
     /// The following routine:
@@ -9829,7 +9829,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for Hermitian indefinite factorization with [`cusolverDnXhetrf`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -9850,7 +9850,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffers.
     ///
     /// The following routine:
@@ -9933,7 +9933,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Symmetric indefinite solve (SYTRS)
     pub fn cusolverDnXsytrs_bufferSize(
         handle: cusolverDnHandle_t,
@@ -9951,7 +9951,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffers.
     ///
     /// The following routine:
@@ -10031,7 +10031,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Hermitian indefinite solve (HETRS), 64-bit interface. Complex-only: dataTypeA and dataTypeB must both be CUDA_C_32F or CUDA_C_64F and must match. Real types are rejected.
     pub fn cusolverDnXhetrs_bufferSize(
         handle: cusolverDnHandle_t,
@@ -10050,7 +10050,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffers.
     ///
     /// The following routine:
@@ -10132,7 +10132,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Symmetric indefinite inversion (sytri)
     pub fn cusolverDnSsytri_bufferSize(
         handle: cusolverDnHandle_t,
@@ -10144,7 +10144,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for symmetric matrix inversion from an indefinite factorization with [`cusolverDnDsytri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10160,7 +10160,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for symmetric matrix inversion from an indefinite factorization with [`cusolverDnCsytri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10176,7 +10176,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for symmetric matrix inversion from an indefinite factorization with [`cusolverDnZsytri`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10192,7 +10192,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the inverse of a symmetric indefinite matrix, using the factorization and pivot indices produced by the matching `sytrf` routine. `info` reports argument or factorization status.
     pub fn cusolverDnSsytri(
         handle: cusolverDnHandle_t,
@@ -10206,7 +10206,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the inverse of a symmetric indefinite matrix, using the factorization and pivot indices produced by the matching `sytrf` routine. `info` reports argument or factorization status.
     pub fn cusolverDnDsytri(
         handle: cusolverDnHandle_t,
@@ -10220,7 +10220,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the inverse of a symmetric indefinite matrix, using the factorization and pivot indices produced by the matching `sytrf` routine. `info` reports argument or factorization status.
     pub fn cusolverDnCsytri(
         handle: cusolverDnHandle_t,
@@ -10234,7 +10234,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Overwrites the selected triangle of `A` with the inverse of a symmetric indefinite matrix, using the factorization and pivot indices produced by the matching `sytrf` routine. `info` reports argument or factorization status.
     pub fn cusolverDnZsytri(
         handle: cusolverDnHandle_t,
@@ -10248,7 +10248,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// bidiagonal factorization
     pub fn cusolverDnSgebrd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -10257,7 +10257,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for reduction of a general matrix to bidiagonal form with [`cusolverDnDgebrd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10270,7 +10270,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for reduction of a general matrix to bidiagonal form with [`cusolverDnCgebrd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10283,7 +10283,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for reduction of a general matrix to bidiagonal form with [`cusolverDnZgebrd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10296,7 +10296,7 @@ unsafe extern "C" {
         Lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10355,7 +10355,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10414,7 +10414,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10473,7 +10473,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10532,7 +10532,7 @@ unsafe extern "C" {
         devInfo: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// generates one of the unitary matrices Q or P**T determined by GEBRD
     pub fn cusolverDnSorgbr_bufferSize(
         handle: cusolverDnHandle_t,
@@ -10546,7 +10546,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of an orthogonal factor from bidiagonal-reduction reflectors with [`cusolverDnDorgbr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10564,7 +10564,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of a unitary factor from bidiagonal-reduction reflectors with [`cusolverDnCungbr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10582,7 +10582,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of a unitary factor from bidiagonal-reduction reflectors with [`cusolverDnZungbr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10600,7 +10600,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10649,7 +10649,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10698,7 +10698,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10747,7 +10747,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10796,7 +10796,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// tridiagonal factorization
     pub fn cusolverDnSsytrd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -10810,7 +10810,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for reduction of a symmetric matrix to tridiagonal form with [`cusolverDnDsytrd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10828,7 +10828,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for reduction of a Hermitian matrix to tridiagonal form with [`cusolverDnChetrd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10846,7 +10846,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for reduction of a Hermitian matrix to tridiagonal form with [`cusolverDnZhetrd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -10864,7 +10864,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10911,7 +10911,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -10958,7 +10958,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11005,7 +11005,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11052,7 +11052,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// generate unitary Q comes from sytrd
     pub fn cusolverDnSorgtr_bufferSize(
         handle: cusolverDnHandle_t,
@@ -11064,7 +11064,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of an orthogonal factor from tridiagonal-reduction reflectors with [`cusolverDnDorgtr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11080,7 +11080,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of a unitary factor from tridiagonal-reduction reflectors with [`cusolverDnCungtr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11096,7 +11096,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of a unitary factor from tridiagonal-reduction reflectors with [`cusolverDnZungtr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11112,7 +11112,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11155,7 +11155,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11198,7 +11198,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11241,7 +11241,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11284,7 +11284,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// compute op(Q)*C or C*op(Q) where Q comes from sytrd
     pub fn cusolverDnSormtr_bufferSize(
         handle: cusolverDnHandle_t,
@@ -11301,7 +11301,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for application of an orthogonal factor from a tridiagonal reduction with [`cusolverDnDormtr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11322,7 +11322,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for application of a unitary factor from a tridiagonal reduction with [`cusolverDnCunmtr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11343,7 +11343,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for application of a unitary factor from a tridiagonal reduction with [`cusolverDnZunmtr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11364,7 +11364,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11436,7 +11436,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11508,7 +11508,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11580,7 +11580,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These helper functions calculate the size of work buffers needed.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11652,7 +11652,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// singular value decomposition, A = U * Sigma * V^H
     pub fn cusolverDnSgesvd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -11661,7 +11661,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition with [`cusolverDnDgesvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11674,7 +11674,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition with [`cusolverDnCgesvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11687,7 +11687,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition with [`cusolverDnZgesvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -11700,7 +11700,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11770,7 +11770,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11840,7 +11840,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11910,7 +11910,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -11980,7 +11980,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// standard symmetric eigenvalue solver, A*x = lambda*x, by divide-and-conquer
     pub fn cusolverDnSsyevd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -11993,7 +11993,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a symmetric eigensolve using divide and conquer with [`cusolverDnDsyevd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12010,7 +12010,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a Hermitian eigensolve using divide and conquer with [`cusolverDnCheevd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12027,7 +12027,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a Hermitian eigensolve using divide and conquer with [`cusolverDnZheevd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12044,7 +12044,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12097,7 +12097,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12150,7 +12150,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12203,7 +12203,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12256,7 +12256,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// standard selective symmetric eigenvalue solver, A*x = lambda*x, by divide-and-conquer
     pub fn cusolverDnSsyevdx_bufferSize(
         handle: cusolverDnHandle_t,
@@ -12275,7 +12275,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum symmetric eigensolve with [`cusolverDnDsyevdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12298,7 +12298,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum Hermitian eigensolve with [`cusolverDnCheevdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12321,7 +12321,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum Hermitian eigensolve with [`cusolverDnZheevdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12344,7 +12344,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12405,7 +12405,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12466,7 +12466,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12527,7 +12527,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12588,7 +12588,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// selective generalized symmetric eigenvalue solver, A*x = lambda*B*x, by divide-and-conquer
     pub fn cusolverDnSsygvdx_bufferSize(
         handle: cusolverDnHandle_t,
@@ -12610,7 +12610,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum generalized symmetric-definite eigensolve with [`cusolverDnDsygvdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12636,7 +12636,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum generalized Hermitian-definite eigensolve with [`cusolverDnChegvdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12662,7 +12662,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum generalized Hermitian-definite eigensolve with [`cusolverDnZhegvdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -12688,7 +12688,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12766,7 +12766,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12844,7 +12844,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -12922,7 +12922,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13000,7 +13000,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// generalized symmetric eigenvalue solver, A*x = lambda*B*x, by divide-and-conquer
     pub fn cusolverDnSsygvd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -13016,7 +13016,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized symmetric-definite eigensolve with [`cusolverDnDsygvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13036,7 +13036,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized Hermitian-definite eigensolve with [`cusolverDnChegvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13056,7 +13056,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized Hermitian-definite eigensolve with [`cusolverDnZhegvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13076,7 +13076,7 @@ unsafe extern "C" {
         lwork: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13146,7 +13146,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13216,7 +13216,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13286,7 +13286,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13356,7 +13356,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized symmetric-definite eigensolve with [`cusolverDnXsygvd`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13383,7 +13383,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine computes all the eigenvalues, and optionally, the eigenvectors of a generalized symmetric (Hermitian) definite eigenproblem.
@@ -13481,7 +13481,7 @@ unsafe extern "C" {
         d_info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a selected-spectrum generalized symmetric-definite eigensolve with [`cusolverDnXsygvdx`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13513,7 +13513,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper function below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine computes all or selection of the eigenvalues, and optionally, the eigenvectors of a generalized symmetric (Hermitian) definite eigenproblem.
@@ -13616,7 +13616,7 @@ unsafe extern "C" {
         d_info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the structure of `syevj`, `syevjBatched` and `sygvj` to default values.
     ///
     /// # Parameters
@@ -13629,7 +13629,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The structure was initialized successfully.
     pub fn cusolverDnCreateSyevjInfo(info: *mut syevjInfo_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -13641,7 +13641,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The resources were released successfully.
     pub fn cusolverDnDestroySyevjInfo(info: syevjInfo_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures tolerance of `syevj`.
     ///
     /// # Parameters
@@ -13657,7 +13657,7 @@ unsafe extern "C" {
         tolerance: f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures maximum number of sweeps in `syevj`. The default value is 100.
     ///
     /// # Parameters
@@ -13673,7 +13673,7 @@ unsafe extern "C" {
         max_sweeps: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If `sort_eig` is zero, the eigenvalues are not sorted. This function only works for `syevjBatched`. `syevj` and `sygvj` always sort eigenvalues in ascending order. By default, eigenvalues are always sorted in ascending order.
     ///
     /// # Parameters
@@ -13689,7 +13689,7 @@ unsafe extern "C" {
         sort_eig: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reports residual of `syevj` or `sygvj`. It does not support `syevjBatched`. If the user calls this function after `syevjBatched`, the error [`cusolverStatus_t::CUSOLVER_STATUS_NOT_SUPPORTED`] is returned.
     ///
     /// # Parameters
@@ -13708,7 +13708,7 @@ unsafe extern "C" {
         residual: *mut f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reports number of executed sweeps of `syevj` or `sygvj`. It does not support `syevjBatched`. If the user calls this function after `syevjBatched`, the error [`cusolverStatus_t::CUSOLVER_STATUS_NOT_SUPPORTED`] is returned.
     ///
     /// # Parameters
@@ -13727,7 +13727,7 @@ unsafe extern "C" {
         executed_sweeps: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched symmetric eigensolves using Jacobi iterations with [`cusolverDnSsyevjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13746,7 +13746,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched symmetric eigensolves using Jacobi iterations with [`cusolverDnDsyevjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13765,7 +13765,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched Hermitian eigensolves using Jacobi iterations with [`cusolverDnCheevjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13784,7 +13784,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched Hermitian eigensolves using Jacobi iterations with [`cusolverDnZheevjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -13803,7 +13803,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13883,7 +13883,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -13963,7 +13963,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14043,7 +14043,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14123,7 +14123,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a symmetric eigensolve using Jacobi iterations with [`cusolverDnSsyevj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14141,7 +14141,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a symmetric eigensolve using Jacobi iterations with [`cusolverDnDsyevj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14159,7 +14159,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a Hermitian eigensolve using Jacobi iterations with [`cusolverDnCheevj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14177,7 +14177,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a Hermitian eigensolve using Jacobi iterations with [`cusolverDnZheevj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14195,7 +14195,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14280,7 +14280,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14365,7 +14365,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14450,7 +14450,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14535,7 +14535,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized symmetric-definite eigensolve using Jacobi iterations with [`cusolverDnSsygvj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14556,7 +14556,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized symmetric-definite eigensolve using Jacobi iterations with [`cusolverDnDsygvj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14577,7 +14577,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized Hermitian-definite eigensolve using Jacobi iterations with [`cusolverDnChegvj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14598,7 +14598,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for a generalized Hermitian-definite eigensolve using Jacobi iterations with [`cusolverDnZhegvj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -14619,7 +14619,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14712,7 +14712,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14805,7 +14805,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14898,7 +14898,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -14991,7 +14991,7 @@ unsafe extern "C" {
         params: syevjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the structure of `gesvdj` and `gesvdjBatched` to default values.
     ///
     /// # Parameters
@@ -15004,7 +15004,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The structure was initialized successfully.
     pub fn cusolverDnCreateGesvdjInfo(info: *mut gesvdjInfo_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -15016,7 +15016,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The resources were released successfully.
     pub fn cusolverDnDestroyGesvdjInfo(info: gesvdjInfo_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures tolerance of `gesvdj`.
     ///
     /// # Parameters
@@ -15032,7 +15032,7 @@ unsafe extern "C" {
         tolerance: f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures the maximum number of sweeps in `gesvdj`. The default value is 100.
     ///
     /// # Parameters
@@ -15048,7 +15048,7 @@ unsafe extern "C" {
         max_sweeps: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If `sort_svd` is zero, the singular values are not sorted. This function only works for `gesvdjBatched`. `gesvdj` always sorts singular values in descending order. By default, singular values are always sorted in descending order.
     ///
     /// # Parameters
@@ -15064,7 +15064,7 @@ unsafe extern "C" {
         sort_svd: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reports the Frobenius norm of the internal residual returned by `gesvdj`. Note that this is `not` the Frobenious norm of the exact residual calculated as:
     /// $$
     /// {\\|{S} - {U}^{H}\\*{A}\\*{V}\\|}_{F}
@@ -15088,7 +15088,7 @@ unsafe extern "C" {
         residual: *mut f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reports number of executed sweeps of `gesvdj`. It does not support `gesvdjBatched`. If the user calls this function after `gesvdjBatched`, the error [`cusolverStatus_t::CUSOLVER_STATUS_NOT_SUPPORTED`] is returned.
     ///
     /// # Parameters
@@ -15107,7 +15107,7 @@ unsafe extern "C" {
         executed_sweeps: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched singular-value decompositions using Jacobi iterations with [`cusolverDnSgesvdjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15130,7 +15130,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched singular-value decompositions using Jacobi iterations with [`cusolverDnDgesvdjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15153,7 +15153,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched singular-value decompositions using Jacobi iterations with [`cusolverDnCgesvdjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15176,7 +15176,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for batched singular-value decompositions using Jacobi iterations with [`cusolverDnZgesvdjBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15199,7 +15199,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15285,7 +15285,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15371,7 +15371,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15457,7 +15457,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15543,7 +15543,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition using Jacobi iterations with [`cusolverDnSgesvdj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15566,7 +15566,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition using Jacobi iterations with [`cusolverDnDgesvdj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15589,7 +15589,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition using Jacobi iterations with [`cusolverDnCgesvdj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15612,7 +15612,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for singular-value decomposition using Jacobi iterations with [`cusolverDnZgesvdj`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -15635,7 +15635,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15735,7 +15735,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15835,7 +15835,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -15935,7 +15935,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -16035,7 +16035,7 @@ unsafe extern "C" {
         params: gesvdjInfo_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// batched approximate SVD
     pub fn cusolverDnSgesvdaStridedBatched_bufferSize(
         handle: cusolverDnHandle_t,
@@ -16058,7 +16058,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for approximate singular-value decomposition of a strided batch with [`cusolverDnDgesvdaStridedBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -16085,7 +16085,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for approximate singular-value decomposition of a strided batch with [`cusolverDnCgesvdaStridedBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -16112,7 +16112,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for approximate singular-value decomposition of a strided batch with [`cusolverDnZgesvdaStridedBatched`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -16139,7 +16139,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -16246,7 +16246,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -16353,7 +16353,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -16460,7 +16460,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The S and D data types are real valued single and double precision, respectively.
@@ -16567,7 +16567,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the structure of `64-bit API` to default values.
     ///
     /// # Parameters
@@ -16580,7 +16580,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The structure was initialized successfully.
     pub fn cusolverDnCreateParams(params: *mut cusolverDnParams_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -16592,7 +16592,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: The resources were released successfully.
     pub fn cusolverDnDestroyParams(params: cusolverDnParams_t) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures algorithm `algo` of `function`, a `64-bit API` routine.
     ///
     /// # Parameters
@@ -16611,7 +16611,7 @@ unsafe extern "C" {
         algo: cusolverAlgMode_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// new 64-bit API
     ///
     /// 64-bit API for POTRF
@@ -16628,7 +16628,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -16714,7 +16714,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a system of linear equations:
     /// $$
     /// A\\*X = B
@@ -16786,7 +16786,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for GEQRF
     pub fn cusolverDnXgeqrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -16803,7 +16803,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -16891,7 +16891,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for GETRF
     pub fn cusolverDnXgetrf_bufferSize(
         handle: cusolverDnHandle_t,
@@ -16906,7 +16906,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper function below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The function below
@@ -16994,7 +16994,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves a linear system of multiple right-hand sides:
     /// $$
     /// op(A)\\*X = B
@@ -17079,7 +17079,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for SYEVD
     pub fn cusolverDnXsyevd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17097,7 +17097,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -17182,7 +17182,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for STEDC
     pub fn cusolverDnXstedc_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17200,7 +17200,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper function below can calculate the sizes needed for the pre-allocated buffers.
     ///
     /// The following routine
@@ -17280,7 +17280,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for batched SYEV
     pub fn cusolverDnXsyevBatched_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17299,7 +17299,7 @@ unsafe extern "C" {
         batchSize: i64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -17403,7 +17403,7 @@ unsafe extern "C" {
         batchSize: i64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for SYEVDX
     pub fn cusolverDnXsyevdx_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17427,7 +17427,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -17519,7 +17519,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for GEEV
     pub fn cusolverDnXgeev_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17543,7 +17543,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -17655,7 +17655,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for GESVD
     pub fn cusolverDnXgesvd_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17680,7 +17680,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -17781,7 +17781,7 @@ unsafe extern "C" {
         info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// 64-bit API for GESVDP
     pub fn cusolverDnXgesvdp_bufferSize(
         handle: cusolverDnHandle_t,
@@ -17806,7 +17806,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The routine below:
@@ -17910,7 +17910,7 @@ unsafe extern "C" {
         h_err_sigma: *mut f64,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for randomized truncated singular-value decomposition with [`cusolverDnXgesvdr`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -17943,7 +17943,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The routine below
@@ -18048,7 +18048,7 @@ unsafe extern "C" {
         d_info: *mut ::core::ffi::c_int,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the workspace required for construction of the triangular factor of a block reflector with [`cusolverDnXlarft`]. Use the same dimensions, options, and precision configuration for the query and the operation.
     ///
     /// # Parameters
@@ -18075,7 +18075,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The helper functions below can calculate the sizes needed for pre-allocated buffer.
     ///
     /// The following routine:
@@ -18162,7 +18162,7 @@ pub type cusolverDnLoggerCallback_t = ::core::option::Option<
         message: *const ::core::ffi::c_char,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the logging callback function.
     ///
     /// See [`cusolverStatus_t`] for a complete list of valid return codes.
@@ -18178,7 +18178,7 @@ unsafe extern "C" {
         callback: cusolverDnLoggerCallback_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the logging output file. Note: once registered using this function call, the provided file handle must not be closed unless the function is called again to switch to a different file handle.
     ///
     /// See [`cusolverStatus_t`] for a complete list of valid return codes.
@@ -18192,7 +18192,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: If logging file was successfully set.
     pub fn cusolverDnLoggerSetFile(file: *mut FILE) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function opens a logging output file in the given path.
     ///
     /// See [`cusolverStatus_t`] for a complete list of valid return codes.
@@ -18208,7 +18208,7 @@ unsafe extern "C" {
         logFile: *const ::core::ffi::c_char,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value of the logging level.
     ///
     /// See [`cusolverStatus_t`] for a complete list of valid return codes.
@@ -18223,7 +18223,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: If the logging level was successfully set.
     pub fn cusolverDnLoggerSetLevel(level: ::core::ffi::c_int) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value of the logging mask.
     ///
     /// See [`cusolverStatus_t`] for a complete list of valid return codes.
@@ -18237,7 +18237,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: If the logging mask was successfully set.
     pub fn cusolverDnLoggerSetMask(mask: ::core::ffi::c_int) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function disables logging for the entire run.
     ///
     /// See [`cusolverStatus_t`] for a complete list of valid return codes.
@@ -18247,7 +18247,7 @@ unsafe extern "C" {
     /// - [`cusolverStatus_t::CUSOLVER_STATUS_SUCCESS`]: If logging was successfully disabled.
     pub fn cusolverDnLoggerForceDisable() -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Public APIs for cusolverDnXpolar.
     pub fn cusolverDnXpolar_bufferSize(
         handle: cusolverDnHandle_t,
@@ -18266,7 +18266,7 @@ unsafe extern "C" {
         workspaceInBytesOnHost: *mut size_t,
     ) -> cusolverStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The following helper function calculates the required workspace sizes for [`cusolverDnXpolar`].
     ///
     /// The following routine computes the polar decomposition.

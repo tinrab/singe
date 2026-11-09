@@ -1,5 +1,4 @@
-//! Rust take on the CUDA "simpleStreams" idea: split work across several streams,
-//! launch a kernel on each, and time the whole submission with events.
+//! Rust take on the CUDA "simpleStreams" idea: split work across several streams, launch a kernel on each, and time the whole submission with events.
 
 use std::error::Error;
 
@@ -49,6 +48,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for stream in &streams[1..] {
         stream.wait_event(&start)?;
     }
+
     for (stream, chunk) in streams.iter().zip(&mut chunks) {
         // SAFETY: each chunk holds `CHUNK` elements, is written by exactly one stream,
         // and stays alive until the streams are synchronized below.
@@ -56,12 +56,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             module.scale_on(&config, stream, chunk, 2.0, CHUNK as i32)?;
         }
     }
+
     // The first stream records the stop marker after waiting for all other streams.
     for stream in &streams[1..] {
         let done = context.create_event()?;
         done.record(stream, EventRecordFlags::DEFAULT)?;
         streams[0].wait_event(&done)?;
     }
+
     stop.record(&streams[0], EventRecordFlags::DEFAULT)?;
     stop.synchronize()?;
 
@@ -75,6 +77,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Err(format!("stream {index} produced unexpected values").into());
         }
     }
+
     println!("all streams produced the expected values");
     Ok(())
 }

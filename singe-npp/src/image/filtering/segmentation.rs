@@ -62,8 +62,10 @@ pub fn segment_watershed_buffer_size_u16_c1(roi: Size) -> Result<usize> {
 /// Segments the image in place with the native watershed algorithm.
 ///
 /// `marker_labels` optionally receives region labels; `None` omits that output.
-/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity. `boundary_type` selects how native segment boundaries are rendered.
-/// The provided implementations own device scratch, reject stream capture, and return after successful stream completion. Row padding remains unwritten.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// `boundary_type` selects how native segment boundaries are rendered.
+/// The provided implementations own device scratch, reject stream capture, and return after successful stream completion.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -74,9 +76,11 @@ pub fn segment_watershed_buffer_size_u16_c1(roi: Size) -> Result<usize> {
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// The in-place image must be initialized and ready for native execution. Keep its storage exclusively accessible during native use.
+/// The in-place image must be initialized and ready for native execution.
+/// Keep its storage exclusively accessible during native use.
 /// Any marker-label output must be exclusively writable and disjoint from the in-place image.
-/// Retain allocations until this call completes its native work. Native layouts, strides, alignment, and allocation bounds must be valid.
+/// Retain allocations until this call completes its native work.
+/// Native layouts, strides, alignment, and allocation bounds must be valid.
 pub unsafe fn segment_watershed_u8_c1_in_place(
     stream_context: &StreamContext,
     source_destination: &mut ImageViewMut<'_, u8, C1>,
@@ -89,11 +93,13 @@ pub unsafe fn segment_watershed_u8_c1_in_place(
     if let Some(image) = marker_labels.as_ref() {
         stream_context.validate_region(*image)?;
     }
+
     stream_context.stream().ensure_not_capturing()?;
 
     if let Some(marker_labels) = marker_labels.as_ref() {
         validate_same_size(source_destination.size(), marker_labels.size())?;
     }
+
     let required_bytes = segment_watershed_buffer_size_u8_c1(source_destination.size())?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
     let (marker_labels_ptr, marker_labels_step) = marker_labels
@@ -122,8 +128,10 @@ pub unsafe fn segment_watershed_u8_c1_in_place(
 /// Segments the image in place with the native watershed algorithm.
 ///
 /// `marker_labels` optionally receives region labels; `None` omits that output.
-/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity. `boundary_type` selects how native segment boundaries are rendered.
-/// The provided implementations own device scratch, reject stream capture, and return after successful stream completion. Row padding remains unwritten.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// `boundary_type` selects how native segment boundaries are rendered.
+/// The provided implementations own device scratch, reject stream capture, and return after successful stream completion.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -134,9 +142,11 @@ pub unsafe fn segment_watershed_u8_c1_in_place(
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// The in-place image must be initialized and ready for native execution. Keep its storage exclusively accessible during native use.
+/// The in-place image must be initialized and ready for native execution.
+/// Keep its storage exclusively accessible during native use.
 /// Any marker-label output must be exclusively writable and disjoint from the in-place image.
-/// Retain allocations until this call completes its native work. Native layouts, strides, alignment, and allocation bounds must be valid.
+/// Retain allocations until this call completes its native work.
+/// Native layouts, strides, alignment, and allocation bounds must be valid.
 pub unsafe fn segment_watershed_u16_c1_in_place(
     stream_context: &StreamContext,
     source_destination: &mut ImageViewMut<'_, u16, C1>,
@@ -149,11 +159,13 @@ pub unsafe fn segment_watershed_u16_c1_in_place(
     if let Some(image) = marker_labels.as_ref() {
         stream_context.validate_region(*image)?;
     }
+
     stream_context.stream().ensure_not_capturing()?;
 
     if let Some(marker_labels) = marker_labels.as_ref() {
         validate_same_size(source_destination.size(), marker_labels.size())?;
     }
+
     let required_bytes = segment_watershed_buffer_size_u16_c1(source_destination.size())?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
     let (marker_labels_ptr, marker_labels_step) = marker_labels
@@ -184,7 +196,8 @@ pub unsafe fn segment_watershed_u16_c1_in_place(
 /// # Safety
 ///
 /// Implementations must preserve native element representations, output semantics, and the documented execution contract.
-/// Scratch and list-size queries must not underestimate native capacities. Preserve UF allocation identity and queued lifetimes where required.
+/// Scratch and list-size queries must not underestimate native capacities.
+/// Preserve UF allocation identity and queued lifetimes where required.
 pub unsafe trait SegmentWatershedC1InPlace: DataTypeLike + Sized {
     /// Returns the scratch capacity in bytes for watershed segmentation of `roi`.
     ///
@@ -196,8 +209,10 @@ pub unsafe trait SegmentWatershedC1InPlace: DataTypeLike + Sized {
     /// Segments the image in place with the native watershed algorithm.
     ///
     /// `marker_labels` optionally receives region labels; `None` omits that output.
-    /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity. `boundary_type` selects how native segment boundaries are rendered.
-    /// The provided implementations own device scratch, reject stream capture, and return after successful stream completion. Row padding remains unwritten.
+    /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// `boundary_type` selects how native segment boundaries are rendered.
+    /// The provided implementations own device scratch, reject stream capture, and return after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -208,9 +223,11 @@ pub unsafe trait SegmentWatershedC1InPlace: DataTypeLike + Sized {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// The in-place image must be initialized and ready for native execution. Keep its storage exclusively accessible during native use.
+    /// The in-place image must be initialized and ready for native execution.
+    /// Keep its storage exclusively accessible during native use.
     /// Any marker-label output must be exclusively writable and disjoint from the in-place image.
-    /// Retain allocations until this call completes its native work. Native layouts, strides, alignment, and allocation bounds must be valid.
+    /// Retain allocations until this call completes its native work.
+    /// Native layouts, strides, alignment, and allocation bounds must be valid.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         source_destination: &mut ImageViewMut<'_, Self, C1>,
@@ -282,8 +299,10 @@ pub fn segment_watershed_buffer_size_for<T: SegmentWatershedC1InPlace>(roi: Size
 /// Segments the image in place with the native watershed algorithm.
 ///
 /// `marker_labels` optionally receives region labels; `None` omits that output.
-/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity. `boundary_type` selects how native segment boundaries are rendered.
-/// The provided implementations own device scratch, reject stream capture, and return after successful stream completion. Row padding remains unwritten.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// `boundary_type` selects how native segment boundaries are rendered.
+/// The provided implementations own device scratch, reject stream capture, and return after successful stream completion.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -294,9 +313,11 @@ pub fn segment_watershed_buffer_size_for<T: SegmentWatershedC1InPlace>(roi: Size
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// The in-place image must be initialized and ready for native execution. Keep its storage exclusively accessible during native use.
+/// The in-place image must be initialized and ready for native execution.
+/// Keep its storage exclusively accessible during native use.
 /// Any marker-label output must be exclusively writable and disjoint from the in-place image.
-/// Retain allocations until this call completes its native work. Native layouts, strides, alignment, and allocation bounds must be valid.
+/// Retain allocations until this call completes its native work.
+/// Native layouts, strides, alignment, and allocation bounds must be valid.
 pub unsafe fn segment_watershed_in_place<T: SegmentWatershedC1InPlace>(
     stream_context: &StreamContext,
     source_destination: &mut ImageViewMut<'_, T, C1>,
@@ -329,9 +350,11 @@ pub unsafe fn segment_watershed_in_place<T: SegmentWatershedC1InPlace>(
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// The image must contain completed output from the matching UF labeling call, with its original base pointer, CUDA context, and ROI. Use a linear CUDA allocation rather than a pitched allocation.
+/// The image must contain completed output from the matching UF labeling call, with its original base pointer, CUDA context, and ROI.
+/// Use a linear CUDA allocation rather than a pitched allocation.
 /// `starting_number` must equal that original ROI's width times height; this wrapper does not validate that relationship.
-/// Keep the image initialized, ready, and exclusively accessible until native work completes. Native layout, allocation bounds, and label contents must be valid.
+/// Keep the image initialized, ready, and exclusively accessible until native work completes.
+/// Native layout, allocation bounds, and label contents must be valid.
 pub unsafe fn compress_marker_labels_uf_u32_c1_in_place(
     stream_context: &StreamContext,
     source_destination: &mut ImageViewMut<'_, u32, C1>,
@@ -367,7 +390,8 @@ pub unsafe fn compress_marker_labels_uf_u32_c1_in_place(
 /// # Safety
 ///
 /// Implementations must preserve native element representations, output semantics, and the documented execution contract.
-/// Scratch and list-size queries must not underestimate native capacities. Preserve UF allocation identity and queued lifetimes where required.
+/// Scratch and list-size queries must not underestimate native capacities.
+/// Preserve UF allocation identity and queued lifetimes where required.
 pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// Returns the scratch capacity in bytes for compressing UF marker labels.
     ///
@@ -396,8 +420,10 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// # Errors
     ///
     /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-    /// Contour and direction images must match the label-image size. The label-image stride must equal its width times `size_of::<u32>()`.
-    /// The marker-info allocation must cover the queried byte count. Both count lists require at least `max_marker_label_id` entries; both offset lists require at least `max_marker_label_id + 1`, with checked sentinel arithmetic.
+    /// Contour and direction images must match the label-image size.
+    /// The label-image stride must equal its width times `size_of::<u32>()`.
+    /// The marker-info allocation must cover the queried byte count.
+    /// Both count lists require at least `max_marker_label_id` entries; both offset lists require at least `max_marker_label_id + 1`, with checked sentinel arithmetic.
     ///
     /// # Safety
     ///
@@ -405,8 +431,10 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// Inputs must be initialized and ready for native execution.
     /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-    /// The label image must be a linear CUDA allocation produced by the UF generation and compression sequence, using its original base pointer and ROI. NPP receives a mutable label-image pointer; provide exclusive access during native use.
-    /// Keep host outputs and device buffers valid and exclusively accessible through queued completion, including submission errors and every captured replay. Host allocations must meet native host-memory requirements.
+    /// The label image must be a linear CUDA allocation produced by the UF generation and compression sequence, using its original base pointer and ROI.
+    /// NPP receives a mutable label-image pointer; provide exclusive access during native use.
+    /// Keep host outputs and device buffers valid and exclusively accessible through queued completion, including submission errors and every captured replay.
+    /// Host allocations must meet native host-memory requirements.
     unsafe fn info_dispatch(
         stream_context: &StreamContext,
         compressed_marker_labels: &ImageView<'_, Self, C1>,
@@ -434,9 +462,11 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// The image must contain completed output from the matching UF labeling call, with its original base pointer, CUDA context, and ROI. Use a linear CUDA allocation rather than a pitched allocation.
+    /// The image must contain completed output from the matching UF labeling call, with its original base pointer, CUDA context, and ROI.
+    /// Use a linear CUDA allocation rather than a pitched allocation.
     /// `starting_number` must equal that original ROI's width times height; this wrapper does not validate that relationship.
-    /// Keep the image initialized, ready, and exclusively accessible until native work completes. Native layout, allocation bounds, and label contents must be valid.
+    /// Keep the image initialized, ready, and exclusively accessible until native work completes.
+    /// Native layout, allocation bounds, and label contents must be valid.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         source_destination: &mut ImageViewMut<'_, Self, C1>,
@@ -453,8 +483,10 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// # Errors
     ///
     /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-    /// The batch must contain at least two images and fit in `i32`. Each image stride must equal its width times `size_of::<u32>()`.
-    /// `new_max_label_ids` must contain exactly one element per image. ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
+    /// The batch must contain at least two images and fit in `i32`.
+    /// Each image stride must equal its width times `size_of::<u32>()`.
+    /// `new_max_label_ids` must contain exactly one element per image.
+    /// ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
     /// All image sizes must match.
     ///
     /// # Safety
@@ -463,7 +495,8 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// Inputs must be initialized and ready for native execution.
     /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-    /// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI. Use linear CUDA allocations rather than pitched allocations.
+    /// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI.
+    /// Use linear CUDA allocations rather than pitched allocations.
     /// Retain images and the count output until native work completes.
     unsafe fn batch_dispatch(
         stream_context: &StreamContext,
@@ -476,13 +509,16 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// The device `new_max_label_ids` output receives one new maximum label ID per image.
     /// The provided implementations reject stream capture and return after successful stream completion.
     /// Temporary device scratch or descriptor allocations remain alive through native use.
-    /// Uses each image's own dimensions and scratch size. The largest width, height, and per-image scratch size provide native batch bounds.
+    /// Uses each image's own dimensions and scratch size.
+    /// The largest width, height, and per-image scratch size provide native batch bounds.
     ///
     /// # Errors
     ///
     /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-    /// The batch must contain at least two images and fit in `i32`. Each image stride must equal its width times `size_of::<u32>()`.
-    /// `new_max_label_ids` must contain exactly one element per image. ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
+    /// The batch must contain at least two images and fit in `i32`.
+    /// Each image stride must equal its width times `size_of::<u32>()`.
+    /// `new_max_label_ids` must contain exactly one element per image.
+    /// ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
     ///
     /// # Safety
     ///
@@ -490,7 +526,8 @@ pub unsafe trait CompressMarkerLabelsUfC1InPlace: DataTypeLike + Sized {
     /// Inputs must be initialized and ready for native execution.
     /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-    /// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI. Use linear CUDA allocations rather than pitched allocations.
+    /// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI.
+    /// Use linear CUDA allocations rather than pitched allocations.
     /// Retain images and the count output until native work completes.
     unsafe fn batch_advanced_dispatch(
         stream_context: &StreamContext,

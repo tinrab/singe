@@ -4,14 +4,14 @@ use std::{
     mem,
     panic::{AssertUnwindSafe, catch_unwind},
     pin::Pin,
-    sync::{Arc, Condvar, Mutex, PoisonError},
+    sync::{Arc, Condvar, Mutex},
     task::{Context, Poll, Waker},
 };
 
 use crate::emulator::{
     budget::Reservation,
     execution_error::ExecutionError,
-    runtime::{Client, Shared, lock},
+    runtime::{Client, Shared, lock, wait},
 };
 
 /// A published result plus the storage that keeps its diagnostics alive until it is observed.
@@ -47,8 +47,7 @@ struct State<T> {
     cell: Cell<T>,
     /// The command's own outcome, kept for events that are queried after consumption.
     terminal: Option<Result<(), ExecutionError>>,
-    /// Storage charged for this completion; released once the result is observed or
-    /// discarded, unless the completion retains its status.
+    /// Storage charged for this completion; released once the result is observed or discarded, unless the completion retains its status.
     storage: Option<Reservation>,
 }
 
@@ -94,6 +93,7 @@ impl<T> Completion<T> {
         if self.retain_status {
             state.terminal = Some(retained.result.as_ref().map(|_| ()).map_err(Clone::clone));
         }
+
         if matches!(state.cell, Cell::Abandoned) {
             state.cell = Cell::Discarded;
             let storage = self.release_storage(&mut state);
@@ -101,6 +101,7 @@ impl<T> Completion<T> {
             drop((retained, storage));
             return;
         }
+
         state.cell = Cell::Ready(retained);
         drop(state);
         self.ready.notify_all();
@@ -119,10 +120,7 @@ impl<T> Completion<T> {
                     return result;
                 }
                 None => {
-                    state = self
-                        .ready
-                        .wait(state)
-                        .unwrap_or_else(PoisonError::into_inner);
+                    state = wait(&self.ready, state);
                 }
             }
         }
@@ -135,6 +133,7 @@ impl<T> Completion<T> {
             drop(state);
             return Poll::Ready(result);
         }
+
         let previous = match &mut state.cell {
             Cell::Waiting { waker } => waker.replace(replacement),
             _ => None,
@@ -241,9 +240,7 @@ impl<T> Submission<T> {
     ///
     /// # Errors
     ///
-    /// Returns the command's failure, [`ExecutionError::Cancelled`] if shutdown cancelled
-    /// it, or [`ExecutionError::ResultConsumed`] if the result was already taken by
-    /// polling.
+    /// Returns the command's failure, [`ExecutionError::Cancelled`] if shutdown cancelled it, or [`ExecutionError::ResultConsumed`] if the result was already taken by polling.
     pub fn wait(self) -> Result<T, ExecutionError> {
         self.completion
             .take()
@@ -288,8 +285,7 @@ impl Shutdown {
         }
     }
 
-    /// Blocks until every accepted command has finished and the worker has released its
-    /// storage.
+    /// Blocks until every accepted command has finished and the worker has released its storage.
     ///
     /// # Errors
     ///
@@ -303,11 +299,8 @@ impl Shutdown {
                     .copied()
                     .map_err(|failure| failure.error.clone());
             }
-            state = self
-                .shared
-                .changed
-                .wait(state)
-                .unwrap_or_else(PoisonError::into_inner);
+
+            state = wait(&self.shared.changed, state);
         }
     }
 }

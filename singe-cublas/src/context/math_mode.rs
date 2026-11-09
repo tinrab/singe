@@ -1,16 +1,3 @@
-use singe_cublas_sys as sys;
-
-// cuBLAS accepts bitwise combinations of cublasMath_t, including values absent
-// from bindgen's Rust enum. Pass the enum's documented 32-bit integer ABI so no
-// invalid Rust enum value is constructed. The generated declaration stays intact.
-unsafe extern "C" {
-    #[link_name = "cublasSetMathMode"]
-    pub(crate) fn set_math_mode_flags(
-        handle: sys::cublasHandle_t,
-        mode: u32,
-    ) -> sys::cublasStatus_t;
-}
-
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use crate::{testing::setup_context, types::MathMode};

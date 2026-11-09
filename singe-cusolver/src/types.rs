@@ -5,8 +5,7 @@ use singe_cusolver_sys as sys;
 
 /// Selects the generalized eigenvalue problem type.
 ///
-/// This corresponds to LAPACK integer `1` (`A*x = lambda*B*x`), `2`
-/// (`A*B*x = lambda*x`), and `3` (`B*A*x = lambda*x`) arguments.
+/// This corresponds to LAPACK integer `1` (`A*x = lambda*B*x`), `2` (`A*B*x = lambda*x`), and `3` (`B*A*x = lambda*x`) arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -23,8 +22,7 @@ impl_enum_conversion!(sys::cusolverEigType_t, EigenType);
 
 /// Selects whether to compute eigenvectors.
 ///
-/// This corresponds to LAPACK `N` (eigenvalues only) and `V` (eigenvalues and
-/// eigenvectors) arguments.
+/// This corresponds to LAPACK `N` (eigenvalues only) and `V` (eigenvalues and eigenvectors) arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -72,10 +70,7 @@ impl_enum_conversion!(sys::cusolverNorm_t, Norm);
 /// Indicates which IRS refinement solver to use for a cuSOLVER operation.
 /// Empirically, [`IrsRefinement::Gmres`] is often the best option.
 ///
-/// More details about the refinement process are available in Azzam Haidar,
-/// Stanimire Tomov, Jack Dongarra, and Nicholas J. Higham, "Harnessing GPU
-/// tensor cores for fast FP16 arithmetic to speed up mixed-precision iterative
-/// refinement solvers," SC '18.
+/// More details about the refinement process are available in Azzam Haidar, Stanimire Tomov, Jack Dongarra, and Nicholas J. Higham, "Harnessing GPU tensor cores for fast FP16 arithmetic to speed up mixed-precision iterative refinement solvers," SC '18.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -102,17 +97,21 @@ pub enum IrsRefinement {
     GmresGmres = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES_GMRES as _,
     /// Uses GMRES iterative refinement without preconditioning.
     GmresNoPcond = sys::cusolverIRSRefinement_t::CUSOLVER_IRS_REFINE_GMRES_NOPCOND as _,
-    /// Legacy DD precision-selection value in `cusolverIRSRefinement_t`. The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
+    /// Legacy DD precision-selection value in `cusolverIRSRefinement_t`.
+    /// The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
     PrecDd = sys::cusolverIRSRefinement_t::CUSOLVER_PREC_DD as _,
-    /// Legacy SS precision-selection value in `cusolverIRSRefinement_t`. The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
+    /// Legacy SS precision-selection value in `cusolverIRSRefinement_t`.
+    /// The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
     PrecSs = sys::cusolverIRSRefinement_t::CUSOLVER_PREC_SS as _,
-    /// Legacy SHT precision-selection value in `cusolverIRSRefinement_t`. The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
+    /// Legacy SHT precision-selection value in `cusolverIRSRefinement_t`.
+    /// The explicit main- and lowest-precision configuration APIs instead accept `cusolverPrecType_t`.
     PrecSht = sys::cusolverIRSRefinement_t::CUSOLVER_PREC_SHT as _,
 }
 
 impl_enum_conversion!(sys::cusolverIRSRefinement_t, IrsRefinement);
 
-/// Native real or complex precision selector for iterative-refinement main and lowest internal precision. Supported combinations depend on the solver and device.
+/// Native real or complex precision selector for iterative-refinement main and lowest internal precision.
+/// Supported combinations depend on the solver and device.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -131,7 +130,8 @@ pub enum PrecisionType {
     R16Bf = sys::cusolverPrecType_t::CUSOLVER_R_16BF as _,
     /// Selects real TensorFloat-32 arithmetic for iterative-refinement precision configuration.
     RTf32 = sys::cusolverPrecType_t::CUSOLVER_R_TF32 as _,
-    /// Native real AP precision mode. The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
+    /// Native real AP precision mode.
+    /// The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
     RAp = sys::cusolverPrecType_t::CUSOLVER_R_AP as _,
     /// Selects complex signed 8-bit integer arithmetic for iterative-refinement precision configuration.
     C8I = sys::cusolverPrecType_t::CUSOLVER_C_8I as _,
@@ -147,7 +147,8 @@ pub enum PrecisionType {
     C16Bf = sys::cusolverPrecType_t::CUSOLVER_C_16BF as _,
     /// Selects complex TensorFloat-32 arithmetic for iterative-refinement precision configuration.
     CTf32 = sys::cusolverPrecType_t::CUSOLVER_C_TF32 as _,
-    /// Native complex AP precision mode. The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
+    /// Native complex AP precision mode.
+    /// The header exposes this selector, but the documented iterative-refinement supported-precision tables do not include it.
     CAp = sys::cusolverPrecType_t::CUSOLVER_C_AP as _,
 }
 
@@ -174,8 +175,7 @@ impl PrecisionType {
 }
 
 /// Algorithm selected by [`Params::set_adv_options`](crate::params::Params::set_adv_options).
-/// The set of algorithms supported for each operation is described with that
-/// operation's documentation.
+/// The set of algorithms supported for each operation is described with that operation's documentation.
 ///
 /// The default algorithm is [`AlgorithmMode::Default`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -186,7 +186,8 @@ pub enum AlgorithmMode {
     Default = sys::cusolverAlgMode_t::CUSOLVER_ALG_0 as _,
     /// Uses a single algorithm for consistent accuracy over all n.
     Algorithm1 = sys::cusolverAlgMode_t::CUSOLVER_ALG_1 as _,
-    /// Selects native algorithm variant 2 for routines that support it. Algorithm availability and behavior are defined by the selected routine.
+    /// Selects native algorithm variant 2 for routines that support it.
+    /// Algorithm availability and behavior are defined by the selected routine.
     Algorithm2 = sys::cusolverAlgMode_t::CUSOLVER_ALG_2 as _,
 }
 
@@ -218,15 +219,11 @@ pub enum DirectMode {
 
 impl_enum_conversion!(sys::cusolverDirectMode_t, DirectMode);
 
-/// Indicates whether repeated cuSOLVER executions with the same input are
-/// required to produce bitwise-identical results.
+/// Indicates whether repeated cuSOLVER executions with the same input are required to produce bitwise-identical results.
 ///
-/// Compared with cuBLAS atomics mode, [`DeterministicMode`] covers
-/// non-determinism beyond atomic operations.
+/// Compared with cuBLAS atomics mode, [`DeterministicMode`] covers non-determinism beyond atomic operations.
 ///
-/// Use [`Context::set_deterministic_mode`](crate::context::Context::set_deterministic_mode)
-/// and [`Context::deterministic_mode`](crate::context::Context::deterministic_mode)
-/// to configure and query this setting.
+/// Use [`Context::set_deterministic_mode`](crate::context::Context::set_deterministic_mode) and [`Context::deterministic_mode`](crate::context::Context::deterministic_mode) to configure and query this setting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -302,8 +299,7 @@ impl_enum_conversion!(sys::cublasSideMode_t, SideMode);
 
 /// Selects the operation to perform with a dense matrix.
 ///
-/// This corresponds to BLAS `N`/`n` (non-transpose), `T`/`t` (transpose), and
-/// `C`/`c` (conjugate transpose) arguments.
+/// This corresponds to BLAS `N`/`n` (non-transpose), `T`/`t` (transpose), and `C`/`c` (conjugate transpose) arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -375,8 +371,7 @@ impl TruncatedSvdMode {
     }
 }
 
-/// Indicates which operation is configured by
-/// [`Params::set_adv_options`](crate::params::Params::set_adv_options).
+/// Indicates which operation is configured by [`Params::set_adv_options`](crate::params::Params::set_adv_options).
 /// [`Function::Getrf`] corresponds to the `getrf` operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]

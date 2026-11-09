@@ -16,19 +16,17 @@ where
     <Self as ConstantArithmeticImage<T, L>>::Constant: Copy,
 {
     /// Adds the corresponding constant to each processed sample.
-    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and
-    /// four values for C4. Half-precision images use `f32` constants. Integer implementations
-    /// apply native scaling and saturation using `scale_factor`; floating-point and floating-point
-    /// complex implementations ignore `scale_factor`.
-    /// Reuses owned backing; borrowed input produces a new owned image. Preserves source
-    /// alpha for AC4.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and four values for C4.
+    /// Half-precision images use `f32` constants.
+    /// Integer implementations apply native scaling and saturation using `scale_factor`; floating-point and floating-point complex implementations ignore `scale_factor`.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves source alpha for AC4.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn add_constant(
@@ -45,19 +43,17 @@ where
     }
 
     /// Subtracts the corresponding constant from each processed sample.
-    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and
-    /// four values for C4. Half-precision images use `f32` constants. Integer implementations
-    /// apply native scaling and saturation using `scale_factor`; floating-point and floating-point
-    /// complex implementations ignore `scale_factor`.
-    /// Reuses owned backing; borrowed input produces a new owned image. Preserves source
-    /// alpha for AC4.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and four values for C4.
+    /// Half-precision images use `f32` constants.
+    /// Integer implementations apply native scaling and saturation using `scale_factor`; floating-point and floating-point complex implementations ignore `scale_factor`.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves source alpha for AC4.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn subtract_constant(
@@ -74,19 +70,17 @@ where
     }
 
     /// Multiplies each processed sample by the corresponding constant.
-    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and
-    /// four values for C4. Half-precision images use `f32` constants. Integer implementations
-    /// apply native scaling and saturation using `scale_factor`; floating-point and floating-point
-    /// complex implementations ignore `scale_factor`.
-    /// Reuses owned backing; borrowed input produces a new owned image. Preserves source
-    /// alpha for AC4.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and four values for C4.
+    /// Half-precision images use `f32` constants.
+    /// Integer implementations apply native scaling and saturation using `scale_factor`; floating-point and floating-point complex implementations ignore `scale_factor`.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves source alpha for AC4.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn multiply_constant(
@@ -103,19 +97,17 @@ where
     }
 
     /// Divides each processed sample by the corresponding constant.
-    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and
-    /// four values for C4. Half-precision images use `f32` constants. Integer implementations
-    /// apply native scaling and saturation using `scale_factor`; floating-point and floating-point
-    /// complex implementations ignore `scale_factor`.
-    /// Reuses owned backing; borrowed input produces a new owned image. Preserves source
-    /// alpha for AC4.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// The provided implementations use a scalar for C1, three values for C3 and AC4, and four values for C4.
+    /// Half-precision images use `f32` constants.
+    /// Integer implementations apply native scaling and saturation using `scale_factor`; floating-point and floating-point complex implementations ignore `scale_factor`.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves source alpha for AC4.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn divide_constant(
@@ -157,9 +149,11 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 operation(
                     self.stream_context,
                     source,

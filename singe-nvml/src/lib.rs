@@ -1,16 +1,11 @@
-//! Safe NVIDIA Management Library wrappers for monitoring, device management,
-//! MIG, and vGPU APIs.
+//! Safe NVIDIA Management Library wrappers for monitoring, device management, MIG, and vGPU APIs.
 //!
-//! This crate wraps NVML initialization and shutdown, system queries, device and
-//! unit handles, MIG GPU and compute instances, vGPU types and instances, event
-//! sets, clocks, power, thermals, memory, utilization, and other management
-//! interfaces exposed by NVIDIA drivers.
+//! This crate wraps NVML initialization and shutdown, system queries, device and unit handles, MIG GPU and compute instances, vGPU types and instances, event sets, clocks, power, thermals, memory, utilization, and other management interfaces exposed by NVIDIA drivers.
 //!
 //! # Setup
 //!
-//! NVML is supplied by the NVIDIA driver rather than the CUDA Toolkit. The build
-//! and runtime environment must be able to locate the driver NVML library, for
-//! example through the platform library path.
+//! NVML is supplied by the NVIDIA driver rather than the CUDA Toolkit.
+//! The build and runtime environment must be able to locate the driver NVML library, for example through the platform library path.
 //!
 //! # Thread safety
 //!
@@ -42,12 +37,16 @@
 
 /// MIG compute-instance handles, profiles, and placement queries.
 pub mod compute_instance;
+
 /// GPU device handles and device monitoring queries.
 pub mod device;
+
 /// Typed NVML statuses and wrapper error values.
 pub mod error;
+
 /// MIG GPU-instance handles, profiles, and placement queries.
 pub mod gpu_instance;
+
 /// NVML initialization, reference-counted shutdown, and system queries.
 pub mod library;
 
@@ -59,10 +58,13 @@ pub mod operational_event;
 
 /// Typed device properties, query records, identifiers, and control settings.
 pub mod types;
+
 /// Multi-GPU unit monitoring, fan, power-supply, and enclosure information.
 pub mod unit;
+
 /// Queries and controls for virtual GPU instances.
 pub mod vgpu_instance;
+
 /// Virtual GPU type capabilities, geometry, and resource limits.
 pub mod vgpu_type;
 
@@ -75,13 +77,11 @@ use crate::{error::Result, utility::to_u32};
 
 /// Returns the version of the NVML library.
 ///
-/// The version identifier is an alphanumeric string and does not require an
-/// initialized [`library::Library`] handle.
+/// The version identifier is an alphanumeric string and does not require an initialized [`library::Library`] handle.
 ///
 /// # Errors
 ///
-/// Returns an error if the internal version buffer is too small or if NVML
-/// rejects the output argument.
+/// Returns an error if the internal version buffer is too small or if NVML rejects the output argument.
 pub fn version() -> Result<String> {
     let mut buffer = [0i8; sys::NVML_SYSTEM_NVML_VERSION_BUFFER_SIZE as usize];
     // SAFETY: `nvmlSystemGetNVMLVersion` receives valid output locations.
@@ -130,5 +130,3 @@ mod tests {
         }
     }
 }
-
-mod optional;

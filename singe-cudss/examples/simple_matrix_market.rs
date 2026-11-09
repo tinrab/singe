@@ -1,16 +1,12 @@
-use std::result::Result as StdResult;
-
-use singe_cudss::types::ConfigParameter;
-
 mod common;
 
-use std::{error::Error, slice, str::FromStr};
+use std::{error::Error, result::Result as StdResult, slice, str::FromStr};
 
 use singe_cuda::memory::DeviceMemory;
 use singe_cudss::{
     config::Config,
     matrix::{CsrMatrixDescriptor, Matrix},
-    types::{IndexBase, MatrixType, MatrixViewType, ReorderingAlgorithm},
+    types::{ConfigParameter, IndexBase, MatrixType, MatrixViewType, ReorderingAlgorithm},
 };
 
 use crate::common::{create_context, dense_matrix, dense_output, solve};
@@ -122,9 +118,11 @@ fn parse_coordinate_matrix(input: &str) -> Result<Csr> {
         if row >= rows || col >= cols {
             return Err("matrix entry is out of bounds".into());
         }
+
         if col < row {
             return Err("sample matrix is expected to contain upper-triangle entries".into());
         }
+
         row_offsets[row + 1] += 1;
         col_indices.push(col as i32);
         values.push(value);

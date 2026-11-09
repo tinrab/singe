@@ -83,6 +83,7 @@ impl RuntimeShapeConstraints {
                 actual: self.min_dimensions.len(),
             });
         }
+
         if tensor.is_by_value() {
             tensor.validate_scalar()?;
             if self
@@ -111,6 +112,7 @@ pub fn validate_runtime_shape_constraint_dimensions(
             actual: max_dimensions.len(),
         });
     }
+
     Shape::contiguous(min_dimensions)?;
     Shape::contiguous(max_dimensions)?;
     if min_dimensions

@@ -94,7 +94,8 @@ impl_enum_conversion!(DataType, cudaDataType_t);
 impl DataType {
     /// Returns the whole-byte storage size of one element.
     ///
-    /// Sub-byte formats use one byte per storage element here. This method does not compute packed array lengths.
+    /// Sub-byte formats use one byte per storage element here.
+    /// This method does not compute packed array lengths.
     #[must_use]
     pub const fn size_of(self) -> usize {
         match self {
@@ -172,10 +173,9 @@ impl_enum_display!(DataType, {
 ///
 /// # Safety
 ///
-/// The reported datatype, complexity, size, alignment, and storage ABI must
-/// match this Rust type. Packed formats must follow their CUDA storage-unit
-/// conventions. All bytes of valid values must be initialized, and every
-/// initialized storage pattern must be valid for the Rust representation.
+/// The reported datatype, complexity, size, alignment, and storage ABI must match this Rust type.
+/// Packed formats must follow their CUDA storage-unit conventions.
+/// All bytes of valid values must be initialized, and every initialized storage pattern must be valid for the Rust representation.
 pub unsafe trait DataTypeLike:
     AnyBitPatternDeviceRepr + NoUninitDeviceRepr + Default + Debug
 {
@@ -201,7 +201,6 @@ macro_rules! impl_data_type {
             }
 
             fn rust_type_name() -> &'static str {
-                // TODO: `type_name::<T>()`?
                 stringify!($ty)
             }
         }

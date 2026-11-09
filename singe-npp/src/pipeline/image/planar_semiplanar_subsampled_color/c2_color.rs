@@ -19,22 +19,17 @@ type SemiplanarToC2 = for<'source_y, 'source_uv, 'destination> unsafe fn(
 impl SemiplanarImage<u8> {
     /// Converts semiplanar YCbCr 4:2:0 into a new packed YCbCr 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with
-    /// width divided by 2 and height divided by 2. Both planes use `u8` samples.
-    /// The full-resolution dimensions must be divisible by the input and output subsampling
-    /// factors; stored chroma dimensions must exactly match the declared sampling.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
     /// Allocates a full-resolution C2 image containing the native YCbCr 4:2:2 packing.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn ycbcr420_to_ycbcr422_c2(self, stream_context: &StreamContext) -> Result<Image<u8, C2>>
     where
         u8: SupportedImage<C2>,
@@ -44,22 +39,17 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:2:0 into a new packed `CbYCr` 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with
-    /// width divided by 2 and height divided by 2. Both planes use `u8` samples.
-    /// The full-resolution dimensions must be divisible by the input and output subsampling
-    /// factors; stored chroma dimensions must exactly match the declared sampling.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
     /// Allocates a full-resolution C2 image containing the native `CbYCr` 4:2:2 packing.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn ycbcr420_to_cbycr422_c2(self, stream_context: &StreamContext) -> Result<Image<u8, C2>>
     where
         u8: SupportedImage<C2>,
@@ -69,22 +59,17 @@ impl SemiplanarImage<u8> {
 
     /// Converts semiplanar YCbCr 4:1:1 into a new packed YCbCr 4:2:2 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with
-    /// width divided by 4 and height divided by 1. Both planes use `u8` samples.
-    /// The full-resolution dimensions must be divisible by the input and output subsampling
-    /// factors; stored chroma dimensions must exactly match the declared sampling.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 4 and height divided by 1. Both planes use `u8` samples.
+    /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
     /// Allocates a full-resolution C2 image containing the native YCbCr 4:2:2 packing.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn ycbcr411_to_ycbcr422_c2(self, stream_context: &StreamContext) -> Result<Image<u8, C2>>
     where
         u8: SupportedImage<C2>,

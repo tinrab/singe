@@ -96,12 +96,12 @@ pub struct HostFunction(driver::CUhostFn);
 #[repr(transparent)]
 /// CUDA device function handle.
 ///
-/// CUDA owns the underlying function as part of a module, library, or runtime
-/// registration. This wrapper is a copyable handle value and does not unload or
-/// destroy the function.
+/// CUDA owns the underlying function as part of a module, library, or runtime registration.
+/// This wrapper is a copyable handle value and does not unload or destroy the function.
 pub struct DeviceFunction(driver::CUfunction);
 
-/// Unowned CUDA device address. Copying this value retains no allocation and proves no bounds, lifetime, context association, alignment, or access permissions.
+/// Unowned CUDA device address.
+/// Copying this value retains no allocation and proves no bounds, lifetime, context association, alignment, or access permissions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[repr(transparent)]
 pub struct DevicePtr(*mut ());
@@ -120,8 +120,7 @@ impl HostFunction {
     ///
     /// # Safety
     ///
-    /// `raw` must be a callback function pointer with the ABI and lifetime
-    /// required by CUDA for every operation that uses the returned handle.
+    /// `raw` must be a callback function pointer with the ABI and lifetime required by CUDA for every operation that uses the returned handle.
     #[must_use]
     pub const unsafe fn new(raw: driver::CUhostFn) -> Self {
         Self(raw)
@@ -131,8 +130,7 @@ impl HostFunction {
     ///
     /// # Safety
     ///
-    /// `raw` must be a callback function pointer with the ABI and lifetime
-    /// required by CUDA for every operation that uses the returned handle.
+    /// `raw` must be a callback function pointer with the ABI and lifetime required by CUDA for every operation that uses the returned handle.
     #[must_use]
     pub const unsafe fn from_raw(raw: driver::CUhostFn) -> Self {
         // SAFETY: the caller upholds this function's safety contract.
@@ -151,9 +149,7 @@ impl DeviceFunction {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid CUDA function handle whose owning module,
-    /// library, or runtime registration remains loaded for every operation that
-    /// uses the returned handle.
+    /// `raw` must be a valid CUDA function handle whose owning module, library, or runtime registration remains loaded for every operation that uses the returned handle.
     pub const unsafe fn new(raw: driver::CUfunction) -> Self {
         Self(raw)
     }
@@ -162,9 +158,7 @@ impl DeviceFunction {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid CUDA function handle whose owning module,
-    /// library, or runtime registration remains loaded for every operation that
-    /// uses the returned handle.
+    /// `raw` must be a valid CUDA function handle whose owning module, library, or runtime registration remains loaded for every operation that uses the returned handle.
     pub const unsafe fn from_raw(raw: driver::CUfunction) -> Self {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe { Self::new(raw) }
@@ -194,9 +188,8 @@ impl DevicePtr {
     ///
     /// # Safety
     ///
-    /// `raw` must be either null or a pointer value that is valid for the CUDA
-    /// operation it is passed to. This wrapper does not prove allocation
-    /// ownership, size, lifetime, context association, or access permissions.
+    /// `raw` must be either null or a pointer value that is valid for the CUDA operation it is passed to.
+    /// This wrapper does not prove allocation ownership, size, lifetime, context association, or access permissions.
     pub const unsafe fn new(raw: *mut ()) -> Self {
         Self(raw)
     }
@@ -205,9 +198,8 @@ impl DevicePtr {
     ///
     /// # Safety
     ///
-    /// `raw` must be either null or a pointer value that is valid for the CUDA
-    /// operation it is passed to. This wrapper does not prove allocation
-    /// ownership, size, lifetime, context association, or access permissions.
+    /// `raw` must be either null or a pointer value that is valid for the CUDA operation it is passed to.
+    /// This wrapper does not prove allocation ownership, size, lifetime, context association, or access permissions.
     pub const unsafe fn from_raw(raw: *mut ()) -> Self {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe { Self::new(raw.cast()) }
@@ -310,7 +302,9 @@ bitflags::bitflags! {
     /// Flags for mapping and unmapping interop resources
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct GraphicsMapResourceFlags: u32 {
-        /// Specifies no hints about how this resource will be used. It is therefore assumed that this resource will be read from and written to by CUDA kernels.  This is the default value.
+        /// Specifies no hints about how this resource will be used.
+        /// It is therefore assumed that this resource will be read from and written to by CUDA kernels.
+        /// This is the default value.
         const NONE = driver::CUgraphicsMapResourceFlags::CU_GRAPHICS_MAP_RESOURCE_FLAGS_NONE as _;
         /// Hints that CUDA will only read the mapped resource.
         const READ_ONLY = driver::CUgraphicsMapResourceFlags::CU_GRAPHICS_MAP_RESOURCE_FLAGS_READ_ONLY as _;
@@ -351,7 +345,8 @@ impl_enum_display!(LibraryProperty, {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum EmulationStrategy {
-    /// The default emulation strategy.  For emulated computations, this is equivalent to `CUDA_EMULATION_STRATEGY_PERFORMANT`, unless a library dependent environment variable is set
+    /// The default emulation strategy.
+    /// For emulated computations, this is equivalent to `CUDA_EMULATION_STRATEGY_PERFORMANT`, unless a library dependent environment variable is set
     Default = library_types::cudaEmulationStrategy::CUDA_EMULATION_STRATEGY_DEFAULT as _,
     /// An emulation strategy which configures libraries to use emulation when it provides a performance benefit
     Performant = library_types::cudaEmulationStrategy::CUDA_EMULATION_STRATEGY_PERFORMANT as _,
@@ -547,14 +542,16 @@ pub enum FunctionAttribute {
     ///
     /// This attribute is ignored if `CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE` or `CUlaunchAttributeID_enum::CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE` is set.
     ///
-    /// This attribute cannot be used to access oversized shared memory. Oversized shared memory can only be accessed by setting `CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE` or `CUlaunchAttributeID_enum::CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE`.
+    /// This attribute cannot be used to access oversized shared memory.
+    /// Oversized shared memory can only be accessed by setting `CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_MEMORY_MODE` or `CUlaunchAttributeID_enum::CU_LAUNCH_ATTRIBUTE_SHARED_MEMORY_MODE`.
     ///
     /// See `cuFuncSetAttribute`, `cuKernelSetAttribute`.
     MaxDynamicSharedSizeBytes =
         driver::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES as _,
     /// On devices where the L1 cache and shared memory use the same hardware resources, this sets the shared memory carveout preference, in percent of the total shared memory.
     ///
-    /// Refer to `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR`. This is only a hint, and the driver can choose a different ratio if required to execute the function.
+    /// Refer to `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_MULTIPROCESSOR`.
+    /// This is only a hint, and the driver can choose a different ratio if required to execute the function.
     ///
     /// See `cuFuncSetAttribute`, `cuKernelSetAttribute`.
     PreferredSharedMemoryCarveout =
@@ -566,40 +563,50 @@ pub enum FunctionAttribute {
         driver::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_CLUSTER_SIZE_MUST_BE_SET as _,
     /// The required cluster width in blocks.
     ///
-    /// The values must either all be 0 or all be positive. The validity of the cluster dimensions is otherwise checked at launch time.
+    /// The values must either all be 0 or all be positive.
+    /// The validity of the cluster dimensions is otherwise checked at launch time.
     ///
-    /// If the value is set during compile time, it cannot be set at runtime. Setting it at runtime will return `CUresult::CUDA_ERROR_NOT_PERMITTED`.
+    /// If the value is set during compile time, it cannot be set at runtime.
+    /// Setting it at runtime will return `CUresult::CUDA_ERROR_NOT_PERMITTED`.
     ///
     /// See `cuFuncSetAttribute`, `cuKernelSetAttribute`.
     RequiredClusterWidth =
         driver::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_WIDTH as _,
     /// The required cluster height in blocks.
     ///
-    /// The values must either all be 0 or all be positive. The validity of the cluster dimensions is otherwise checked at launch time.
+    /// The values must either all be 0 or all be positive.
+    /// The validity of the cluster dimensions is otherwise checked at launch time.
     ///
-    /// If the value is set during compile time, it cannot be set at runtime. Setting it at runtime should return `CUresult::CUDA_ERROR_NOT_PERMITTED`.
+    /// If the value is set during compile time, it cannot be set at runtime.
+    /// Setting it at runtime should return `CUresult::CUDA_ERROR_NOT_PERMITTED`.
     ///
     /// See `cuFuncSetAttribute`, `cuKernelSetAttribute`.
     RequiredClusterHeight =
         driver::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_HEIGHT as _,
     /// The required cluster depth in blocks.
     ///
-    /// The values must either all be 0 or all be positive. The validity of the cluster dimensions is otherwise checked at launch time.
+    /// The values must either all be 0 or all be positive.
+    /// The validity of the cluster dimensions is otherwise checked at launch time.
     ///
-    /// If the value is set during compile time, it cannot be set at runtime. Setting it at runtime should return `CUresult::CUDA_ERROR_NOT_PERMITTED`.
+    /// If the value is set during compile time, it cannot be set at runtime.
+    /// Setting it at runtime should return `CUresult::CUDA_ERROR_NOT_PERMITTED`.
     ///
     /// See `cuFuncSetAttribute`, `cuKernelSetAttribute`.
     RequiredClusterDepth =
         driver::CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_REQUIRED_CLUSTER_DEPTH as _,
     /// Whether the function can be launched with non-portable cluster size.
     ///
-    /// 1 is allowed, 0 is disallowed. A non-portable cluster size may only function on the specific SKUs the program is tested on. The launch might fail if the program is run on a different hardware platform.
+    /// 1 is allowed, 0 is disallowed.
+    /// A non-portable cluster size may only function on the specific SKUs the program is tested on.
+    /// The launch might fail if the program is run on a different hardware platform.
     ///
     /// CUDA API provides cudaOccupancyMaxActiveClusters to assist with checking whether the desired size can be launched on the current device.
     ///
     /// Portable Cluster Size
     ///
-    /// A portable cluster size is guaranteed to be functional on all compute capabilities higher than the target compute capability. The portable cluster size for `sm_90` is 8 blocks per cluster. This value may increase for future compute capabilities.
+    /// A portable cluster size is guaranteed to be functional on all compute capabilities higher than the target compute capability.
+    /// The portable cluster size for `sm_90` is 8 blocks per cluster.
+    /// This value may increase for future compute capabilities.
     ///
     /// The specific hardware unit may support higher cluster sizes that's not guaranteed to be portable.
     ///
@@ -689,7 +696,8 @@ impl_enum_display!(SharedMemoryConfig, {
     Self::EightByteBankSize => "CU_SHARED_MEM_CONFIG_EIGHT_BYTE_BANK_SIZE",
 });
 
-/// Shared memory carveout configurations. These may be passed to `cuFuncSetAttribute` or `cuKernelSetAttribute`
+/// Shared memory carveout configurations.
+/// These may be passed to `cuFuncSetAttribute` or `cuKernelSetAttribute`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(i32)]
 #[non_exhaustive]
@@ -964,7 +972,8 @@ pub enum ClusterSchedulingPolicy {
         driver::CUclusterSchedulingPolicy_enum::CU_CLUSTER_SCHEDULING_POLICY_LOAD_BALANCING as _,
     /// Spread the blocks within a cluster to the SMs, and prefer placement that prioritizes Distributed Shared Memory locality for Rubin-class GPUs.
     ///
-    /// This is a preference only. The driver may ignore this request when the launch is not eligible, when the device does not support the requested placement behavior, or when other launch constraints take precedence.
+    /// This is a preference only.
+    /// The driver may ignore this request when the launch is not eligible, when the device does not support the requested placement behavior, or when other launch constraints take precedence.
     ///
     /// This policy is intended for clustered kernels whose performance depends on communication through Distributed Shared Memory among blocks in the same cluster.
     RubinDsmemLocality =

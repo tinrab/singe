@@ -55,14 +55,17 @@ impl Graph {
             if vector_source.is_none() {
                 vector_source = lanes.map(|lanes| (tensor, lanes));
             }
+
             if tensor.shape.rank() > format.shape.rank() {
                 format = tensor;
             }
+
             dimensions = Cow::Owned(infer_binary_pointwise_dimensions(
                 &dimensions,
                 tensor.shape.dimensions(),
             )?);
         }
+
         let shape = match iter::once(first)
             .chain(others.into_iter().flatten())
             .find(|tensor| tensor.shape.dimensions() == dimensions.as_ref())
@@ -81,6 +84,7 @@ impl Graph {
                 - to_i64(source.shape.rank(), "source rank")?;
             output = output.with_vectorization(count, axis)?;
         }
+
         let output = self.inferred_tensor(output, operation.name(), "OUT_0");
         self.pointwise_into(operation.map_output(|_| output))?;
         Ok(output)

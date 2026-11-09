@@ -31,6 +31,7 @@ fn checked_region<T>(
     if !region.as_ptr().addr().is_multiple_of(align_of::<T>()) {
         return Err(Error::out_of_range("signal alignment"));
     }
+
     if bytes > region.byte_len() {
         return Err(Error::LengthMismatch {
             name: "signal memory".into(),
@@ -65,8 +66,8 @@ impl<'a, T> SignalView<'a, T> {
 
     /// # Safety
     /// The region must contain valid T values and remain readable for the view lifetime.
-    /// T must have a stable plain device representation. Retain its allocation
-    /// through all queued accesses and captured replay using this view.
+    /// T must have a stable plain device representation.
+    /// Retain its allocation through all queued accesses and captured replay using this view.
     ///
     /// # Errors
     ///
@@ -113,6 +114,7 @@ impl<'a, T> SignalView<'a, T> {
         if range.start >= range.end || range.end > self.len() {
             return Err(Error::out_of_range("signal slice"));
         }
+
         // The constructor checked the full byte product, so these subranges fit.
         let region = self
             .region
@@ -186,8 +188,8 @@ impl<'a, T> SignalViewMut<'a, T> {
 
     /// # Safety
     /// The region must contain valid T values and remain exclusively accessible for the view lifetime.
-    /// T must have a stable plain device representation. Retain its allocation
-    /// through all queued accesses and captured replay using this view.
+    /// T must have a stable plain device representation.
+    /// Retain its allocation through all queued accesses and captured replay using this view.
     ///
     /// # Errors
     ///
@@ -234,6 +236,7 @@ impl<'a, T> SignalViewMut<'a, T> {
         if range.start >= range.end || range.end > self.len() {
             return Err(Error::out_of_range("signal slice"));
         }
+
         // The constructor checked the full byte product, so these subranges fit.
         let region = self
             .region
@@ -349,8 +352,8 @@ impl<'a, T> SignalOutputView<'a, T> {
 
     /// # Safety
     /// The region must remain exclusively writable for the view lifetime; initialization is not required.
-    /// T must have a stable plain device representation. Retain its allocation
-    /// through all queued accesses and captured replay using this view.
+    /// T must have a stable plain device representation.
+    /// Retain its allocation through all queued accesses and captured replay using this view.
     ///
     /// # Errors
     ///
@@ -397,6 +400,7 @@ impl<'a, T> SignalOutputView<'a, T> {
         if range.start >= range.end || range.end > self.len() {
             return Err(Error::out_of_range("signal slice"));
         }
+
         // The constructor checked the full byte product, so these subranges fit.
         let region = self
             .region
@@ -420,8 +424,8 @@ impl<'a, T> SignalOutputView<'a, T> {
     }
 
     /// # Safety
-    /// Every element must contain a valid T, and producing writes must be ordered
-    /// before every consumer and host readback. Successful enqueue alone is insufficient.
+    /// Every element must contain a valid T, and producing writes must be ordered before every consumer and host readback.
+    /// Successful enqueue alone is insufficient.
     #[must_use]
     pub unsafe fn assume_init(self) -> SignalViewMut<'a, T> {
         SignalViewMut {

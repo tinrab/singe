@@ -15,23 +15,22 @@ use crate::{
 ///
 /// # Safety
 ///
-/// Implementations must preserve native source and destination representations and numeric
-/// conversion semantics. Complete borrowed native work on every path. On success, initialize
-/// every physical channel in the ROI, including alpha. Uphold the completed native dispatch
-/// contract of [`ImagePipeline`](crate::pipeline::ImagePipeline).
+/// Implementations must preserve native source and destination representations and numeric conversion semantics.
+/// Complete borrowed native work on every path.
+/// On success, initialize every physical channel in the ROI, including alpha.
+/// Uphold the completed native dispatch contract of [`ImagePipeline`](crate::pipeline::ImagePipeline).
 pub unsafe trait RoundConvertImage<T, U, L> {
     /// Converts each image sample to `U` using native conversion semantics.
     /// Uses `round_mode` for the selected native rounding operation.
     /// Writes the converted samples into the equally sized `destination`.
-    /// Processes every physical channel, including alpha in AC4 layouts. Row padding remains unwritten.
+    /// Processes every physical channel, including alpha in AC4 layouts.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
     /// Source and destination dimensions must match.
     fn round_convert_image(
         stream_context: &StreamContext,
@@ -45,24 +44,23 @@ pub unsafe trait RoundConvertImage<T, U, L> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve native source and destination representations and numeric
-/// conversion semantics. Complete borrowed native work on every path. On success, initialize
-/// every physical channel in the ROI, including alpha. Uphold the completed native dispatch
-/// contract of [`ImagePipeline`](crate::pipeline::ImagePipeline).
+/// Implementations must preserve native source and destination representations and numeric conversion semantics.
+/// Complete borrowed native work on every path.
+/// On success, initialize every physical channel in the ROI, including alpha.
+/// Uphold the completed native dispatch contract of [`ImagePipeline`](crate::pipeline::ImagePipeline).
 pub unsafe trait ScaledRoundConvertImage<T, U, L> {
     /// Converts each image sample to `U` using native conversion semantics.
     /// Uses `round_mode` for the selected native rounding operation.
     /// Passes `scale_factor` to the native scaled conversion without validating its numeric range.
     /// Writes the converted samples into the equally sized `destination`.
-    /// Processes every physical channel, including alpha in AC4 layouts. Row padding remains unwritten.
+    /// Processes every physical channel, including alpha in AC4 layouts.
+    /// Row padding remains unwritten.
     ///
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// stream capture, and completes native work before returning successfully.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects stream capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, view construction, native conversion, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, view construction, native conversion, or stream synchronization fail.
     /// Source and destination dimensions must match.
     fn scaled_round_convert_image(
         stream_context: &StreamContext,

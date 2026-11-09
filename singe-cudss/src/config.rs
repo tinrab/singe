@@ -31,13 +31,12 @@ unsafe impl Send for Config {}
 impl Config {
     /// Creates a solver configuration object.
     ///
-    /// The configuration stores algorithm choices and feature toggles for a
-    /// solve. cuDSS allocates only lightweight host resources for this object.
+    /// The configuration stores algorithm choices and feature toggles for a solve.
+    /// cuDSS allocates only lightweight host resources for this object.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDSS cannot create the configuration object or
-    /// returns a null handle.
+    /// Returns an error if cuDSS cannot create the configuration object or returns a null handle.
     pub fn create() -> Result<Self> {
         // SAFETY: `cudssConfigCreate` receives valid output locations.
         unsafe {
@@ -54,8 +53,8 @@ impl Config {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid cuDSS config handle created by cuDSS. Ownership is
-    /// transferred to the returned wrapper, which destroys the handle on drop.
+    /// `raw` must be a valid cuDSS config handle created by cuDSS.
+    /// Ownership is transferred to the returned wrapper, which destroys the handle on drop.
     ///
     /// # Errors
     ///
@@ -73,8 +72,7 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// Returns an error if the value size cannot be represented for cuDSS or if
-    /// cuDSS rejects the parameter, value type, or value.
+    /// Returns an error if the value size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or value.
     ///
     /// # Safety
     ///
@@ -94,18 +92,16 @@ impl Config {
 
     /// Sets an array-valued configuration parameter.
     ///
-    /// `T` and the slice length must match the value type documented for
-    /// `param`.
+    /// `T` and the slice length must match the value type documented for `param`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the slice byte size cannot be represented for cuDSS
-    /// or if cuDSS rejects the parameter, value type, or values.
+    /// Returns an error if the slice byte size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or values.
     ///
     /// # Safety
     ///
-    /// T, slice length, byte initialization, and indirection must match this
-    /// parameter's native array ABI. Retain referenced pointees for every native use.
+    /// T, slice length, byte initialization, and indirection must match this parameter's native array ABI.
+    /// Retain referenced pointees for every native use.
     pub unsafe fn set_raw_slice<T: Copy>(
         &mut self,
         param: ConfigParameter,
@@ -128,15 +124,11 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// Returns an error if the value size cannot be represented for cuDSS, if
-    /// cuDSS rejects the parameter or value type, or if cuDSS reports an
-    /// internal byte-count mismatch.
+    /// Returns an error if the value size cannot be represented for cuDSS, if cuDSS rejects the parameter or value type, or if cuDSS reports an internal byte-count mismatch.
     ///
     /// # Safety
     ///
-    /// The parameter must be a synchronous host output that initializes all bytes
-    /// as a valid T. Device outputs and parameters requiring an existing destination
-    /// value cannot be read through this method.
+    /// The parameter must be a synchronous host output that initializes all bytes as a valid T. Device outputs and parameters requiring an existing destination value cannot be read through this method.
     pub unsafe fn get_raw<T: Copy>(&self, param: ConfigParameter) -> Result<T> {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
@@ -364,8 +356,10 @@ impl Drop for Config {
         // SAFETY: `cudssConfigDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudssConfigDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudss config: {error}");
+                eprintln!(
+                    "failed to destroy cudss config: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

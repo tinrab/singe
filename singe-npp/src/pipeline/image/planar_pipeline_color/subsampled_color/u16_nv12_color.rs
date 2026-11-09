@@ -13,21 +13,18 @@ where
 {
     /// Converts packed RGB into a new NV12-style semiplanar image using `twist`.
     ///
-    /// Allocates a full-resolution Y plane and an interleaved U/V C2 plane at half width
-    /// and half height. Width and height must be even. Retains the `u16` sample representation.
-    /// The host three-by-four `f32` twist matrix determines the native RGB-to-YUV transform
-    /// and is forwarded without coefficient validation.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// Allocates a full-resolution Y plane and an interleaved U/V C2 plane at half width and half height.
+    /// Width and height must be even.
+    /// Retains the `u16` sample representation.
+    /// The host three-by-four `f32` twist matrix determines the native RGB-to-YUV transform and is forwarded without coefficient validation.
+    /// Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn rgb_to_nv12(self, twist: color::ColorTwistMatrix) -> Result<SemiplanarImage<u16>> {
         self.ensure_eager()?;
         let mut destination =

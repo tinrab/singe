@@ -44,7 +44,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// This recording step currently returns no errors. Graph preparation validates the deferred operands, layouts, and target-specific support.
+    /// This recording step currently returns no errors.
+    /// Graph preparation validates the deferred operands, layouts, and target-specific support.
     pub fn sdpa_backward_into(
         &mut self,
         inputs: SdpaBackwardInputs,
@@ -231,6 +232,7 @@ impl Graph {
             }
             .into());
         }
+
         if let Some(score_subgraph_bprop) = config.score_subgraph_bprop() {
             d_s = self.import_score_subgraph(
                 score_subgraph_bprop,
@@ -239,6 +241,7 @@ impl Graph {
                 None,
             )?;
         }
+
         d_s = self.sdpa_binary(
             PointwiseMode::Mul,
             d_s,
@@ -301,6 +304,7 @@ impl Graph {
             for tensor in [q, k, v] {
                 self.validate_tensor_rank(tensor, 4, "attention backward input")?;
             }
+
             let q_tensor = self.tensor_spec(q)?;
             let k_tensor = self.tensor_spec(k)?;
             let v_tensor = self.tensor_spec(v)?;
@@ -311,6 +315,7 @@ impl Graph {
                 }
                 .into());
             }
+
             let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &k_tensor.shape)?;
             infer_sdpa_output_shape(&scores_shape, &v_tensor.shape)?;
             let [d_q, d_k, d_v] =

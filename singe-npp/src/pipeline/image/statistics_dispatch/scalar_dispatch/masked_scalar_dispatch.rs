@@ -10,25 +10,24 @@ use crate::{
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations and reduction
-/// semantics. Report the exact output element count, initialize every output element on
-/// success, and complete borrowed native work on every path. Uphold the completed native
-/// dispatch contract of [`ImagePipeline`](crate::pipeline::ImagePipeline).
+/// Implementations must preserve native pixel and layout representations and reduction semantics.
+/// Report the exact output element count, initialize every output element on success, and complete borrowed native work on every path.
+/// Uphold the completed native dispatch contract of [`ImagePipeline`](crate::pipeline::ImagePipeline).
 pub unsafe trait MaskedScalarStatisticImage<T, L> {
     /// Exact number of `f64` results required by this dispatch implementation.
     const OUTPUT_CHANNELS: usize;
 
     /// Computes the arithmetic mean of samples for each processed channel.
-    /// Includes only pixels whose corresponding mask sample is nonzero. The mask must have
-    /// the same dimensions as the source. The provided masked implementations process C1 images.
+    /// Includes only pixels whose corresponding mask sample is nonzero.
+    /// The mask must have the same dimensions as the source.
+    /// The provided masked implementations process C1 images.
     /// Writes `f64` results into `output`, whose length must exactly match the dispatch output count.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful native completion. The native reduction owns its temporary scratch.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native completion.
+    /// The native reduction owns its temporary scratch.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
     /// The mask dimensions must match the source.
     /// The output length must equal the required number of channel results.
     fn mean_masked(
@@ -39,16 +38,16 @@ pub unsafe trait MaskedScalarStatisticImage<T, L> {
     ) -> Result<()>;
 
     /// Computes the maximum absolute sample value for each processed channel.
-    /// Includes only pixels whose corresponding mask sample is nonzero. The mask must have
-    /// the same dimensions as the source. The provided masked implementations process C1 images.
+    /// Includes only pixels whose corresponding mask sample is nonzero.
+    /// The mask must have the same dimensions as the source.
+    /// The provided masked implementations process C1 images.
     /// Writes `f64` results into `output`, whose length must exactly match the dispatch output count.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful native completion. The native reduction owns its temporary scratch.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native completion.
+    /// The native reduction owns its temporary scratch.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
     /// The mask dimensions must match the source.
     /// The output length must equal the required number of channel results.
     fn norm_inf_masked(
@@ -59,16 +58,16 @@ pub unsafe trait MaskedScalarStatisticImage<T, L> {
     ) -> Result<()>;
 
     /// Computes the sum of absolute sample values for each processed channel.
-    /// Includes only pixels whose corresponding mask sample is nonzero. The mask must have
-    /// the same dimensions as the source. The provided masked implementations process C1 images.
+    /// Includes only pixels whose corresponding mask sample is nonzero.
+    /// The mask must have the same dimensions as the source.
+    /// The provided masked implementations process C1 images.
     /// Writes `f64` results into `output`, whose length must exactly match the dispatch output count.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful native completion. The native reduction owns its temporary scratch.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native completion.
+    /// The native reduction owns its temporary scratch.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
     /// The mask dimensions must match the source.
     /// The output length must equal the required number of channel results.
     fn norm_l1_masked(
@@ -79,16 +78,16 @@ pub unsafe trait MaskedScalarStatisticImage<T, L> {
     ) -> Result<()>;
 
     /// Computes the square root of the sum of squared sample values for each processed channel.
-    /// Includes only pixels whose corresponding mask sample is nonzero. The mask must have
-    /// the same dimensions as the source. The provided masked implementations process C1 images.
+    /// Includes only pixels whose corresponding mask sample is nonzero.
+    /// The mask must have the same dimensions as the source.
+    /// The provided masked implementations process C1 images.
     /// Writes `f64` results into `output`, whose length must exactly match the dispatch output count.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful native completion. The native reduction owns its temporary scratch.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native completion.
+    /// The native reduction owns its temporary scratch.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native reduction, or stream synchronization fail.
     /// The mask dimensions must match the source.
     /// The output length must equal the required number of channel results.
     fn norm_l2_masked(

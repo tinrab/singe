@@ -19,22 +19,18 @@ where
     Self: FloatKernelFilterImage<T, L>,
 {
     /// Filters each active channel using a rectangular floating-point coefficient kernel.
-    /// Supply coefficients in the reverse order required by NPP. `kernel_size` gives the
-    /// width and height, and `anchor` locates the kernel origin relative to the source pixel.
-    /// Passes the slice address directly as a native device pointer, without uploading it;
-    /// its storage must also be GPU-readable in the selected CUDA context.
-    /// Allocates a new owned image for the valid source window, reducing width and height
-    /// by `kernel_size.width - 1` and `kernel_size.height - 1` respectively.
+    /// Supply coefficients in the reverse order required by NPP.
+    /// `kernel_size` gives the width and height, and `anchor` locates the kernel origin relative to the source pixel.
+    /// Passes the slice address directly as a native device pointer, without uploading it; its storage must also be GPU-readable in the selected CUDA context.
+    /// Allocates a new owned image for the valid source window, reducing width and height by `kernel_size.width - 1` and `kernel_size.height - 1` respectively.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Kernel dimensions must be positive, their checked product must equal `kernel.len()`,
-    /// and `anchor` must lie within the kernel.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Kernel dimensions must be positive, their checked product must equal `kernel.len()`, and `anchor` must lie within the kernel.
     /// The source must contain the complete kernel and its valid output window.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn filter_kernel32f(
@@ -52,24 +48,20 @@ where
     }
 
     /// Filters each active channel using a rectangular floating-point coefficient kernel.
-    /// Supply coefficients in the reverse order required by NPP. `kernel_size` gives the
-    /// width and height, and `anchor` locates the kernel origin relative to the source pixel.
-    /// Passes the slice address directly as a native device pointer, without uploading it;
-    /// its storage must also be GPU-readable in the selected CUDA context.
-    /// `source_offset` locates the output ROI in the full source. Allocates a new owned
-    /// output spanning from that offset to the lower-right source edge.
+    /// Supply coefficients in the reverse order required by NPP.
+    /// `kernel_size` gives the width and height, and `anchor` locates the kernel origin relative to the source pixel.
+    /// Passes the slice address directly as a native device pointer, without uploading it; its storage must also be GPU-readable in the selected CUDA context.
+    /// `source_offset` locates the output ROI in the full source.
+    /// Allocates a new owned output spanning from that offset to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Kernel dimensions must be positive, their checked product must equal `kernel.len()`,
-    /// and `anchor` must lie within the kernel.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Kernel dimensions must be positive, their checked product must equal `kernel.len()`, and `anchor` must lie within the kernel.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn filter_kernel32f_border(
         self,
@@ -90,6 +82,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_source.view())?;
             }
+
             <Self as FloatKernelFilterImage<T, L>>::filter_kernel32f_border_image(
                 self.stream_context,
                 &source,
@@ -127,6 +120,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source.view())?;
             }
+
             filter(
                 self.stream_context,
                 &source,

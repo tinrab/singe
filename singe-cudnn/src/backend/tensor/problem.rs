@@ -7,13 +7,12 @@ use crate::{
 /// Hashable declaration of one native tensor for execution-plan cache keys.
 ///
 /// Includes native identity, layout, encoding, placement and addressing metadata.
-/// Compile-time constants compare by their encoded bytes, preserving floating-point
-/// payloads and signed zero. Runtime scalar values and device addresses are excluded.
+/// Compile-time constants compare by their encoded bytes, preserving floating-point payloads and signed zero.
+/// Runtime scalar values and device addresses are excluded.
 /// Building a snapshot clones the checked shape without querying cuDNN.
 /// The snapshot retains no tensor, descriptor or allocation owners.
 ///
-/// Combine these snapshots with operand roles, every operation's attributes, the
-/// compatible device/context and compilation policy to identify a complete graph.
+/// Combine these snapshots with operand roles, every operation's attributes, the compatible device/context and compilation policy to identify a complete graph.
 /// Runtime shape overrides require their own key information.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TensorProblemKey {

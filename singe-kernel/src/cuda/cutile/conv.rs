@@ -58,6 +58,7 @@ impl Conv1dWindowParams {
         {
             return Err(Error::InvalidLength);
         }
+
         let input_end = input_start
             .checked_add(input_length)
             .ok_or(Error::SizeOverflow)?;
@@ -162,6 +163,7 @@ impl Conv1dBatchedParams {
         {
             return Err(Error::InvalidLength);
         }
+
         let input_values_per_batch = checked_element_count(channels_in, input_length)?;
         let output_values_per_batch = checked_element_count(channels_out, output_length)?;
         let input_reach = batch
@@ -241,6 +243,7 @@ impl Conv1dIm2colParams {
         {
             return Err(Error::InvalidLength);
         }
+
         let input_values_per_batch = checked_element_count(channels_in, input_length)?;
         let input_reach = (batch - 1)
             .checked_mul(input_batch_stride)

@@ -129,6 +129,7 @@ fn create_all_impl(device_ids: &[i32]) -> Result<Vec<Communicator>> {
     if is_active() {
         return Err(Error::GroupActive);
     }
+
     let contexts = device_ids
         .iter()
         .map(|&device_id| {
@@ -271,6 +272,7 @@ pub fn communicator_from_initialization(
         }
         return Err(status.into());
     }
+
     let communicator = communicator_from_raw(raw, cuda_context)?;
     if status == sys::ncclResult_t::ncclInProgress {
         communicator.set_state(CommunicatorState::Initializing);

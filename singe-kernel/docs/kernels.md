@@ -5,7 +5,7 @@
 | Category      | Module                                              | Purpose                                              |
 | ------------- | --------------------------------------------------- | ---------------------------------------------------- |
 | Activation    | [cuda::activation](../src/cuda/activation.rs)       | Nonlinearities and gated activations                 |
-| Attention     | [cuda::attention](../src/cuda/attention.rs)         | Prefill and decode attention                         |
+| Attention     | [cuda::attention](../src/cuda/attention/mod.rs)     | Prefill and decode attention                         |
 | Audio         | [cuda::audio](../src/cuda/audio.rs)                 | STFT, spectrograms, and audio features               |
 | Cast          | [cuda::cast](../src/cuda/cast.rs)                   | Device datatype conversion                           |
 | Convolution   | [cuda::conv](../src/cuda/conv.rs)                   | Convolution and layout helpers                       |
@@ -13,7 +13,7 @@
 | Elementwise   | [cuda::elementwise](../src/cuda/elementwise.rs)     | Binary and ternary operations, clamps, and selects   |
 | Embedding     | [cuda::embedding](../src/cuda/embedding.rs)         | Token embedding lookups                              |
 | FFT           | [cuda::fft](../src/cuda/fft.rs)                     | Complex and real transforms, normalization           |
-| Fused         | [cuda::fused](../src/cuda/fused.rs)                 | Combined inference operations                        |
+| Fused         | [cuda::fused](../src/cuda/fused/mod.rs)             | Combined inference operations                        |
 | Gather        | [cuda::gather](../src/cuda/gather.rs)               | Indexed gathers and row selection                    |
 | Mask          | [cuda::mask](../src/cuda/mask.rs)                   | Boolean and causal masks                             |
 | Matmul        | [cuda::matmul](../src/cuda/matmul.rs)               | GEMM, batched products, and matrix-vector products   |
@@ -149,7 +149,7 @@ For example, fill a device buffer with an explicit grid:
 ```rust,no_run
 use cutile::cuda_async::device_operation::DeviceOp;
 use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
-use singe_kernel::cuda::cutile::{DevicePointer, TileKernel, kernel::common};
+use singe_kernel::cuda::cutile::{DevicePointer, TileKernel, kernel::vector};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let context = Context::retain_primary_for_device(Device::new(0))?;
@@ -165,7 +165,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 		// SAFETY: the kernel checks bounds, and output stays alive and exclusive
 		// until this scope completes the launch.
 		Ok(unsafe {
-			common::fill_f32(pointer, 2.0, 4)
+			vector::fill_f32(pointer, 2.0, 4)
 				.grid((1, 1, 1))
 				.async_on(&cuda_stream)
 		})

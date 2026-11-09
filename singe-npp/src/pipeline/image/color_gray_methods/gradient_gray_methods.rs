@@ -19,13 +19,12 @@ where
     /// Converts packed RGB to a one-channel gray gradient.
     /// `normalization` selects the native gradient distance method.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     pub fn gradient_color_to_gray_into(
         stream_context: &StreamContext,
@@ -50,13 +49,12 @@ where
     /// Converts packed RGB to a one-channel gray gradient.
     /// `normalization` selects the native gradient distance method.
     /// Allocates a new owned C1 image with the source dimensions.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     /// Allocation or image view construction can also fail.
     pub fn gradient_color_to_gray(

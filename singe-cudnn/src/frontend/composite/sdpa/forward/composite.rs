@@ -51,6 +51,7 @@ impl Graph {
         if let Some(stats) = stats {
             self.validate_sdpa_tensor_data_type_match(stats, DataType::F32, SDPA_STATS_DATA_TYPE)?;
         }
+
         let compute_type = self.resolve_compute_data_type(config.compute_type());
         let (score_matmul, output_matmul) =
             Self::sdpa_forward_matmul_configs(&modifiers, compute_type);
@@ -62,6 +63,7 @@ impl Graph {
             }
             .into());
         }
+
         self.promote_index_tensors(modifiers.sequence_inputs().tensors())?;
         let inputs =
             self.prepare_sdpa_forward_inputs(q, k, v, output, &modifiers, score_subgraph)?;
@@ -284,6 +286,7 @@ impl Graph {
         if dropout_mask.is_none() || dropout_scale.is_none() {
             return Ok(probs);
         }
+
         let probs = self.sdpa_optional_mul(probs, dropout_mask, compute_type, output_type)?;
         self.sdpa_optional_mul(probs, dropout_scale, compute_type, output_type)
     }

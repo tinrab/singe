@@ -1,12 +1,11 @@
 //! Warp counts and contended weighted sums, checked against host references.
 
+mod support;
+
 use anyhow::Result;
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, LaunchConfig, ParsedModule, ShutdownMode,
 };
-
-mod support;
-
 use support::Observe;
 
 fn collective_source(body: &str) -> String {

@@ -4,9 +4,8 @@ use crate::{backend::tensor::TensorId, frontend::operation::RandomNumberSeedSour
 
 /// Dropout configuration for scaled dot product attention.
 ///
-/// cuDNN SDPA can apply dropout after softmax using Philox RNG seed/offset
-/// inputs, or a custom mask and scale through score modifiers. This config
-/// represents the Philox-style probability and seed/offset path.
+/// cuDNN SDPA can apply dropout after softmax using Philox RNG seed/offset inputs, or a custom mask and scale through score modifiers.
+/// This config represents the Philox-style probability and seed/offset path.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct AttentionDropoutConfig {
     #[serde(with = "crate::scalar::float::f32_bits")]

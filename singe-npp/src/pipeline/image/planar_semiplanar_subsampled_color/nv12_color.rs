@@ -20,23 +20,16 @@ type Nv12ToPlanar = for<'source_y, 'source_uv, 'y, 'u, 'v> unsafe fn(
 impl SemiplanarImage<u8> {
     /// Converts semiplanar NV12 into a new planar YUV 4:2:0 image.
     ///
-    /// The input has a full-resolution Y plane and an interleaved chroma plane with
-    /// width divided by 2 and height divided by 2. Both planes use `u8` samples.
-    /// The full-resolution dimensions must be divisible by the input and output subsampling
-    /// factors; stored chroma dimensions must exactly match the declared sampling.
-    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided
-    /// by 2 and height divided by 2. The chroma storage order is U then V.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// The input has a full-resolution Y plane and an interleaved chroma plane with width divided by 2 and height divided by 2. Both planes use `u8` samples.
+    /// The full-resolution dimensions must be divisible by the input and output subsampling factors; stored chroma dimensions must exactly match the declared sampling.
+    /// Allocates a full-resolution Y plane and two separate chroma planes of width divided by 2 and height divided by 2. The chroma storage order is U then V. Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn nv12_to_yuv420_planar(
         self,
         stream_context: &StreamContext,

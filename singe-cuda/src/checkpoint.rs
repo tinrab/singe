@@ -79,8 +79,7 @@ impl LockOptions {
     /// Sets the maximum time CUDA should spend attempting to lock the process.
     ///
     /// A missing timeout passes `0` to CUDA, which means no timeout.
-    /// Durations are truncated to whole milliseconds; a submillisecond timeout
-    /// therefore also passes zero and disables the timeout.
+    /// Durations are truncated to whole milliseconds; a submillisecond timeout therefore also passes zero and disables the timeout.
     #[must_use]
     pub const fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
@@ -139,7 +138,8 @@ impl GpuPair {
     ///
     /// # Errors
     ///
-    /// Propagates CUDA device-property query errors for either the original or target device. No remapping is performed by this constructor.
+    /// Propagates CUDA device-property query errors for either the original or target device.
+    /// No remapping is performed by this constructor.
     pub fn from_devices(old: Device, new: Device) -> Result<Self> {
         let old_uuid = old.properties()?.uuid;
         let new_uuid = new.properties()?.uuid;
@@ -154,7 +154,8 @@ impl GpuPair {
     }
 }
 
-/// Options for [`CheckpointProcess::checkpoint`]. Reserved for future CUDA versions.
+/// Options for [`CheckpointProcess::checkpoint`].
+/// Reserved for future CUDA versions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CheckpointOptions;
 
@@ -283,7 +284,8 @@ impl From<Vec<GpuPair>> for RestoreOptions {
     }
 }
 
-/// Options for [`CheckpointProcess::unlock`]. Reserved for future CUDA versions.
+/// Options for [`CheckpointProcess::unlock`].
+/// Reserved for future CUDA versions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct UnlockOptions;
 
@@ -308,9 +310,8 @@ impl Default for UnlockOptions {
 
 /// A CUDA process controlled through the driver checkpoint APIs.
 ///
-/// These APIs are intended for an external controller process. Locking a
-/// process blocks further CUDA API calls in that process until it is restored
-/// and unlocked.
+/// These APIs are intended for an external controller process.
+/// Locking a process blocks further CUDA API calls in that process until it is restored and unlocked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CheckpointProcess {
     pid: ProcessId,
@@ -349,7 +350,8 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the target process's checkpoint state, for example because the process is unavailable or checkpoint control is unsupported. Also returns `Error::InvalidValue` if the native state cannot be converted to [`ProcessState`].
+    /// Returns an error if CUDA cannot query the target process's checkpoint state, for example because the process is unavailable or checkpoint control is unsupported.
+    /// Also returns `Error::InvalidValue` if the native state cannot be converted to [`ProcessState`].
     pub fn state(self) -> Result<ProcessState> {
         let mut state = driver::CUprocessState::CU_PROCESS_STATE_RUNNING;
         // SAFETY: `cuCheckpointProcessGetState` receives valid output locations.
@@ -387,7 +389,9 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the timeout overflows the host monotonic clock, or the native timeout status if `expected` is not reached before the polling deadline. Also propagates state-query errors. The state is queried immediately and then every 25 milliseconds.
+    /// Returns `Error::InvalidValue` if the timeout overflows the host monotonic clock, or the native timeout status if `expected` is not reached before the polling deadline.
+    /// Also propagates state-query errors.
+    /// The state is queried immediately and then every 25 milliseconds.
     pub fn wait_for_state(self, expected: ProcessState, timeout: Duration) -> Result<ProcessState> {
         const POLL_INTERVAL: Duration = Duration::from_millis(25);
         let end = Instant::now()
@@ -399,6 +403,7 @@ impl CheckpointProcess {
             if state == expected {
                 return Ok(state);
             }
+
             if Instant::now() >= end {
                 return Err(Error::Cuda {
                     code: Status::Timeout,
@@ -408,6 +413,7 @@ impl CheckpointProcess {
                     ),
                 });
             }
+
             thread::sleep(POLL_INTERVAL);
         }
     }
@@ -435,7 +441,8 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates errors from [`Self::try_lock`]. A timed-out lock attempt is converted from [`LockResult::TimedOut`] to the native not-ready error status.
+    /// Propagates errors from [`Self::try_lock`].
+    /// A timed-out lock attempt is converted from [`LockResult::TimedOut`] to the native not-ready error status.
     pub fn lock(self, options: LockOptions) -> Result<()> {
         match self.try_lock(options)? {
             LockResult::Locked => Ok(()),
@@ -445,12 +452,14 @@ impl CheckpointProcess {
 
     /// Attempts to lock a running CUDA process and reports whether the timeout was hit.
     ///
-    /// On success the process usually enters [`ProcessState::Locked`]. If a timeout
-    /// is set and reached, this returns [`LockResult::TimedOut`].
+    /// On success the process usually enters [`ProcessState::Locked`].
+    /// If a timeout is set and reached, this returns [`LockResult::TimedOut`].
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the timeout in milliseconds does not fit the native timeout field. Also propagates native lock failures for invalid process state, unavailable targets, or unsupported checkpoint control. The native not-ready status is returned as [`LockResult::TimedOut`] rather than an error.
+    /// Returns `Error::InvalidValue` if the timeout in milliseconds does not fit the native timeout field.
+    /// Also propagates native lock failures for invalid process state, unavailable targets, or unsupported checkpoint control.
+    /// The native not-ready status is returned as [`LockResult::TimedOut`] rather than an error.
     pub fn try_lock(self, options: LockOptions) -> Result<LockResult> {
         let mut args = options.to_raw()?;
         // SAFETY: `cuCheckpointProcessLock` receives valid output locations.
@@ -497,7 +506,8 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates lock or checkpoint errors. A successful lock is not undone if the following checkpoint operation fails.
+    /// Propagates lock or checkpoint errors.
+    /// A successful lock is not undone if the following checkpoint operation fails.
     pub fn suspend(self, options: LockOptions) -> Result<()> {
         self.lock(options)?;
         self.checkpoint()
@@ -510,7 +520,9 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates state-query, suspend, restore, or unlock errors. Returns the native illegal-state status if the target is neither running nor checkpointed. Successful earlier state transitions are not rolled back if a later step fails.
+    /// Propagates state-query, suspend, restore, or unlock errors.
+    /// Returns the native illegal-state status if the target is neither running nor checkpointed.
+    /// Successful earlier state transitions are not rolled back if a later step fails.
     pub fn toggle(
         self,
         options: LockOptions,
@@ -534,14 +546,14 @@ impl CheckpointProcess {
 
     /// Restores a checkpointed process, optionally remapping checkpointed GPUs.
     ///
-    /// If `gpu_pairs` is not empty, CUDA requires it to contain every
-    /// checkpointed GPU.
+    /// If `gpu_pairs` is not empty, CUDA requires it to contain every checkpointed GPU.
     ///
     /// On success the process enters [`ProcessState::Locked`].
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the remapping-pair count exceeds the native integer range. Also propagates native restore errors for invalid target state, incomplete or incompatible GPU remapping, unavailable devices, or insufficient resources.
+    /// Returns `Error::InvalidValue` if the remapping-pair count exceeds the native integer range.
+    /// Also propagates native restore errors for invalid target state, incomplete or incompatible GPU remapping, unavailable devices, or insufficient resources.
     pub fn restore_with_options(self, mut options: RestoreOptions) -> Result<()> {
         let mut args = options.raw_args()?;
         // SAFETY: `cuCheckpointProcessRestore` receives valid output locations.
@@ -550,8 +562,7 @@ impl CheckpointProcess {
 
     /// Restores a checkpointed process, optionally remapping checkpointed GPUs.
     ///
-    /// If `gpu_pairs` is not empty, CUDA requires it to contain every
-    /// checkpointed GPU.
+    /// If `gpu_pairs` is not empty, CUDA requires it to contain every checkpointed GPU.
     ///
     /// On success the process enters [`ProcessState::Locked`].
     ///
@@ -568,7 +579,8 @@ impl CheckpointProcess {
     ///
     /// # Errors
     ///
-    /// Propagates restore or unlock errors. A successful restore is not rolled back if the following unlock operation fails.
+    /// Propagates restore or unlock errors.
+    /// A successful restore is not rolled back if the following unlock operation fails.
     pub fn resume(self, gpu_pairs: impl AsRef<[GpuPair]>) -> Result<()> {
         self.restore(gpu_pairs)?;
         self.unlock()
@@ -601,9 +613,8 @@ impl CheckpointProcess {
 
 /// Output from a CUDA custom-storage checkpoint or restore operation.
 ///
-/// Complete the operation after copying all regions. Dropping an incomplete
-/// operation leaves the target suspended and retains its primary contexts;
-/// CUDA provides no cancellation operation that can safely restore missing data.
+/// Complete the operation after copying all regions.
+/// Dropping an incomplete operation leaves the target suspended and retains its primary contexts; CUDA provides no cancellation operation that can safely restore missing data.
 #[derive(Debug)]
 #[must_use = "custom-storage operations must be explicitly completed"]
 pub struct StorageOperation {
@@ -634,7 +645,8 @@ impl StorageRegion<'_> {
 
     /// Returns the mapped device address borrowed from the pending storage operation.
     ///
-    /// The address becomes invalid when the operation is successfully completed. Its contents are read for checkpointing and written for restoration.
+    /// The address becomes invalid when the operation is successfully completed.
+    /// Its contents are read for checkpointing and written for restoration.
     #[must_use]
     pub fn device_pointer(&self) -> DevicePtr {
         // SAFETY: the address is only stored; dereferencing it requires further unsafe code.
@@ -663,11 +675,13 @@ impl StorageRegion<'_> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` during restoration or for a destination whose byte length differs from the mapped region. Also propagates stream-context lookup, context binding, pinned staging allocation, asynchronous copy, and stream synchronization errors.
+    /// Returns `Error::InvalidValue` during restoration or for a destination whose byte length differs from the mapped region.
+    /// Also propagates stream-context lookup, context binding, pinned staging allocation, asynchronous copy, and stream synchronization errors.
     pub fn copy_to_host(&self, destination: &mut [u8]) -> Result<()> {
         if self.restoring || destination.len() != self.size() {
             return Err(Error::InvalidValue);
         }
+
         let context = self.context()?;
         context.bind()?;
         let mut pinned = PinnedHostMemory::<u8>::create_uninit(
@@ -685,6 +699,7 @@ impl StorageRegion<'_> {
             ))?;
             try_ffi!(driver::cuStreamSynchronize(self.raw.stream))?;
         }
+
         // SAFETY: the successful transfer initialized the entire byte buffer and completed.
         let pinned = unsafe { pinned.assume_init() };
         destination.copy_from_slice(pinned.as_slice());
@@ -695,11 +710,13 @@ impl StorageRegion<'_> {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` during checkpointing or for a source whose byte length differs from the restore region. Also propagates stream-context lookup, context binding, pinned staging initialization, asynchronous copy, and stream synchronization errors.
+    /// Returns `Error::InvalidValue` during checkpointing or for a source whose byte length differs from the restore region.
+    /// Also propagates stream-context lookup, context binding, pinned staging initialization, asynchronous copy, and stream synchronization errors.
     pub fn copy_from_host(&self, source: &[u8]) -> Result<()> {
         if !self.restoring || source.len() != self.size() {
             return Err(Error::InvalidValue);
         }
+
         let context = self.context()?;
         context.bind()?;
         let pinned = PinnedHostMemory::from_slice(context, source)?;
@@ -731,21 +748,25 @@ impl StorageOperation {
     /// Synchronizes the returned streams, unmaps GPU memory and completes the operation.
     ///
     /// # Safety
-    /// All required checkpoint or restore copies must have completed or been
-    /// enqueued on the returned streams. Restored contents must match the saved
-    /// checkpoint. No access to the mappings may occur after successful completion.
+    /// All required checkpoint or restore copies must have completed or been enqueued on the returned streams.
+    /// Restored contents must match the saved checkpoint.
+    /// No access to the mappings may occur after successful completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if the driver completion entry point is unavailable or CUDA cannot synchronize and finalize the custom-storage operation. On failure, this wrapper keeps its handle, regions, and retained contexts for another completion attempt. Calling it again after success returns `Ok(())`.
+    /// Returns an error if the driver completion entry point is unavailable or CUDA cannot synchronize and finalize the custom-storage operation.
+    /// On failure, this wrapper keeps its handle, regions, and retained contexts for another completion attempt.
+    /// Calling it again after success returns `Ok(())`.
     pub unsafe fn complete(&mut self) -> Result<()> {
         if self.handle.is_null() {
             return Ok(());
         }
+
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             cuCheckpointOperationComplete(self.handle)?;
         }
+
         self.handle = ptr::null_mut();
         self.regions.clear();
         self.contexts.clear();
@@ -766,21 +787,28 @@ impl Drop for StorageOperation {
 
 impl CheckpointProcess {
     /// Maps the target process's GPU memory for copying to custom storage.
-    /// The target must be locked. Checkpointing the calling process is unsupported.
+    /// The target must be locked.
+    /// Checkpointing the calling process is unsupported.
     ///
     /// # Errors
     ///
-    /// Returns an error if the required driver support is unavailable, the target is the calling process, CUDA initialization or device enumeration fails, a primary context cannot be retained, or CUDA cannot start the requested state transition. Also rejects null native storage-info pointers. The operation can already have started when a later output-validation error is returned.
+    /// Returns an error if the required driver support is unavailable, the target is the calling process, CUDA initialization or device enumeration fails, a primary context cannot be retained, or CUDA cannot start the requested state transition.
+    /// Also rejects null native storage-info pointers.
+    /// The operation can already have started when a later output-validation error is returned.
     pub fn begin_checkpoint_to_custom_storage(self) -> Result<StorageOperation> {
         self.begin_storage_operation(None)
     }
 
     /// Maps the target's restore memory for copying data from custom storage.
-    /// The target must be checkpointed. Restoring the calling process is unsupported.
+    /// The target must be checkpointed.
+    /// Restoring the calling process is unsupported.
     ///
     /// # Errors
     ///
-    /// Returns an error if the required driver support is unavailable, the target is the calling process, CUDA initialization or device enumeration fails, a primary context cannot be retained, or CUDA cannot start the requested state transition. Also rejects null native storage-info pointers. The operation can already have started when a later output-validation error is returned. Also returns `Error::InvalidValue` if the supplied GPU remapping-pair count exceeds the native integer range.
+    /// Returns an error if the required driver support is unavailable, the target is the calling process, CUDA initialization or device enumeration fails, a primary context cannot be retained, or CUDA cannot start the requested state transition.
+    /// Also rejects null native storage-info pointers.
+    /// The operation can already have started when a later output-validation error is returned.
+    /// Also returns `Error::InvalidValue` if the supplied GPU remapping-pair count exceeds the native integer range.
     pub fn begin_restore_from_custom_storage(
         self,
         options: RestoreOptions,
@@ -793,10 +821,12 @@ impl CheckpointProcess {
         if u32::try_from(self.pid) == Ok(process::id()) {
             return Err(Error::InvalidValue);
         }
+
         // SAFETY: `cuInit` receives only plain values.
         unsafe {
             try_ffi!(driver::cuInit(0))?;
         }
+
         let contexts = (0..Device::count()?)
             .map(|id| Context::retain_primary_for_device(Device::new(id)))
             .collect::<Result<Vec<_>>>()?;
@@ -822,9 +852,11 @@ impl CheckpointProcess {
                 ))?;
             }
         }
+
         if info.is_null() {
             return Err(Error::NullHandle);
         }
+
         // SAFETY: the driver passes valid checkpoint info for the duration of this callback.
         let info = unsafe { &*info };
         let regions = if info.deviceCount == 0 {

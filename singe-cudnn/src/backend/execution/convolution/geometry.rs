@@ -33,6 +33,7 @@ impl ConvolutionGeometry {
         if spatial_dim_count == 0 {
             return Err(Error::InvalidDataShape);
         }
+
         if post_paddings.len() != spatial_dim_count {
             return Err(Error::LengthMismatch {
                 name: "post_paddings".into(),
@@ -40,6 +41,7 @@ impl ConvolutionGeometry {
                 actual: post_paddings.len(),
             });
         }
+
         if dilations.len() != spatial_dim_count {
             return Err(Error::LengthMismatch {
                 name: "dilations".into(),
@@ -47,6 +49,7 @@ impl ConvolutionGeometry {
                 actual: dilations.len(),
             });
         }
+
         if strides.len() != spatial_dim_count {
             return Err(Error::LengthMismatch {
                 name: "strides".into(),
@@ -108,8 +111,7 @@ impl ConvolutionGeometry {
     /// The result describes geometry; native support selection still determines executable combinations.
     ///
     /// # Errors
-    /// Returns an error for invalid ranks, nonpositive dimensions, incompatible groups,
-    /// or response dimensions that are nonpositive or exceed INT64.
+    /// Returns an error for invalid ranks, nonpositive dimensions, incompatible groups, or response dimensions that are nonpositive or exceed INT64.
     pub fn infer_forward_dimensions(&self, input: &[i64], filter: &[i64]) -> Result<Vec<i64>> {
         if input.len() < 3 {
             return Err(Error::LengthMismatch {
@@ -118,6 +120,7 @@ impl ConvolutionGeometry {
                 actual: input.len(),
             });
         }
+
         if input.len() != filter.len() {
             return Err(Error::LengthMismatch {
                 name: "convolution rank".into(),
@@ -125,6 +128,7 @@ impl ConvolutionGeometry {
                 actual: filter.len(),
             });
         }
+
         let spatial_dims = input.len() - 2;
         if self.spatial_dims() != spatial_dims {
             return Err(Error::LengthMismatch {
@@ -133,6 +137,7 @@ impl ConvolutionGeometry {
                 actual: self.spatial_dims(),
             });
         }
+
         let input_channels = input[1];
         let filter_channels = filter[1];
         let output_channels = filter[0];
@@ -150,6 +155,7 @@ impl ConvolutionGeometry {
             }
             .into());
         }
+
         check_range!("convolution shape", input[0] > 0)?;
         let mut output = Vec::with_capacity(input.len());
         output.extend([input[0], output_channels]);

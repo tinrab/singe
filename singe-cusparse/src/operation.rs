@@ -121,7 +121,8 @@ impl SpGemmDescriptor {
     ///
     /// # Errors
     ///
-    /// Propagates CUDA context-binding and native product-count query errors. Also rejects a negative count or one that cannot fit in `usize`.
+    /// Propagates CUDA context-binding and native product-count query errors.
+    /// Also rejects a negative count or one that cannot fit in `usize`.
     pub unsafe fn num_products(&self) -> Result<usize> {
         self.cuda_context.bind()?;
         let mut value = 0_i64;
@@ -153,9 +154,9 @@ impl SpGemmDescriptor {
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned `cusparseSpGEMMDescr_t` associated
-    /// with `parts.cuda_context`. Preserve all analysis bindings and workspaces
-    /// through their final dependent operation. No other owner may destroy it.
+    /// `parts.handle` must be a uniquely owned `cusparseSpGEMMDescr_t` associated with `parts.cuda_context`.
+    /// Preserve all analysis bindings and workspaces through their final dependent operation.
+    /// No other owner may destroy it.
     ///
     /// # Errors
     ///
@@ -175,11 +176,9 @@ impl SpGemmDescriptor {
         })
     }
 
-    /// Consumes the descriptor and returns the raw cuSPARSE handle without
-    /// destroying it.
+    /// Consumes the descriptor and returns the raw cuSPARSE handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with `cusparseSpGEMM_destroyDescr`.
+    /// The caller becomes responsible for eventually destroying the returned handle with `cusparseSpGEMM_destroyDescr`.
     #[must_use]
     pub fn into_raw(mut self) -> RawResource<sys::cusparseSpGEMMDescr_t> {
         RawResource {
@@ -197,8 +196,10 @@ impl Drop for SpGemmDescriptor {
         // SAFETY: `cusparseSpGEMM_destroyDescr` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusparseSpGEMM_destroyDescr(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spgemm descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cusparse spgemm descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -252,9 +253,9 @@ impl SpSvDescriptor {
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned `cusparseSpSVDescr_t` associated
-    /// with `parts.cuda_context`. Preserve all analysis bindings and workspaces
-    /// through their final dependent operation. No other owner may destroy it.
+    /// `parts.handle` must be a uniquely owned `cusparseSpSVDescr_t` associated with `parts.cuda_context`.
+    /// Preserve all analysis bindings and workspaces through their final dependent operation.
+    /// No other owner may destroy it.
     ///
     /// # Errors
     ///
@@ -274,11 +275,9 @@ impl SpSvDescriptor {
         })
     }
 
-    /// Consumes the descriptor and returns the raw cuSPARSE handle without
-    /// destroying it.
+    /// Consumes the descriptor and returns the raw cuSPARSE handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with `cusparseSpSV_destroyDescr`.
+    /// The caller becomes responsible for eventually destroying the returned handle with `cusparseSpSV_destroyDescr`.
     #[must_use]
     pub fn into_raw(mut self) -> RawResource<sys::cusparseSpSVDescr_t> {
         RawResource {
@@ -296,8 +295,10 @@ impl Drop for SpSvDescriptor {
         // SAFETY: `cusparseSpSV_destroyDescr` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusparseSpSV_destroyDescr(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spsv descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cusparse spsv descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -351,9 +352,9 @@ impl SpSmDescriptor {
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned `cusparseSpSMDescr_t` associated
-    /// with `parts.cuda_context`. Preserve all analysis bindings and workspaces
-    /// through their final dependent operation. No other owner may destroy it.
+    /// `parts.handle` must be a uniquely owned `cusparseSpSMDescr_t` associated with `parts.cuda_context`.
+    /// Preserve all analysis bindings and workspaces through their final dependent operation.
+    /// No other owner may destroy it.
     ///
     /// # Errors
     ///
@@ -373,11 +374,9 @@ impl SpSmDescriptor {
         })
     }
 
-    /// Consumes the descriptor and returns the raw cuSPARSE handle without
-    /// destroying it.
+    /// Consumes the descriptor and returns the raw cuSPARSE handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with `cusparseSpSM_destroyDescr`.
+    /// The caller becomes responsible for eventually destroying the returned handle with `cusparseSpSM_destroyDescr`.
     #[must_use]
     pub fn into_raw(mut self) -> RawResource<sys::cusparseSpSMDescr_t> {
         RawResource {
@@ -395,7 +394,8 @@ impl<'a> SpMmOpPlan<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if a matrix belongs to another CUDA context or the reported workspace size cannot fit in `usize`. Also propagates context-binding and native custom-plan creation errors, and rejects a null returned plan handle.
+    /// Returns an error if a matrix belongs to another CUDA context or the reported workspace size cannot fit in `usize`.
+    /// Also propagates context-binding and native custom-plan creation errors, and rejects a null returned plan handle.
     pub unsafe fn create(
         context: Context,
         op_a: Operation,
@@ -552,16 +552,14 @@ impl<'a> SpMmOpPlan<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSPARSE
-    /// rejects the prepared `SpMM` operation.
+    /// Returns an error if the CUDA context cannot be bound or if cuSPARSE rejects the prepared `SpMM` operation.
     #[expect(
         deprecated,
         reason = "wraps deprecated upstream API values that remain part of the supported surface"
     )]
     /// # Safety
     ///
-    /// Retain the plan, descriptors, and correctly sized scratch with exclusive
-    /// destination access through completion on every path and captured replay.
+    /// Retain the plan, descriptors, and correctly sized scratch with exclusive destination access through completion on every path and captured replay.
     pub unsafe fn execute(&self, external_buffer: Option<DeviceOutputView<'_, u8>>) -> Result<()> {
         let external_buffer = workspace(&self.context, external_buffer)?;
         let actual = external_buffer.map_or(0, singe_cuda::view::DeviceRegion::byte_len);
@@ -597,11 +595,10 @@ impl<'a> SpMmOpPlan<'a> {
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned plan created with `parts.context`,
-    /// the supplied matrix descriptors, and the retained custom code.
+    /// `parts.handle` must be a uniquely owned plan created with `parts.context`, the supplied matrix descriptors, and the retained custom code.
     /// `parts.workspace_size_bytes` must be its actual queried scratch capacity.
-    /// Preserve all allocation and analysis bindings for lifetime `'a`, with
-    /// exclusive destination access. No other owner may destroy the plan.
+    /// Preserve all allocation and analysis bindings for lifetime `'a`, with exclusive destination access.
+    /// No other owner may destroy the plan.
     ///
     /// # Errors
     ///
@@ -621,11 +618,9 @@ impl<'a> SpMmOpPlan<'a> {
         })
     }
 
-    /// Consumes the plan and returns the raw cuSPARSE handle without destroying
-    /// it.
+    /// Consumes the plan and returns the raw cuSPARSE handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with `cusparseSpMMOp_destroyPlan`.
+    /// The caller becomes responsible for eventually destroying the returned handle with `cusparseSpMMOp_destroyPlan`.
     #[must_use]
     pub fn into_raw(self) -> RawSpMmOpPlan<'a> {
         let plan = ManuallyDrop::new(self);
@@ -649,17 +644,22 @@ impl Drop for SpMmOpPlan<'_> {
         if self.handle.is_null() {
             return;
         }
+
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cusparse spmm op plan context during drop: {error}");
+            eprintln!(
+                "failed to bind cusparse spmm op plan context during drop: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
 
         // SAFETY: `cusparseSpMMOp_destroyPlan` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusparseSpMMOp_destroyPlan(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spmm op plan: {error}");
+                eprintln!(
+                    "failed to destroy cusparse spmm op plan: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -677,8 +677,10 @@ impl Drop for SpSmDescriptor {
         // SAFETY: `cusparseSpSM_destroyDescr` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusparseSpSM_destroyDescr(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse spsm descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cusparse spsm descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

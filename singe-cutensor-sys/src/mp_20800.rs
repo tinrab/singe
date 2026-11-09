@@ -111,7 +111,7 @@ pub struct cuTensorMpContractionPlan {
 }
 /// Opaque executable plan for a distributed tensor contraction.
 pub type cutensorMpContractionPlan_t = *mut cuTensorMpContractionPlan;
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Initializes the cutensorMp library and creates a handle for distributed tensor operations.
     ///
     /// This function creates a cutensorMp handle that serves as the context for all distributed tensor operations. The handle is associated with a specific MPI communicator, local CUDA device, and CUDA stream. This allows cutensorMp to coordinate tensor operations across multiple processes and GPUs.
@@ -137,7 +137,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Frees all resources associated with the provided cutensorMp handle.
     ///
     /// This function deallocates all memory and resources associated with a cutensorMp handle that was previously created by cutensorMpCreate. After calling this function, the handle becomes invalid and should not be used in subsequent cutensorMp operations.
@@ -151,7 +151,7 @@ unsafe extern "C" {
     /// - `handle`: The cutensorMpHandle_t object that will be deallocated
     pub fn cutensorMpDestroy(handle: cutensorMpHandle_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Clears communication operation resources cached by the handle.
     ///
     ///
@@ -171,7 +171,7 @@ unsafe extern "C" {
     /// - `handle`: Opaque handle holding cuTENSORMp's library context
     pub fn cutensorMpClearOperationCache(handle: cutensorMpHandle_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates a distributed tensor descriptor for multi-process tensor operations.
     ///
     /// This function creates a tensor descriptor that defines the structure and distribution of a multi-dimensional tensor across multiple processes. Unlike regular cuTENSOR tensor descriptors, this descriptor includes information about how the tensor is partitioned and distributed across different processes in the MPI communicator.
@@ -228,7 +228,7 @@ unsafe extern "C" {
         dataType: cudaDataType_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Queries the calling rank's realized local tensor layout.
     ///
     ///
@@ -274,7 +274,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Frees all resources related to the provided distributed tensor descriptor.
     ///
     /// This function deallocates all memory and resources associated with a cutensorMp tensor descriptor that was previously created by cutensorMpCreateTensorDescriptor. After calling this function, the descriptor becomes invalid and should not be used in subsequent cutensorMp operations.
@@ -290,7 +290,7 @@ unsafe extern "C" {
         desc: cutensorMpTensorDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates an operation descriptor that encodes a distributed tensor contraction.
     ///
     /// This function creates an operation descriptor for distributed tensor contractions of the form $D = \alpha \mathcal{A} \mathcal{B} + \beta \mathcal{C}$, where the tensors A, B, C, and D are distributed across multiple processes as specified by their respective tensor descriptors.
@@ -345,7 +345,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates an operation descriptor that encodes a distributed tensor redistribution.
     ///
     ///
@@ -381,7 +381,7 @@ unsafe extern "C" {
         modesSrc: *const i32,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Frees all resources related to the provided distributed contraction descriptor.
     ///
     /// This function deallocates all memory and resources associated with a cutensorMp operation descriptor that was previously created by cutensorMpCreateContraction. After calling this function, the descriptor becomes invalid and should not be used in subsequent cutensorMp operations.
@@ -397,7 +397,7 @@ unsafe extern "C" {
         desc: cutensorMpOperationDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates an operation descriptor for a distributed tensor unfolding (tensor -> matrix).
     ///
     ///
@@ -447,7 +447,7 @@ unsafe extern "C" {
         descDst: cutensorMpTensorDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates an operation descriptor for a distributed tensor folding (matrix -> tensor).
     ///
     ///
@@ -497,7 +497,7 @@ unsafe extern "C" {
         groupSize: *const i64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates a plan preference object for controlling distributed tensor operation planning.
     ///
     /// This function creates a preference object that allows users to control various aspects of the execution plan for distributed tensor operations. The preferences include algorithm selection, workspace size limits, and JIT compilation options that affect both the underlying cuTENSOR operations and the distributed communication patterns.
@@ -536,7 +536,7 @@ unsafe extern "C" {
         cutensormp_workspace_size_host: u64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Frees all resources related to the provided plan preference object.
     ///
     /// This function deallocates all memory and resources associated with a cutensorMp plan preference object that was previously created by cutensorMpCreatePlanPreference. After calling this function, the preference object becomes invalid and should not be used in subsequent cutensorMp operations.
@@ -552,7 +552,7 @@ unsafe extern "C" {
         pref: cutensorMpPlanPreference_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Creates an execution plan for a distributed tensor operation.
     ///
     /// This function creates an optimized execution plan for the distributed tensor operation encoded by the operation descriptor. The plan selects the most appropriate algorithms and communication strategies based on the tensor distributions, available resources, and user preferences.
@@ -587,7 +587,7 @@ unsafe extern "C" {
         pref: cutensorMpPlanPreference_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Frees all resources related to the provided distributed contraction plan.
     ///
     /// This function deallocates all memory and resources associated with a cutensorMp execution plan that was previously created by cutensorMpCreatePlan. After calling this function, the plan becomes invalid and should not be used in subsequent cutensorMp operations.
@@ -601,7 +601,7 @@ unsafe extern "C" {
     /// - `plan`: The cutensorMpPlan_t object that will be deallocated
     pub fn cutensorMpDestroyPlan(plan: cutensorMpPlan_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Overrides the CUDA stream that the given plan executes on.
     ///
     /// Every plan starts out bound to the stream that was passed to cutensorMpCreate. This function retargets a single plan onto a different stream, so that plans created from the same handle can be issued on separate streams without creating one handle per stream. All subsequent executions of `plan` (e.g., cutensorMpContract, cutensorMpRedistribute, cutensorMpUnfold, cutensorMpFold) are enqueued on `stream`, and the caller must synchronize `stream` — not the handle’s stream — to observe their results.
@@ -631,7 +631,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Retrieves information about an already-created plan (see [`cutensorPlanAttribute_t`]).
     ///
     /// # Parameters
@@ -652,7 +652,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Performs a distributed tensor contraction across multiple processes.
     ///
     /// This function executes the distributed tensor contraction $D = \alpha \mathcal{A} \mathcal{B} + \beta \mathcal{C}$ according to the execution plan created by cutensorMpCreatePlan. The operation coordinates computation and communication across multiple processes and GPUs to efficiently perform tensor contractions that exceed the capacity of a single device.
@@ -705,7 +705,7 @@ unsafe extern "C" {
         host_workspace: *mut ::core::ffi::c_void,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Performs a distributed tensor redistribution across multiple processes.
     ///
     ///
@@ -741,7 +741,7 @@ unsafe extern "C" {
         host_workspace: *mut ::core::ffi::c_void,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Performs a distributed tensor unfolding (tensor -> matrix) across multiple processes.
     ///
     ///
@@ -791,7 +791,7 @@ unsafe extern "C" {
         host_workspace: *mut ::core::ffi::c_void,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MP;
     /// Performs a distributed tensor folding (matrix -> tensor) across multiple processes.
     ///
     ///

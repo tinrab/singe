@@ -119,8 +119,10 @@ impl<T: DeviceRepr> Drop for CudarcAllocation<T> {
         if let Some(owner) = self.owner.take()
             && let Err(error) = self.retirement_stream.release_foreign_owner(owner)
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to retire cudarc allocation: {error}");
+            eprintln!(
+                "failed to retire cudarc allocation: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -158,6 +160,7 @@ impl<T: DeviceRepr> CudarcMemory<T> {
         if owner.context().cu_ctx() != ready.context().cu_ctx() {
             return Err(Error::MemoryContextMismatch);
         }
+
         let () = T::LAYOUT;
         let length = owner.len();
         let bytes = length
@@ -166,6 +169,7 @@ impl<T: DeviceRepr> CudarcMemory<T> {
         if length != 0 && size_of::<T>() == 0 {
             return Err(Error::InvalidMemoryAllocationRequest);
         }
+
         let (pointer, order) = owner.device_ptr(&ready);
         drop(order);
         ready.context().check_err().map_err(foreign_error)?;
@@ -370,6 +374,7 @@ fn check_ready(root: DeviceRegion<'_>, ready: &Stream, foreign: &CudaStream) -> 
     {
         return Err(Error::MemoryContextMismatch);
     }
+
     if ready.identity() != StreamIdentity::new(ready.context(), foreign.cu_stream().cast()) {
         return Err(Error::ForeignStreamMismatch);
     }

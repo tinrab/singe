@@ -1,5 +1,4 @@
-//! Byte budgets that cap the emulator's host memory, and the per-entry charges used by
-//! its queues and allocations.
+//! Byte budgets that cap the emulator's host memory, and the per-entry charges used by its queues and allocations.
 
 use std::{
     collections::{VecDeque, vec_deque},
@@ -11,13 +10,11 @@ use std::{
 
 use crate::emulator::ExecutionError;
 
-/// Charged on top of each heap allocation (a `Box`, an `Arc`, a `Vec` buffer) for the
-/// allocator header and rounding.
+/// Charged on top of each heap allocation (a `Box`, an `Arc`, a `Vec` buffer) for the allocator header and rounding.
 pub const ALLOCATION_OVERHEAD: usize = 64;
 
-/// Charged on top of each entry of a [`ChargedQueue`] or ordered map. It covers a map
-/// node's links and allocation, and a queue slot plus the spare capacity the queue
-/// keeps before shrinking.
+/// Charged on top of each entry of a [`ChargedQueue`] or ordered map.
+/// It covers a map node's links and allocation, and a queue slot plus the spare capacity the queue keeps before shrinking.
 pub const NODE_OVERHEAD: usize = 128;
 
 /// Returns the charge for one heap-allocated `T`.
@@ -110,9 +107,8 @@ impl Drop for Reservation {
 
 /// A FIFO queue whose entries are charged to a budget one by one.
 ///
-/// A plain `VecDeque` keeps its buffer after entries leave, so memory would stay allocated
-/// after their charges were released. This queue gives its buffer back once it is at most
-/// a quarter full, which keeps the memory it holds proportional to its charged entries.
+/// A plain `VecDeque` keeps its buffer after entries leave, so memory would stay allocated after their charges were released.
+/// This queue gives its buffer back once it is at most a quarter full, which keeps the memory it holds proportional to its charged entries.
 #[derive(Debug)]
 pub struct ChargedQueue<T>(VecDeque<T>);
 
@@ -164,8 +160,8 @@ impl<T> ChargedQueue<T> {
         entry
     }
 
-    /// Moves every entry for which `remove` returns true into a new queue, keeping the
-    /// order of both. Rotates entries within the existing buffer instead of allocating.
+    /// Moves every entry for which `remove` returns true into a new queue, keeping the order of both.
+    /// Rotates entries within the existing buffer instead of allocating.
     pub fn extract(&mut self, mut remove: impl FnMut(&T) -> bool) -> Self {
         let mut removed = Self::new();
         for _ in 0..self.0.len() {
@@ -178,6 +174,7 @@ impl<T> ChargedQueue<T> {
                 self.0.push_back(entry);
             }
         }
+
         self.shrink();
         removed
     }
@@ -197,6 +194,7 @@ impl<T> FromIterator<T> for ChargedQueue<T> {
 
 impl<'a, T> IntoIterator for &'a ChargedQueue<T> {
     type Item = &'a T;
+
     type IntoIter = vec_deque::Iter<'a, T>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -206,6 +204,7 @@ impl<'a, T> IntoIterator for &'a ChargedQueue<T> {
 
 impl<T> IntoIterator for ChargedQueue<T> {
     type Item = T;
+
     type IntoIter = vec_deque::IntoIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {

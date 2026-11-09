@@ -17,22 +17,20 @@ where
 {
     /// Samples the source at coordinates from `x_map` and `y_map`.
     ///
-    /// `remap` selects the source ROI and interpolation. Each C1 coordinate map must have
-    /// the destination image size. Map coordinates are passed to NPP without inspecting
-    /// their values.
-    /// Pixels outside the transformed source intersection, ignored alpha, and padding can
-    /// remain unwritten. Initialize uncovered locations before reading a complete image.
-    /// Prepares all participating image and coordinate-map regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// `remap` selects the source ROI and interpolation.
+    /// Each C1 coordinate map must have the destination image size.
+    /// Map coordinates are passed to NPP without inspecting their values.
+    /// Pixels outside the transformed source intersection, ignored alpha, and padding can remain unwritten.
+    /// Initialize uncovered locations before reading a complete image.
+    /// Prepares all participating image and coordinate-map regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source ROI must have positive dimensions and representable endpoints. Both
-    /// coordinate maps must match the destination dimensions. NPP may reject geometry
-    /// or interpolation parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints.
+    /// Both coordinate maps must match the destination dimensions.
+    /// NPP may reject geometry or interpolation parameters.
     pub fn remap_into<M>(
         stream_context: &StreamContext,
         remap: &Remap,
@@ -63,23 +61,20 @@ where
 {
     /// Samples the source at coordinates from `x_map` and `y_map`.
     ///
-    /// `remap` selects the source ROI and interpolation. Each C1 coordinate map must have
-    /// the destination image size. Map coordinates are passed to NPP without inspecting
-    /// their values.
-    /// Takes ownership of the supplied initialized `destination` and returns it in the
-    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
-    /// destination values.
-    /// Prepares all participating image and coordinate-map regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// `remap` selects the source ROI and interpolation.
+    /// Each C1 coordinate map must have the destination image size.
+    /// Map coordinates are passed to NPP without inspecting their values.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the resulting pipeline.
+    /// Pixels outside native writes and ignored alpha retain their destination values.
+    /// Prepares all participating image and coordinate-map regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source ROI must have positive dimensions and representable endpoints. Both
-    /// coordinate maps must match the destination dimensions. NPP may reject geometry
-    /// or interpolation parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints.
+    /// Both coordinate maps must match the destination dimensions.
+    /// NPP may reject geometry or interpolation parameters.
     /// Image view construction or capture-time destination retention can also fail.
     pub fn remap<M>(
         self,

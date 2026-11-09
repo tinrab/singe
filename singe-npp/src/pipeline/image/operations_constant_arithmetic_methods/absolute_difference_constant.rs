@@ -15,13 +15,12 @@ where
 {
     /// Computes the absolute difference between each C1 sample and `constant`.
     /// Always allocates a new owned C1 image, including when the input already owns storage.
-    /// Prepares participating images, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating images, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Allocation or image view construction can also fail.
     pub fn absolute_difference_constant(self, constant: T) -> Result<Self> {
         self.ensure_eager()?;
@@ -49,15 +48,15 @@ where
     }
 
     /// Computes the absolute difference between each C1 sample and a device-resident constant.
-    /// Reads constants from device memory. Uses the first element; additional elements are ignored.
+    /// Reads constants from device memory.
+    /// Uses the first element; additional elements are ignored.
     /// Always allocates a new owned C1 image, including when the input already owns storage.
-    /// Prepares participating images and device constants, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating images and device constants, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// The device buffer must contain at least one element.
     /// Allocation or image view construction can also fail.
     pub fn absolute_difference_device_constant(self, constant: &DeviceMemory<T>) -> Result<Self> {

@@ -1,12 +1,11 @@
 //! Deferred PTX copies and producer/consumer synchronization on `sm_80`.
 
+mod support;
+
 use anyhow::Result;
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, LaunchConfig, ParsedModule, ShutdownMode,
 };
-
-mod support;
-
 use support::Observe;
 
 fn source(body: &str) -> String {

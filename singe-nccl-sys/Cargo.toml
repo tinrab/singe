@@ -1,7 +1,7 @@
 [package]
 name = "singe-nccl-sys"
 description = "Low-level FFI bindings for the NVIDIA Collective Communications Library (NCCL)."
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
@@ -18,9 +18,6 @@ default = ["nccl_2_32"]
 nccl_2_32 = ["singe-cuda-sys/runtime_13_4"]
 
 [dependencies]
+singe-loader.workspace = true
 singe-cuda-sys.workspace = true
 num_enum.workspace = true
-
-[build-dependencies]
-singe-cuda-find.workspace = true
-anyhow.workspace = true

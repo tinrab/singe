@@ -1,0 +1,77 @@
+nvtiff_include_path := "$NVTIFF_INCLUDE_PATH"
+cuda_path := "$CUDA_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "nvtiffStatus_t"
+        "nvtiffVariant"
+        "nvtiffVariant_t"
+        "nvtiffGeoKeys"
+        "nvtiffGeoKey_t"
+        "nvtiffGeoKeyDataType"
+        "nvtiffGeoKeyDataType_t"
+        "nvtiffTagDataType"
+        "nvtiffTagDataType_t"
+        "nvtiffTag"
+        "nvtiffTag_t"
+        "nvtiffSampleFormat"
+        "nvtiffSampleFormat_t"
+        "nvtiffPhotometricInt"
+        "nvtiffPhotometricInt_t"
+        "nvtiffPlanarConfig"
+        "nvtiffPlanarConfig_t"
+        "nvtiffCompression"
+        "nvtiffCompression_t"
+        "nvtiffImageType"
+        "nvtiffImageGeometryType"
+        "nvtiffImageGeometryType_t"
+        "nvtiffOutputFormat"
+        "nvtiffOutputFormat_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{nvtiff_include_path}}/nvtiff.h \
+        $enum_args \
+        --allowlist-item "^nvtiff.*" \
+        --allowlist-item "^NVTIFF.*" \
+        --allowlist-item "^MAX_NUM_SAMPLES$" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^CUstream_st$" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --no-default "^nvtiffStreamHeader$" \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -x c++ \
+            -I {{nvtiff_include_path}} \
+            -I {{cuda_path}}/include \
+        > bindings.rs
+
+    NVTIFF_MAJOR=$(grep "NVTIFF_VER_MAJOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVTIFF_MINOR=$(grep "NVTIFF_VER_MINOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVTIFF_PATCH=$(grep "NVTIFF_VER_PATCH:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVTIFF_VERSION=$((NVTIFF_MAJOR * 10000 + NVTIFF_MINOR * 100 + NVTIFF_PATCH))
+    if [ -z "${NVTIFF_VERSION}" ]; then
+        echo "NVTIFF_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${NVTIFF_VERSION}.rs
+
+    # Each declared function loads its symbol at run time, through singe-loader.
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::LIBRARY;/' ./src/sys_*.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

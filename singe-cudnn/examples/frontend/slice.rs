@@ -139,6 +139,7 @@ fn run() -> Result<()> {
         slice_strides.resize(3, 1);
         slice_strides.push(7);
     }
+
     let (graph, a_slice) = build_graph(save_slice, compact_slice, slice_strides)?;
 
     let serialized = serde_json::to_vec(&graph)?;
@@ -175,6 +176,7 @@ fn run() -> Result<()> {
     if let Some(memory) = &mut slice_dev {
         bindings.set(a_slice, memory)?;
     }
+
     // SAFETY: the plan, inputs, output and workspace remain live until stream completion,
     // including when native execution returns an enqueue error.
     example.execute_and_wait(|context| unsafe {

@@ -40,6 +40,7 @@ impl Graph {
             reads.extend(uses.reads);
             writes.extend(uses.writes);
         }
+
         let mut pending = reads.union(&writes).copied().collect::<Vec<_>>();
         let mut visited = HashSet::new();
         while let Some(id) = pending.pop() {
@@ -55,6 +56,7 @@ impl Graph {
                 pending.push(offset);
             }
         }
+
         let mut captures = self
             .caller_binding_tensors()
             .map(|(id, _)| id)
@@ -96,6 +98,7 @@ impl Graph {
                     .ok_or(FrontendError::TensorNotFound(*w))?;
                 filter.requires_int32_filter_offsets |= matches!(filter.tensor.shape.rank(), 4 | 5);
             }
+
             let uses = match operation {
                 Operation::Sdpa(operation) => operation.native_tensor_uses(),
                 operation => operation.tensor_uses(self.config.data_type_policy),
@@ -117,6 +120,7 @@ impl Graph {
                 )?;
             }
         }
+
         let used = records
             .iter()
             .filter_map(|(&id, record)| record.access.map(|_| id))
@@ -128,6 +132,7 @@ impl Graph {
                 if !seen.insert(offset) {
                     return Err(FrontendError::RaggedOffsetCycle { tensor_id: offset }.into());
                 }
+
                 record_use(&mut records, offset, TensorAccess::Read, true)?;
                 current = records[&offset].tensor.ragged_offset;
             }
@@ -159,6 +164,7 @@ impl Graph {
                 _ => {}
             }
         }
+
         let mut alias_targets = HashSet::new();
         for alias in &self.storage_views {
             let source = self.tensor_spec(alias.source)?;
@@ -168,6 +174,7 @@ impl Graph {
                     name: "frontend storage view".into(),
                 });
             }
+
             validate_storage_view_byte_range(
                 alias.source,
                 source,
@@ -187,13 +194,16 @@ impl Graph {
                         name: "frontend storage view cycle".into(),
                     });
                 }
+
                 current = parent.source;
             }
         }
+
         let mut records = self.tensor_records()?;
         for record in records.values().filter(|record| record.access.is_some()) {
             record.tensor.validate()?;
         }
+
         let mut aligned_operands = self
             .vector_aligned_tensors
             .iter()
@@ -215,6 +225,7 @@ impl Graph {
                 _ => {}
             }
         }
+
         for &id in &aligned_operands {
             let record = records
                 .get_mut(&id)

@@ -1,5 +1,4 @@
-//! Port of the cuSPARSE `spmv_csr` sample: `y = alpha * A * x + beta * y` with a
-//! 4x4 CSR matrix.
+//! Port of the cuSPARSE `spmv_csr` sample: `y = alpha * A * x + beta * y` with a 4x4 CSR matrix.
 
 use std::error::Error;
 

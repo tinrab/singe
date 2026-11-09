@@ -16,8 +16,7 @@ use crate::{
 };
 
 /// # Safety
-/// Uphold the completed native dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait CopySignal<T> {
     fn copy(
         stream_context: &StreamContext,

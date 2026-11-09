@@ -1,27 +1,36 @@
 //! CUDA cuSOLVER wrappers for dense linear algebra and solver operations.
 //!
-//! This crate covers cuSOLVER context management, dense matrix routines,
-//! eigenvalue helpers, SVD helpers, iterative refinement solver APIs, and parameter objects.
+//! This crate covers cuSOLVER context management, dense matrix routines, eigenvalue helpers, SVD helpers, iterative refinement solver APIs, and parameter objects.
 
 /// Native cuSOLVER handle ownership and CUDA stream binding.
 pub mod context;
+
 /// Supported matrix elements and their real, complex, and eigenvalue result types.
 pub mod data_type;
+
 pub mod dense;
 pub mod eigen;
+
 /// Native statuses and checked solver errors.
 pub mod error;
+
 /// Mixed-precision iterative-refinement parameters, results, and linear solvers.
 pub mod irs;
+
 /// Borrowed column-major matrices, vectors, pointer tables, and workspace capacities.
 pub mod layout;
+
 pub mod logger;
+
 /// Algorithm-selection parameters for the native 64-bit interface.
 pub mod params;
+
 /// Singular value decompositions and singular-vector output modes.
 pub mod svd;
+
 /// Typed native solver options and precision selectors.
 pub mod types;
+
 pub(crate) mod utility;
 
 #[cfg(feature = "testing")]
@@ -45,6 +54,7 @@ pub fn version() -> Result<LibraryVersion> {
     unsafe {
         try_ffi!(sys::cusolverGetVersion(&raw mut version))?;
     }
+
     let version = version as u64;
     Ok(LibraryVersion::new(
         version / 10000,

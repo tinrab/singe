@@ -259,7 +259,8 @@ impl_enum_display!(BatchStatus, {
     Self::Failed => "CUFILE_FAILED",
 });
 
-/// Selectors for numeric configuration values passed to `cuFileGetParameterSizeT` and `cuFileSetParameterSizeT`. Size parameters with a `_KB` suffix are expressed in KB.
+/// Selectors for numeric configuration values passed to `cuFileGetParameterSizeT` and `cuFileSetParameterSizeT`.
+/// Size parameters with a `_KB` suffix are expressed in KB.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -342,7 +343,8 @@ pub enum BoolConfigParameter {
         sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_FS_MISC_API_CHECK_AGGRESSIVE as _,
     /// Selects whether parallel I/O execution is enabled.
     ExecutionParallelIo = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_EXECUTION_PARALLEL_IO as _,
-    ///Do not use this macro. This is deprecated now.
+    /// Do not use this macro.
+    /// This is deprecated now.
     ProfileNvtx = sys::CUFileBoolConfigParameter_t::CUFILE_PARAM_PROFILE_NVTX as _,
     /// Selects whether system-memory buffers are allowed for I/O.
     PropertiesAllowSystemMemory =

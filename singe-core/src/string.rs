@@ -8,9 +8,8 @@ use std::{
 
 /// Converts a filesystem path to a C string.
 ///
-/// On Unix, paths are converted from their raw OS bytes. On other platforms,
-/// paths are converted as UTF-8. Interior NUL bytes are reported as
-/// [`NulError`].
+/// On Unix, paths are converted from their raw OS bytes.
+/// On other platforms, paths are converted as UTF-8. Interior NUL bytes are reported as [`NulError`].
 ///
 /// # Errors
 ///
@@ -29,9 +28,8 @@ pub fn path_to_cstring(path: &Path) -> Result<CString, NulError> {
 
 /// Converts a fixed C character buffer to a Rust string.
 ///
-/// Bytes after the first NUL are ignored and invalid UTF-8 is replaced with the
-/// Unicode replacement character. If the buffer has no NUL terminator, the whole
-/// bounded buffer is converted.
+/// Bytes after the first NUL are ignored and invalid UTF-8 is replaced with the Unicode replacement character.
+/// If the buffer has no NUL terminator, the whole bounded buffer is converted.
 #[must_use]
 pub fn string_from_c_chars(buffer: &[i8]) -> String {
     // SAFETY: `i8` and `u8` have the same size and alignment, so the buffer can be viewed as bytes.
@@ -45,8 +43,8 @@ pub fn string_from_c_chars(buffer: &[i8]) -> String {
 
 /// Converts a C string pointer to a Rust string.
 ///
-/// A null pointer is treated as an empty string. Otherwise `ptr` must point to a
-/// valid NUL-terminated C string for the duration of the call.
+/// A null pointer is treated as an empty string.
+/// Otherwise `ptr` must point to a valid NUL-terminated C string for the duration of the call.
 ///
 /// # Safety
 ///
@@ -67,8 +65,7 @@ pub unsafe fn string_from_c_ptr(ptr: *const i8) -> String {
 ///
 /// # Safety
 ///
-/// `ptr` must be null or point to a NUL-terminated string with static storage
-/// duration, such as the strings returned by CUDA library error-name functions.
+/// `ptr` must be null or point to a NUL-terminated string with static storage duration, such as the strings returned by CUDA library error-name functions.
 #[must_use]
 pub unsafe fn static_str_from_c_ptr(ptr: *const i8, fallback: &'static str) -> &'static str {
     if ptr.is_null() {
@@ -81,9 +78,8 @@ pub unsafe fn static_str_from_c_ptr(ptr: *const i8, fallback: &'static str) -> &
 
 /// Copies a Rust string into a fixed C character buffer.
 ///
-/// At most `N - 1` bytes are copied and the remaining buffer contents are left
-/// unchanged. To guarantee a trailing NUL, zero-initialize the destination before
-/// calling this function.
+/// At most `N - 1` bytes are copied and the remaining buffer contents are left unchanged.
+/// To guarantee a trailing NUL, zero-initialize the destination before calling this function.
 pub fn copy_string_to_c_chars<const N: usize>(buffer: &mut [i8; N], value: &str) {
     let bytes = value.as_bytes();
     let len = bytes.len().min(N.saturating_sub(1));

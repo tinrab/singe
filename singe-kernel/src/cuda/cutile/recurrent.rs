@@ -41,6 +41,7 @@ impl GatedDeltaRulePreprocess {
         if rows == 0 || hidden == 0 {
             return Err(Error::InvalidLength);
         }
+
         let len = checked_element_count(rows, hidden)?;
         let launch = VectorLaunch::create(len)?;
         Ok(Self {
@@ -73,6 +74,7 @@ impl RecurrentGatedDeltaRule {
         {
             return Err(Error::InvalidLength);
         }
+
         let batch_value_heads = checked_element_count(batch, value_heads)?;
         let qk_span = checked_element_count(
             checked_element_count(checked_element_count(batch, time)?, query_heads)?,

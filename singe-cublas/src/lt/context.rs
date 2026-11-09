@@ -45,13 +45,12 @@ unsafe impl Send for RawContext {}
 impl Context {
     /// Creates a cuBLASLt context for the current CUDA device.
     ///
-    /// The handle is tied to the device associated with `cuda_context`. To use cuBLASLt on multiple
-    /// devices, create one [`Context`] per device.
+    /// The handle is tied to the device associated with `cuda_context`.
+    /// To use cuBLASLt on multiple devices, create one [`Context`] per device.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt initialization fails, if binding `cuda_context` fails, or if the
-    /// library does not return a valid handle.
+    /// Returns an error if cuBLASLt initialization fails, if binding `cuda_context` fails, or if the library does not return a valid handle.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
         cuda_context.bind()?;
 
@@ -152,8 +151,7 @@ impl Context {
 
     /// Returns the raw cuBLASLt handle.
     ///
-    /// The returned handle is borrowed and remains valid only while this
-    /// context and its underlying CUDA context are alive.
+    /// The returned handle is borrowed and remains valid only while this context and its underlying CUDA context are alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtHandle_t {
         self.handle.raw
@@ -191,16 +189,21 @@ impl Drop for Handle {
         if self.raw.is_null() {
             return;
         }
+
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cublaslt handle: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying cublaslt handle: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cublasLtDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasLtDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublaslt context: {error}");
+                eprintln!(
+                    "failed to destroy cublaslt context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

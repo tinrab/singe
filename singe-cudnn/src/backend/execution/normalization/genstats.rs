@@ -108,7 +108,8 @@ impl GenStatsOperation {
     ///
     /// # Errors
     ///
-    /// Returns an error if native descriptor creation, attribute assignment, or finalization fails. cuDNN validates the mode, math precision, and input/output tensor layouts.
+    /// Returns an error if native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates the mode, math precision, and input/output tensor layouts.
     pub fn create(
         mode: GenStatsMode,
         compute_type: DataType,

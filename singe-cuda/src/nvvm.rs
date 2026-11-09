@@ -1,6 +1,6 @@
 use std::{ffi::CString, mem, ptr, result};
 
-use singe_core::{impl_enum_display, static_str_from_c_ptr, status_enum};
+use singe_core::{LibraryVersion, impl_enum_display, static_str_from_c_ptr, status_enum};
 use singe_cuda_sys::nvvm as sys;
 
 use crate::{
@@ -8,18 +8,8 @@ use crate::{
     error::{Error, Result},
     module::ModuleImage,
     try_nvvm,
-    utility::{to_i32, to_usize},
+    utility::{to_i32, to_u64, to_usize},
 };
-
-// TODO: move to a core version type
-/// Major and minor version of the loaded NVVM compiler library.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Version {
-    /// Major NVVM library version component.
-    pub major: i32,
-    /// Minor NVVM library version component.
-    pub minor: i32,
-}
 
 /// NVVM IR and debug metadata versions supported by the loaded compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,14 +79,18 @@ impl_enum_display!(OptimizationLevel, {
     Self::Three => "3",
 });
 
-/// Typed NVVM compiler options. Unset optional values leave native defaults in effect; raw options are appended after typed options. Typed compilation and verification reject concrete GPU architecture targets.
+/// Typed NVVM compiler options.
+/// Unset optional values leave native defaults in effect; raw options are appended after typed options.
+/// Typed compilation and verification reject concrete GPU architecture targets.
 #[derive(Debug, Clone, Default)]
 pub struct CompileOptions<'a> {
-    /// Whether to emit full device debug information. Native full debug support requires optimization level zero and IR debug metadata.
+    /// Whether to emit full device debug information.
+    /// Native full debug support requires optimization level zero and IR debug metadata.
     pub device_debug: bool,
     /// Optimization effort applied to the input IR.
     pub optimization_level: Option<OptimizationLevel>,
-    /// Virtual GPU architecture target. Typed compilation and verification reject a concrete architecture.
+    /// Virtual GPU architecture target.
+    /// Typed compilation and verification reject a concrete architecture.
     pub gpu_architecture: Option<GpuArchitecture>,
     /// Whether single-precision denormal values are flushed to zero.
     pub flush_to_zero: Option<bool>,
@@ -132,7 +126,8 @@ impl<'a> CompileOptions<'a> {
         }
     }
 
-    /// Enables or disables full device debug information. Native full debug support requires optimization level zero and IR debug metadata.
+    /// Enables or disables full device debug information.
+    /// Native full debug support requires optimization level zero and IR debug metadata.
     #[must_use]
     pub fn device_debug(mut self, value: bool) -> Self {
         self.device_debug = value;
@@ -146,7 +141,8 @@ impl<'a> CompileOptions<'a> {
         self
     }
 
-    /// Sets the virtual GPU architecture target. Concrete targets are rejected when typed options are compiled or verified.
+    /// Sets the virtual GPU architecture target.
+    /// Concrete targets are rejected when typed options are compiled or verified.
     #[must_use]
     pub fn gpu_architecture(mut self, value: GpuArchitecture) -> Self {
         self.gpu_architecture = Some(value);
@@ -209,30 +205,39 @@ impl<'a> CompileOptions<'a> {
         if self.device_debug {
             arguments.push(String::from("-g"));
         }
+
         if let Some(value) = self.optimization_level {
             arguments.push(format!("-opt={value}"));
         }
+
         if let Some(value) = self.gpu_architecture {
             arguments.push(format!("-arch={value}"));
         }
+
         if let Some(value) = self.flush_to_zero {
             arguments.push(format!("-ftz={}", flag_bit(value)));
         }
+
         if let Some(value) = self.precise_square_root {
             arguments.push(format!("-prec-sqrt={}", flag_bit(value)));
         }
+
         if let Some(value) = self.precise_division {
             arguments.push(format!("-prec-div={}", flag_bit(value)));
         }
+
         if let Some(value) = self.fma {
             arguments.push(format!("-fma={}", flag_bit(value)));
         }
+
         if let Some(value) = self.jump_table_density {
             arguments.push(format!("-jump-table-density={value}"));
         }
+
         if self.generate_lto {
             arguments.push(String::from("-gen-lto"));
         }
+
         arguments.extend(self.raw_options.iter().map(|value| (*value).to_string()));
         arguments
     }
@@ -252,11 +257,13 @@ impl<'a> CompileOptions<'a> {
 pub struct Module<'a> {
     /// NVVM IR bytes in the representation accepted by the selected module-addition API.
     pub ir: &'a [u8],
-    /// Module name used in compiler diagnostics. Interior NUL bytes are rejected when adding it.
+    /// Module name used in compiler diagnostics.
+    /// Interior NUL bytes are rejected when adding it.
     pub name: &'a str,
 }
 
-/// Owned NVVM program containing IR modules to link, verify, and compile. The native program is destroyed when this wrapper is dropped.
+/// Owned NVVM program containing IR modules to link, verify, and compile.
+/// The native program is destroyed when this wrapper is dropped.
 #[derive(Debug)]
 pub struct Program {
     handle: sys::nvvmProgram,
@@ -274,6 +281,7 @@ impl Program {
         unsafe {
             try_nvvm!(sys::nvvmCreateProgram(&raw mut handle))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -284,8 +292,8 @@ impl Program {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvvmProgram` that is not owned by any other
-    /// wrapper. The returned wrapper destroys it with `nvvmDestroyProgram`.
+    /// `handle` must be a valid `nvvmProgram` that is not owned by any other wrapper.
+    /// The returned wrapper destroys it with `nvvmDestroyProgram`.
     ///
     /// # Errors
     ///
@@ -307,7 +315,8 @@ impl Program {
         self.add_module_raw(&module, false)
     }
 
-    /// Adds a bitcode module whose symbols are loaded only as required by eagerly added modules. A program must contain at least one eagerly added module.
+    /// Adds a bitcode module whose symbols are loaded only as required by eagerly added modules.
+    /// A program must contain at least one eagerly added module.
     ///
     /// # Errors
     ///
@@ -316,11 +325,13 @@ impl Program {
         self.add_module_raw(&module, true)
     }
 
-    /// Links the added IR modules and compiles the result using native option strings. Output is PTX unless link-time IR generation is requested.
+    /// Links the added IR modules and compiles the result using native option strings.
+    /// Output is PTX unless link-time IR generation is requested.
     ///
     /// # Errors
     ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the program or compilation options or fails compilation. Compiler diagnostics are available from `log`.
+    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the program or compilation options or fails compilation.
+    /// Compiler diagnostics are available from `log`.
     pub fn compile(&self, options: &[&str]) -> Result<()> {
         self.compile_raw(sys::nvvmCompileProgram, options)
     }
@@ -329,7 +340,9 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the program or compilation options or fails compilation. Compiler diagnostics are available from `log`. Also rejects a concrete GPU target in `options.gpu_architecture`.
+    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the program or compilation options or fails compilation.
+    /// Compiler diagnostics are available from `log`.
+    /// Also rejects a concrete GPU target in `options.gpu_architecture`.
     pub fn compile_with_options(&self, options: &CompileOptions<'_>) -> Result<()> {
         options.validate()?;
         let arguments = options.as_arguments();
@@ -341,7 +354,8 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the options or finds invalid IR. Verification diagnostics are available from `log`.
+    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the options or finds invalid IR.
+    /// Verification diagnostics are available from `log`.
     pub fn verify(&self, options: &[&str]) -> Result<()> {
         self.compile_raw(sys::nvvmVerifyProgram, options)
     }
@@ -350,7 +364,9 @@ impl Program {
     ///
     /// # Errors
     ///
-    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the options or finds invalid IR. Verification diagnostics are available from `log`. Also rejects a concrete GPU target in `options.gpu_architecture`.
+    /// Returns an error if an option contains an interior NUL, the option count exceeds the native integer range, or NVVM rejects the options or finds invalid IR.
+    /// Verification diagnostics are available from `log`.
+    /// Also rejects a concrete GPU target in `options.gpu_architecture`.
     pub fn verify_with_options(&self, options: &CompileOptions<'_>) -> Result<()> {
         options.validate()?;
         let arguments = options.as_arguments();
@@ -358,7 +374,8 @@ impl Program {
         self.verify(&argument_refs)
     }
 
-    /// Returns owned bytes of the last compiled PTX or link-time IR output. Native PTX output includes its trailing NUL byte.
+    /// Returns owned bytes of the last compiled PTX or link-time IR output.
+    /// Native PTX output includes its trailing NUL byte.
     ///
     /// # Errors
     ///
@@ -376,7 +393,8 @@ impl Program {
         Ok(ModuleImage::from_vec(self.compiled_result()?))
     }
 
-    /// Interprets the last compiled output as text, removing a trailing NUL and replacing invalid UTF-8 lossily. Intended for PTX output.
+    /// Interprets the last compiled output as text, removing a trailing NUL and replacing invalid UTF-8 lossily.
+    /// Intended for PTX output.
     ///
     /// # Errors
     ///
@@ -397,7 +415,8 @@ impl Program {
         )?))
     }
 
-    /// Borrows the native program handle without transferring ownership. It remains valid until the wrapper is dropped or converted with `into_raw`.
+    /// Borrows the native program handle without transferring ownership.
+    /// It remains valid until the wrapper is dropped or converted with `into_raw`.
     #[must_use]
     pub const fn as_raw(&self) -> sys::nvvmProgram {
         self.handle
@@ -405,8 +424,7 @@ impl Program {
 
     /// Transfers ownership of the raw NVVM program handle to the caller.
     ///
-    /// The caller becomes responsible for destroying it with
-    /// `nvvmDestroyProgram`.
+    /// The caller becomes responsible for destroying it with `nvvmDestroyProgram`.
     #[must_use]
     pub fn into_raw(self) -> sys::nvvmProgram {
         let handle = self.handle;
@@ -418,6 +436,7 @@ impl Program {
         if module.ir.is_empty() {
             return Err(Error::InvalidValue);
         }
+
         let name = CString::new(module.name)?;
         let function = if lazy {
             sys::nvvmLazyAddModuleToProgram
@@ -495,8 +514,10 @@ impl Drop for Program {
             if !self.handle.is_null()
                 && let Err(error) = try_nvvm!(sys::nvvmDestroyProgram(&raw mut self.handle))
             {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy nvvm program: {error}");
+                eprintln!(
+                    "failed to destroy nvvm program: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -507,14 +528,18 @@ impl Drop for Program {
 /// # Errors
 ///
 /// Returns an error if NVVM cannot report its library version.
-pub fn version() -> Result<Version> {
+pub fn version() -> Result<LibraryVersion> {
     let mut major = 0;
     let mut minor = 0;
     // SAFETY: `nvvmVersion` receives valid output locations.
     unsafe {
         try_nvvm!(sys::nvvmVersion(&raw mut major, &raw mut minor))?;
     }
-    Ok(Version { major, minor })
+    Ok(LibraryVersion::new(
+        to_u64(major, "nvvm major version")?,
+        to_u64(minor, "nvvm minor version")?,
+        0,
+    ))
 }
 
 /// Returns the NVVM IR and debug metadata versions supported by the loaded compiler.
@@ -620,7 +645,7 @@ mod tests {
     #[test]
     fn test_version_queries_are_available() {
         let version = version().unwrap();
-        assert!(version.major > 0);
+        assert!(version.major() > 0);
 
         let ir_version = ir_version().unwrap();
         assert!(ir_version.major > 0);

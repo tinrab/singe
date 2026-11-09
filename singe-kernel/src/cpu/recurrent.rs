@@ -113,6 +113,7 @@ pub fn recurrent_gated_delta_rule(
                             initial_state[((b * value_heads + hv) * qk_dim + k) * value_dim + v];
                     }
                 }
+
                 for t in 0..time {
                     let mut query_t = vec![0.0f32; qk_dim];
                     let mut key_t = vec![0.0f32; qk_dim];
@@ -121,26 +122,31 @@ pub fn recurrent_gated_delta_rule(
                         query_t[k] = query[offset];
                         key_t[k] = key[offset];
                     }
+
                     if use_qk_l2norm {
                         normalize(&mut query_t);
                         normalize(&mut key_t);
                     }
+
                     let scale = 1.0 / (qk_dim as f32).sqrt();
                     for value in &mut query_t {
                         *value *= scale;
                     }
+
                     let gate_offset = (b * time + t) * value_heads + hv;
                     let gamma = gate[gate_offset].exp();
                     let beta_t = beta[gate_offset];
                     for value in &mut state {
                         *value *= gamma;
                     }
+
                     let kv_memory = dot(&state, &key_t);
                     let value_t = value[((b * time + t) * value_heads + hv) * value_dim + v];
                     let delta = (value_t - kv_memory) * beta_t;
                     for k in 0..qk_dim {
                         state[k] = key_t[k].mul_add(delta, state[k]);
                     }
+
                     out[((b * time + t) * value_heads + hv) * value_dim + v] =
                         dot(&state, &query_t);
                 }

@@ -24,8 +24,7 @@ use crate::{
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_f32(
     stream: &Arc<Stream>,
@@ -82,8 +81,7 @@ pub unsafe fn matmul_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_f32(
     stream: &Arc<Stream>,
@@ -139,8 +137,7 @@ pub unsafe fn matmul_mma_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_f64(
     stream: &Arc<Stream>,
@@ -198,8 +195,7 @@ pub unsafe fn matmul_f64(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_f16_f32(
     stream: &Arc<Stream>,
@@ -257,8 +253,7 @@ pub unsafe fn matmul_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matvec_transposed_rhs_f16_f32(
     stream: &Arc<Stream>,
@@ -288,6 +283,7 @@ pub unsafe fn matvec_transposed_rhs_f16_f32(
     {
         return Err(Error::InvalidLength);
     }
+
     let columns = checked_i32_value(columns)?;
     let rhs_row_stride = checked_i32_value(rhs_row_stride)?;
     let grid = (
@@ -343,8 +339,7 @@ pub unsafe fn matvec_transposed_rhs_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
     stream: &Arc<Stream>,
@@ -385,8 +380,7 @@ pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32(
     stream: &Arc<Stream>,
@@ -530,12 +524,15 @@ fn matmul_mma_transposed_rhs_f16_f32_tile_with_compile_config<const BM: usize, c
         if let Some(occupancy) = compile.occupancy {
             options = options.occupancy(occupancy);
         }
+
         if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
             options = options.num_cta_in_cga(num_cta_in_cga);
         }
+
         if let Some(max_divisibility) = compile.max_divisibility {
             options = options.max_divisibility(max_divisibility);
         }
+
         op.compile_options(options).enqueue_on(stream)?;
     }
     Ok(())
@@ -547,8 +544,7 @@ fn matmul_mma_transposed_rhs_f16_f32_tile_with_compile_config<const BM: usize, c
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tuned(
     stream: &Arc<Stream>,
@@ -656,8 +652,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tuned(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_8x32(
     stream: &Arc<Stream>,
@@ -695,8 +690,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_8x32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x32(
     stream: &Arc<Stream>,
@@ -734,8 +728,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x64(
     stream: &Arc<Stream>,
@@ -773,8 +766,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x64(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_2(
     stream: &Arc<Stream>,
@@ -813,8 +805,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_2(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_4(
     stream: &Arc<Stream>,
@@ -853,8 +844,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_16x64_occupancy_4(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_32x16(
     stream: &Arc<Stream>,
@@ -892,8 +882,7 @@ pub unsafe fn matmul_mma_transposed_rhs_f16_f32_tile_32x16(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_f16_f32(
     stream: &Arc<Stream>,
@@ -939,8 +928,7 @@ pub unsafe fn matmul_mma_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_bf16_f32(
     stream: &Arc<Stream>,
@@ -998,8 +986,7 @@ pub unsafe fn matmul_bf16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Output may be uninitialized; only the configured logical elements are written.
 pub unsafe fn matmul_mma_bf16_f32(
     stream: &Arc<Stream>,
@@ -1044,8 +1031,7 @@ pub unsafe fn matmul_mma_bf16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Prior logical output elements must be initialized even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_f32(
     stream: &Arc<Stream>,
@@ -1066,6 +1052,7 @@ pub unsafe fn matmul_alpha_beta_f32(
     if !alpha.is_finite() || !beta.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;
@@ -1110,8 +1097,7 @@ pub unsafe fn matmul_alpha_beta_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Prior logical output elements must be initialized even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_f16_f32(
     stream: &Arc<Stream>,
@@ -1132,6 +1118,7 @@ pub unsafe fn matmul_alpha_beta_f16_f32(
     if !alpha.is_finite() || !beta.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;
@@ -1176,8 +1163,7 @@ pub unsafe fn matmul_alpha_beta_f16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Prior logical output elements must be initialized even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_bf16_f32(
     stream: &Arc<Stream>,
@@ -1198,6 +1184,7 @@ pub unsafe fn matmul_alpha_beta_bf16_f32(
     if !alpha.is_finite() || !beta.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;
@@ -1242,8 +1229,7 @@ pub unsafe fn matmul_alpha_beta_bf16_f32(
 /// # Safety
 ///
 /// Pointers must identify appropriately sized, aligned ranges in the stream's context.
-/// Order input initialization before device reads and keep all allocations live,
-/// with exclusive writable access, until completion on every path and throughout replay.
+/// Order input initialization before device reads and keep all allocations live, with exclusive writable access, until completion on every path and throughout replay.
 /// Prior logical output elements must be initialized even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_f64(
     stream: &Arc<Stream>,
@@ -1264,6 +1250,7 @@ pub unsafe fn matmul_alpha_beta_f64(
     if !alpha.is_finite() || !beta.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lhs)?;
     checked_device_pointer(&rhs)?;

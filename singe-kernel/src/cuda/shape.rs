@@ -1147,9 +1147,11 @@ pub unsafe fn pack_downsample_2d_f32(
     if factor == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !rows.is_multiple_of(factor) {
         return Err(Error::LengthMismatch);
     }
+
     let len = checked_element_count(rows, cols)?;
     ensure_len(input.len(), len)?;
     ensure_len(out.len(), len)?;
@@ -1171,9 +1173,11 @@ fn repeat_kv_input_dimensions(output_dimensions: [usize; 4], repeats: usize) -> 
     if repeats == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !output_dimensions[1].is_multiple_of(repeats) {
         return Err(Error::LengthMismatch);
     }
+
     let mut dimensions = output_dimensions;
     dimensions[1] /= repeats;
     Ok(dimensions)
@@ -1190,9 +1194,11 @@ fn ensure_concat_layout<const R: usize>(
             axis,
         });
     }
+
     if lhs_dimensions[axis] > output_dimensions[axis] {
         return Err(Error::LengthMismatch);
     }
+
     for dim in 0..R {
         if dim != axis && lhs_dimensions[dim] != output_dimensions[dim] {
             return Err(Error::LengthMismatch);

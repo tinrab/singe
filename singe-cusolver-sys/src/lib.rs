@@ -8,7 +8,6 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -31,6 +30,22 @@ use singe_cuda_sys::{
 
 #[cfg(feature = "cusolver_12_3")]
 include!("sys_12304.rs");
+
+pub use singe_loader::LoadError;
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::cusolver();
+
+// Loads cuSOLVER, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "cusolver_12_3")]
+singe_loader::missing_status!(
+    cusolverStatus_t,
+    library: cusolverStatus_t::CUSOLVER_STATUS_NOT_INITIALIZED,
+    symbol: cusolverStatus_t::CUSOLVER_STATUS_NOT_SUPPORTED,
+);
 
 #[cfg(test)]
 mod tests {

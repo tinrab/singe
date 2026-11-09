@@ -187,6 +187,7 @@ fn ensure_rank_reach<const R: usize>(
     if dimensions.contains(&0) {
         return Ok(());
     }
+
     let mut max_offset = 0usize;
     for axis in 0..R {
         let span = dimensions[axis]
@@ -196,6 +197,7 @@ fn ensure_rank_reach<const R: usize>(
             .ok_or(Error::SizeOverflow)?;
         max_offset = max_offset.checked_add(span).ok_or(Error::SizeOverflow)?;
     }
+
     let required = max_offset.checked_add(1).ok_or(Error::SizeOverflow)?;
     if required <= input_len {
         Ok(())

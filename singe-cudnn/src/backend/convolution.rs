@@ -6,7 +6,8 @@ use singe_core::{impl_enum_conversion, impl_enum_display};
 
 use singe_cudnn_sys as sys;
 
-/// `cudnnConvolutionMode_t` is an enumerated type used by `cudnnSetConvolution2dDescriptor` to configure a convolution `descriptor`. The filter used for the convolution can be applied in two different ways, corresponding mathematically to a convolution or to a cross-correlation. (A cross-correlation is equivalent to a convolution with its filter rotated by 180 degrees.)
+/// `cudnnConvolutionMode_t` is an enumerated type used by `cudnnSetConvolution2dDescriptor` to configure a convolution `descriptor`.
+/// The filter used for the convolution can be applied in two different ways, corresponding mathematically to a convolution or to a cross-correlation. (A cross-correlation is equivalent to a convolution with its filter rotated by 180 degrees.)
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive, Serialize, Deserialize,
 )]

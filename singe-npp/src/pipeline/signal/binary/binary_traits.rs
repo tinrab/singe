@@ -9,7 +9,8 @@ use crate::{
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait BinarySignal<T> {
     /// Adds `left` and `right` element by element into `destination`.
@@ -105,7 +106,8 @@ pub unsafe trait BinarySignal<T> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait DivideSignal<T> {
     /// Computes the element-wise quotient `left / right` into `destination`.
@@ -143,7 +145,8 @@ pub unsafe trait DivideSignal<T> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledBinarySignal<T> {
     /// Adds `left` and `right` element by element into `destination`.
@@ -251,7 +254,8 @@ pub unsafe trait ScaledBinarySignal<T> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait DivideScaledBinarySignal<T> {
     /// Computes the element-wise quotient `left / right` into `destination`.
@@ -293,7 +297,8 @@ pub unsafe trait DivideScaledBinarySignal<T> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait MixedBinarySignal<T, U> {
     /// Adds `left` and `right` element by element into `destination`.
@@ -348,7 +353,8 @@ pub unsafe trait MixedBinarySignal<T, U> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledMixedBinarySignal<T, U> {
     /// Multiplies `left` and `right` element by element into `destination`.
@@ -374,7 +380,8 @@ pub unsafe trait ScaledMixedBinarySignal<T, U> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledHeterogeneousBinarySignal<T, U, V> {
     /// Multiplies `left` and `right` element by element into `destination`.
@@ -400,7 +407,8 @@ pub unsafe trait ScaledHeterogeneousBinarySignal<T, U, V> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait MultiplyLowScaledSignal<T> {
     /// Multiplies `left` and `right` element by element into `destination`.
@@ -427,7 +435,8 @@ pub unsafe trait MultiplyLowScaledSignal<T> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait DivideByScaledSignal<T, U, V> {
     /// Computes the element-wise quotient `left / right` into `destination`.
@@ -453,7 +462,8 @@ pub unsafe trait DivideByScaledSignal<T, U, V> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledHeterogeneousInPlaceSignal<T, U> {
     /// Multiplies `destination` by `source` element by element, updating `destination` in place.
@@ -478,7 +488,8 @@ pub unsafe trait ScaledHeterogeneousInPlaceSignal<T, U> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait AddHeterogeneousInPlaceSignal<T, U> {
     /// Adds `source` to `destination` element by element, updating `destination` in place.
@@ -501,7 +512,8 @@ pub unsafe trait AddHeterogeneousInPlaceSignal<T, U> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait MultiplyHeterogeneousInPlaceSignal<T, U> {
     /// Multiplies `destination` by `source` element by element, updating `destination` in place.
@@ -524,7 +536,8 @@ pub unsafe trait MultiplyHeterogeneousInPlaceSignal<T, U> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait HeterogeneousBinarySignal<T, U, V> {
     /// Multiplies `left` and `right` element by element into `destination`.
@@ -548,7 +561,8 @@ pub unsafe trait HeterogeneousBinarySignal<T, U, V> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait AddProductSignal<T> {
     /// Adds the element-wise product `left * right` to the initialized `destination`.
@@ -572,7 +586,8 @@ pub unsafe trait AddProductSignal<T> {
 /// # Safety
 ///
 /// Implementations must preserve native element representations, operand order, and arithmetic semantics.
-/// Complete borrowed native work on every return path, including errors. Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
+/// Complete borrowed native work on every return path, including errors.
+/// Initialize every logical output element on success, and preserve initialized accumulator semantics for in-place operations.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledAddProductSignal<T, U> {
     /// Adds the element-wise product `left * right` to the initialized `destination`.

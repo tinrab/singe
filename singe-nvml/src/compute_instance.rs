@@ -35,8 +35,7 @@ impl ComputeInstance {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlComputeInstance_t` for the duration of any
-    /// calls made through the returned wrapper.
+    /// `handle` must be a valid `nvmlComputeInstance_t` for the duration of any calls made through the returned wrapper.
     pub const unsafe fn from_raw(handle: sys::nvmlComputeInstance_t) -> Self {
         Self(handle)
     }
@@ -60,9 +59,7 @@ impl ComputeInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle or output arguments are rejected by NVML, if
-    /// the current process does not have permission to query the instance, or if
-    /// NVML has not been initialized.
+    /// Returns an error if the handle or output arguments are rejected by NVML, if the current process does not have permission to query the instance, or if NVML has not been initialized.
     pub fn info(&self) -> Result<ComputeInstanceInfo> {
         let mut info = sys::nvmlComputeInstanceInfo_t::default();
         // SAFETY: `nvmlComputeInstanceGetInfo_v2` receives valid output locations.
@@ -123,11 +120,8 @@ impl OwnedComputeInstance {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlComputeInstance_t` owned by the caller, and
-    /// ownership must not be used elsewhere after constructing this wrapper.
-    /// The wrapper destroys the compute instance with
-    /// `nvmlComputeInstanceDestroy` unless ownership is transferred with
-    /// [`OwnedComputeInstance::into_raw`].
+    /// `handle` must be a valid `nvmlComputeInstance_t` owned by the caller, and ownership must not be used elsewhere after constructing this wrapper.
+    /// The wrapper destroys the compute instance with `nvmlComputeInstanceDestroy` unless ownership is transferred with [`OwnedComputeInstance::into_raw`].
     pub const unsafe fn from_raw(handle: sys::nvmlComputeInstance_t) -> Self {
         Self(ComputeInstance(handle))
     }
@@ -150,9 +144,8 @@ impl OwnedComputeInstance {
 
     /// Transfers this owned compute instance handle to the caller.
     ///
-    /// After this call, the wrapper will not destroy the compute instance. The
-    /// caller becomes responsible for eventually passing the handle to
-    /// `nvmlComputeInstanceDestroy` or otherwise transferring ownership.
+    /// After this call, the wrapper will not destroy the compute instance.
+    /// The caller becomes responsible for eventually passing the handle to `nvmlComputeInstanceDestroy` or otherwise transferring ownership.
     #[must_use]
     pub fn into_raw(self) -> sys::nvmlComputeInstance_t {
         self.into_inner().0
@@ -172,8 +165,10 @@ impl Drop for OwnedComputeInstance {
         // SAFETY: `nvmlComputeInstanceDestroy` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::nvmlComputeInstanceDestroy(self.0.0)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy nvml compute instance: {error}");
+                eprintln!(
+                    "failed to destroy nvml compute instance: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

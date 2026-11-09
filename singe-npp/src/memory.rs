@@ -28,8 +28,7 @@ pub struct Allocation {
 
 /// Native allocation ownership, full bounds, and actual CUDA context.
 ///
-/// Free the pointer with the matching NPP allocator before dropping its context,
-/// or transfer the complete value through [`Allocation::from_raw`].
+/// Free the pointer with the matching NPP allocator before dropping its context, or transfer the complete value through [`Allocation::from_raw`].
 #[derive(Debug)]
 pub struct RawAllocation {
     /// Native allocation base pointer to be released by the allocator selected in `kind`.
@@ -60,19 +59,18 @@ impl Allocation {
     ///
     /// # Errors
     ///
-    /// Returns an error if the pointer is null, the byte count is zero, or the pointer range
-    /// cannot form a valid device region.
+    /// Returns an error if the pointer is null, the byte count is zero, or the pointer range cannot form a valid device region.
     ///
     /// # Safety
     ///
-    /// `parts.pointer` must uniquely own `parts.bytes` accessible bytes allocated by the declared
-    /// NPP allocator in `parts.context`. Preserve `parts.id` for every alias and retain an owner
-    /// through all queued accesses and captured graph replay. Native allocation liveness,
-    /// context, capacity, and allocator family must be accurate.
+    /// `parts.pointer` must uniquely own `parts.bytes` accessible bytes allocated by the declared NPP allocator in `parts.context`.
+    /// Preserve `parts.id` for every alias and retain an owner through all queued accesses and captured graph replay.
+    /// Native allocation liveness, context, capacity, and allocator family must be accurate.
     pub unsafe fn from_raw(parts: RawAllocation) -> Result<Self> {
         if parts.bytes == 0 || parts.pointer.is_null() {
             return Err(Error::out_of_range("npp allocation"));
         }
+
         // SAFETY: the caller establishes native liveness; this checks address arithmetic.
         unsafe {
             DeviceRegion::from_raw_parts(&parts.context, parts.id, parts.pointer, parts.bytes)?;
@@ -134,8 +132,10 @@ unsafe impl DeviceRegionProvider for Allocation {
 impl Drop for Allocation {
     fn drop(&mut self) {
         if let Err(error) = self.parts.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind npp allocation context: {error}");
+            eprintln!(
+                "failed to bind npp allocation context: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
         // SAFETY: the last owner releases the native base using its matching allocator.

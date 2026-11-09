@@ -94,13 +94,13 @@ pub type cufftDescriptionHandle = ::core::ffi::c_int;
 pub type cufftDeviceHandle = ::core::ffi::c_int;
 /// Native handle identifying one function within a device FFT database.
 pub type cufftDeviceFunctionHandle = ::core::ffi::c_int;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the encoded version of the loaded experimental cuFFT device interface to `version`.
     ///
     /// Returns a cuFFT status code.
     pub fn cufftDeviceGetVersion(version: *mut ::core::ffi::c_int) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the major, minor, and patch components of the loaded cuFFT device-interface version.
     ///
     /// Returns a cuFFT status code.
@@ -110,7 +110,7 @@ unsafe extern "C" {
         patch: *mut ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a device FFT description and writes its handle to `desc_handle`.
     ///
     /// Returns a cuFFT status code.
@@ -118,13 +118,13 @@ unsafe extern "C" {
         desc_handle: *mut cufftDescriptionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroys the device FFT description identified by `desc_handle`.
     ///
     /// Returns a cuFFT status code.
     pub fn cufftDescriptionDestroy(desc_handle: cufftDescriptionHandle) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets an integer trait of a device FFT description before creating a device program.
     ///
     /// Returns a cuFFT status code.
@@ -134,7 +134,7 @@ unsafe extern "C" {
         value: ::core::ffi::c_longlong,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the current integer value of a device FFT description trait to `value`.
     ///
     /// Returns a cuFFT status code.
@@ -144,7 +144,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_longlong,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a function database for the `desc_count` descriptions in `desc_handles` and writes its handle to `handle`.
     ///
     /// Returns a cuFFT status code.
@@ -154,7 +154,7 @@ unsafe extern "C" {
         desc_handles: *mut cufftDescriptionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes whether the selected description is supported by this device-function database to `is_supported`.
     ///
     /// Returns a cuFFT status code.
@@ -164,7 +164,7 @@ unsafe extern "C" {
         is_supported: *mut bool,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the number of device FFT functions matching `desc_handle` to `func_count`.
     ///
     /// Returns a cuFFT status code.
@@ -174,7 +174,7 @@ unsafe extern "C" {
         func_count: *mut size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the `func_count` matching device-function handles to `func_handles`.
     ///
     /// Returns a cuFFT status code.
@@ -185,7 +185,7 @@ unsafe extern "C" {
         func_handles: *mut cufftDeviceFunctionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the selected resource requirement of `func_handle` to `value`.
     ///
     /// Returns a cuFFT status code.
@@ -196,7 +196,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_longlong,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the byte capacity needed to retrieve database metadata to `db_str_size`. A `func_handle` of -1 selects the entire database.
     ///
     /// Returns a cuFFT status code.
@@ -206,7 +206,7 @@ unsafe extern "C" {
         func_handle: cufftDeviceFunctionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies serialized database metadata into `db_str`, whose byte capacity is `db_str_size`. A `func_handle` of -1 selects the entire database.
     ///
     /// Returns a cuFFT status code.
@@ -217,7 +217,7 @@ unsafe extern "C" {
         func_handle: cufftDeviceFunctionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the number of code containers for `func_handle` to `code_count`. A handle of -1 selects the entire database.
     ///
     /// Returns a cuFFT status code.
@@ -227,7 +227,7 @@ unsafe extern "C" {
         func_handle: cufftDeviceFunctionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes `code_count` code-container byte sizes to `code_sizes`. A `func_handle` of -1 selects the entire database.
     ///
     /// Returns a cuFFT status code.
@@ -238,7 +238,7 @@ unsafe extern "C" {
         func_handle: cufftDeviceFunctionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies code containers into the `code_count` buffers in `code_ptrs` and writes their formats to `code_containers`. Query each required capacity with [`cufftDeviceGetLTOIRSizes`] first. A `func_handle` of -1 selects the entire database.
     ///
     /// Returns a cuFFT status code.
@@ -250,7 +250,7 @@ unsafe extern "C" {
         func_handle: cufftDeviceFunctionHandle,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroys the device FFT function database identified by `handle`.
     ///
     /// Returns a cuFFT status code.

@@ -15,26 +15,22 @@ where
     Self: FloatSeparableBorderFilterImage<T, L>,
 {
     /// Applies a one-dimensional vertical filter with `f32` coefficients.
-    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
-    /// zero-based kernel origin along the filtered axis. The result retains the image sample
-    /// type. Passes the slice address directly as a device pointer, without uploading it;
-    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// Supply `kernel` in the reversed coefficient order required by NPP.
+    /// `anchor` gives the zero-based kernel origin along the filtered axis.
+    /// The result retains the image sample type.
+    /// Passes the slice address directly as a device pointer, without uploading it; the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// The wrapper forwards `border_type` to NPP, which may reject unsupported values.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
-    /// `0..kernel.len()`.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in `0..kernel.len()`.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn filter_column_border32f_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -56,26 +52,22 @@ where
     }
 
     /// Applies a one-dimensional horizontal filter with `f32` coefficients.
-    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
-    /// zero-based kernel origin along the filtered axis. The result retains the image sample
-    /// type. Passes the slice address directly as a device pointer, without uploading it;
-    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// Supply `kernel` in the reversed coefficient order required by NPP.
+    /// `anchor` gives the zero-based kernel origin along the filtered axis.
+    /// The result retains the image sample type.
+    /// Passes the slice address directly as a device pointer, without uploading it; the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// The wrapper forwards `border_type` to NPP, which may reject unsupported values.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
-    /// `0..kernel.len()`.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in `0..kernel.len()`.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn filter_row_border32f_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

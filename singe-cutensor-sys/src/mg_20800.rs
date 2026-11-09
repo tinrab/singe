@@ -153,7 +153,7 @@ pub enum cutensorMgContractionFindAttribute_t {
     /// Not an actual attribute, but the maximum value that the enum takes on
     CUTENSORMG_CONTRACTION_FIND_ATTRIBUTE_MAX = 65535,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a library handle.
     ///
     /// The handle contains information about the devices that should be participating in calculations. All devices that hold any tensor data or participate in any of cuTENSORMg’s operations should also be included in the handle. Each device may only occur once in the list. It is advisable that all devices are identical (i.e., have the same peak performance) to avoid load-balancing issues, and are connected via NVLink to avoid costly device-host-device transfers. This call will enable peering between all devices that have been passed to it, if possible.
@@ -178,7 +178,7 @@ unsafe extern "C" {
         devices: *const i32,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a library handle.
     ///
     /// All outstanding operations must be completed before calling this function. Frees all associated resources. Any descriptors or plans created with the handle become invalid and may only be destructed.
@@ -197,7 +197,7 @@ unsafe extern "C" {
     /// - [`cutensorStatus_t::CUTENSOR_STATUS_SUCCESS`]: The operation completed successfully.
     pub fn cutensorMgDestroy(handle: cutensorMgHandle_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a tensor descriptor.
     ///
     /// A tensor descriptor fully specifies the data layout of a (potentially) distributed tensor. It does so mainly through five pieces of data: The extent, the element stride, the block size, the block stride, and the device count.
@@ -284,7 +284,7 @@ unsafe extern "C" {
         type_: cudaDataType_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a tensor descriptor.
     ///
     /// Remark
@@ -303,7 +303,7 @@ unsafe extern "C" {
         desc: cutensorMgTensorDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a copy descriptor.
     ///
     /// A copy descriptor encodes the source and the destination for a copy operation. The copy operation supports tensors on host, single, or multiple devices. It also supports layout changes and mode permutations. The only restriction is that the extents of the corresponding modes (in the input and output tensors) must match.
@@ -335,7 +335,7 @@ unsafe extern "C" {
         modesSrc: *const i32,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a copy descriptor and free all its previously-allocated resources.
     ///
     /// Remark
@@ -354,7 +354,7 @@ unsafe extern "C" {
         desc: cutensorMgCopyDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Computes the workspace that is needed for the copy.
     ///
     /// The function calculates the minimum workspace required for the copy operation to succeed. It returns the device workspace size in the same order as the devices are passed to the library handle.
@@ -381,7 +381,7 @@ unsafe extern "C" {
         hostWorkspaceSize: *mut i64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a copy plan.
     ///
     /// A copy plan implements the copy operation expressed through the copy descriptor. It contains all the information needed to execute a copy operation. Planning may fail if insufficient workspace is provided.
@@ -410,7 +410,7 @@ unsafe extern "C" {
         hostWorkspaceSize: i64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a copy plan.
     ///
     /// When called, all outstanding operations must be completed. Frees all associated resources.
@@ -429,7 +429,7 @@ unsafe extern "C" {
     /// - [`cutensorStatus_t::CUTENSOR_STATUS_SUCCESS`]: The operation completed successfully.
     pub fn cutensorMgDestroyCopyPlan(plan: cutensorMgCopyPlan_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Execute a copy operation.
     ///
     /// Executes a copy operation according to the given plan. It receives the source and destination pointers in the order prescribed by the `devices` parameter of the respective tensor descriptor and the device workspace and streams in the order prescribed by the `devices` parameter of the handle. If host transfers are involved in the execution the function will block until those host transfers have been completed. The function is thread safe as long as concurrent threads use different library handles.
@@ -463,7 +463,7 @@ unsafe extern "C" {
         streams: *mut cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a contraction find.
     ///
     /// The contraction find contains all the algorithmic options to execute a tensor contraction. For now, its only parameter is an algorithm, which currently only has one default value. It may gain additional options in the future.
@@ -488,7 +488,7 @@ unsafe extern "C" {
         algo: cutensorMgAlgo_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a contraction find.
     ///
     /// Remark
@@ -507,7 +507,7 @@ unsafe extern "C" {
         find: cutensorMgContractionFind_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Set a contraction find attribute
     ///
     ///
@@ -541,7 +541,7 @@ unsafe extern "C" {
         size: i64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a contraction descriptor.
     ///
     /// A contraction descriptor encodes the operands for a contraction operation of the form:
@@ -587,7 +587,7 @@ unsafe extern "C" {
         compute: cutensorComputeType_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a contraction descriptor.
     ///
     /// Remark
@@ -606,7 +606,7 @@ unsafe extern "C" {
         desc: cutensorMgContractionDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Computes the workspace that is needed for the contraction.
     ///
     /// The function calculates the workspace required for the contraction operation to succeed. It takes a workspace preference, which can tune how much workspace is needed. It returns the device workspace size in the same order as the devices are passed to the library handle.
@@ -638,7 +638,7 @@ unsafe extern "C" {
         hostWorkspaceSize: *mut i64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Create a contraction plan.
     ///
     /// A contraction plan implements the contraction operation expressed through the contraction descriptor in accordance to the options specified in the contraction find. It contains all the information needed to execute a contraction operation. Planning may fail if insufficient workspace is provided.
@@ -670,7 +670,7 @@ unsafe extern "C" {
         hostWorkspaceSize: i64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Destroy a contraction plan.
     ///
     /// When called, all outstanding operations must be completed. Frees all associated resources.
@@ -691,7 +691,7 @@ unsafe extern "C" {
         plan: cutensorMgContractionPlan_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::MG;
     /// Execute a contraction operation.
     ///
     /// Executes a contraction operation according to the provided plan. It receives all the operands as arrays of pointers that are ordered according to their tensor descriptors’ `devices` parameter. The device workspace and streams are ordered according to the library handle’s `devices` parameter. The function is thread safe as long as concurrent threads use different library handles.

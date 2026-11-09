@@ -89,17 +89,15 @@ where
     /// Copies source pixels into the destination where the mask byte is nonzero.
     ///
     /// Source, destination, and mask pixel dimensions must match.
-    /// Zero mask pixels and AC4 alpha remain unwritten; any initialized values there are
-    /// preserved. Initialize those locations separately before reading a complete image.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Zero mask pixels and AC4 alpha remain unwritten; any initialized values there are preserved.
+    /// Initialize those locations separately before reading a complete image.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail. Participating image and
-    /// mask dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
+    /// Participating image and mask dimensions must match.
     pub fn copy_masked_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -124,18 +122,16 @@ where
     /// Copies source pixels into the destination where the mask byte is nonzero.
     ///
     /// Source, destination, and mask pixel dimensions must match.
-    /// Reuses an owned pipeline image in place. For borrowed input, copies the pipeline
-    /// image into a new owned image first. Zero mask pixels and AC4 alpha preserve the
-    /// pipeline image's previous values.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Reuses an owned pipeline image in place.
+    /// For borrowed input, copies the pipeline image into a new owned image first.
+    /// Zero mask pixels and AC4 alpha preserve the pipeline image's previous values.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail. Participating image and
-    /// mask dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
+    /// Participating image and mask dimensions must match.
     /// Output allocation, copying borrowed input, or image view construction can also fail.
     pub fn copy_masked_from(
         mut self,

@@ -61,7 +61,7 @@ fn run() -> Result<()> {
     ));
     let scores = if arguments.iter().any(|argument| argument == "--causal-mask") {
         let fill = graph.tensor(
-            TensorSpec::constant(f16::from_f32(f32::NEG_INFINITY))
+            TensorSpec::scalar(f16::from_f32(f32::NEG_INFINITY))
                 .with_shape(Shape::contiguous([1, 1, 1, 1])?),
         );
         let masked = graph.diagonal_band_mask(
@@ -145,6 +145,7 @@ fn run() -> Result<()> {
     if let (Some(id), Some(memory)) = (sink, sink_device.as_ref()) {
         bindings.set_input(id, memory)?;
     }
+
     let mut bound_outputs = 0;
     for id in [
         Some(outputs.output),
@@ -160,6 +161,7 @@ fn run() -> Result<()> {
         if tensor.is_virtual() {
             continue;
         }
+
         let memory = DeviceMemory::<u8>::zeroed(cuda, tensor.storage_byte_len(None)?)?;
         bindings.set_owned_region(
             id,
@@ -168,6 +170,7 @@ fn run() -> Result<()> {
         )?;
         bound_outputs += 1;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: initialized inputs, retained writable outputs, plan and workspace remain
     // live until the stream completes, including when execution returns an enqueue error.

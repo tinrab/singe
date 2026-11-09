@@ -14,7 +14,7 @@ use crate::{
         cutile::{
             DeviceOpExt, TileKernel,
             adapter::TensorAdapter,
-            kernel::common as kernel_common,
+            kernel::vector as vector_kernels,
             utility::{VectorLaunch, checked_device_pointer},
         },
     },
@@ -46,9 +46,11 @@ fn mask_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -73,7 +75,7 @@ macro_rules! unary_mask_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok::<(), Error>(())
@@ -101,7 +103,7 @@ macro_rules! binary_mask_fn {
             checked_device_pointer(&rhs)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, lhs, rhs, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, lhs, rhs, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok::<(), Error>(())
@@ -195,7 +197,7 @@ macro_rules! triangular_mask_fn {
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$kernel_fn(out, rows_i32, cols_i32, diagonal_i32, launch.len_i32)
+                vector_kernels::$kernel_fn(out, rows_i32, cols_i32, diagonal_i32, launch.len_i32)
             }
             .grid(launch.grid)
             .enqueue_on(stream)?;
@@ -231,7 +233,7 @@ macro_rules! causal_mask_fill_fn {
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$kernel_fn(out, input, fill_value, seq_len_i32, launch.len_i32)
+                vector_kernels::$kernel_fn(out, input, fill_value, seq_len_i32, launch.len_i32)
             }
             .grid(launch.grid)
             .enqueue_on(stream)?;
@@ -261,7 +263,7 @@ macro_rules! causal_mask_zero_fn {
             let seq_len_i32 = checked_i32_value(seq_len)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, seq_len_i32, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, seq_len_i32, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok::<(), Error>(())
@@ -342,12 +344,13 @@ pub unsafe fn sequence_mask_u8(
     if len == 0 {
         return Ok::<(), Error>(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&lengths)?;
     let cols_i32 = checked_i32_value(cols)?;
     let launch = VectorLaunch::create(len)?;
     // SAFETY: the caller upholds this function's safety contract.
-    unsafe { kernel_common::sequence_mask_u8(out, lengths, cols_i32, launch.len_i32) }
+    unsafe { vector_kernels::sequence_mask_u8(out, lengths, cols_i32, launch.len_i32) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok::<(), Error>(())
@@ -378,7 +381,7 @@ macro_rules! triangular_sequence_mask_fn {
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$kernel_fn(
+                vector_kernels::$kernel_fn(
                     out,
                     lengths,
                     rows_i32,
@@ -450,14 +453,14 @@ fn causal_mask_len(batch: usize, seq_len: usize) -> Result<usize> {
 macro_rules! dispatch_mask_reduction {
     ($out:expr, $input:expr, $stream:expr, $bn:expr, [$k1:ident, $k8:ident, $k32:ident, $k64:ident, $k128:ident, $k256:ident, $k512:ident, $k1024:ident]) => {{
         match $bn {
-            1 => kernel_common::$k1($out, $input).enqueue_on($stream)?,
-            8 => kernel_common::$k8($out, $input).enqueue_on($stream)?,
-            32 => kernel_common::$k32($out, $input).enqueue_on($stream)?,
-            64 => kernel_common::$k64($out, $input).enqueue_on($stream)?,
-            128 => kernel_common::$k128($out, $input).enqueue_on($stream)?,
-            256 => kernel_common::$k256($out, $input).enqueue_on($stream)?,
-            512 => kernel_common::$k512($out, $input).enqueue_on($stream)?,
-            1024 => kernel_common::$k1024($out, $input).enqueue_on($stream)?,
+            1 => vector_kernels::$k1($out, $input).enqueue_on($stream)?,
+            8 => vector_kernels::$k8($out, $input).enqueue_on($stream)?,
+            32 => vector_kernels::$k32($out, $input).enqueue_on($stream)?,
+            64 => vector_kernels::$k64($out, $input).enqueue_on($stream)?,
+            128 => vector_kernels::$k128($out, $input).enqueue_on($stream)?,
+            256 => vector_kernels::$k256($out, $input).enqueue_on($stream)?,
+            512 => vector_kernels::$k512($out, $input).enqueue_on($stream)?,
+            1024 => vector_kernels::$k1024($out, $input).enqueue_on($stream)?,
             _ => {
                 return Err(Error::UnsupportedWidth {
                     op: "mask reduction".into(),
@@ -483,21 +486,21 @@ macro_rules! enqueue_mask_reduction_op {
 macro_rules! dispatch_mask_reduction_tuned {
     ($out:expr, $input:expr, $stream:expr, $bn:expr, $compile:expr, [$k1:ident, $k8:ident, $k32:ident, $k64:ident, $k128:ident, $k256:ident, $k512:ident, $k1024:ident]) => {{
         match $bn {
-            1 => enqueue_mask_reduction_op!(kernel_common::$k1($out, $input), $stream, $compile),
-            8 => enqueue_mask_reduction_op!(kernel_common::$k8($out, $input), $stream, $compile),
-            32 => enqueue_mask_reduction_op!(kernel_common::$k32($out, $input), $stream, $compile),
-            64 => enqueue_mask_reduction_op!(kernel_common::$k64($out, $input), $stream, $compile),
+            1 => enqueue_mask_reduction_op!(vector_kernels::$k1($out, $input), $stream, $compile),
+            8 => enqueue_mask_reduction_op!(vector_kernels::$k8($out, $input), $stream, $compile),
+            32 => enqueue_mask_reduction_op!(vector_kernels::$k32($out, $input), $stream, $compile),
+            64 => enqueue_mask_reduction_op!(vector_kernels::$k64($out, $input), $stream, $compile),
             128 => {
-                enqueue_mask_reduction_op!(kernel_common::$k128($out, $input), $stream, $compile)
+                enqueue_mask_reduction_op!(vector_kernels::$k128($out, $input), $stream, $compile)
             }
             256 => {
-                enqueue_mask_reduction_op!(kernel_common::$k256($out, $input), $stream, $compile)
+                enqueue_mask_reduction_op!(vector_kernels::$k256($out, $input), $stream, $compile)
             }
             512 => {
-                enqueue_mask_reduction_op!(kernel_common::$k512($out, $input), $stream, $compile)
+                enqueue_mask_reduction_op!(vector_kernels::$k512($out, $input), $stream, $compile)
             }
             1024 => {
-                enqueue_mask_reduction_op!(kernel_common::$k1024($out, $input), $stream, $compile)
+                enqueue_mask_reduction_op!(vector_kernels::$k1024($out, $input), $stream, $compile)
             }
             _ => {
                 return Err(Error::UnsupportedWidth {

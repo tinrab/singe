@@ -15,8 +15,7 @@ use crate::{
 ///
 /// # Safety
 ///
-/// `callback` must remain valid for every later cuTENSOR log event that may
-/// call it and must follow cuTENSOR's callback requirements.
+/// `callback` must remain valid for every later cuTENSOR log event that may call it and must follow cuTENSOR's callback requirements.
 ///
 /// # Errors
 ///
@@ -59,9 +58,7 @@ pub fn set_mask(mask: LoggerMask) -> Result<()> {
 ///
 /// # Safety
 ///
-/// `file` must be a valid C `FILE` pointer for every later cuTENSOR log write
-/// that may use it, or a null pointer if cuTENSOR accepts that for the active
-/// logger configuration.
+/// `file` must be a valid C `FILE` pointer for every later cuTENSOR log write that may use it, or a null pointer if cuTENSOR accepts that for the active logger configuration.
 ///
 /// # Errors
 ///
@@ -78,8 +75,7 @@ pub unsafe fn set_file(file: *mut sys::FILE) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be converted to a C string or if
-/// cuTENSOR cannot open the log file.
+/// Returns an error if `path` cannot be converted to a C string or if cuTENSOR cannot open the log file.
 pub fn open_file(path: impl AsRef<Path>) -> Result<()> {
     let path = path_to_cstring(path.as_ref())?;
     // SAFETY: `cutensorLoggerOpenFile` receives pointers into buffers borrowed for the call.

@@ -8,11 +8,11 @@ use crate::{
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the documented arithmetic.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledConstantSignal<T> {
-    /// Adds `value` to each source element. Writes the result to `destination`.
+    /// Adds `value` to each source element.
+    /// Writes the result to `destination`.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -30,7 +30,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Adds `value` to each signal element. Updates the signal in place.
+    /// Adds `value` to each signal element.
+    /// Updates the signal in place.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -46,7 +47,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Subtracts `value` from each source element. Writes the result to `destination`.
+    /// Subtracts `value` from each source element.
+    /// Writes the result to `destination`.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -64,7 +66,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Subtracts `value` from each signal element. Updates the signal in place.
+    /// Subtracts `value` from each signal element.
+    /// Updates the signal in place.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -80,7 +83,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Subtracts each source element from `value`. Writes the result to `destination`.
+    /// Subtracts each source element from `value`.
+    /// Writes the result to `destination`.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -98,7 +102,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Subtracts each signal element from `value`. Updates the signal in place.
+    /// Subtracts each signal element from `value`.
+    /// Updates the signal in place.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -114,7 +119,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Multiplies each source element by `value`. Writes the result to `destination`.
+    /// Multiplies each source element by `value`.
+    /// Writes the result to `destination`.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -132,7 +138,8 @@ pub unsafe trait ScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Multiplies each signal element by `value`. Updates the signal in place.
+    /// Multiplies each signal element by `value`.
+    /// Updates the signal in place.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -153,11 +160,11 @@ pub unsafe trait ScaledConstantSignal<T> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the documented arithmetic.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait DivideScaledConstantSignal<T> {
-    /// Divides each source element by `value`. Writes the result to `destination`.
+    /// Divides each source element by `value`.
+    /// Writes the result to `destination`.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -175,7 +182,8 @@ pub unsafe trait DivideScaledConstantSignal<T> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Divides each signal element by `value`. Updates the signal in place.
+    /// Divides each signal element by `value`.
+    /// Updates the signal in place.
     /// Applies native fixed-point scaling with `scale_factor` and saturation for the destination type.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -196,11 +204,11 @@ pub unsafe trait DivideScaledConstantSignal<T> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the documented arithmetic.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ConstantBitwiseSignal<T> {
-    /// Computes the bitwise AND of each source element and `value`. Writes the result to `destination`.
+    /// Computes the bitwise AND of each source element and `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -216,7 +224,8 @@ pub unsafe trait ConstantBitwiseSignal<T> {
         destination: &mut SignalOutputView<'_, T>,
     ) -> Result<()>;
 
-    /// Computes the bitwise AND of each signal element and `value`. Updates the signal in place.
+    /// Computes the bitwise AND of each signal element and `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -230,7 +239,8 @@ pub unsafe trait ConstantBitwiseSignal<T> {
         value: T,
     ) -> Result<()>;
 
-    /// Computes the bitwise OR of each source element and `value`. Writes the result to `destination`.
+    /// Computes the bitwise OR of each source element and `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -246,7 +256,8 @@ pub unsafe trait ConstantBitwiseSignal<T> {
         destination: &mut SignalOutputView<'_, T>,
     ) -> Result<()>;
 
-    /// Computes the bitwise OR of each signal element and `value`. Updates the signal in place.
+    /// Computes the bitwise OR of each signal element and `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -260,7 +271,8 @@ pub unsafe trait ConstantBitwiseSignal<T> {
         value: T,
     ) -> Result<()>;
 
-    /// Computes the bitwise XOR of each source element and `value`. Writes the result to `destination`.
+    /// Computes the bitwise XOR of each source element and `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -276,7 +288,8 @@ pub unsafe trait ConstantBitwiseSignal<T> {
         destination: &mut SignalOutputView<'_, T>,
     ) -> Result<()>;
 
-    /// Computes the bitwise XOR of each signal element and `value`. Updates the signal in place.
+    /// Computes the bitwise XOR of each signal element and `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -295,11 +308,11 @@ pub unsafe trait ConstantBitwiseSignal<T> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the documented arithmetic.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ConstantShiftSignal<T> {
-    /// Shifts each source element left by `shift` bits. Writes the result to `destination`.
+    /// Shifts each source element left by `shift` bits.
+    /// Writes the result to `destination`.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -315,7 +328,8 @@ pub unsafe trait ConstantShiftSignal<T> {
         destination: &mut SignalOutputView<'_, T>,
     ) -> Result<()>;
 
-    /// Shifts each signal element left by `shift` bits. Updates the signal in place.
+    /// Shifts each signal element left by `shift` bits.
+    /// Updates the signal in place.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -329,7 +343,8 @@ pub unsafe trait ConstantShiftSignal<T> {
         shift: i32,
     ) -> Result<()>;
 
-    /// Shifts each source element right by `shift` bits. Writes the result to `destination`.
+    /// Shifts each source element right by `shift` bits.
+    /// Writes the result to `destination`.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -345,7 +360,8 @@ pub unsafe trait ConstantShiftSignal<T> {
         destination: &mut SignalOutputView<'_, T>,
     ) -> Result<()>;
 
-    /// Shifts each signal element right by `shift` bits. Updates the signal in place.
+    /// Shifts each signal element right by `shift` bits.
+    /// Updates the signal in place.
     ///
     /// Prepares the participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///

@@ -1,14 +1,13 @@
 //! The selected `sm_80` matrix path against independent host computations.
 
+mod support;
+
 use std::{env, fs};
 
 use anyhow::Result;
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, F16, LaunchConfig, ParsedModule, ShutdownMode,
 };
-
-mod support;
-
 use support::Observe;
 
 const MMA: &str = "mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32";

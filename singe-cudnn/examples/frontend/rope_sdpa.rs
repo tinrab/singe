@@ -137,6 +137,7 @@ fn run() -> Result<()> {
     ] {
         forward_bindings.set_input(id, memory)?;
     }
+
     for (id, memory) in [
         (rotated_query, &mut rotated_query_device),
         (rotated_key, &mut rotated_key_device),
@@ -144,6 +145,7 @@ fn run() -> Result<()> {
     ] {
         forward_bindings.set(id, memory)?;
     }
+
     forward_bindings.set_input(frequencies, &frequency_device)?;
     forward_bindings.set(stats, &mut stats_device)?;
     // SAFETY: bindings have the declared encodings and capacities, and all owners
@@ -215,6 +217,7 @@ fn run() -> Result<()> {
     ] {
         backward_bindings.set_input(id, memory)?;
     }
+
     for (id, memory) in [
         (query_gradient, &mut query_gradient_device),
         (key_gradient, &mut key_gradient_device),
@@ -222,6 +225,7 @@ fn run() -> Result<()> {
     ] {
         backward_bindings.set(id, memory)?;
     }
+
     backward_bindings.set_input(saved_stats, &stats_device)?;
     backward_bindings.set_input(saved_frequencies, &frequency_device)?;
     // SAFETY: saved tensors contain the completed forward results, gradient inputs are

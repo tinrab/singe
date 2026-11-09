@@ -26,6 +26,7 @@ impl TensorCaptureTarget {
             if !seen.insert(id) {
                 return Err(FrontendError::RaggedOffsetCycle { tensor_id: id }.into());
             }
+
             let tensor = tensors.get(&id).ok_or(FrontendError::TensorNotFound(id))?;
             current = tensor.ragged_offset;
             captured.insert(id, tensor.clone());
@@ -77,12 +78,14 @@ impl Graph {
         if targets.is_empty() {
             return Ok((self.clone(), BTreeMap::new()));
         }
+
         let mut target_tensors = BTreeMap::new();
         for target in targets.values() {
             for (&id, tensor) in &target.tensors {
                 merge_tensor(&mut target_tensors, id, tensor.clone())?;
             }
         }
+
         let mut allocation = self.new_subgraph();
         allocation
             .runtime
@@ -102,6 +105,7 @@ impl Graph {
             );
             ids.insert(id, target);
         }
+
         ids.extend(targets.iter().map(|(&id, target)| (id, target.id)));
         let map_id = |id: TensorId| ids.get(&id).copied().unwrap_or(id);
         let mut tensors = BTreeMap::new();
@@ -118,6 +122,7 @@ impl Graph {
                     }
                     .into());
                 }
+
                 if Self::attention_index_layout_is_promotion(&tensor, original)? {
                     tensor.shape = original.shape.clone();
                 } else if original.shape.dimensions() != tensor.shape.dimensions()
@@ -131,6 +136,7 @@ impl Graph {
                     }
                     .into());
                 }
+
                 tensor.byte_alignment = tensor.byte_alignment.max(original.byte_alignment);
                 tensor
             } else {
@@ -140,9 +146,11 @@ impl Graph {
             };
             merge_tensor(&mut tensors, target, tensor)?;
         }
+
         for (id, tensor) in target_tensors {
             merge_tensor(&mut tensors, id, tensor)?;
         }
+
         let operations = self
             .operations
             .iter()
@@ -184,6 +192,7 @@ impl Graph {
             incoming.validate_for(tensor)?;
             bounds.insert(target, incoming);
         }
+
         let mut mapped = self.clone();
         mapped.tensors = tensors;
         mapped.replace_operations(operations);
@@ -229,12 +238,14 @@ fn merge_tensor(
         }
         .into());
     }
+
     if !existing.storage_metadata_matches(&incoming)? {
         return Err(FrontendError::Compile(format!(
             "captured tensor `{id}` storage metadata mismatch"
         ))
         .into());
     }
+
     if Graph::attention_index_layout_is_promotion(existing, &incoming)? {
         existing.shape = incoming.shape.clone();
     } else if !Graph::attention_index_layout_is_promotion(&incoming, existing)?
@@ -245,6 +256,7 @@ fn merge_tensor(
             FrontendError::Compile(format!("captured tensor `{id}` layout mismatch")).into(),
         );
     }
+
     existing.byte_alignment = existing.byte_alignment.max(incoming.byte_alignment);
     Ok(())
 }

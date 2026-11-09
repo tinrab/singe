@@ -18,7 +18,8 @@ use crate::{
     try_ffi,
 };
 
-/// Data for SM-related resources. Properties are supplied by the driver.
+/// Data for SM-related resources.
+/// Properties are supplied by the driver.
 #[derive(Clone)]
 pub struct SmResource {
     raw: sys::CUdevResource,
@@ -125,7 +126,9 @@ impl SmResource {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if `minimum_count` or `maximum_groups` is zero. Also propagates native split errors for unavailable resources, unsupported partition sizes, or invalid resource descriptors. Successful results include the groups actually produced and the remainder.
+    /// Returns `Error::InvalidValue` if `minimum_count` or `maximum_groups` is zero.
+    /// Also propagates native split errors for unavailable resources, unsupported partition sizes, or invalid resource descriptors.
+    /// Successful results include the groups actually produced and the remainder.
     pub fn split_by_count(
         &self,
         minimum_count: u32,
@@ -134,6 +137,7 @@ impl SmResource {
         if minimum_count == 0 || maximum_groups == 0 {
             return Err(Error::InvalidValue);
         }
+
         let mut groups = maximum_groups;
         let mut results = vec![sys::CUdevResource::default(); groups as usize];
         let mut remainder = sys::CUdevResource::default();
@@ -148,6 +152,7 @@ impl SmResource {
                 minimum_count
             ))?;
         }
+
         results.truncate(groups as usize);
         Ok((
             results
@@ -168,7 +173,8 @@ impl SmResource {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the group count does not fit the native integer type. Also propagates native split errors for invalid group constraints, unsupported locality or co-scheduling settings, or insufficient resources.
+    /// Returns `Error::InvalidValue` if the group count does not fit the native integer type.
+    /// Also propagates native split errors for invalid group constraints, unsupported locality or co-scheduling settings, or insufficient resources.
     pub fn split(&self, groups: &[SmGroup]) -> Result<(Vec<Self>, Self)> {
         let count = groups.len().try_into().map_err(|_| Error::InvalidValue)?;
         let mut parameters = groups
@@ -225,7 +231,8 @@ impl SmResource {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum WorkqueueSharingScope {
-    /// Use all shared workqueue resources across all contexts. Default driver behaviour.
+    /// Use all shared workqueue resources across all contexts.
+    /// Default driver behaviour.
     DeviceContext = sys::CUdevWorkqueueConfigScope::CU_WORKQUEUE_SCOPE_DEVICE_CTX as _,
     /// When possible, use non-overlapping workqueue resources with other balanced green contexts.
     BalancedGreenContext =
@@ -288,8 +295,8 @@ impl WorkqueueConfig {
 
 /// A green context with a specified set of resources.
 ///
-/// A green context can be current to only one thread at a time. This owner and
-/// its streams are deliberately neither `Send` nor `Sync`.
+/// A green context can be current to only one thread at a time.
+/// This owner and its streams are deliberately neither `Send` nor `Sync`.
 #[derive(Debug)]
 pub struct GreenContext {
     handle: sys::CUgreenCtx,
@@ -311,7 +318,8 @@ impl GreenContext {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the SM resource list is empty, resources refer to different devices, the workqueue refers to another device, or the descriptor count does not fit the native integer type. Also propagates native resource-descriptor generation and green-context creation errors, or `Error::NullHandle` for a null created handle.
+    /// Returns `Error::InvalidValue` if the SM resource list is empty, resources refer to different devices, the workqueue refers to another device, or the descriptor count does not fit the native integer type.
+    /// Also propagates native resource-descriptor generation and green-context creation errors, or `Error::NullHandle` for a null created handle.
     pub fn create_with_workqueue(
         resources: &[SmResource],
         workqueue: Option<WorkqueueConfig>,
@@ -321,13 +329,16 @@ impl GreenContext {
         if resources.iter().any(|r| r.device != device) {
             return Err(Error::InvalidValue);
         }
+
         let mut raw = resources.iter().map(|r| r.raw).collect::<Vec<_>>();
         if let Some(workqueue) = workqueue {
             if workqueue.device != device {
                 return Err(Error::InvalidValue);
             }
+
             raw.push(workqueue.raw);
         }
+
         let mut descriptor = ptr::null_mut();
         // SAFETY: `cuDevResourceGenerateDesc` receives valid output locations.
         unsafe {
@@ -337,6 +348,7 @@ impl GreenContext {
                 raw.len().try_into().map_err(|_| Error::InvalidValue)?
             ))?;
         }
+
         let mut handle = ptr::null_mut();
         let flags = if default_stream {
             sys::CUgreenCtxCreate_flags::CU_GREEN_CTX_DEFAULT_STREAM as u32
@@ -352,6 +364,7 @@ impl GreenContext {
                 flags
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -382,7 +395,8 @@ impl GreenContext {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null. The caller must satisfy the remaining validity, ownership, and thread-affinity requirements.
+    /// Returns `Error::NullHandle` if `handle` is null.
+    /// The caller must satisfy the remaining validity, ownership, and thread-affinity requirements.
     pub unsafe fn from_raw(handle: sys::CUgreenCtx, device: Device) -> Result<Rc<Self>> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -416,12 +430,13 @@ impl GreenContext {
 
     /// Returns a context handle representing this green context.
     ///
-    /// The returned handle is borrowed and must not be destroyed or used after
-    /// this owner is dropped. All use must remain on this thread.
+    /// The returned handle is borrowed and must not be destroyed or used after this owner is dropped.
+    /// All use must remain on this thread.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot convert this green-context handle to its ordinary context representation. The returned handle does not acquire an independent ownership reference.
+    /// Returns an error if CUDA cannot convert this green-context handle to its ordinary context representation.
+    /// The returned handle does not acquire an independent ownership reference.
     pub fn context_handle(&self) -> Result<sys::CUcontext> {
         let mut context = ptr::null_mut();
         // SAFETY: `cuCtxFromGreenCtx` receives live handles owned by the wrappers and valid output locations.
@@ -476,7 +491,8 @@ impl GreenContext {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot create a nonblocking stream for this green context with the requested priority. The successful stream retains the green context.
+    /// Returns an error if CUDA cannot create a nonblocking stream for this green context with the requested priority.
+    /// The successful stream retains the green context.
     pub fn create_stream(self: &Rc<Self>, priority: i32) -> Result<GreenStream> {
         let mut handle = ptr::null_mut();
         // SAFETY: `cuGreenCtxStreamCreate` receives live handles owned by the wrappers and valid output locations.
@@ -502,8 +518,10 @@ impl Drop for GreenContext {
             if !self.handle.is_null()
                 && let Err(error) = try_ffi!(sys::cuGreenCtxDestroy(self.handle))
             {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cuda green context: {error}");
+                eprintln!(
+                    "failed to destroy cuda green context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -545,8 +563,10 @@ impl Drop for GreenStream {
         // SAFETY: `cuStreamDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuStreamDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cuda green stream: {error}");
+                eprintln!(
+                    "failed to destroy cuda green stream: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

@@ -89,6 +89,7 @@ impl Graph {
         for (id, bounds) in &self.runtime_shape_constraints {
             bounds.validate_for(self.tensor_spec(*id)?)?;
         }
+
         let mut expanded = self.clone();
         expanded.config.sm_version = expanded.compilation_sm_version(context)?;
         expanded.retain_attention_alignment()?;
@@ -113,12 +114,14 @@ impl Graph {
                     .clone(),
             );
         }
+
         let mut reducers = BTreeMap::new();
         for (index, operation) in expanded.operations.iter().enumerate() {
             if let Operation::Reduction(ReductionOperation::Custom { body, .. }) = operation {
                 reducers.insert(index, body.validate(context)?);
             }
         }
+
         let layout = GraphLayout::create(&mut expanded, &subgraphs)?;
         Ok(ValidatedGraph {
             recipe: self.clone(),
@@ -143,11 +146,13 @@ impl Graph {
             };
             pending.extend(uses.reads.into_iter().chain(uses.writes));
         }
+
         let mut visited = BTreeSet::new();
         while let Some(id) = pending.pop() {
             if !visited.insert(id) {
                 continue;
             }
+
             let tensor = self.tensor_spec(id)?;
             tensor.validate()?;
             pending.extend(tensor.ragged_offset);

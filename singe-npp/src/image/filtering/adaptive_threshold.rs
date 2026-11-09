@@ -13,26 +13,24 @@ use crate::{
 
 /// Thresholds each source pixel against its local box mean minus `delta`.
 ///
-/// Writes `value_greater_than` when the source pixel is greater than that adjusted mean;
-/// otherwise writes `value_less_or_equal`. NPP requires a square mask with odd side lengths
-/// and supports only [`BorderType::Replicate`]. The wrapper checks positive mask dimensions
-/// and forwards the remaining native restrictions and `delta` without validating them.
+/// Writes `value_greater_than` when the source pixel is greater than that adjusted mean; otherwise writes `value_less_or_equal`.
+/// NPP requires a square mask with odd side lengths and supports only [`BorderType::Replicate`].
+/// The wrapper checks positive mask dimensions and forwards the remaining native restrictions and `delta` without validating them.
 /// The destination-sized ROI starts at `source_offset` within the full source image.
-/// Queues work on the selected stream without synchronizing. Row padding remains unwritten.
+/// Queues work on the selected stream without synchronizing.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// Returns an error if the source offset is invalid, ROI endpoints overflow or exceed the
-/// source image, mask dimensions are nonpositive, CUDA context binding or region-context
-/// validation fails, or NPP rejects the threshold parameters.
+/// Returns an error if the source offset is invalid, ROI endpoints overflow or exceed the source image, mask dimensions are nonpositive, CUDA context binding or region-context validation fails, or NPP rejects the threshold parameters.
 ///
 /// # Safety
 ///
-/// Follow the [raw image execution contract](crate::image::raw). Source pixels must be
-/// initialized and ready for the selected stream. Keep the source read-only and destination
-/// exclusively writable and disjoint during native use. Retain both allocations and the
-/// stream context through queued completion, including submission errors and captured
-/// replay. Uphold native layout, mask, sampling, byte-stride, alignment, and bounds requirements.
+/// Follow the [raw image execution contract](crate::image::raw).
+/// Source pixels must be initialized and ready for the selected stream.
+/// Keep the source read-only and destination exclusively writable and disjoint during native use.
+/// Retain both allocations and the stream context through queued completion, including submission errors and captured replay.
+/// Uphold native layout, mask, sampling, byte-stride, alignment, and bounds requirements.
 pub unsafe fn filter_threshold_adaptive_box_border_u8_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u8, C1>,
@@ -86,31 +84,29 @@ pub unsafe fn filter_threshold_adaptive_box_border_u8_c1(
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element ABI and mean-minus-delta threshold
-/// semantics. Uphold the method's geometry validation, memory-access rules, and queued lifetimes.
+/// Implementations must preserve the native element ABI and mean-minus-delta threshold semantics.
+/// Uphold the method's geometry validation, memory-access rules, and queued lifetimes.
 pub unsafe trait FilterThresholdAdaptiveBoxBorderC1: DataTypeLike {
     /// Thresholds each source pixel against its local box mean minus `delta`.
     ///
-    /// Writes `value_greater_than` when the source pixel is greater than that adjusted mean;
-    /// otherwise writes `value_less_or_equal`. NPP requires a square mask with odd side lengths
-    /// and supports only [`BorderType::Replicate`]. The wrapper checks positive mask dimensions
-    /// and forwards the remaining native restrictions and `delta` without validating them.
+    /// Writes `value_greater_than` when the source pixel is greater than that adjusted mean; otherwise writes `value_less_or_equal`.
+    /// NPP requires a square mask with odd side lengths and supports only [`BorderType::Replicate`].
+    /// The wrapper checks positive mask dimensions and forwards the remaining native restrictions and `delta` without validating them.
     /// The destination-sized ROI starts at `source_offset` within the full source image.
-    /// Queues work on the selected stream without synchronizing. Row padding remains unwritten.
+    /// Queues work on the selected stream without synchronizing.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if the source offset is invalid, ROI endpoints overflow or exceed the
-    /// source image, mask dimensions are nonpositive, CUDA context binding or region-context
-    /// validation fails, or NPP rejects the threshold parameters.
+    /// Returns an error if the source offset is invalid, ROI endpoints overflow or exceed the source image, mask dimensions are nonpositive, CUDA context binding or region-context validation fails, or NPP rejects the threshold parameters.
     ///
     /// # Safety
     ///
-    /// Follow the [raw image execution contract](crate::image::raw). Source pixels must be
-    /// initialized and ready for the selected stream. Keep the source read-only and destination
-    /// exclusively writable and disjoint during native use. Retain both allocations and the
-    /// stream context through queued completion, including submission errors and captured
-    /// replay. Uphold native layout, mask, sampling, byte-stride, alignment, and bounds requirements.
+    /// Follow the [raw image execution contract](crate::image::raw).
+    /// Source pixels must be initialized and ready for the selected stream.
+    /// Keep the source read-only and destination exclusively writable and disjoint during native use.
+    /// Retain both allocations and the stream context through queued completion, including submission errors and captured replay.
+    /// Uphold native layout, mask, sampling, byte-stride, alignment, and bounds requirements.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -155,26 +151,24 @@ unsafe impl FilterThresholdAdaptiveBoxBorderC1 for u8 {
 
 /// Thresholds each source pixel against its local box mean minus `delta`.
 ///
-/// Writes `value_greater_than` when the source pixel is greater than that adjusted mean;
-/// otherwise writes `value_less_or_equal`. NPP requires a square mask with odd side lengths
-/// and supports only [`BorderType::Replicate`]. The wrapper checks positive mask dimensions
-/// and forwards the remaining native restrictions and `delta` without validating them.
+/// Writes `value_greater_than` when the source pixel is greater than that adjusted mean; otherwise writes `value_less_or_equal`.
+/// NPP requires a square mask with odd side lengths and supports only [`BorderType::Replicate`].
+/// The wrapper checks positive mask dimensions and forwards the remaining native restrictions and `delta` without validating them.
 /// The destination-sized ROI starts at `source_offset` within the full source image.
-/// Queues work on the selected stream without synchronizing. Row padding remains unwritten.
+/// Queues work on the selected stream without synchronizing.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// Returns an error if the source offset is invalid, ROI endpoints overflow or exceed the
-/// source image, mask dimensions are nonpositive, CUDA context binding or region-context
-/// validation fails, or NPP rejects the threshold parameters.
+/// Returns an error if the source offset is invalid, ROI endpoints overflow or exceed the source image, mask dimensions are nonpositive, CUDA context binding or region-context validation fails, or NPP rejects the threshold parameters.
 ///
 /// # Safety
 ///
-/// Follow the [raw image execution contract](crate::image::raw). Source pixels must be
-/// initialized and ready for the selected stream. Keep the source read-only and destination
-/// exclusively writable and disjoint during native use. Retain both allocations and the
-/// stream context through queued completion, including submission errors and captured
-/// replay. Uphold native layout, mask, sampling, byte-stride, alignment, and bounds requirements.
+/// Follow the [raw image execution contract](crate::image::raw).
+/// Source pixels must be initialized and ready for the selected stream.
+/// Keep the source read-only and destination exclusively writable and disjoint during native use.
+/// Retain both allocations and the stream context through queued completion, including submission errors and captured replay.
+/// Uphold native layout, mask, sampling, byte-stride, alignment, and bounds requirements.
 pub unsafe fn filter_threshold_adaptive_box_border<T: FilterThresholdAdaptiveBoxBorderC1>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,

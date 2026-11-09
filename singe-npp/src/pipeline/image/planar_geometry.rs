@@ -14,7 +14,8 @@ macro_rules! impl_planar_resize_geometry {
             /// Resizes the source ROI into the destination ROI using `resize.interpolation`.
             ///
             /// Prepares participating image regions, waiting for their producers on other streams, rejects capture, and returns after successful stream completion.
-            /// Writes into the supplied initialized `destination` and returns that destination. Uncovered logical pixels retain their previous destination values; row padding remains unwritten.
+            /// Writes into the supplied initialized `destination` and returns that destination.
+            /// Uncovered logical pixels retain their previous destination values; row padding remains unwritten.
             ///
             /// # Errors
             ///
@@ -47,7 +48,8 @@ macro_rules! impl_planar_resize_sqr_pixel_geometry {
             /// Resizes all planes using the scale factors, shifts, and interpolation in `resize`.
             ///
             /// Prepares participating image regions, waiting for their producers on other streams, rejects capture, and returns after successful stream completion.
-            /// Writes into the supplied initialized `destination` and returns that destination. Uncovered logical pixels retain their previous destination values; row padding remains unwritten.
+            /// Writes into the supplied initialized `destination` and returns that destination.
+            /// Uncovered logical pixels retain their previous destination values; row padding remains unwritten.
             ///
             /// # Errors
             ///
@@ -80,7 +82,8 @@ macro_rules! impl_planar_remap_geometry {
             /// Samples all source planes at coordinates from `x_map` and `y_map`, using the configured interpolation.
             ///
             /// Prepares participating image and coordinate-map regions, waiting for their producers on other streams, rejects capture, and returns after successful stream completion.
-            /// Writes into the supplied initialized `destination` and returns that destination. Uncovered logical pixels retain their previous destination values; row padding remains unwritten.
+            /// Writes into the supplied initialized `destination` and returns that destination.
+            /// Uncovered logical pixels retain their previous destination values; row padding remains unwritten.
             ///
             /// # Errors
             ///

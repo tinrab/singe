@@ -12,23 +12,20 @@ where
     Self: MaskMorphologyBorderImage<T, L>,
 {
     /// Dilates each active channel using the nonzero entries of `mask`.
-    /// Passes `mask.as_ptr()` directly to NPP as its device mask address. The slice storage
-    /// must also be GPU-readable in the selected CUDA context; this call does not upload it.
+    /// Passes `mask.as_ptr()` directly to NPP as its device mask address.
+    /// The slice storage must also be GPU-readable in the selected CUDA context; this call does not upload it.
     /// `source_offset` locates the output ROI in the full source image.
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// Allocates a new owned image spanning from `source_offset` to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and
-    /// `anchor` must lie within the mask.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn dilate_border(
         self,
@@ -49,6 +46,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as MaskMorphologyBorderImage<T, L>>::dilate_border_image(
                 self.stream_context,
                 &source,
@@ -70,23 +68,20 @@ where
     }
 
     /// Erodes each active channel using the nonzero entries of `mask`.
-    /// Passes `mask.as_ptr()` directly to NPP as its device mask address. The slice storage
-    /// must also be GPU-readable in the selected CUDA context; this call does not upload it.
+    /// Passes `mask.as_ptr()` directly to NPP as its device mask address.
+    /// The slice storage must also be GPU-readable in the selected CUDA context; this call does not upload it.
     /// `source_offset` locates the output ROI in the full source image.
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// Allocates a new owned image spanning from `source_offset` to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and
-    /// `anchor` must lie within the mask.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn erode_border(
         self,
@@ -107,6 +102,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as MaskMorphologyBorderImage<T, L>>::erode_border_image(
                 self.stream_context,
                 &source,

@@ -2,9 +2,13 @@
 **/Cargo.lock
 .direnv
 .codex
+.claude
+.ruff_cache/
 **/dist
 __pycache__
-/thirdparty/
 singe-npp/examples/output
 /docs/
 /cufile.log
+/benchmarks/
+/wip/
+/www/

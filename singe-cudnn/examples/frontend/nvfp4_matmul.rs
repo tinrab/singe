@@ -60,6 +60,7 @@ fn run() -> Result<()> {
             }
         }
     }
+
     let (datatype_a, datatype_b, datatype_block_scale, block_size) = match format {
         BlockFormat::Nvfp4 => (DataType::F4E2M1, DataType::F4E2M1, DataType::F8E4M3, 16_i32),
         BlockFormat::Mxfp8 => (DataType::F8E4M3, DataType::F8E4M3, DataType::F8UE8M0, 32),
@@ -91,6 +92,7 @@ fn run() -> Result<()> {
         println!("frontend_nvfp4_matmul: skipped, requires Blackwell or newer");
         return Ok(());
     }
+
     let block_scale_dim_m = common::round_up(m, SCALE_TILE_ROWS)?;
     let block_scale_dim_n = common::round_up(n, SCALE_TILE_ROWS)?;
     let block = i64::from(block_size);
@@ -152,6 +154,7 @@ fn run() -> Result<()> {
         let values = vec![encoded_one(spec.data_type)?; spec.storage_byte_len(None)?];
         inputs.push((tensor, DeviceMemory::<u8>::from_slice(cuda, &values)?));
     }
+
     let mut output =
         DeviceMemory::<u8>::zeroed(cuda, graph.tensor_spec(tensor_d)?.storage_byte_len(None)?)?;
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
@@ -159,6 +162,7 @@ fn run() -> Result<()> {
     for (tensor, memory) in &inputs {
         bindings.set_encoded_input_bytes(*tensor, memory)?;
     }
+
     bindings.set_encoded_bytes(tensor_d, &mut output)?;
     // SAFETY: initialized packed inputs/scales, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {

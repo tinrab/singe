@@ -19,8 +19,12 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cupti_sys::LoadError),
+
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// CUPTI returned a non-success status.
@@ -169,11 +173,14 @@ status_enum! {
         VirtualizedDeviceNotSupported = CUPTI_ERROR_VIRTUALIZED_DEVICE_NOT_SUPPORTED,
         /// Profiling results might be incorrect for CUDA applications compiled with nvcc version older than 9.0 for devices with compute capability 6.0 and 6.1.
         ///
-        /// Profiling session will continue and CUPTI will notify it using this error code. User is advised to recompile the application code with nvcc version 9.0 or later. Ignore this warning if code is already compiled with the recommended nvcc version.
+        /// Profiling session will continue and CUPTI will notify it using this error code.
+        /// User is advised to recompile the application code with nvcc version 9.0 or later.
+        /// Ignore this warning if code is already compiled with the recommended nvcc version.
         CudaCompilerNotCompatible = CUPTI_ERROR_CUDA_COMPILER_NOT_COMPATIBLE,
         /// User doesn't have sufficient privileges which are required to start the profiling session.
         ///
-        /// One possible reason for this may be that the NVIDIA driver or your system administrator may have restricted access to the NVIDIA GPU performance counters. To learn how to resolve this issue and find more information, please visit <https://developer.nvidia.com/`CUptiResult::CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`>.
+        /// One possible reason for this may be that the NVIDIA driver or your system administrator may have restricted access to the NVIDIA GPU performance counters.
+        /// To learn how to resolve this issue and find more information, please visit <https://developer.nvidia.com/`CUptiResult::CUPTI_ERROR_INSUFFICIENT_PRIVILEGES`>.
         InsufficientPrivileges = CUPTI_ERROR_INSUFFICIENT_PRIVILEGES,
         /// Legacy CUPTI Profiling API i.e.
         ///
@@ -181,15 +188,20 @@ status_enum! {
         OldProfilerApiInitialized = CUPTI_ERROR_OLD_PROFILER_API_INITIALIZED,
         /// Missing definition of the OpenACC API routine in the linked OpenACC library.
         ///
-        /// One possible reason is that OpenACC library is linked statically in the user application, which might not have the definition of all the OpenACC API routines needed for the OpenACC profiling, as compiler might ignore definitions for the functions not used in the application. This issue can be mitigated by linking the OpenACC library dynamically.
+        /// One possible reason is that OpenACC library is linked statically in the user application, which might not have the definition of all the OpenACC API routines needed for the OpenACC profiling, as compiler might ignore definitions for the functions not used in the application.
+        /// This issue can be mitigated by linking the OpenACC library dynamically.
         OpenAccUndefinedRoutine = CUPTI_ERROR_OPENACC_UNDEFINED_ROUTINE,
         /// Legacy CUPTI Profiling API i.e.
         ///
-        /// event API from the header cupti_events.h and metric API from the header cupti_metrics.h are not supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures). These APIs were deprecated in CUDA 12.8 and removed in CUDA 13.0. These are replaced by the host profiling API in the header cupti_profiler_host.h and target profiling API in the header cupti_range_profiler.h which are supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures). Further, the PC Sampling Activity API and the source/SASS level metrics from the header cupti_activity.h are removed in CUDA 13.0.
+        /// event API from the header cupti_events.h and metric API from the header cupti_metrics.h are not supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures).
+        /// These APIs were deprecated in CUDA 12.8 and removed in CUDA 13.0.
+        /// These are replaced by the host profiling API in the header cupti_profiler_host.h and target profiling API in the header cupti_range_profiler.h which are supported on devices with compute capability 7.5 and higher (i.e. Turing and later GPU architectures).
+        /// Further, the PC Sampling Activity API and the source/SASS level metrics from the header cupti_activity.h are removed in CUDA 13.0.
         LegacyProfilerNotSupported = CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED,
         /// CUPTI doesn't allow multiple callback subscribers.
         ///
-        /// Only a single subscriber can be registered at a time. Same error code is used when application is launched using NVIDIA tools like Nsight Systems, Nsight Compute, and cuda-gdb.
+        /// Only a single subscriber can be registered at a time.
+        /// Same error code is used when application is launched using NVIDIA tools like Nsight Systems, Nsight Compute, and cuda-gdb.
         MultipleSubscribersNotSupported = CUPTI_ERROR_MULTIPLE_SUBSCRIBERS_NOT_SUPPORTED,
         /// Profiling on virtualized GPU is not allowed by hypervisor.
         VirtualizedDeviceInsufficientPrivileges = CUPTI_ERROR_VIRTUALIZED_DEVICE_INSUFFICIENT_PRIVILEGES,
@@ -218,6 +230,12 @@ status_enum! {
 
 impl From<sys::CUptiResult> for Error {
     fn from(code: sys::CUptiResult) -> Self {
+        if code == sys::CUptiResult::CUPTI_ERROR_NOT_INITIALIZED
+            && let Err(error) = singe_cupti_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let status = Status::from(code);
         // SAFETY: `cuptiGetErrorMessage` writes a static NUL-terminated string on success; the pointer is checked before use.
         let message = unsafe {

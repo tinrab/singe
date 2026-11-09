@@ -133,6 +133,7 @@ fn run() -> Result<()> {
     unsafe {
         executable.launch(&context.stream)?;
     }
+
     context.stream.synchronize()?;
 
     let output = y_dev.copy_to_host_vec()?;

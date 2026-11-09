@@ -176,12 +176,13 @@ impl ContextGraph {
     ///
     /// # Safety
     /// Host callbacks and their data must remain valid for every execution.
-    /// Callbacks must not call CUDA. External resources must not be destroyed
-    /// or manipulated through raw handles while referenced by the graph.
+    /// Callbacks must not call CUDA.
+    /// External resources must not be destroyed or manipulated through raw handles while referenced by the graph.
     ///
     /// # Errors
     ///
-    /// Returns an error for dependencies belonging to another graph, an unavailable driver entry point, or a native node-creation failure such as incompatible parameters or execution context. Context and resource owners are retained only after creation succeeds.
+    /// Returns an error for dependencies belonging to another graph, an unavailable driver entry point, or a native node-creation failure such as incompatible parameters or execution context.
+    /// Context and resource owners are retained only after creation succeeds.
     pub unsafe fn add_node(
         &mut self,
         context: ExecutionContext,
@@ -225,7 +226,8 @@ impl ContextGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if `node` belongs to another graph, the driver entry point is unavailable, or CUDA rejects the parameter or execution-context change. Retained node parameters change only after native success.
+    /// Returns an error if `node` belongs to another graph, the driver entry point is unavailable, or CUDA rejects the parameter or execution-context change.
+    /// Retained node parameters change only after native success.
     pub unsafe fn set_node_parameters(
         &mut self,
         node: &mut ContextNode,
@@ -254,7 +256,8 @@ impl ContextGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error for dependencies belonging to another graph, an unavailable driver entry point, a failed green-context conversion, or CUDA rejecting the kernel node or launch attributes. If setting an attribute fails after creation, cleanup attempts to destroy the new native node.
+    /// Returns an error for dependencies belonging to another graph, an unavailable driver entry point, a failed green-context conversion, or CUDA rejecting the kernel node or launch attributes.
+    /// If setting an attribute fails after creation, cleanup attempts to destroy the new native node.
     pub unsafe fn add_kernel<'a, P: KernelLaunchArgs<'a>>(
         &mut self,
         context: ExecutionContext,
@@ -316,6 +319,7 @@ impl ContextGraph {
                 return Err(error);
             }
         }
+
         self.nodes.push(node.clone());
         Ok(node)
     }

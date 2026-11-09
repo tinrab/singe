@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 
-use std::{error::Error, io};
+use std::io;
 
+use anyhow::Result;
 use singe_cuda::device::Device;
 
 use singe_nccl::local::LocalCommunicatorGroup;
 
-pub type ExampleResult<T = ()> = Result<T, Box<dyn Error>>;
+pub type ExampleResult<T = ()> = Result<T>;
 
 pub fn create_rank_contexts(min_rank_count: usize) -> ExampleResult<LocalCommunicatorGroup> {
     let count = usize::try_from(Device::count()?)?;
@@ -29,6 +30,7 @@ pub fn create_power_of_two_rank_contexts(
         ))
         .into());
     }
+
     let rank_count = 1usize << (usize::BITS - count.leading_zeros() - 1);
     Ok(LocalCommunicatorGroup::create_all_visible(rank_count)?)
 }

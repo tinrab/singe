@@ -1,0 +1,28 @@
+[package]
+name = "singe-nvcomp"
+description = "Safe Rust wrappers for the NVIDIA nvCOMP compression library."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+readme = "README.md"
+keywords = ["cuda", "nvidia", "nvcomp", "compression"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["nvcomp_6_0"]
+
+nvcomp_6_0 = ["singe-cuda/runtime_13_4", "singe-nvcomp-sys/nvcomp_6_0"]
+
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-nvcomp-sys.workspace = true
+thiserror.workspace = true
+num_enum.workspace = true
+bitflags.workspace = true

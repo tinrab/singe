@@ -104,6 +104,7 @@ fn run() -> Result<()> {
                         .with_plan(&plan),
                 )?;
             }
+
             stop.record(&example.stream, EventRecordFlags::DEFAULT)?;
             Ok(())
         });
@@ -111,6 +112,7 @@ fn run() -> Result<()> {
             println!("{plan} failed execution: {error}");
             continue;
         }
+
         let elapsed_ms = stop.elapsed_time_since(&start)? / 10.0;
         println!("{plan} took {elapsed_ms:.7} ms");
         execution_times.push((plan, elapsed_ms));

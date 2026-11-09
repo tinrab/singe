@@ -1,15 +1,16 @@
 //! Safe cuFFT plan and execution wrappers for GPU Fourier transforms.
 //!
-//! This crate wraps cuFFT plan creation, stream binding, workspace management, and
-//! transform execution over the raw
-//! `singe-cufft-sys` bindings.
+//! This crate wraps cuFFT plan creation, stream binding, workspace management, and transform execution over the raw `singe-cufft-sys` bindings.
 
 /// cuFFT status codes and errors from planning, execution, and CUDA operations.
 pub mod error;
+
 /// Single-GPU FFT planning, workspace configuration, and transform submission.
 pub mod plan;
+
 /// Transform directions, element types, and native plan properties.
 pub mod types;
+
 pub(crate) mod utility;
 
 /// Serialized test setup for cuFFT on CUDA device 0.
@@ -33,6 +34,7 @@ pub fn version() -> Result<LibraryVersion> {
     unsafe {
         try_ffi!(sys::cufftGetVersion(&raw mut version))?;
     }
+
     let version = version as u64;
     Ok(LibraryVersion::new(
         version / 10000,
@@ -56,6 +58,10 @@ pub fn library_property(property: LibraryProperty) -> Result<i32> {
     Ok(value)
 }
 
+pub mod device;
+
+pub mod xt;
+
 #[cfg(all(test, feature = "testing"))]
 mod tests {
     use super::*;
@@ -69,7 +75,3 @@ mod tests {
         Ok(())
     }
 }
-
-pub mod device;
-
-pub mod xt;

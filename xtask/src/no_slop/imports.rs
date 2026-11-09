@@ -15,7 +15,7 @@ pub struct Import {
     pub path: Vec<String>,
     pub alias: Option<String>,
     pub glob: bool,
-    pub imports_parent: bool,
+    pub type_only: bool,
     pub absolute: bool,
     pub visibility: Vec<String>,
 }
@@ -42,6 +42,7 @@ pub fn flatten(item: &ItemUse, source: &str) -> Vec<Import> {
                 if name.ident != "self" || path.is_empty() {
                     path.push(name.ident.to_string());
                 }
+
                 leaves.push((
                     path,
                     None,
@@ -54,6 +55,7 @@ pub fn flatten(item: &ItemUse, source: &str) -> Vec<Import> {
                 if rename.ident != "self" || path.is_empty() {
                     path.push(rename.ident.to_string());
                 }
+
                 leaves.push((
                     path,
                     Some(rename.rename.to_string()),
@@ -69,11 +71,11 @@ pub fn flatten(item: &ItemUse, source: &str) -> Vec<Import> {
     let visibility = fix::tokens(&source[item.vis.span().byte_range()]);
     leaves
         .into_iter()
-        .map(|(path, alias, glob, imports_parent)| Import {
+        .map(|(path, alias, glob, type_only)| Import {
             path,
             alias,
             glob,
-            imports_parent,
+            type_only,
             absolute: item.leading_colon.is_some(),
             visibility: visibility.clone(),
         })
@@ -130,6 +132,7 @@ pub fn runs(file: &File) -> Vec<Vec<&ItemUse>> {
             if let Some((_, items)) = &module.content {
                 self.collect(items.iter().map(as_use));
             }
+
             visit::visit_item_mod(self, module);
         }
 
@@ -166,10 +169,11 @@ pub fn normalized(source: &str) -> anyhow::Result<Vec<Token>> {
     for run in runs(&file) {
         let range = range(&run);
         result.extend(
-            fix::tokens(&prepared[offset..range.start])
+            fix::comparable_words(&prepared[offset..range.start])
                 .into_iter()
                 .map(Token::Written),
         );
+
         let mut leaves: Vec<_> = run
             .iter()
             .flat_map(|item| flatten(item, &prepared))
@@ -178,8 +182,9 @@ pub fn normalized(source: &str) -> anyhow::Result<Vec<Token>> {
         result.push(Token::Imports(leaves));
         offset = range.end;
     }
+
     result.extend(
-        fix::tokens(&prepared[offset..])
+        fix::comparable_words(&prepared[offset..])
             .into_iter()
             .map(Token::Written),
     );

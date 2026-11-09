@@ -47,7 +47,7 @@ fn query_array<T: Copy + Default>(
 
     if size_bytes % element_size != 0 {
         return Err(Error::LengthMismatch {
-            name: "array_size_bytes".to_string().into(),
+            name: "array_size_bytes".into(),
             expected: element_size,
             actual: size_bytes,
         });
@@ -92,7 +92,8 @@ pub struct EventGroupReadAll {
     pub event_ids: Vec<EventId>,
     /// Counter values in domain-instance order.
     ///
-    /// For event index `e` and instance index `i`, the value is at `i * event_ids.len() + e`. Counter-overflow sentinels are preserved.
+    /// For event index `e` and instance index `i`, the value is at `i * event_ids.len() + e`.
+    /// Counter-overflow sentinels are preserved.
     pub values: Vec<u64>,
 }
 
@@ -114,8 +115,10 @@ impl Drop for EventGroup {
         // SAFETY: `cuptiEventGroupDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuptiEventGroupDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cupti event group: {error}");
+                eprintln!(
+                    "failed to destroy cupti event group: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -152,8 +155,10 @@ impl Drop for EventGroupSets {
         // SAFETY: `cuptiEventGroupSetsDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuptiEventGroupSetsDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cupti event group sets: {error}");
+                eprintln!(
+                    "failed to destroy cupti event group sets: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -907,7 +912,8 @@ pub fn disable_event_group(event_group: &EventGroup) -> Result<()> {
 
 /// Reads and resets one legacy event counter, returning its profiled domain-instance values.
 ///
-/// CUPTI 13.0 and later report [`crate::error::Status::LegacyProfilerNotSupported`] for this legacy event/metric interface. Overflowed instances retain the native counter-overflow sentinel.
+/// CUPTI 13.0 and later report [`crate::error::Status::LegacyProfilerNotSupported`] for this legacy event/metric interface.
+/// Overflowed instances retain the native counter-overflow sentinel.
 ///
 /// # Errors
 ///
@@ -928,6 +934,7 @@ pub fn read_event_group_event(
             ptr::null_mut(),
         ))?;
     }
+
     let len = to_usize(value_size_bytes, "event_value_buffer_size_bytes")? / size_of::<u64>();
     let mut values = vec![0; len];
     // SAFETY: `cuptiEventGroupReadEvent` receives live handles owned by the wrappers and valid output locations.
@@ -940,6 +947,7 @@ pub fn read_event_group_event(
             values.as_mut_ptr(),
         ))?;
     }
+
     let len = to_usize(value_size_bytes, "event_value_buffer_size_bytes")? / size_of::<u64>();
     values.truncate(len);
     Ok(values)
@@ -947,7 +955,8 @@ pub fn read_event_group_event(
 
 /// Reads and resets all legacy counters in a group, preserving domain-instance and event ordering.
 ///
-/// CUPTI 13.0 and later report [`crate::error::Status::LegacyProfilerNotSupported`] for this legacy event/metric interface. The returned event identifiers describe the event order within each domain-instance block.
+/// CUPTI 13.0 and later report [`crate::error::Status::LegacyProfilerNotSupported`] for this legacy event/metric interface.
+/// The returned event identifiers describe the event order within each domain-instance block.
 ///
 /// # Errors
 ///
@@ -971,6 +980,7 @@ pub fn read_all_event_group_events(
             &raw mut num_event_ids_read,
         ))?;
     }
+
     let value_len = to_usize(value_size_bytes, "event_value_buffer_size_bytes")? / size_of::<u64>();
     let event_id_len = to_usize(event_id_size_bytes, "event_id_array_size_bytes")?
         / size_of::<sys::CUpti_EventID>();
@@ -988,6 +998,7 @@ pub fn read_all_event_group_events(
             &raw mut num_event_ids_read,
         ))?;
     }
+
     let value_len = to_usize(value_size_bytes, "event_value_buffer_size_bytes")? / size_of::<u64>();
     let event_id_len = to_usize(num_event_ids_read, "num_event_ids_read")?;
     values.truncate(value_len);

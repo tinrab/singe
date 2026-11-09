@@ -40,7 +40,9 @@ pub struct RawTensorDescriptor {
 impl TensorDescriptor {
     /// Creates a packed tensor descriptor using the native data type associated with `T`.
     ///
-    /// Extents must be positive. Strides are measured in elements of the base data type; `None` selects packed storage with strides increasing from left to right. Alignment is a byte requirement on data pointers supplied during execution.
+    /// Extents must be positive.
+    /// Strides are measured in elements of the base data type; `None` selects packed storage with strides increasing from left to right.
+    /// Alignment is a byte requirement on data pointers supplied during execution.
     ///
     /// # Errors
     ///
@@ -55,7 +57,9 @@ impl TensorDescriptor {
 
     /// Creates a dense tensor descriptor using packed generalized column-major storage.
     ///
-    /// Extents must be positive. Strides are measured in elements of the base data type; `None` selects packed storage with strides increasing from left to right. Alignment is a byte requirement on data pointers supplied during execution.
+    /// Extents must be positive.
+    /// Strides are measured in elements of the base data type; `None` selects packed storage with strides increasing from left to right.
+    /// Alignment is a byte requirement on data pointers supplied during execution.
     ///
     /// # Errors
     ///
@@ -79,10 +83,7 @@ impl TensorDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `shape` and `strides`
-    /// have different ranks, an extent or stride cannot be represented for
-    /// cuTENSOR, the data type or descriptor layout is unsupported, or cuTENSOR
-    /// returns a null descriptor handle.
+    /// Returns an error if the context cannot be bound, `shape` and `strides` have different ranks, an extent or stride cannot be represented for cuTENSOR, the data type or descriptor layout is unsupported, or cuTENSOR returns a null descriptor handle.
     pub fn create_with_strides(
         context: &Context,
         shape: &[u64],
@@ -139,7 +140,9 @@ impl TensorDescriptor {
 
     /// Creates a tensor descriptor for `T` with optional element strides.
     ///
-    /// Extents must be positive. Strides are measured in elements of the base data type; `None` selects packed storage with strides increasing from left to right. Alignment is a byte requirement on data pointers supplied during execution.
+    /// Extents must be positive.
+    /// Strides are measured in elements of the base data type; `None` selects packed storage with strides increasing from left to right.
+    /// Alignment is a byte requirement on data pointers supplied during execution.
     ///
     /// # Errors
     ///
@@ -175,7 +178,8 @@ impl TensorDescriptor {
     ///
     /// # Panics
     ///
-    /// Panics if the stored rank no longer fits `u32`. Checked construction excludes this; unsafe raw adoption must preserve the native rank invariant.
+    /// Panics if the stored rank no longer fits `u32`.
+    /// Checked construction excludes this; unsafe raw adoption must preserve the native rank invariant.
     #[must_use]
     pub fn rank(&self) -> u32 {
         u32::try_from(self.shape.len()).expect("tensor rank is validated on construction")
@@ -207,11 +211,8 @@ impl TensorDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cutensorTensorDescriptor_t` whose rank,
-    /// extents, strides, data type, and alignment requirement match the
-    /// metadata supplied to this function. Ownership of `handle` is transferred
-    /// to the returned descriptor, and the handle must not be destroyed
-    /// elsewhere after calling this function.
+    /// `handle` must be a valid `cutensorTensorDescriptor_t` whose rank, extents, strides, data type, and alignment requirement match the metadata supplied to this function.
+    /// Ownership of `handle` is transferred to the returned descriptor, and the handle must not be destroyed elsewhere after calling this function.
     pub unsafe fn from_raw_parts(
         handle: sys::cutensorTensorDescriptor_t,
         context: &Context,
@@ -230,8 +231,7 @@ impl TensorDescriptor {
         }
     }
 
-    /// Consumes the descriptor and returns the raw cuTENSOR tensor descriptor
-    /// handle without destroying it.
+    /// Consumes the descriptor and returns the raw cuTENSOR tensor descriptor handle without destroying it.
     ///
     /// The returned record retains the native library owner and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
@@ -273,7 +273,6 @@ impl TensorDescriptor {
 impl Drop for TensorDescriptor {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
             eprintln!(
                 "failed to bind cutensor context before destroying tensor descriptor: {error}"
             );
@@ -282,8 +281,10 @@ impl Drop for TensorDescriptor {
         // SAFETY: `cutensorDestroyTensorDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorDestroyTensorDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor tensor descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensor tensor descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -330,34 +331,22 @@ impl BlockSparseTensorDescriptor {
     /// | 4 x 2 | | |
     /// | | 5 x 3 | 5 x 7 |
     ///
-    /// Each subsection has the same extent across its entire mode: every block
-    /// within the same section of a mode has the same extent.
-    /// For example, in the table above every block on the right has 7 columns,
-    /// and all blocks on the bottom have 5 rows.
+    /// Each subsection has the same extent across its entire mode: every block within the same section of a mode has the same extent.
+    /// For example, in the table above every block on the right has 7 columns, and all blocks on the bottom have 5 rows.
     ///
-    /// Only non-zero blocks are stored; zero blocks are left blank in the
-    /// representation above.
+    /// Only non-zero blocks are stored; zero blocks are left blank in the representation above.
     ///
     /// For example:
     ///
-    /// * strides of block #0: 5, 1, 10, 20.
-    ///   Sorted strides would be: 1, 5, 10, 20.
-    ///   The permutation to sort the strides in this case is to swap the first two elements.
-    /// * strides of block #1: 10, 1, 30, 60.
-    ///   Applying the permutation would result in: 1, 10, 30, 60.
-    ///   The result is sorted in ascending order, which is allowed.
-    /// * strides of block #2: 1, 5, 50, 100.
-    ///   Applying permutation would result in: 5, 1, 50, 100.
-    ///   The result is *not* sorted in ascending order, this is *not* allowed.
+    /// * strides of block #0: 5, 1, 10, 20. Sorted strides would be: 1, 5, 10, 20. The permutation to sort the strides in this case is to swap the first two elements.
+    /// * strides of block #1: 10, 1, 30, 60. Applying the permutation would result in: 1, 10, 30, 60. The result is sorted in ascending order, which is allowed.
+    /// * strides of block #2: 1, 5, 50, 100. Applying permutation would result in: 5, 1, 50, 100. The result is *not* sorted in ascending order, this is *not* allowed.
     ///
     /// This non-blocking call is thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, the section extent,
-    /// coordinate, or stride slices do not match the descriptor dimensions, a
-    /// value cannot be represented for cuTENSOR, cuTENSOR rejects the
-    /// descriptor, or cuTENSOR returns a null descriptor handle.
+    /// Returns an error if the context cannot be bound, the section extent, coordinate, or stride slices do not match the descriptor dimensions, a value cannot be represented for cuTENSOR, cuTENSOR rejects the descriptor, or cuTENSOR returns a null descriptor handle.
     pub fn create(
         context: &Context,
         section_count_per_mode: &[u32],
@@ -465,16 +454,12 @@ impl BlockSparseTensorDescriptor {
         self.handle
     }
 
-    /// Wraps an existing cuTENSOR block-sparse tensor descriptor and takes
-    /// ownership of it.
+    /// Wraps an existing cuTENSOR block-sparse tensor descriptor and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cutensorBlockSparseTensorDescriptor_t` whose
-    /// mode count, non-zero block count, and data type match the metadata
-    /// supplied to this function. Ownership of `handle` is transferred to the
-    /// returned descriptor, and the handle must not be destroyed elsewhere after
-    /// calling this function.
+    /// `handle` must be a valid `cutensorBlockSparseTensorDescriptor_t` whose mode count, non-zero block count, and data type match the metadata supplied to this function.
+    /// Ownership of `handle` is transferred to the returned descriptor, and the handle must not be destroyed elsewhere after calling this function.
     pub unsafe fn from_raw_parts(
         handle: sys::cutensorBlockSparseTensorDescriptor_t,
         context: &Context,
@@ -491,8 +476,7 @@ impl BlockSparseTensorDescriptor {
         }
     }
 
-    /// Consumes the descriptor and returns the raw cuTENSOR block-sparse tensor
-    /// descriptor handle without destroying it.
+    /// Consumes the descriptor and returns the raw cuTENSOR block-sparse tensor descriptor handle without destroying it.
     ///
     /// The returned record retains the native library owner and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
@@ -532,7 +516,6 @@ impl BlockSparseTensorDescriptor {
 impl Drop for BlockSparseTensorDescriptor {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
             eprintln!(
                 "failed to bind cutensor context before destroying block sparse tensor descriptor: {error}"
             );
@@ -543,8 +526,10 @@ impl Drop for BlockSparseTensorDescriptor {
             if let Err(error) =
                 try_ffi!(sys::cutensorDestroyBlockSparseTensorDescriptor(self.handle))
             {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor block sparse tensor descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensor block sparse tensor descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

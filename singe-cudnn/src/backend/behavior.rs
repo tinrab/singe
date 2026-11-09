@@ -3,10 +3,7 @@ use singe_cudnn_sys as sys;
 use crate::metadata::backend_metadata_enum;
 
 backend_metadata_enum! {
-    /// Queryable behavior note reported by a finalized
-    /// [`BackendDescriptorType::Engine`](crate::backend::descriptor::BackendDescriptorType::Engine)
-    /// through
-    /// [`BackendDescriptor::attribute_enum_slice`](crate::backend::descriptor::BackendDescriptor::attribute_enum_slice).
+    /// Queryable behavior note reported by a finalized [`BackendDescriptorType::Engine`](crate::backend::descriptor::BackendDescriptorType::Engine) through [`BackendDescriptor::attribute_enum_slice`](crate::backend::descriptor::BackendDescriptor::attribute_enum_slice).
     pub enum BackendBehaviorNote: sys::cudnnBackendBehaviorNote_t {
         RuntimeCompilation => CUDNN_BEHAVIOR_NOTE_RUNTIME_COMPILATION => "Engine requires runtime compilation (NVRTC).",
         RequiresFilterInt8x32Reorder => CUDNN_BEHAVIOR_NOTE_REQUIRES_FILTER_INT8x32_REORDER => "Engine requires INT8x32-reordered filter tensors.",
@@ -17,10 +14,7 @@ backend_metadata_enum! {
 }
 
 backend_metadata_enum! {
-    /// Queryable numerical property reported by a finalized
-    /// [`BackendDescriptorType::Engine`](crate::backend::descriptor::BackendDescriptorType::Engine)
-    /// through
-    /// [`BackendDescriptor::attribute_enum_slice`](crate::backend::descriptor::BackendDescriptor::attribute_enum_slice).
+    /// Queryable numerical property reported by a finalized [`BackendDescriptorType::Engine`](crate::backend::descriptor::BackendDescriptorType::Engine) through [`BackendDescriptor::attribute_enum_slice`](crate::backend::descriptor::BackendDescriptor::attribute_enum_slice).
     pub enum BackendNumericalNote: sys::cudnnBackendNumericalNote_t {
         TensorCore => CUDNN_NUMERICAL_NOTE_TENSOR_CORE => "Engine uses Tensor Core hardware acceleration.",
         DownConvertInputs => CUDNN_NUMERICAL_NOTE_DOWN_CONVERT_INPUTS => "Engine down-converts inputs to lower precision for compute.",

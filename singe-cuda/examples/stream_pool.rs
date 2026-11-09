@@ -27,6 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     for (job, submission) in submissions {
         assert_eq!(submission.wait()?, vec![job; 4096]);
     }
+
     println!(
         "verified 8 jobs submitted across {} streams",
         pool.streams().len()

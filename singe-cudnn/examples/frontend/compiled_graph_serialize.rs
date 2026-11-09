@@ -205,6 +205,7 @@ fn run() -> Result<()> {
     for (id, memory) in &inputs {
         bindings.set_input(*id, &memory.view())?;
     }
+
     bindings.set(Y_ID, &mut y_dev)?;
     // SAFETY: restored plan metadata, initialized inputs, writable output and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {

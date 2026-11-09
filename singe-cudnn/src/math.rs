@@ -18,11 +18,9 @@ pub enum MathType {
     /// Tensor Core operations are not used on pre-NVIDIA A100 GPU devices.
     /// On A100 GPU architecture devices, Tensor Core TF32 operation is permitted.
     Default = sys::cudnnMathType_t::CUDNN_DEFAULT_MATH as _,
-    /// Permits Tensor Core operations without actively down-converting tensors
-    /// to use Tensor Cores.
+    /// Permits Tensor Core operations without actively down-converting tensors to use Tensor Cores.
     TensorOp = sys::cudnnMathType_t::CUDNN_TENSOR_OP_MATH as _,
-    /// Permits Tensor Core operations and actively down-converts tensors to use
-    /// Tensor Cores.
+    /// Permits Tensor Core operations and actively down-converts tensors to use Tensor Cores.
     TensorOpAllowConversion = sys::cudnnMathType_t::CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION as _,
     /// Restricted to only kernels that use FMA instructions.
     ///

@@ -6214,7 +6214,7 @@ impl Default for nvmlGpuFabricInfo_v4_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Initialize the NVML Library lazily, without allocating any device state.
     ///
     /// This will initialize the NVML Library state without enumerating any discovered devices. This will allow NVML to communicate with a device, even if other devices are in an unstable or bad state. Enumeration of a device can be done by obtaining the device handle via the nvmlDeviceGetHandleBy\* class of APIs.
@@ -6228,7 +6228,7 @@ unsafe extern "C" {
     /// [`nvmlShutdown`].
     pub fn nvmlInit_v2() -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Initialize the NVML Library lazily, without allocating any device state, with additional init flags.
     ///
     /// A variant of [`nvmlInit_v2`], this will initialize the NVML Library state without enumerating any discovered devices. An option to pass in additional flags is provided to modify the behavior of NVML Library init. The usage of these flags can be obtained from NVML_INIT_FLAG_\*. These flags can be combined together.
@@ -6246,7 +6246,7 @@ unsafe extern "C" {
     /// - `flags`: NVML_INIT_FLAG_* flags that can modify NVML Init behavior.
     pub fn nvmlInitWithFlags(flags: ::core::ffi::c_uint) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Shut down and cleanup NVML Library state.
     ///
     /// This will shut down and cleanup NVML Library state by releasing all device and library resources previously allocated with [`nvmlInit_v2`] or [`nvmlInitWithFlags`]. This should be called after all NVML work is done, and once for each call to [`nvmlInit_v2`] or [`nvmlInitWithFlags`].
@@ -6256,7 +6256,7 @@ unsafe extern "C" {
     /// For all products.
     pub fn nvmlShutdown() -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Helper method for converting NVML error codes into readable strings.
     ///
     /// For all products.
@@ -6419,7 +6419,7 @@ impl Default for nvmlGetCPER_v1_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the version of the system’s graphics driver.
     ///
     /// For all products.
@@ -6435,7 +6435,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the version of the NVML library.
     ///
     /// For all products.
@@ -6451,7 +6451,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the version of the CUDA driver.
     ///
     /// For all products.
@@ -6465,7 +6465,7 @@ unsafe extern "C" {
         cudaDriverVersion: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the version of the CUDA driver from the shared library.
     ///
     /// For all products.
@@ -6479,7 +6479,7 @@ unsafe extern "C" {
         cudaDriverVersion: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets name of the process with provided process id.
     ///
     /// For all products.
@@ -6497,7 +6497,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the IDs and firmware versions for any Host Interface Cards (HICs) in the system.
     ///
     /// For S-class products.
@@ -6513,7 +6513,7 @@ unsafe extern "C" {
         hwbcEntries: *mut nvmlHwbcEntry_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the set of GPUs that have a CPU affinity with the given CPU number For all products.
     ///
     /// Supported on Linux only.
@@ -6549,7 +6549,7 @@ impl Default for nvmlSystemDriverBranchInfo_v1_t {
 }
 /// Structure to store Driver branch information
 pub type nvmlSystemDriverBranchInfo_t = nvmlSystemDriverBranchInfo_v1_t;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the driver branch of the NVIDIA driver installed on the system.
     ///
     /// For all products.
@@ -6565,7 +6565,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves Common Platform Error Record (CPER) data.
     ///
     /// Records are returned in a caller-supplied buffer. Iteration is driven by the `cursor` ([`nvmlCPERCursor_v1_t`]) struct: pass the same `cursor` on every call in a sequence; the implementation updates *cursor.handle*. Do not modify `cursor` between calls. To change *cursor.cperTypeMask* or *cursor.uuid*, set *cursor.handle* to [NVML_CPER_CURSOR_HANDLE_INIT](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlCPER.html#group__nvmlcper_1gaa26e590f3970f4de3b45a8b1d9c9b88a) and call again (new iteration).
@@ -6579,7 +6579,7 @@ unsafe extern "C" {
     /// - `cper`: Pointer to an [`nvmlGetCPER_v1_t`]. On entry set *cursor.cperTypeMask,* *cursor.uuid* (empty string for all), *cursor.handle* (to `NVML_CPER_CURSOR_HANDLE_INIT` for first call), `buffer` (or NULL), *bufferSize.* On return *cursor.handle* and `bufferSize` are updated.
     pub fn nvmlSystemGetCPER_v1(cper: *mut nvmlGetCPER_v1_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the number of units in the system.
     ///
     /// For S-class products.
@@ -6589,7 +6589,7 @@ unsafe extern "C" {
     /// - `unitCount`: Reference in which to return the number of units
     pub fn nvmlUnitGetCount(unitCount: *mut ::core::ffi::c_uint) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the handle for a particular unit, based on its index.
     ///
     /// For S-class products.
@@ -6607,7 +6607,7 @@ unsafe extern "C" {
         unit: *mut nvmlUnit_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the static information associated with a unit.
     ///
     /// For S-class products.
@@ -6623,7 +6623,7 @@ unsafe extern "C" {
         info: *mut nvmlUnitInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the LED state associated with this unit.
     ///
     /// For S-class products.
@@ -6643,7 +6643,7 @@ unsafe extern "C" {
         state: *mut nvmlLedState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the PSU stats for the unit.
     ///
     /// For S-class products.
@@ -6656,7 +6656,7 @@ unsafe extern "C" {
     /// - `psu`: Reference in which to return the PSU information.
     pub fn nvmlUnitGetPsuInfo(unit: nvmlUnit_t, psu: *mut nvmlPSUInfo_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the temperature readings for the unit, in degrees C.
     ///
     /// For S-class products.
@@ -6674,7 +6674,7 @@ unsafe extern "C" {
         temp: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the fan speed readings for the unit.
     ///
     /// For S-class products.
@@ -6690,7 +6690,7 @@ unsafe extern "C" {
         fanSpeeds: *mut nvmlUnitFanSpeeds_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the set of GPU devices that are attached to the specified unit.
     ///
     /// For S-class products.
@@ -6708,7 +6708,7 @@ unsafe extern "C" {
         devices: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the number of compute devices in the system.
     ///
     /// A compute device is a single GPU.
@@ -6722,7 +6722,7 @@ unsafe extern "C" {
     /// - `deviceCount`: Reference in which to return the number of accessible devices
     pub fn nvmlDeviceGetCount_v2(deviceCount: *mut ::core::ffi::c_uint) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get attributes (engine counts etc.) for the given NVML device handle.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only.
@@ -6736,7 +6736,7 @@ unsafe extern "C" {
         attributes: *mut nvmlDeviceAttributes_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the handle for a particular device, based on its index.
     ///
     /// For all products.
@@ -6772,7 +6772,7 @@ unsafe extern "C" {
         device: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the handle for a particular device, based on its board serial number.
     ///
     /// For Fermi or newer fully supported devices.
@@ -6801,7 +6801,7 @@ unsafe extern "C" {
         device: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the handle for a particular device, based on its globally unique immutable UUID (in ASCII format) associated with each device.
     ///
     /// For all products.
@@ -6821,7 +6821,7 @@ unsafe extern "C" {
         device: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the handle for a particular device, based on its globally unique immutable UUID (in either ASCII or binary format) associated with each device.
     ///
     /// See [`nvmlUUID_v1_t`] for more information on the UUID struct. The caller must set the appropriate version prior to calling this API.
@@ -6839,7 +6839,7 @@ unsafe extern "C" {
         device: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the handle for a particular device, based on its PCI bus id.
     ///
     /// For all products.
@@ -6859,7 +6859,7 @@ unsafe extern "C" {
         device: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the name of this device.
     ///
     /// For all products.
@@ -6879,7 +6879,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the brand of this device.
     ///
     /// For all products.
@@ -6895,7 +6895,7 @@ unsafe extern "C" {
         type_: *mut nvmlBrandType_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the NVML index of this device.
     ///
     /// For all products.
@@ -6925,7 +6925,7 @@ unsafe extern "C" {
         index: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the globally unique board serial number associated with this device’s board.
     ///
     /// For all products with an inforom.
@@ -6943,7 +6943,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get a unique identifier for the device module on the baseboard.
     ///
     /// This API retrieves a unique identifier for each GPU module that exists on a given baseboard. For non-baseboard products, this ID would always be 0.
@@ -6957,7 +6957,7 @@ unsafe extern "C" {
         moduleId: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the Device’s C2C Mode information.
     ///
     /// # Parameters
@@ -6971,7 +6971,7 @@ unsafe extern "C" {
 }
 /// Native scope selector for CPU or memory affinity queries, using `NVML_AFFINITY_SCOPE_*` values.
 pub type nvmlAffinityScope_t = ::core::ffi::c_uint;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves an array of unsigned ints (sized to nodeSetSize) of bitmasks with the ideal memory affinity within node or socket for the device.
     ///
     /// For example, if NUMA node 0, 1 are ideal within the socket for the device and nodeSetSize == 1, result\[0\] = 0x3
@@ -6991,7 +6991,7 @@ unsafe extern "C" {
         scope: nvmlAffinityScope_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves an array of unsigned ints (sized to cpuSetSize) of bitmasks with the ideal CPU affinity within node or socket for the device.
     ///
     /// For example, if processors 0, 1, 32, and 33 are ideal for the device and cpuSetSize == 2, result\[0\] = 0x3, result\[1\] = 0x3
@@ -7011,7 +7011,7 @@ unsafe extern "C" {
         scope: nvmlAffinityScope_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves an array of unsigned ints (sized to cpuSetSize) of bitmasks with the ideal CPU affinity for the device For example, if processors 0, 1, 32, and 33 are ideal for the device and cpuSetSize == 2, result\[0\] = 0x3, result\[1\] = 0x3 This is equivalent to calling [`nvmlDeviceGetCpuAffinityWithinScope`] with [`NVML_AFFINITY_SCOPE_NODE`].
     ///
     /// For Kepler or newer fully supported devices. Supported on Linux only.
@@ -7027,7 +7027,7 @@ unsafe extern "C" {
         cpuSet: *mut ::core::ffi::c_ulong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets the ideal affinity for the calling thread and device using the guidelines given in [`nvmlDeviceGetCpuAffinity`].
     ///
     /// Note, this is a change as of version 8.0. Older versions set the affinity for a calling process and all children. Currently supports up to 1024 processors.
@@ -7039,7 +7039,7 @@ unsafe extern "C" {
     /// - `device`: The identifier of the target device
     pub fn nvmlDeviceSetCpuAffinity(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Clear all affinity bindings for the calling thread.
     ///
     /// Note, this is a change as of version 8.0 as older versions cleared the affinity for a calling process and all children.
@@ -7051,7 +7051,7 @@ unsafe extern "C" {
     /// - `device`: The identifier of the target device
     pub fn nvmlDeviceClearCpuAffinity(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the NUMA node of the given GPU device.
     ///
     /// This only applies to platforms where the GPUs are NUMA nodes.
@@ -7065,7 +7065,7 @@ unsafe extern "C" {
         node: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the addressing mode for a given GPU.
     ///
     /// Addressing modes can be one of:
@@ -7085,7 +7085,7 @@ unsafe extern "C" {
         mode: *mut nvmlDeviceAddressingMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the repair status for TPC/Channel repair.
     ///
     /// For Ampere or newer fully supported devices.
@@ -7099,7 +7099,7 @@ unsafe extern "C" {
         repairStatus: *mut nvmlRepairStatus_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the unrepairable memory flag for a given GPU.
     ///
     /// For Hopper or newer fully supported devices.
@@ -7113,7 +7113,7 @@ unsafe extern "C" {
         unrepairableMemoryStatus: *mut nvmlUnrepairableMemoryStatus_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the common ancestor for two devices For all products.
     ///
     /// Supported on Linux only.
@@ -7129,7 +7129,7 @@ unsafe extern "C" {
         pathInfo: *mut nvmlGpuTopologyLevel_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the set of GPUs that are nearest to a given device at a specific interconnectivity level For all products.
     ///
     /// Supported on Linux only.
@@ -7147,7 +7147,7 @@ unsafe extern "C" {
         deviceArray: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the status for a given p2p capability index between a given pair of GPU.
     ///
     /// # Parameters
@@ -7163,7 +7163,7 @@ unsafe extern "C" {
         p2pStatus: *mut nvmlGpuP2PStatus_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the globally unique immutable UUID associated with this device, as a 5 part hexadecimal string, that augments the immutable, board serial identifier.
     ///
     /// For all products.
@@ -7183,7 +7183,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves minor number for the device.
     ///
     /// The minor number for the device is such that the Nvidia device node file for each GPU will have the form /dev/nvidia\[minor number\].
@@ -7199,7 +7199,7 @@ unsafe extern "C" {
         minorNumber: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the device board part number which is programmed into the board’s InfoROM.
     ///
     /// For all products.
@@ -7215,7 +7215,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the version information for the device’s infoROM object.
     ///
     /// For all products with an inforom.
@@ -7241,7 +7241,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the global infoROM image version.
     ///
     /// For all products with an inforom.
@@ -7263,7 +7263,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the checksum of the configuration stored in the device’s infoROM.
     ///
     /// For all products with an inforom.
@@ -7279,7 +7279,7 @@ unsafe extern "C" {
         checksum: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Reads the infoROM from the flash and verifies the checksums.
     ///
     /// For all products with an inforom.
@@ -7289,7 +7289,7 @@ unsafe extern "C" {
     /// - `device`: The identifier of the target device
     pub fn nvmlDeviceValidateInforom(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the timestamp and the duration of the last flush of the BBX (blackbox) infoROM object during the current run.
     ///
     /// For all products with an inforom.
@@ -7309,7 +7309,7 @@ unsafe extern "C" {
         durationUs: *mut ::core::ffi::c_ulong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the cumulative number of seconds the GPU has had the driver loaded.
     ///
     /// For all products with an inforom.
@@ -7323,7 +7323,7 @@ unsafe extern "C" {
         timeData: *mut nvmlBBXTimeData_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the display mode for the device.
     ///
     /// For all products.
@@ -7341,7 +7341,7 @@ unsafe extern "C" {
         display: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the display active state for the device.
     ///
     /// For all products.
@@ -7361,7 +7361,7 @@ unsafe extern "C" {
         isActive: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the persistence mode associated with this device.
     ///
     /// For all products. For Linux only.
@@ -7383,7 +7383,7 @@ unsafe extern "C" {
         mode: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves PCI attributes of this device.
     ///
     /// For all products.
@@ -7399,7 +7399,7 @@ unsafe extern "C" {
         pci: *mut nvmlPciInfoExt_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the PCI attributes of this device.
     ///
     /// For all products.
@@ -7415,7 +7415,7 @@ unsafe extern "C" {
         pci: *mut nvmlPciInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the maximum PCIe link generation possible with this device and system.
     ///
     /// I.E. for a generation 2 PCIe device attached to a generation 1 PCIe bus the max link generation this function will report is generation 1.
@@ -7431,7 +7431,7 @@ unsafe extern "C" {
         maxLinkGen: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the maximum PCIe link generation supported by this device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -7445,7 +7445,7 @@ unsafe extern "C" {
         maxLinkGenDevice: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the maximum PCIe link width possible with this device and system.
     ///
     /// I.E. for a device with a 16x PCIe bus width attached to a 8x PCIe system bus this function will report a max link width of 8.
@@ -7461,7 +7461,7 @@ unsafe extern "C" {
         maxLinkWidth: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current PCIe link generation.
     ///
     /// For Fermi or newer fully supported devices.
@@ -7475,7 +7475,7 @@ unsafe extern "C" {
         currLinkGen: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current PCIe link width.
     ///
     /// For Fermi or newer fully supported devices.
@@ -7489,7 +7489,7 @@ unsafe extern "C" {
         currLinkWidth: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve PCIe utilization information.
     ///
     /// This function is querying a byte counter over a 20ms interval and thus is the PCIe throughput over that interval.
@@ -7509,7 +7509,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the PCIe replay counter.
     ///
     /// For Kepler or newer fully supported devices.
@@ -7523,7 +7523,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current clock speeds for the device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -7541,7 +7541,7 @@ unsafe extern "C" {
         clock: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the maximum clock speeds for the device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -7559,7 +7559,7 @@ unsafe extern "C" {
         clock: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the GPCCLK VF offset value.
     ///
     /// # Parameters
@@ -7571,7 +7571,7 @@ unsafe extern "C" {
         offset: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000018):   Applications clocks are deprecated and will be removed in CUDA 14.0.
     pub fn nvmlDeviceGetApplicationsClock(
         device: nvmlDevice_t,
@@ -7579,7 +7579,7 @@ unsafe extern "C" {
         clockMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000019):   Applications clocks are deprecated and will be removed in CUDA 14.0.
     pub fn nvmlDeviceGetDefaultApplicationsClock(
         device: nvmlDevice_t,
@@ -7587,7 +7587,7 @@ unsafe extern "C" {
         clockMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the clock speed for the clock specified by the clock type and clock ID.
     ///
     /// For Kepler or newer fully supported devices.
@@ -7605,7 +7605,7 @@ unsafe extern "C" {
         clockMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the customer defined maximum boost clock speed specified by the given clock type.
     ///
     /// For Pascal or newer fully supported devices.
@@ -7621,7 +7621,7 @@ unsafe extern "C" {
         clockMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the list of possible memory clocks that can be used as an argument for [`nvmlDeviceSetMemoryLockedClocks`].
     ///
     /// For Kepler or newer fully supported devices.
@@ -7641,7 +7641,7 @@ unsafe extern "C" {
         clocksMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the list of possible graphics clocks that can be used as an argument for [`nvmlDeviceSetGpuLockedClocks`].
     ///
     /// For Kepler or newer fully supported devices.
@@ -7663,7 +7663,7 @@ unsafe extern "C" {
         clocksMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the current state of Auto Boosted clocks on a device and store it in `isEnabled`.
     ///
     /// For Kepler or newer fully supported devices.
@@ -7683,7 +7683,7 @@ unsafe extern "C" {
         defaultIsEnabled: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the intended operating speed of the device’s fan.
     ///
     /// Note: The reported speed is the intended fan speed. If the fan is physically blocked and unable to spin, the output will not match the actual fan speed.
@@ -7701,7 +7701,7 @@ unsafe extern "C" {
         speed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the intended operating speed of the device’s specified fan.
     ///
     /// Note: The reported speed is the intended fan speed. If the fan is physically blocked and unable to spin, the output will not match the actual fan speed.
@@ -7721,7 +7721,7 @@ unsafe extern "C" {
         speed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the intended operating speed in rotations per minute (RPM) of the device’s specified fan.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -7739,7 +7739,7 @@ unsafe extern "C" {
         fanSpeed: *mut nvmlFanSpeedInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the intended target speed of the device’s specified fan.
     ///
     /// Normally, the driver dynamically adjusts the fan based on the needs of the GPU. But when user set fan speed using nvmlDeviceSetFanSpeed_v2, the driver will attempt to make the fan achieve the setting in nvmlDeviceSetFanSpeed_v2. The actual current speed of the fan is reported in nvmlDeviceGetFanSpeed_v2.
@@ -7759,7 +7759,7 @@ unsafe extern "C" {
         targetSpeed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the min and max fan speed that user can set for the GPU fan.
     ///
     /// For all cuda-capable discrete products with fans.
@@ -7775,7 +7775,7 @@ unsafe extern "C" {
         maxSpeed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets current fan control policy.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -7793,7 +7793,7 @@ unsafe extern "C" {
         policy: *mut nvmlFanControlPolicy_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the number of fans on the device.
     ///
     /// For all discrete products with dedicated fans.
@@ -7807,7 +7807,7 @@ unsafe extern "C" {
         numFans: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000020):   Use [`nvmlDeviceGetTemperatureV`] instead.
     pub fn nvmlDeviceGetTemperature(
         device: nvmlDevice_t,
@@ -7815,7 +7815,7 @@ unsafe extern "C" {
         temp: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the cooler’s information.
     ///
     /// Returns a cooler’s control signal characteristics. The possible types are restricted, Variable and Toggle. See [nvmlCoolerControl_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#group__nvmldevicestructs_1ga7db03bebc76ca23c07b2c55c89fdcbac) for details on available signal types. Returns objects that cooler cools. Targets may be GPU, Memory, Power Supply or All of these. See [nvmlCoolerTarget_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceStructs.html#group__nvmldevicestructs_1gafd756adefc82b630b3b79bfd60eb6a1a) for details on available targets.
@@ -7855,7 +7855,7 @@ impl Default for nvmlTemperature_v1_t {
 }
 /// Structure used to encapsulate temperature info
 pub type nvmlTemperature_t = nvmlTemperature_v1_t;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current temperature readings (in degrees C) for the given device.
     ///
     /// For all products.
@@ -7869,7 +7869,7 @@ unsafe extern "C" {
         temperature: *mut nvmlTemperature_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the temperature threshold for the GPU with the specified threshold type in degrees C.
     ///
     /// For Kepler or newer fully supported devices.
@@ -7891,7 +7891,7 @@ unsafe extern "C" {
         temp: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the thermal margin temperature (distance to nearest slowdown threshold).
     ///
     /// # Parameters
@@ -7903,7 +7903,7 @@ unsafe extern "C" {
         marginTempInfo: *mut nvmlMarginTemperature_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Used to execute a list of thermal system instructions.
     ///
     /// # Parameters
@@ -7917,7 +7917,7 @@ unsafe extern "C" {
         pThermalSettings: *mut nvmlGpuThermalSettings_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current performance state for the device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -7933,7 +7933,7 @@ unsafe extern "C" {
         pState: *mut nvmlPstates_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves current clocks event reasons.
     ///
     /// For all fully supported products.
@@ -7955,14 +7955,14 @@ unsafe extern "C" {
         clocksEventReasons: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000021):   Use [`nvmlDeviceGetCurrentClocksEventReasons`] instead.
     pub fn nvmlDeviceGetCurrentClocksThrottleReasons(
         device: nvmlDevice_t,
         clocksThrottleReasons: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves bitmask of supported clocks event reasons that can be returned by [`nvmlDeviceGetCurrentClocksEventReasons`].
     ///
     /// For all fully supported products.
@@ -7986,14 +7986,14 @@ unsafe extern "C" {
         supportedClocksEventReasons: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000022):   Use [`nvmlDeviceGetSupportedClocksEventReasons`] instead.
     pub fn nvmlDeviceGetSupportedClocksThrottleReasons(
         device: nvmlDevice_t,
         supportedClocksThrottleReasons: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000023):   Use [`nvmlDeviceGetPerformanceState`]. This function exposes an incorrect generalization.
     ///
     /// Retrieve the current performance state for the device.
@@ -8011,14 +8011,14 @@ unsafe extern "C" {
         pState: *mut nvmlPstates_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve performance monitor samples from the associated subdevice.
     pub fn nvmlDeviceGetDynamicPstatesInfo(
         device: nvmlDevice_t,
         pDynamicPstatesInfo: *mut nvmlGpuDynamicPstatesInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the MemClk (Memory Clock) VF offset value.
     ///
     /// # Parameters
@@ -8030,7 +8030,7 @@ unsafe extern "C" {
         offset: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve min and max clocks of some clock domain for a given PState.
     ///
     /// # Parameters
@@ -8048,7 +8048,7 @@ unsafe extern "C" {
         maxClockMHz: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get all supported Performance States (P-States) for the device.
     ///
     /// The returned array would contain a contiguous list of valid P-States supported by the device. If the number of supported P-States is fewer than the size of the array supplied missing elements would contain *[`nvmlPstates_t::NVML_PSTATE_UNKNOWN`]*.
@@ -8066,7 +8066,7 @@ unsafe extern "C" {
         size: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the GPCCLK min max VF offset value.
     ///
     /// # Parameters
@@ -8080,7 +8080,7 @@ unsafe extern "C" {
         maxOffset: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the MemClk (Memory Clock) min max VF offset value.
     ///
     /// # Parameters
@@ -8094,7 +8094,7 @@ unsafe extern "C" {
         maxOffset: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve min, max and current clock offset of some clock domain for a given PState.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -8110,7 +8110,7 @@ unsafe extern "C" {
         info: *mut nvmlClockOffset_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Control current clock offset of some clock domain for a given PState.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -8126,7 +8126,7 @@ unsafe extern "C" {
         info: *mut nvmlClockOffset_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves a performance mode string with all the performance modes defined for this device along with their associated GPU Clock and Memory Clock values.
     ///
     /// Not all tokens will be reported on all GPUs, and additional tokens may be added in the future. For backwards compatibility we still provide nvclock and memclock; those are the same as nvclockmin and memclockmin.
@@ -8152,7 +8152,7 @@ unsafe extern "C" {
         perfModes: *mut nvmlDevicePerfModes_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves a string with the associated current GPU Clock and Memory Clock values.
     ///
     /// Not all tokens will be reported on all GPUs, and additional tokens may be added in the future.
@@ -8176,7 +8176,7 @@ unsafe extern "C" {
         currentClockFreqs: *mut nvmlDeviceCurrentClockFreqs_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000024):
     ///
     /// Retrieves the power management mode associated with this device.
@@ -8203,7 +8203,7 @@ unsafe extern "C" {
         mode: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the power management limit associated with this device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -8221,7 +8221,7 @@ unsafe extern "C" {
         limit: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves information about possible values of power management limits on this device.
     ///
     /// For Kepler or newer fully supported devices.
@@ -8241,7 +8241,7 @@ unsafe extern "C" {
         maxLimit: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves default power management limit on this device, in milliwatts.
     ///
     /// Default power management limit is a power management limit that the device boots with.
@@ -8257,7 +8257,7 @@ unsafe extern "C" {
         defaultLimit: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves power usage for this GPU in milliwatts and its associated circuitry (e.g.
     ///
     /// memory)
@@ -8279,7 +8279,7 @@ unsafe extern "C" {
         power: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves current power mizer mode on this device.
     ///
     /// PowerMizerMode provides a hint to the driver as to how to manage the performance of the GPU.
@@ -8295,7 +8295,7 @@ unsafe extern "C" {
         powerMizerMode: *mut nvmlDevicePowerMizerModes_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets the new power mizer mode.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -8309,7 +8309,7 @@ unsafe extern "C" {
         powerMizerMode: *mut nvmlDevicePowerMizerModes_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves total energy consumption for this GPU in millijoules (mJ) since the driver was last reloaded.
     ///
     /// For Volta or newer fully supported devices.
@@ -8323,7 +8323,7 @@ unsafe extern "C" {
         energy: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the effective power limit that the driver enforces after taking into account all limiters.
     ///
     /// Note: This can be different from the [`nvmlDeviceGetPowerManagementLimit`] if other limits are set elsewhere This includes the out of band power limit interface
@@ -8339,7 +8339,7 @@ unsafe extern "C" {
         limit: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Request to enable or disable Adaptive TGP Mode for a GPU.
     ///
     /// RUBIN_OR_NEWER% Requires root/admin privileges.
@@ -8359,7 +8359,7 @@ unsafe extern "C" {
         mode: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves Adaptive TGP Mode state and telemetry for a GPU.
     ///
     /// RUBIN_OR_NEWER%
@@ -8379,7 +8379,7 @@ unsafe extern "C" {
         info: *mut nvmlAdaptiveTgpModeInfo_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current GOM and pending GOM (the one that GPU will switch to after reboot).
     ///
     /// For GK110 M-class and X-class Tesla products from the Kepler family. Modes [`nvmlGom_enum::NVML_GOM_LOW_DP`] and [`nvmlGom_enum::NVML_GOM_ALL_ON`] are supported on fully supported GeForce products. Not supported on Quadro and Tesla C-class products.
@@ -8403,7 +8403,7 @@ unsafe extern "C" {
         pending: *mut nvmlGpuOperationMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the amount of used, free, reserved and total memory available on the device, in bytes.
     ///
     /// The reserved amount is supported on version 2 only.
@@ -8425,7 +8425,7 @@ unsafe extern "C" {
         memory: *mut nvmlMemory_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the amount of used, free, reserved and total memory available on the device, in bytes.
     ///
     /// nvmlDeviceGetMemoryInfo_v2 accounts separately for reserved memory and includes it in the used memory amount.
@@ -8445,7 +8445,7 @@ unsafe extern "C" {
         memory: *mut nvmlMemory_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the memory limits of the device for the cgroup partition.
     ///
     /// This method will set the memory limits of the device for the specified cgroup partition. The limits will indicate the amount of memory that can be allocated for the device for use of an application in that cgroup.
@@ -8461,7 +8461,7 @@ unsafe extern "C" {
         limits: *mut nvmlSetMemoryLimits_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the memory limits of the device for the cgroup partition.
     ///
     /// This method will get the current memory limits of the device for the specified cgroup partition, as well as the current memory used against the limits.
@@ -8477,7 +8477,7 @@ unsafe extern "C" {
         limits: *mut nvmlGetMemoryLimits_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current compute mode for the device or MIG device.
     ///
     /// For all products.
@@ -8497,7 +8497,7 @@ unsafe extern "C" {
         mode: *mut nvmlComputeMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the CUDA compute capability of the device.
     ///
     /// For all products.
@@ -8515,7 +8515,7 @@ unsafe extern "C" {
         minor: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current and pending DRAM Encryption modes for the device.
     ///
     /// For Blackwell or newer fully supported devices. Only applicable to devices that support DRAM Encryption Requires *[`nvmlInforomObject_t::NVML_INFOROM_DEN`]* version 1.0 or higher.
@@ -8539,7 +8539,7 @@ unsafe extern "C" {
         pending: *mut nvmlDramEncryptionInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the DRAM Encryption mode for the device.
     ///
     /// For Kepler or newer fully supported devices. Only applicable to devices that support DRAM Encryption. Requires *[`nvmlInforomObject_t::NVML_INFOROM_DEN`]* version 1.0 or higher. Requires root/admin permissions.
@@ -8563,7 +8563,7 @@ unsafe extern "C" {
         dramEncryption: *const nvmlDramEncryptionInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current and pending ECC modes for the device.
     ///
     /// For Fermi or newer fully supported devices. Only applicable to devices with ECC. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 1.0 or higher.
@@ -8587,7 +8587,7 @@ unsafe extern "C" {
         pending: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the default ECC modes for the device.
     ///
     /// For Fermi or newer fully supported devices. Only applicable to devices with ECC. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 1.0 or higher.
@@ -8607,7 +8607,7 @@ unsafe extern "C" {
         defaultMode: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the device boardId from 0-N.
     ///
     /// Devices with the same boardId indicate GPUs connected to the same PLX. Use in conjunction with [`nvmlDeviceGetMultiGpuBoard`] to decide if they are on the same board as well. The boardId returned is a unique ID for the current configuration. Uniqueness and ordering across reboots and system configurations is not guaranteed (i.e. if a Tesla K40c returns 0x100 and the two GPUs on a Tesla K10 in the same system returns 0x200 it is not guaranteed they will always return those values but they will always be different from each other).
@@ -8623,7 +8623,7 @@ unsafe extern "C" {
         boardId: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves whether the device is on a Multi-GPU Board Devices that are on multi-GPU boards will set `multiGpuBool` to a non-zero value.
     ///
     /// For Fermi or newer fully supported devices.
@@ -8637,7 +8637,7 @@ unsafe extern "C" {
         multiGpuBool: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the total ECC error counts for the device.
     ///
     /// For Fermi or newer fully supported devices. Only applicable to devices with ECC. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 1.0 or higher. Requires ECC Mode to be enabled.
@@ -8669,7 +8669,7 @@ unsafe extern "C" {
         eccCounts: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the detailed ECC error counts for the device.
     ///
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000025):   This API supports only a fixed set of ECC error locations On different GPU architectures different locations are supported See [`nvmlDeviceGetMemoryErrorCounter`]
@@ -8711,7 +8711,7 @@ unsafe extern "C" {
         eccCounts: *mut nvmlEccErrorCounts_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the requested memory error counter for the device.
     ///
     /// For Fermi or newer fully supported devices. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 2.0 or higher to report aggregate location-based memory error counts. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 1.0 or higher to report all other memory error counts.
@@ -8749,7 +8749,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current utilization rates for the device’s major subsystems.
     ///
     /// For Fermi or newer fully supported devices.
@@ -8765,7 +8765,7 @@ unsafe extern "C" {
         utilization: *mut nvmlUtilization_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current utilization and sampling size in microseconds for the Encoder.
     ///
     /// For Kepler or newer fully supported devices.
@@ -8781,7 +8781,7 @@ unsafe extern "C" {
         samplingPeriodUs: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current capacity of the device’s encoder, as a percentage of maximum encoder capacity with valid values in the range 0-100.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -8797,7 +8797,7 @@ unsafe extern "C" {
         encoderCapacity: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current encoder statistics for a given device.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -8815,7 +8815,7 @@ unsafe extern "C" {
         averageLatency: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves information about active encoder sessions on a target device.
     ///
     /// An array of active encoder sessions is returned in the caller-supplied buffer pointed at by `sessionInfos`. The array element count is passed in `sessionCount`, and `sessionCount` is used to return the number of sessions written to the buffer.
@@ -8835,7 +8835,7 @@ unsafe extern "C" {
         sessionInfos: *mut nvmlEncoderSessionInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current utilization and sampling size in microseconds for the Decoder.
     ///
     /// For Kepler or newer fully supported devices.
@@ -8851,7 +8851,7 @@ unsafe extern "C" {
         samplingPeriodUs: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current utilization and sampling size in microseconds for the JPG.
     ///
     /// For Turing or newer fully supported devices.
@@ -8867,7 +8867,7 @@ unsafe extern "C" {
         samplingPeriodUs: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current utilization and sampling size in microseconds for the OFA (Optical Flow Accelerator)
     ///
     /// For Turing or newer fully supported devices.
@@ -8883,7 +8883,7 @@ unsafe extern "C" {
         samplingPeriodUs: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the active frame buffer capture sessions statistics for a given device.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -8897,7 +8897,7 @@ unsafe extern "C" {
         fbcStats: *mut nvmlFBCStats_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves information about active frame buffer capture sessions on a target device.
     ///
     /// An array of active FBC sessions is returned in the caller-supplied buffer pointed at by `sessionInfo`. The array element count is passed in `sessionCount`, and `sessionCount` is used to return the number of sessions written to the buffer.
@@ -8917,7 +8917,7 @@ unsafe extern "C" {
         sessionInfo: *mut nvmlFBCSessionInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current and pending driver model for the device.
     ///
     /// For Kepler or newer fully supported devices. For windows only.
@@ -8941,7 +8941,7 @@ unsafe extern "C" {
         pending: *mut nvmlDriverModel_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get VBIOS version of the device.
     ///
     /// For all products.
@@ -8959,7 +8959,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Bridge Chip Information for all the bridge chips on the board.
     ///
     /// For all fully supported products. Only applicable to multi-GPU products.
@@ -8973,7 +8973,7 @@ unsafe extern "C" {
         bridgeHierarchy: *mut nvmlBridgeChipHierarchy_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get information about processes with a compute context on a device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -9001,7 +9001,7 @@ unsafe extern "C" {
         infos: *mut nvmlProcessInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get information about processes with a graphics context on a device.
     ///
     /// For Kepler or newer fully supported devices.
@@ -9029,7 +9029,7 @@ unsafe extern "C" {
         infos: *mut nvmlProcessInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get information about processes with a Multi-Process Service (MPS) compute context on a device.
     ///
     /// For Volta or newer fully supported devices.
@@ -9057,7 +9057,7 @@ unsafe extern "C" {
         infos: *mut nvmlProcessInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get information about running processes on a device for input context.
     ///
     /// For Hopper or newer fully supported devices.
@@ -9079,7 +9079,7 @@ unsafe extern "C" {
         plist: *mut nvmlProcessDetailList_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Check if the GPU devices are on the same physical board.
     ///
     /// For all fully supported products.
@@ -9095,7 +9095,7 @@ unsafe extern "C" {
         onSameBoard: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the root/admin permissions on the target API.
     ///
     /// See `nvmlRestrictedAPI_t` for the list of supported APIs. If an API is restricted only root users can call that API. See [`nvmlDeviceSetAPIRestriction`] to change current permissions.
@@ -9117,7 +9117,7 @@ unsafe extern "C" {
         isRestricted: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets recent samples for the GPU.
     ///
     /// For Kepler or newer fully supported devices.
@@ -9149,7 +9149,7 @@ unsafe extern "C" {
         samples: *mut nvmlSample_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets Total, Available and Used size of BAR1 memory.
     ///
     /// BAR1 is used to map the FB (device memory) so that it can be directly accessed by the CPU or by 3rd party devices (peer-to-peer on the PCIE bus).
@@ -9165,7 +9165,7 @@ unsafe extern "C" {
         bar1Memory: *mut nvmlBAR1Memory_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000026):   Use [`nvmlDeviceGetFieldValues`] to query this data. This API will be removed in CUDA 14.0.
     ///
     /// Translations are as follows:
@@ -9184,7 +9184,7 @@ unsafe extern "C" {
         violTime: *mut nvmlViolationTime_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the device’s interrupt number.
     ///
     /// # Parameters
@@ -9196,7 +9196,7 @@ unsafe extern "C" {
         irqNum: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the device’s core count.
     ///
     /// # Parameters
@@ -9208,7 +9208,7 @@ unsafe extern "C" {
         numCores: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the devices power source.
     ///
     /// # Parameters
@@ -9220,7 +9220,7 @@ unsafe extern "C" {
         powerSource: *mut nvmlPowerSource_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the device’s memory bus width.
     ///
     /// # Parameters
@@ -9232,7 +9232,7 @@ unsafe extern "C" {
         busWidth: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the device’s PCIE Max Link speed in MBPS.
     ///
     /// # Parameters
@@ -9244,7 +9244,7 @@ unsafe extern "C" {
         maxSpeed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the device’s PCIe Link speed in Mbps.
     ///
     /// # Parameters
@@ -9256,7 +9256,7 @@ unsafe extern "C" {
         pcieSpeed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the device’s Adaptive Clock status.
     ///
     /// # Parameters
@@ -9268,7 +9268,7 @@ unsafe extern "C" {
         adaptiveClockStatus: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the type of the GPU Bus (PCIe, PCI, …)
     ///
     /// return
@@ -9287,7 +9287,7 @@ unsafe extern "C" {
         type_: *mut nvmlBusType_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000027):   Will be deprecated in a future release. Use [`nvmlDeviceGetGpuFabricInfoV`] instead
     ///
     /// Get fabric information associated with the device.
@@ -9305,7 +9305,7 @@ unsafe extern "C" {
         gpuFabricInfo: *mut nvmlGpuFabricInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Versioned wrapper around [`nvmlDeviceGetGpuFabricInfo`] that accepts a versioned [`nvmlGpuFabricInfo_v2_t`] or later output structure.
     ///
     /// For Hopper or newer fully supported devices.
@@ -9319,7 +9319,7 @@ unsafe extern "C" {
         gpuFabricInfo: *mut nvmlGpuFabricInfoV_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves GPU fabric information including per-type clique assignments.
     ///
     /// Returns fabric clique data via [`nvmlGpuFabricInfo_v4_t`]. Each entry in the `cliques` array is a (type, id) pair representing a single clique assignment. The number of valid entries is given by `numCliques`. Entries are sorted by ascending type (NVML_GPU_FABRIC_CLIQUE_TYPE_\*), then by ascending clique id within each type.
@@ -9337,7 +9337,7 @@ unsafe extern "C" {
         gpuFabricInfo: *mut nvmlGpuFabricInfo_v4_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing System capabilities.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9349,7 +9349,7 @@ unsafe extern "C" {
         capabilities: *mut nvmlConfComputeSystemCaps_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing System State.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9361,7 +9361,7 @@ unsafe extern "C" {
         state: *mut nvmlConfComputeSystemState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing Protected and Unprotected Memory Sizes.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9375,7 +9375,7 @@ unsafe extern "C" {
         memInfo: *mut nvmlConfComputeMemSizeInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing GPUs ready state.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9394,7 +9394,7 @@ unsafe extern "C" {
         isAcceptingWork: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing protected memory usage.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9408,7 +9408,7 @@ unsafe extern "C" {
         memory: *mut nvmlMemory_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing GPU certificate details.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9422,7 +9422,7 @@ unsafe extern "C" {
         gpuCert: *mut nvmlConfComputeGpuCertificate_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing GPU attestation report.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9436,7 +9436,7 @@ unsafe extern "C" {
         gpuAtstReport: *mut nvmlConfComputeGpuAttestationReport_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing key rotation threshold detail.
     ///
     /// For Hopper or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9448,7 +9448,7 @@ unsafe extern "C" {
         pKeyRotationThrInfo: *mut nvmlConfComputeGetKeyRotationThresholdInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set Conf Computing Unprotected Memory Size.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9462,7 +9462,7 @@ unsafe extern "C" {
         sizeKiB: ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set Conf Computing GPUs ready state.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9481,7 +9481,7 @@ unsafe extern "C" {
         isAcceptingWork: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set Conf Computing key rotation threshold.
     ///
     /// For Hopper or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9495,7 +9495,7 @@ unsafe extern "C" {
         pKeyRotationThrInfo: *mut nvmlConfComputeSetKeyRotationThresholdInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Conf Computing System Settings.
     ///
     /// For Hopper or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -9507,7 +9507,7 @@ unsafe extern "C" {
         settings: *mut nvmlSystemConfComputeSettings_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve GSP firmware version.
     ///
     /// The caller passes in buffer via `version` and corresponding GSP firmware numbered version is returned with the same parameter in string format.
@@ -9521,7 +9521,7 @@ unsafe extern "C" {
         version: *mut ::core::ffi::c_char,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve GSP firmware mode.
     ///
     /// The caller passes in integer pointers. GSP firmware enablement and default mode information is returned with corresponding parameters. The return value in `isEnabled` and `defaultMode` should be treated as boolean.
@@ -9537,7 +9537,7 @@ unsafe extern "C" {
         defaultMode: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get SRAM ECC error status of this device.
     ///
     /// For Ampere or newer fully supported devices. Requires root/admin permissions.
@@ -9553,7 +9553,7 @@ unsafe extern "C" {
         status: *mut nvmlEccSramErrorStatus_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set new power limit of this device.
     ///
     /// For Kepler or newer fully supported devices. Requires root/admin permissions.
@@ -9593,7 +9593,7 @@ unsafe extern "C" {
         powerValue: *mut nvmlPowerValue_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries the state of per process accounting mode.
     ///
     /// For Kepler or newer fully supported devices.
@@ -9609,7 +9609,7 @@ unsafe extern "C" {
         mode: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries process’s accounting stats.
     ///
     /// For Kepler or newer fully supported devices.
@@ -9633,7 +9633,7 @@ unsafe extern "C" {
         stats: *mut nvmlAccountingStats_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries list of processes that can be queried for accounting stats.
     ///
     /// The list of processes returned can be in running or terminated state.
@@ -9659,7 +9659,7 @@ unsafe extern "C" {
         pids: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the number of processes that the circular buffer with accounting pids can hold.
     ///
     /// For Kepler or newer fully supported devices.
@@ -9683,7 +9683,7 @@ unsafe extern "C" {
         bufferSize: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries process’s accounting stats (v2).
     ///
     /// For Kepler or newer fully supported devices.
@@ -9705,7 +9705,7 @@ unsafe extern "C" {
         stats: *mut nvmlAccountingStats_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the list of retired pages by source, including pages that are pending retirement The address information provided from this API is the hardware address of the page that was retired.
     ///
     /// Note that this does not match the virtual address used in CUDA, but will match the address information in Xid 63
@@ -9725,7 +9725,7 @@ unsafe extern "C" {
         addresses: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the list of retired pages by source, including pages that are pending retirement The address information provided from this API is the hardware address of the page that was retired.
     ///
     /// Note that this does not match the virtual address used in CUDA, but will match the address information in Xid 63
@@ -9747,7 +9747,7 @@ unsafe extern "C" {
         timestamps: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Check if any pages are pending retirement and need a reboot to fully retire.
     ///
     /// For Kepler or newer fully supported devices.
@@ -9761,7 +9761,7 @@ unsafe extern "C" {
         isPending: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get number of remapped rows.
     ///
     /// The number of rows reported will be based on the cause of the remapping. isPending indicates whether or not there are pending remappings. A reset will be required to actually remap the row. failureOccurred will be set if a row remapping ever failed in the past. A pending remapping won’t affect future work on the GPU since error-containment and dynamic page blacklisting will take care of that.
@@ -9783,7 +9783,7 @@ unsafe extern "C" {
         failureOccurred: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the row remapper histogram.
     ///
     /// Returns the remap availability for each bank on the GPU.
@@ -9797,7 +9797,7 @@ unsafe extern "C" {
         values: *mut nvmlRowRemapperHistogramValues_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get architecture for device.
     ///
     /// # Parameters
@@ -9809,7 +9809,7 @@ unsafe extern "C" {
         arch: *mut nvmlDeviceArchitecture_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the frequency monitor fault status for the device.
     ///
     /// For Ampere or newer fully supported devices. Requires root user.
@@ -9829,7 +9829,7 @@ unsafe extern "C" {
         status: *mut nvmlClkMonStatus_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current utilization and process ID.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -9855,7 +9855,7 @@ unsafe extern "C" {
         lastSeenTimeStamp: ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the recent utilization and process ID for all running processes.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -9879,7 +9879,7 @@ unsafe extern "C" {
         procesesUtilInfo: *mut nvmlProcessesUtilizationInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get platform information of this device.
     ///
     /// For Blackwell or newer fully supported devices.
@@ -9895,7 +9895,7 @@ unsafe extern "C" {
         platformInfo: *mut nvmlPlatformInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the Per Device Identifier (PDI) associated with this device.
     ///
     /// For Pascal or newer fully supported devices.
@@ -9908,7 +9908,7 @@ unsafe extern "C" {
     /// - `pdi`: Reference to the caller-provided structure to return the GPU PDI.
     pub fn nvmlDeviceGetPdi(device: nvmlDevice_t, pdi: *mut nvmlPdi_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the hostname for the device.
     ///
     /// For Blackwell or newer fully supported devices. Requires root/admin permissions. Supported on Linux only.
@@ -9930,7 +9930,7 @@ unsafe extern "C" {
         hostname: *mut nvmlHostname_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the hostname for the device.
     ///
     /// For Blackwell or newer fully supported devices. Supported on Linux only.
@@ -9950,7 +9950,7 @@ unsafe extern "C" {
         hostname: *mut nvmlHostname_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Performance Metric samples.
     ///
     /// See [`nvmlPerfMetricsSamples_v1_t`] for more information on the struct.
@@ -9964,7 +9964,7 @@ unsafe extern "C" {
         samples: *mut nvmlPerfMetricsSamples_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the LED state for the unit.
     ///
     /// The LED can be either green (0) or amber (1).
@@ -9987,7 +9987,7 @@ unsafe extern "C" {
     /// - `color`: The target LED color.
     pub fn nvmlUnitSetLedState(unit: nvmlUnit_t, color: nvmlLedColor_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the persistence mode for the device.
     ///
     /// For all products. For Linux only. Requires root/admin permissions.
@@ -10013,7 +10013,7 @@ unsafe extern "C" {
         mode: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the compute mode for the device or MIG device.
     ///
     /// For all products. Requires root/admin permissions.
@@ -10039,7 +10039,7 @@ unsafe extern "C" {
         mode: nvmlComputeMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the ECC mode for the device.
     ///
     /// For Kepler or newer fully supported devices. Only applicable to devices with ECC. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 1.0 or higher. Requires root/admin permissions.
@@ -10063,7 +10063,7 @@ unsafe extern "C" {
         ecc: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Clear the ECC error and other memory error counts for the device.
     ///
     /// For Kepler or newer fully supported devices. Only applicable to devices with ECC. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 2.0 or higher to clear aggregate location-based ECC counts. Requires *[`nvmlInforomObject_t::NVML_INFOROM_ECC`]* version 1.0 or higher to clear all other ECC counts. Requires root/admin permissions. Requires ECC Mode to be enabled.
@@ -10088,7 +10088,7 @@ unsafe extern "C" {
         counterType: nvmlEccCounterType_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the driver model for the device.
     ///
     /// For Fermi or newer fully supported devices. For windows only. Requires root/admin permissions.
@@ -10145,7 +10145,7 @@ pub enum nvmlClockLimitId_enum {
     NVML_CLOCK_LIMIT_ID_UNLIMITED = 4294967042,
 }
 pub use self::nvmlClockLimitId_enum as nvmlClockLimitId_t;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set clocks that device will lock to.
     ///
     /// Sets the clocks that the device will be running at to the value in the range of minGpuClockMHz to maxGpuClockMHz.
@@ -10175,7 +10175,7 @@ unsafe extern "C" {
         maxGpuClockMHz: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Resets the gpu clock to the default value.
     ///
     /// This is the gpu clock that will be used after system reboot or driver reload. Default values are idle clocks.
@@ -10191,7 +10191,7 @@ unsafe extern "C" {
     /// - `device`: The identifier of the target device
     pub fn nvmlDeviceResetGpuLockedClocks(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set memory clocks that device will lock to.
     ///
     /// Sets the device’s memory clocks to the value in the range of minMemClockMHz to maxMemClockMHz.
@@ -10215,7 +10215,7 @@ unsafe extern "C" {
         maxMemClockMHz: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Resets the memory clock to the default value.
     ///
     /// This is the memory clock that will be used after system reboot or driver reload. Default values are idle clocks.
@@ -10231,7 +10231,7 @@ unsafe extern "C" {
     /// - `device`: The identifier of the target device
     pub fn nvmlDeviceResetMemoryLockedClocks(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000028):   Applications clocks are deprecated and will be removed in CUDA 14.0.
     ///
     /// Please use [`nvmlDeviceSetMemoryLockedClocks`] for Memory Clocks and [`nvmlDeviceSetGpuLockedClocks`] for Graphics Clocks.
@@ -10241,13 +10241,13 @@ unsafe extern "C" {
         graphicsClockMHz: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000029):   Applications clocks are deprecated and will be removed in CUDA 14.0.
     ///
     /// Please use [`nvmlDeviceResetMemoryLockedClocks`] for Memory Clocks and [`nvmlDeviceResetGpuLockedClocks`] for Graphics Clocks.
     pub fn nvmlDeviceResetApplicationsClocks(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Try to set the current state of Auto Boosted clocks on a device.
     ///
     /// For Kepler or newer fully supported devices.
@@ -10267,7 +10267,7 @@ unsafe extern "C" {
         enabled: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Try to set the default state of Auto Boosted clocks on a device.
     ///
     /// This is the default state that Auto Boosted clocks will return to when no compute running processes (e.g. CUDA application which have an active context) are running
@@ -10289,7 +10289,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets the speed of the fan control policy to default.
     ///
     /// For all cuda-capable discrete products with fans.
@@ -10303,7 +10303,7 @@ unsafe extern "C" {
         fan: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets current fan control policy.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -10323,7 +10323,7 @@ unsafe extern "C" {
         policy: nvmlFanControlPolicy_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets the temperature threshold for the GPU with the specified threshold type in degrees C.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -10341,7 +10341,7 @@ unsafe extern "C" {
         temp: *mut ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set new power limit of this device.
     ///
     /// For Kepler or newer fully supported devices. Requires root/admin permissions.
@@ -10365,7 +10365,7 @@ unsafe extern "C" {
         limit: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets new GOM.
     ///
     /// See `nvmlGpuOperationMode_t` for details.
@@ -10393,7 +10393,7 @@ unsafe extern "C" {
         mode: nvmlGpuOperationMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Changes the root/admin restructions on certain APIs.
     ///
     /// See `nvmlRestrictedAPI_t` for the list of supported APIs. This method can be used by a root/admin user to give non-root/admin access to certain otherwise-restricted APIs. The new setting lasts for the lifetime of the NVIDIA driver; it is not persistent. See [`nvmlDeviceGetAPIRestriction`] to query the current restriction settings.
@@ -10415,7 +10415,7 @@ unsafe extern "C" {
         isRestricted: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets the speed of a specified fan.
     ///
     /// WARNING: This function changes the fan control policy to manual. It means that YOU have to monitor the temperature and adjust the fan speed accordingly. If you set the fan speed too low you can burn your GPU! Use nvmlDeviceSetDefaultFanSpeed_v2 to restore default control policy.
@@ -10441,7 +10441,7 @@ unsafe extern "C" {
         speed: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000030):   Will be deprecated in a future release. Use [`nvmlDeviceSetClockOffsets`] instead. It works on Maxwell onwards GPU architectures.
     ///
     /// Set the GPCCLK VF offset value.
@@ -10455,7 +10455,7 @@ unsafe extern "C" {
         offset: ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000031):   Will be deprecated in a future release. Use [`nvmlDeviceSetClockOffsets`] instead. It works on Maxwell onwards GPU architectures.
     ///
     /// Set the MemClk (Memory Clock) VF offset value. It requires elevated privileges.
@@ -10469,7 +10469,7 @@ unsafe extern "C" {
         offset: ::core::ffi::c_int,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Enables or disables per process accounting.
     ///
     /// For Kepler or newer fully supported devices. Requires root/admin permissions.
@@ -10485,7 +10485,7 @@ unsafe extern "C" {
         mode: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Clears accounting information about all processes that have already terminated.
     ///
     /// For Kepler or newer fully supported devices. Requires root/admin permissions.
@@ -10647,7 +10647,7 @@ impl Default for nvmlNvLinkInfo_v2_t {
 }
 /// Struct to represent per device NVLINK information v2
 pub type nvmlNvLinkInfo_t = nvmlNvLinkInfo_v2_t;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the state of the device’s NvLink for the link specified.
     ///
     /// For Pascal or newer fully supported devices.
@@ -10663,7 +10663,7 @@ unsafe extern "C" {
         isActive: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the version of the device’s NvLink for the link specified.
     ///
     /// For Pascal or newer fully supported devices.
@@ -10679,7 +10679,7 @@ unsafe extern "C" {
         version: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the requested capability from the device’s NvLink for the link specified Please refer to the `nvmlNvLinkCapability_t` structure for the specific caps that can be queried The return value should be treated as a boolean.
     ///
     /// For Pascal or newer fully supported devices.
@@ -10697,7 +10697,7 @@ unsafe extern "C" {
         capResult: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the PCI information for the remote node on a NvLink link Note: pciSubSystemId is not filled in this function and is indeterminate.
     ///
     /// For Pascal or newer fully supported devices.
@@ -10713,7 +10713,7 @@ unsafe extern "C" {
         pci: *mut nvmlPciInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the specified error counter value Please refer to `nvmlNvLinkErrorCounter_t` for error counters that are available.
     ///
     /// For Pascal or newer fully supported devices.
@@ -10731,7 +10731,7 @@ unsafe extern "C" {
         counterValue: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Resets all error counters to zero Please refer to `nvmlNvLinkErrorCounter_t` for the list of error counters that are reset.
     ///
     /// For Pascal or newer fully supported devices.
@@ -10745,7 +10745,7 @@ unsafe extern "C" {
         link: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000032):   Setting utilization counter control is no longer supported.
     ///
     /// Set the NVLINK utilization counter control information for the specified counter, 0 or 1. Please refer to *[nvmlNvLinkUtilizationControl_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlNvLinkUtilizationControl__t.html#structnvmlnvlinkutilizationcontrol__t)* for the structure definition. Performs a reset of the counters if the reset parameter is non-zero.
@@ -10767,7 +10767,7 @@ unsafe extern "C" {
         reset: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000033):   Getting utilization counter control is no longer supported.
     ///
     /// Get the NVLINK utilization counter control information for the specified counter, 0 or 1. Please refer to *[nvmlNvLinkUtilizationControl_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlNvLinkUtilizationControl__t.html#structnvmlnvlinkutilizationcontrol__t)* for the structure definition
@@ -10787,7 +10787,7 @@ unsafe extern "C" {
         control: *mut nvmlNvLinkUtilizationControl_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000034):   Use [`nvmlDeviceGetFieldValues`] with NVML_FI_DEV_NVLINK_THROUGHPUT_\* as field values instead.
     ///
     /// Retrieve the NVLINK utilization counter based on the current control for a specified counter. In general it is good practice to use [`nvmlDeviceSetNvLinkUtilizationControl`] before reading the utilization counters as they have no default state
@@ -10809,7 +10809,7 @@ unsafe extern "C" {
         txcounter: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000035):   Freezing NVLINK utilization counters is no longer supported.
     ///
     /// Freeze the NVLINK utilization counters Both the receive and transmit counters are operated on by this function
@@ -10829,7 +10829,7 @@ unsafe extern "C" {
         freeze: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000036):   Resetting NVLINK utilization counters is no longer supported.
     ///
     /// Reset the NVLINK utilization counters Both the receive and transmit counters are operated on by this function
@@ -10847,7 +10847,7 @@ unsafe extern "C" {
         counter: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the NVLink device type of the remote device connected over the given link.
     ///
     /// # Parameters
@@ -10861,7 +10861,7 @@ unsafe extern "C" {
         pNvLinkDeviceType: *mut nvmlIntNvLinkDeviceType_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set NvLink Low Power Threshold for device.
     ///
     /// For Hopper or newer fully supported devices.
@@ -10875,7 +10875,7 @@ unsafe extern "C" {
         info: *mut nvmlNvLinkPowerThres_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the global nvlink bandwith mode.
     ///
     /// # Parameters
@@ -10883,7 +10883,7 @@ unsafe extern "C" {
     /// - `nvlinkBwMode`: nvlink bandwidth mode
     pub fn nvmlSystemSetNvlinkBwMode(nvlinkBwMode: ::core::ffi::c_uint) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the global nvlink bandwith mode.
     ///
     /// # Parameters
@@ -10893,7 +10893,7 @@ unsafe extern "C" {
         nvlinkBwMode: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the supported NvLink Reduced Bandwidth Modes of the device.
     ///
     /// For Blackwell or newer fully supported devices.
@@ -10907,7 +10907,7 @@ unsafe extern "C" {
         supportedBwMode: *mut nvmlNvlinkSupportedBwModes_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the NvLink Reduced Bandwidth Mode for the device.
     ///
     /// For Blackwell or newer fully supported devices.
@@ -10921,7 +10921,7 @@ unsafe extern "C" {
         getBwMode: *mut nvmlNvlinkGetBwMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the NvLink Reduced Bandwidth Mode for the device.
     ///
     /// For Blackwell or newer fully supported devices.
@@ -10935,7 +10935,7 @@ unsafe extern "C" {
         setBwMode: *mut nvmlNvlinkSetBwMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the NvLink Reduced Bandwidth Mode asynchronously for the device.
     ///
     /// Polling should be done by checking for [`NVML_GPU_FABRIC_STATE_COMPLETED`] from [`nvmlDeviceGetGpuFabricInfoV`].
@@ -10955,7 +10955,7 @@ unsafe extern "C" {
         setBwModeAsync: *mut nvmlNvlinkSetBwModeAsync_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query NVLINK information associated with this device.
     ///
     /// # Parameters
@@ -11020,7 +11020,7 @@ impl Default for nvmlNvlinkTelemetrySamples_v1_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve a batch of historical NVLink per-link telemetry samples.
     ///
     /// Samples are taken at approximately 100 ms intervals. Intended for use with periodic polling every ~2 seconds. Longer polling intervals are possible, but can result in dropped samples if the supported `sampleCount` is too low for the given polling interval.
@@ -11036,7 +11036,7 @@ unsafe extern "C" {
         samples: *mut nvmlNvlinkTelemetrySamples_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Create an empty set of events.
     ///
     /// Event set should be freed by [`nvmlEventSetFree`]
@@ -11052,7 +11052,7 @@ unsafe extern "C" {
     /// - `set`: Reference in which to return the event handle
     pub fn nvmlEventSetCreate(set: *mut nvmlEventSet_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Starts recording of events on a specified devices and add the events to specified [`nvmlEventSet_t`].
     ///
     /// For Fermi or newer fully supported devices. ECC events are available only on ECC-enabled devices (see [`nvmlDeviceGetTotalEccErrors`]) Power capping events are available only on Power Management enabled devices (see [`nvmlDeviceGetPowerManagementMode`])
@@ -11090,7 +11090,7 @@ unsafe extern "C" {
         set: nvmlEventSet_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns information about events supported on device.
     ///
     /// For Fermi or newer fully supported devices.
@@ -11114,7 +11114,7 @@ unsafe extern "C" {
         eventTypes: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Waits on events and delivers events.
     ///
     /// For Fermi or newer fully supported devices.
@@ -11148,7 +11148,7 @@ unsafe extern "C" {
         timeoutms: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Adds a GPU Operational Event subscription to an event set.
     ///
     /// This API is separate from [`nvmlDeviceRegisterEvents`]. Calling this API opts the event set into the structured GPU Operational Event format for the target GPU UUID. Subscriptions are identified by `config`; registering the same subscription more than once is treated as success.
@@ -11182,7 +11182,7 @@ unsafe extern "C" {
         config: *const nvmlGpuOperationalEventConfig_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Waits on an event set and returns the next event in the extended event format.
     ///
     /// This API is the unified wait surface for NVML event-bit subscriptions registered with [`nvmlDeviceRegisterEvents`] and structured GPU Operational Event subscriptions registered with [`nvmlEventSetRegisterGpuOperationalEvents_v1`].
@@ -11222,7 +11222,7 @@ unsafe extern "C" {
         params: *mut nvmlEventSetWait_v3_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets the number of context records for the most recent event returned by [`nvmlEventSetWait_v3`] on this event set.
     ///
     /// This count is tied to the event set, not to a caller-owned copy of [`nvmlEventSetWait_v3_t`]. It is replaced by the next successful call to [`nvmlEventSetWait_v3`] on the same event set.
@@ -11252,7 +11252,7 @@ unsafe extern "C" {
         params: *mut nvmlEventSetGetContextCount_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets metadata for a context record from the most recent event returned by [`nvmlEventSetWait_v3`].
     ///
     /// The returned metadata identifies the NVML public interpretation, the source-defined context payload type, payload size, and payload format version. The raw payload for any context record can be copied with [`nvmlEventSetGetContextData_v1`]. When `nvmlGpuOperationalEventContextType` names a type-specific accessor, callers may use that accessor instead. Metadata is replaced by the next successful call to [`nvmlEventSetWait_v3`] on the same event set.
@@ -11282,7 +11282,7 @@ unsafe extern "C" {
         params: *mut nvmlEventSetGetContextInfo_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Copies the raw payload for a context record from the most recent event returned by [`nvmlEventSetWait_v3`].
     ///
     /// Passing `params->data` as NULL performs a size query. In that case `params->dataSize` is set to the required payload size and the function returns [`nvmlReturn_enum::NVML_ERROR_INSUFFICIENT_SIZE`] when the payload is non-empty. If the context payload is empty, `params->dataSize` is set to 0 and the function returns [`nvmlReturn_enum::NVML_SUCCESS`].
@@ -11312,7 +11312,7 @@ unsafe extern "C" {
         params: *mut nvmlEventSetGetContextData_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Gets decoded GPU legacy-Xid context data for a context record from the most recent event returned by [`nvmlEventSetWait_v3`].
     ///
     /// This helper succeeds only for context records whose `nvmlGpuOperationalEventContextType` is [`nvmlGpuOperationalEventContextType_t::NVML_GPU_OPERATIONAL_EVENT_CONTEXT_TYPE_LEGACY_XID`]. Other context records remain available through [`nvmlEventSetGetContextData_v1`].
@@ -11342,7 +11342,7 @@ unsafe extern "C" {
         params: *mut nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Releases events in the set.
     ///
     /// For Fermi or newer fully supported devices.
@@ -11356,7 +11356,7 @@ unsafe extern "C" {
     /// - `set`: Reference to events to be released
     pub fn nvmlEventSetFree(set: nvmlEventSet_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Create an empty set of system events.
     ///
     /// Event set should be freed by [`nvmlSystemEventSetFree`]
@@ -11374,7 +11374,7 @@ unsafe extern "C" {
         request: *mut nvmlSystemEventSetCreateRequest_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Releases system event set.
     ///
     /// For Fermi or newer fully supported devices.
@@ -11390,7 +11390,7 @@ unsafe extern "C" {
         request: *mut nvmlSystemEventSetFreeRequest_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Starts recording of events on system and add the events to specified [`nvmlSystemEventSet_t`].
     ///
     /// For Linux only.
@@ -11418,7 +11418,7 @@ unsafe extern "C" {
         request: *mut nvmlSystemRegisterEventRequest_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Waits on system events and delivers events.
     ///
     /// For Fermi or newer fully supported devices.
@@ -11442,7 +11442,7 @@ unsafe extern "C" {
         request: *mut nvmlSystemEventSetWaitRequest_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Modify the drain state of a GPU.
     ///
     /// This method forces a GPU to no longer accept new incoming requests. Any new NVML process will no longer see this GPU. Persistence mode for this GPU must be turned off before this call is made. Must be called as administrator. For Linux only.
@@ -11458,7 +11458,7 @@ unsafe extern "C" {
         newState: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the drain state of a GPU.
     ///
     /// This method is used to check if a GPU is in a currently draining state. For Linux only.
@@ -11474,7 +11474,7 @@ unsafe extern "C" {
         currentState: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// This method will remove the specified GPU from the view of both NVML and the NVIDIA kernel driver as long as no other processes are attached.
     ///
     /// If other processes are attached, this call will return [`nvmlReturn_t::NVML_ERROR_IN_USE`] and the GPU will be returned to its original “draining” state. Note: the only situation where a process can still be attached after [`nvmlDeviceModifyDrainState`] is called to initiate the draining state is if that process was using, and is still using, a GPU before the call was made. Also note, persistence mode counts as an attachment to the GPU thus it must be disabled prior to this call.
@@ -11494,7 +11494,7 @@ unsafe extern "C" {
         linkState: nvmlPcieLinkState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Request the OS and the NVIDIA kernel driver to rediscover a portion of the PCI subsystem looking for GPUs that were previously removed.
     ///
     /// The portion of the PCI tree can be narrowed by specifying a domain, bus, and device. If all are zeroes then the entire PCI tree will be searched. Please note that for long-running NVML processes the enumeration will change based on how many GPUs are discovered and where they are inserted in bus order.
@@ -11510,7 +11510,7 @@ unsafe extern "C" {
     /// - `pciInfo`: The PCI tree to be searched.  Only the domain, bus, and device fields are used in this call.
     pub fn nvmlDeviceDiscoverGpus(pciInfo: *mut nvmlPciInfo_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Request values for a list of fields for a device.
     ///
     /// This API allows multiple fields to be queried at once. If any of the underlying fieldIds are populated by the same driver call, the results for those field IDs will be populated from a single call rather than making a driver call for each fieldId.
@@ -11526,7 +11526,7 @@ unsafe extern "C" {
         values: *mut nvmlFieldValue_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Clear values for a list of fields for a device.
     ///
     /// This API allows multiple fields to be cleared at once.
@@ -11542,7 +11542,7 @@ unsafe extern "C" {
         values: *mut nvmlFieldValue_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// This method is used to get the virtualization mode corresponding to the GPU.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11556,7 +11556,7 @@ unsafe extern "C" {
         pVirtualMode: *mut nvmlGpuVirtualizationMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries if SR-IOV host operation is supported on a vGPU supported device.
     ///
     /// Checks whether SR-IOV host capability is supported by the device and the driver, and indicates device is in SR-IOV mode if both of these conditions are true.
@@ -11570,7 +11570,7 @@ unsafe extern "C" {
         pHostVgpuMode: *mut nvmlHostVgpuMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// This method is used to set the virtualization mode corresponding to the GPU.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11584,7 +11584,7 @@ unsafe extern "C" {
         virtualMode: nvmlGpuVirtualizationMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the vGPU heterogeneous mode for the device.
     ///
     /// When in heterogeneous mode, a vGPU can concurrently host timesliced vGPUs with differing framebuffer sizes.
@@ -11600,7 +11600,7 @@ unsafe extern "C" {
         pHeterogeneousMode: *mut nvmlVgpuHeterogeneousMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Enable or disable vGPU heterogeneous mode for the device.
     ///
     /// When in heterogeneous mode, a vGPU can concurrently host timesliced vGPUs with differing framebuffer sizes.
@@ -11616,7 +11616,7 @@ unsafe extern "C" {
         pHeterogeneousMode: *const nvmlVgpuHeterogeneousMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the placement ID of active vGPU instance.
     ///
     /// When in vGPU heterogeneous mode, this function returns a valid placement ID as *pPlacement->placementId* else NVML_INVALID_VGPU_PLACEMENT_ID is returned. *pPlacement->version* is the version number of the structure nvmlVgpuPlacementId_t, the caller should set the correct version number to get placement id of the vGPU instance `vgpuInstance`.
@@ -11630,7 +11630,7 @@ unsafe extern "C" {
         pPlacement: *mut nvmlVgpuPlacementId_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the supported vGPU placement ID of the vGPU type.
     ///
     /// The function returns an array of supported vGPU placement IDs for the specified vGPU type ID in the buffer provided by the caller at *pPlacementList->placementIds*. The required memory for the placementIds array must be allocated based on the maximum number of vGPU type instances, which is retrievable through [`nvmlVgpuTypeGetMaxInstances`]. If the provided count by the caller is insufficient, the function will return [`nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE`] along with the number of required entries in *pPlacementList->count*. The caller should then reallocate a buffer with the size of pPlacementList->count \* sizeof(pPlacementList->placementIds) and invoke the function again.
@@ -11648,7 +11648,7 @@ unsafe extern "C" {
         pPlacementList: *mut nvmlVgpuPlacementList_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the creatable vGPU placement ID of the vGPU type.
     ///
     /// An array of creatable vGPU placement IDs for the vGPU type ID indicated by `vgpuTypeId` is returned in the caller-supplied buffer of *pPlacementList->placementIds*. Memory needed for the placementIds array should be allocated based on maximum instances of a vGPU type which can be queried via [`nvmlVgpuTypeGetMaxInstances`]. If the provided count by the caller is insufficient, the function will return [`nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE`] along with the number of required entries in *pPlacementList->count*. The caller should then reallocate a buffer with the size of pPlacementList->count \* sizeof(pPlacementList->placementIds) and invoke the function again.
@@ -11666,7 +11666,7 @@ unsafe extern "C" {
         pPlacementList: *mut nvmlVgpuPlacementList_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the static GSP heap size of the vGPU type in bytes.
     ///
     /// # Parameters
@@ -11678,7 +11678,7 @@ unsafe extern "C" {
         gspHeapSize: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the static framebuffer reservation of the vGPU type in bytes.
     ///
     /// # Parameters
@@ -11690,7 +11690,7 @@ unsafe extern "C" {
         fbReservation: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the currently used runtime state size of the vGPU instance.
     ///
     /// This size represents the maximum in-memory data size utilized by a vGPU instance during standard operation. This measurement is exclusive of frame buffer (FB) data size assigned to the vGPU instance.
@@ -11706,7 +11706,7 @@ unsafe extern "C" {
         pState: *mut nvmlVgpuRuntimeState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the desirable vGPU capability of a device.
     ///
     /// Refer to the `nvmlDeviceVgpuCapability_t` structure for the specific capabilities that can be set. See [nvmlEnableState_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceEnums.html#group__nvmldeviceenums_1ga11160f9605a87d03a59f987cccbd7b86) for available state.
@@ -11722,7 +11722,7 @@ unsafe extern "C" {
         state: nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Executes a forced GSP unload operation on a device.
     ///
     /// For Ada or newer fully supported devices. Forces the unload of the GSP firmware on a device currently operating in vGPU mode. This operation forcibly removes the GSP from the targeted GPU and terminates all GSP operations.
@@ -11732,7 +11732,7 @@ unsafe extern "C" {
     /// - `device`: The identifier of the target device
     pub fn nvmlDeviceVgpuForceGspUnload(device: nvmlDevice_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the vGPU Software licensable features.
     ///
     /// Identifies whether the system supports vGPU Software Licensing. If it does, return the list of licensable feature(s) and their current license status.
@@ -11746,7 +11746,7 @@ unsafe extern "C" {
         pGridLicensableFeatures: *mut nvmlGridLicensableFeatures_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the requested vGPU driver capability.
     ///
     /// Refer to the `nvmlVgpuDriverCapability_t` structure for the specific capabilities that can be queried. The return value in `capResult` should be treated as a boolean, with a non-zero value indicating that the capability is supported.
@@ -11762,7 +11762,7 @@ unsafe extern "C" {
         capResult: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the requested vGPU capability for GPU.
     ///
     /// Refer to the `nvmlDeviceVgpuCapability_t` structure for the specific capabilities that can be queried. The return value in `capResult` reports a non-zero value indicating that the capability is supported, and also reports the capability’s data based on the queried capability.
@@ -11780,7 +11780,7 @@ unsafe extern "C" {
         capResult: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the supported vGPU types on a physical GPU (device).
     ///
     /// An array of supported vGPU types for the physical GPU indicated by `device` is returned in the caller-supplied buffer pointed at by `vgpuTypeIds`. The element count of nvmlVgpuTypeId_t array is passed in `vgpuCount`, and `vgpuCount` is used to return the number of vGPU types written to the buffer.
@@ -11798,7 +11798,7 @@ unsafe extern "C" {
         vgpuTypeIds: *mut nvmlVgpuTypeId_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the currently creatable vGPU types on a physical GPU (device).
     ///
     /// An array of creatable vGPU types for the physical GPU indicated by `device` is returned in the caller-supplied buffer pointed at by `vgpuTypeIds`. The element count of nvmlVgpuTypeId_t array is passed in `vgpuCount`, and `vgpuCount` is used to return the number of vGPU types written to the buffer.
@@ -11818,7 +11818,7 @@ unsafe extern "C" {
         vgpuTypeIds: *mut nvmlVgpuTypeId_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the class of a vGPU type.
     ///
     /// It will not exceed 64 characters in length (including the NUL terminator). See nvmlConstants::NVML_DEVICE_NAME_BUFFER_SIZE.
@@ -11836,7 +11836,7 @@ unsafe extern "C" {
         size: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the vGPU type name.
     ///
     /// The name is an alphanumeric string that denotes a particular vGPU, e.g. GRID M60-2Q. It will not exceed 64 characters in length (including the NUL terminator). See nvmlConstants::NVML_DEVICE_NAME_BUFFER_SIZE.
@@ -11854,7 +11854,7 @@ unsafe extern "C" {
         size: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the GPU Instance Profile ID for the given vGPU type ID.
     ///
     /// The API will return a valid GPU Instance Profile ID for the MIG capable vGPU types, else INVALID_GPU_INSTANCE_PROFILE_ID is returned.
@@ -11870,7 +11870,7 @@ unsafe extern "C" {
         gpuInstanceProfileId: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the device ID of a vGPU type.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11886,7 +11886,7 @@ unsafe extern "C" {
         subsystemID: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the vGPU framebuffer size in bytes.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11900,7 +11900,7 @@ unsafe extern "C" {
         fbSize: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve count of vGPU’s supported display heads.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11914,7 +11914,7 @@ unsafe extern "C" {
         numDisplayHeads: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve vGPU display head’s maximum supported resolution.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11932,7 +11932,7 @@ unsafe extern "C" {
         ydim: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve license requirements for a vGPU type.
     ///
     /// The license type and version required to run the specified vGPU type is returned as an alphanumeric string, in the form “&lt;license name>,&lt;version>”, for example “GRID-Virtual-PC,2.0”. If a vGPU is runnable with\* more than one type of license, the licenses are delimited by a semicolon, for example “GRID-Virtual-PC,2.0;GRID-Virtual-WS,2.0;GRID-Virtual-WS-Ext,2.0”.
@@ -11952,7 +11952,7 @@ unsafe extern "C" {
         size: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the static frame rate limit value of the vGPU type.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11966,7 +11966,7 @@ unsafe extern "C" {
         frameRateLimit: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the maximum number of vGPU instances creatable on a device for given vGPU type.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11982,7 +11982,7 @@ unsafe extern "C" {
         vgpuInstanceCount: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the maximum number of vGPU instances supported per VM for given vGPU type.
     ///
     /// For Kepler or newer fully supported devices.
@@ -11996,7 +11996,7 @@ unsafe extern "C" {
         vgpuInstanceCountPerVm: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the BAR1 info for given vGPU type.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -12010,7 +12010,7 @@ unsafe extern "C" {
         bar1Info: *mut nvmlVgpuTypeBar1Info_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the active vGPU instances on a device.
     ///
     /// An array of active vGPU instances is returned in the caller-supplied buffer pointed at by `vgpuInstances`. The array element count is passed in `vgpuCount`, and `vgpuCount` is used to return the number of vGPU instances written to the buffer.
@@ -12030,7 +12030,7 @@ unsafe extern "C" {
         vgpuInstances: *mut nvmlVgpuInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the VM ID associated with a vGPU instance.
     ///
     /// The VM ID is returned as a string, not exceeding 80 characters in length (including the NUL terminator). See nvmlConstants::NVML_DEVICE_UUID_BUFFER_SIZE.
@@ -12052,7 +12052,7 @@ unsafe extern "C" {
         vmIdType: *mut nvmlVgpuVmIdType_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the UUID of a vGPU instance.
     ///
     /// The UUID is a globally unique identifier associated with the vGPU, and is returned as a 5-part hexadecimal string, not exceeding 80 characters in length (including the NULL terminator). See nvmlConstants::NVML_DEVICE_UUID_BUFFER_SIZE.
@@ -12070,7 +12070,7 @@ unsafe extern "C" {
         size: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the NVIDIA driver version installed in the VM associated with a vGPU.
     ///
     /// The version is returned as an alphanumeric string in the caller-supplied buffer `version`. The length of the version string will not exceed 80 characters in length (including the NUL terminator). See nvmlConstants::NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE.
@@ -12090,7 +12090,7 @@ unsafe extern "C" {
         length: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the framebuffer usage in bytes.
     ///
     /// Framebuffer usage is the amont of vGPU framebuffer memory that is currently in use by the VM.
@@ -12106,7 +12106,7 @@ unsafe extern "C" {
         fbUsage: *mut ::core::ffi::c_ulonglong,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000037):   Use [`nvmlVgpuInstanceGetLicenseInfo_v2`].
     ///
     /// Retrieve the current licensing state of the vGPU instance.
@@ -12124,7 +12124,7 @@ unsafe extern "C" {
         licensed: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the vGPU type of a vGPU instance.
     ///
     /// Returns the vGPU type ID of vgpu assigned to the vGPU instance.
@@ -12140,7 +12140,7 @@ unsafe extern "C" {
         vgpuTypeId: *mut nvmlVgpuTypeId_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the frame rate limit set for the vGPU instance.
     ///
     /// Returns the value of the frame rate limit set for the vGPU instance
@@ -12156,7 +12156,7 @@ unsafe extern "C" {
         frameRateLimit: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the current ECC mode of vGPU instance.
     ///
     /// # Parameters
@@ -12168,7 +12168,7 @@ unsafe extern "C" {
         eccMode: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the encoder capacity of a vGPU instance, as a percentage of maximum encoder capacity with valid values in the range 0-100.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -12182,7 +12182,7 @@ unsafe extern "C" {
         encoderCapacity: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set the encoder capacity of a vGPU instance, as a percentage of maximum encoder capacity with valid values in the range 0-100.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -12196,7 +12196,7 @@ unsafe extern "C" {
         encoderCapacity: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the current encoder statistics of a vGPU Instance.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -12214,7 +12214,7 @@ unsafe extern "C" {
         averageLatency: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves information about all active encoder sessions on a vGPU Instance.
     ///
     /// An array of active encoder sessions is returned in the caller-supplied buffer pointed at by `sessionInfo`. The array element count is passed in `sessionCount`, and `sessionCount` is used to return the number of sessions written to the buffer.
@@ -12234,7 +12234,7 @@ unsafe extern "C" {
         sessionInfo: *mut nvmlEncoderSessionInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the active frame buffer capture sessions statistics of a vGPU Instance.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -12248,7 +12248,7 @@ unsafe extern "C" {
         fbcStats: *mut nvmlFBCStats_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves information about active frame buffer capture sessions on a vGPU Instance.
     ///
     /// An array of active FBC sessions is returned in the caller-supplied buffer pointed at by `sessionInfo`. The array element count is passed in `sessionCount`, and `sessionCount` is used to return the number of sessions written to the buffer.
@@ -12268,7 +12268,7 @@ unsafe extern "C" {
         sessionInfo: *mut nvmlFBCSessionInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the GPU Instance ID for the given vGPU Instance.
     ///
     /// The API will return a valid GPU Instance ID for MIG backed vGPU Instance, else INVALID_GPU_INSTANCE_ID is returned.
@@ -12284,7 +12284,7 @@ unsafe extern "C" {
         gpuInstanceId: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the PCI Id of the given vGPU Instance i.e.
     ///
     /// the PCI Id of the GPU as seen inside the VM.
@@ -12302,7 +12302,7 @@ unsafe extern "C" {
         length: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the requested capability for a given vGPU type.
     ///
     /// Refer to the `nvmlVgpuCapability_t` structure for the specific capabilities that can be queried. The return value in `capResult` should be treated as a boolean, with a non-zero value indicating that the capability is supported.
@@ -12320,7 +12320,7 @@ unsafe extern "C" {
         capResult: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the MDEV UUID of a vGPU instance.
     ///
     /// The MDEV UUID is a globally unique identifier of the mdev device assigned to the VM, and is returned as a 5-part hexadecimal string, not exceeding 80 characters in length (including the NULL terminator). MDEV UUID is displayed only on KVM platform. See nvmlConstants::NVML_DEVICE_UUID_BUFFER_SIZE.
@@ -12338,7 +12338,7 @@ unsafe extern "C" {
         size: ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the currently creatable vGPU types on a specific GPU Instance.
     ///
     /// The function returns an array of vGPU types that can be created for a specified GPU instance. This array is stored in a caller-supplied buffer, with the buffer’s element count passed through *pVgpus->vgpuCount*. The number of vGPU types written to the buffer is indicated by *pVgpus->vgpuCount*. If the buffer is too small to hold the vGPU type array, the function returns [`nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE`] and updates *pVgpus->vgpuCount* with the required element count.
@@ -12356,7 +12356,7 @@ unsafe extern "C" {
         pVgpus: *mut nvmlVgpuTypeIdInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the maximum number of vGPU instances per GPU instance for given vGPU type.
     ///
     /// # Parameters
@@ -12366,7 +12366,7 @@ unsafe extern "C" {
         pMaxInstance: *mut nvmlVgpuTypeMaxInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieve the active vGPU instances within a GPU instance.
     ///
     /// An array of active vGPU instances is returned in the caller-supplied buffer pointed at by *pVgpuInstanceInfo->vgpuInstances*. The array element count is passed in *pVgpuInstanceInfo->vgpuCount*, and *pVgpuInstanceInfo->vgpuCount* is used to return the number of vGPU instances written to the buffer.
@@ -12382,7 +12382,7 @@ unsafe extern "C" {
         pVgpuInstanceInfo: *mut nvmlActiveVgpuInstanceInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000038):   Will be deprecated in a future release. Use [`nvmlGpuInstanceSetVgpuSchedulerState_v2`] instead
     ///
     /// Set vGPU scheduler state for the given GPU instance
@@ -12402,7 +12402,7 @@ unsafe extern "C" {
         pScheduler: *mut nvmlVgpuSchedulerState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000039):   Will be deprecated in a future release. Use [`nvmlGpuInstanceGetVgpuSchedulerState_v2`] instead
     ///
     /// Returns the vGPU scheduler state for the given GPU instance. The information returned in `nvmlVgpuSchedulerStateInfo_t` is not relevant if the BEST EFFORT policy is set.
@@ -12418,7 +12418,7 @@ unsafe extern "C" {
         pSchedulerStateInfo: *mut nvmlVgpuSchedulerStateInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000040):   Will be deprecated in a future release. Use [`nvmlGpuInstanceGetVgpuSchedulerLog_v2`] instead
     ///
     /// Returns the vGPU scheduler logs for the given GPU instance. `pSchedulerLogInfo` points to a caller-allocated structure to contain the logs. The number of elements returned will never exceed [`NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`].
@@ -12436,7 +12436,7 @@ unsafe extern "C" {
         pSchedulerLogInfo: *mut nvmlVgpuSchedulerLogInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the creatable vGPU placement ID of the vGPU type within a GPU instance.
     ///
     /// For Blackwell GB20x or newer fully supported devices.
@@ -12452,7 +12452,7 @@ unsafe extern "C" {
         pCreatablePlacementInfo: *mut nvmlVgpuCreatablePlacementInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the vGPU heterogeneous mode for the GPU instance.
     ///
     /// When in heterogeneous mode, a vGPU can concurrently host timesliced vGPUs with differing framebuffer sizes.
@@ -12470,7 +12470,7 @@ unsafe extern "C" {
         pHeterogeneousMode: *mut nvmlVgpuHeterogeneousMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Enable or disable vGPU heterogeneous mode for the GPU instance.
     ///
     /// When in heterogeneous mode, a vGPU can concurrently host timesliced vGPUs with differing framebuffer sizes.
@@ -12486,7 +12486,7 @@ unsafe extern "C" {
         pHeterogeneousMode: *const nvmlVgpuHeterogeneousMode_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the vGPU scheduler state.
     ///
     /// The information returned in *[`nvmlVgpuSchedulerStateInfo_v2_t`]* is not relevant if the BEST EFFORT policy is set.
@@ -12502,7 +12502,7 @@ unsafe extern "C" {
         pSchedulerStateInfo: *mut nvmlVgpuSchedulerStateInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the vGPU scheduler state for the given GPU instance.
     ///
     /// The information returned in *[`nvmlVgpuSchedulerStateInfo_v2_t`]* is not relevant if the BEST EFFORT policy is set.
@@ -12518,7 +12518,7 @@ unsafe extern "C" {
         pSchedulerStateInfo: *mut nvmlVgpuSchedulerStateInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the vGPU Software scheduler logs for the device.
     ///
     /// `pSchedulerLogInfo` points to a caller-allocated structure to contain the logs. The number of elements returned will never exceed [`NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`].
@@ -12536,7 +12536,7 @@ unsafe extern "C" {
         pSchedulerLogInfo: *mut nvmlVgpuSchedulerLogInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the vGPU scheduler logs for the given GPU instance.
     ///
     /// `pSchedulerLogInfo` points to a caller-allocated structure to contain the logs. The number of elements returned will never exceed [`NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`].
@@ -12554,7 +12554,7 @@ unsafe extern "C" {
         pSchedulerLogInfo: *mut nvmlVgpuSchedulerLogInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Sets the vGPU scheduler state.
     ///
     /// For Pascal or newer fully supported devices.
@@ -12570,7 +12570,7 @@ unsafe extern "C" {
         pSchedulerState: *mut nvmlVgpuSchedulerState_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set vGPU scheduler state for the given GPU instance.
     ///
     /// For Blackwell GB20x or newer fully supported devices.
@@ -12743,7 +12743,7 @@ impl Default for nvmlVgpuPgpuCompatibility_st {
 }
 /// vGPU-pGPU compatibility structure.
 pub type nvmlVgpuPgpuCompatibility_t = nvmlVgpuPgpuCompatibility_st;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns vGPU metadata structure for a running vGPU.
     ///
     /// The structure contains information about the vGPU and its associated VM such as the currently installed NVIDIA guest driver version, together with host driver version and an opaque data section containing internal state.
@@ -12765,7 +12765,7 @@ unsafe extern "C" {
         bufferSize: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns a vGPU metadata structure for the physical GPU indicated by `device`.
     ///
     /// The structure contains information about the GPU and the currently installed NVIDIA host driver version that’s controlling it, together with an opaque data section containing internal state.
@@ -12783,7 +12783,7 @@ unsafe extern "C" {
         bufferSize: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Takes a vGPU instance metadata structure read from [`nvmlVgpuInstanceGetMetadata`], and a vGPU metadata structure for a physical GPU read from [`nvmlDeviceGetVgpuMetadata`], and returns compatibility information of the vGPU instance and the physical GPU.
     ///
     /// The caller passes in a buffer via `compatibilityInfo`, into which a compatibility information structure is written. The structure defines the states in which the vGPU / VM may be booted on the physical GPU. If the vGPU / VM compatibility with the physical GPU is limited, a limit code indicates the factor limiting compatability. (see [nvmlVgpuPgpuCompatibilityLimitCode_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuMigration.html#group__nvmlvgpumigration_1gaec041a4dadb43447ef886d7f4f9e5abc) for details).
@@ -12801,7 +12801,7 @@ unsafe extern "C" {
         compatibilityInfo: *mut nvmlVgpuPgpuCompatibility_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the properties of the physical GPU indicated by the device in an ascii-encoded string format.
     ///
     /// The caller passes in a buffer via `pgpuMetadata`, with the size of the buffer in `bufferSize`. If the string is too large to fit in the supplied buffer, the function returns [`nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE`] with the size needed in `bufferSize`.
@@ -12817,7 +12817,7 @@ unsafe extern "C" {
         bufferSize: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000041):   Will be deprecated in a future release. Use [`nvmlDeviceGetVgpuSchedulerLog_v2`] instead
     ///
     /// Returns the vGPU Software scheduler logs. `pSchedulerLog` points to a caller-allocated structure to contain the logs. The number of elements returned will never exceed [`NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`].
@@ -12835,7 +12835,7 @@ unsafe extern "C" {
         pSchedulerLog: *mut nvmlVgpuSchedulerLog_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000042):   Will be deprecated in a future release. Use [`nvmlDeviceGetVgpuSchedulerState_v2`] instead
     ///
     /// Returns the vGPU scheduler state. The information returned in *[nvmlVgpuSchedulerGetState_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlVgpuSchedulerGetState__t.html#structnvmlvgpuschedulergetstate__t)* is not relevant if the BEST EFFORT policy is set.
@@ -12851,7 +12851,7 @@ unsafe extern "C" {
         pSchedulerState: *mut nvmlVgpuSchedulerGetState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000043):   Will be deprecated in a future release. Use [`nvmlDeviceSetVgpuSchedulerState_v2`] instead
     ///
     /// Sets the vGPU scheduler state.
@@ -12869,7 +12869,7 @@ unsafe extern "C" {
         pSchedulerState: *mut nvmlVgpuSchedulerSetState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Returns the vGPU scheduler capabilities.
     ///
     /// The list of supported vGPU schedulers returned in *[nvmlVgpuSchedulerCapabilities_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlVgpuSchedulerCapabilities__t.html#structnvmlvgpuschedulercapabilities__t)* is from the NVML_VGPU_SCHEDULER_POLICY_\*. This list enumerates the supported scheduler policies if the engine is Graphics type. The other values in *[nvmlVgpuSchedulerCapabilities_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlVgpuSchedulerCapabilities__t.html#structnvmlvgpuschedulercapabilities__t)* are also applicable if the engine is Graphics type. For other engine types, it is BEST EFFORT policy. If ARR is supported and enabled, scheduling frequency and averaging factor are applicable else timeSlice is applicable.
@@ -12885,7 +12885,7 @@ unsafe extern "C" {
         pCapabilities: *mut nvmlVgpuSchedulerCapabilities_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the ranges of supported vGPU versions.
     ///
     /// This function gets the linear range of supported vGPU versions that is preset for the NVIDIA vGPU Manager and the range set by an administrator. If the preset range has not been overridden by [`nvmlSetVgpuVersion`], both ranges are the same.
@@ -12904,7 +12904,7 @@ unsafe extern "C" {
         current: *mut nvmlVgpuVersion_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Override the preset range of vGPU versions supported by the NVIDIA vGPU Manager with a range set by an administrator.
     ///
     /// This function configures the NVIDIA vGPU Manager with a range of supported vGPU versions set by an administrator. This range must be a subset of the preset range that the NVIDIA vGPU Manager supports. The custom range set by an administrator takes precedence over the preset range and is advertised to the guest VM for negotiating the vGPU version. See [`nvmlGetVgpuVersion`] for details of how to query the preset range of versions supported.
@@ -12918,7 +12918,7 @@ unsafe extern "C" {
     /// - `vgpuVersion`: Pointer to a caller-supplied range of supported vGPU versions.
     pub fn nvmlSetVgpuVersion(vgpuVersion: *mut nvmlVgpuVersion_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves current utilization for vGPUs on a physical GPU (device).
     ///
     /// For Kepler or newer fully supported devices.
@@ -12946,7 +12946,7 @@ unsafe extern "C" {
         utilizationSamples: *mut nvmlVgpuInstanceUtilizationSample_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves recent utilization for vGPU instances running on a physical GPU (device).
     ///
     /// For Kepler or newer fully supported devices.
@@ -12968,7 +12968,7 @@ unsafe extern "C" {
         vgpuUtilInfo: *mut nvmlVgpuInstancesUtilizationInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves current utilization for processes running on vGPUs on a physical GPU (device).
     ///
     /// For Maxwell or newer fully supported devices.
@@ -12994,7 +12994,7 @@ unsafe extern "C" {
         utilizationSamples: *mut nvmlVgpuProcessUtilizationSample_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves recent utilization for processes running on vGPU instances on a physical GPU (device).
     ///
     /// For Maxwell or newer fully supported devices.
@@ -13016,7 +13016,7 @@ unsafe extern "C" {
         vgpuProcUtilInfo: *mut nvmlVgpuProcessesUtilizationInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries the state of per process accounting mode on vGPU.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -13030,7 +13030,7 @@ unsafe extern "C" {
         mode: *mut nvmlEnableState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries list of processes running on vGPU that can be queried for accounting stats.
     ///
     /// The list of processes returned can be in running or terminated state.
@@ -13056,7 +13056,7 @@ unsafe extern "C" {
         pids: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Queries process’s accounting stats.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -13076,7 +13076,7 @@ unsafe extern "C" {
         stats: *mut nvmlAccountingStats_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Clears accounting information of the vGPU instance that have already terminated.
     ///
     /// For Maxwell or newer fully supported devices. Requires root/admin permissions.
@@ -13088,7 +13088,7 @@ unsafe extern "C" {
         vgpuInstance: nvmlVgpuInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Query the license information of the vGPU instance.
     ///
     /// For Maxwell or newer fully supported devices.
@@ -13122,7 +13122,7 @@ impl Default for nvmlExcludedDeviceInfo_st {
 }
 /// Excluded GPU device information.
 pub type nvmlExcludedDeviceInfo_t = nvmlExcludedDeviceInfo_st;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the number of excluded GPU devices in the system.
     ///
     /// For all products.
@@ -13134,7 +13134,7 @@ unsafe extern "C" {
         deviceCount: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Acquire the device information for an excluded GPU device, based on its index.
     ///
     /// For all products.
@@ -13192,7 +13192,7 @@ impl Default for nvmlPRMTLV_v1_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Read or write a GPU PRM register.
     ///
     /// The input is assumed to be in TLV format in network byte order.
@@ -13326,7 +13326,7 @@ impl Default for nvmlPRMCounterList_v1_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Read a list of GPU PRM Counters.
     ///
     /// For Blackwell or newer fully supported devices.
@@ -13654,7 +13654,7 @@ pub struct nvmlComputeInstance_st {
 }
 /// Opaque MIG compute-instance handle used by the compute-instance management APIs.
 pub type nvmlComputeInstance_t = *mut nvmlComputeInstance_st;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set MIG mode for the device.
     ///
     /// For Ampere or newer fully supported devices. Requires root user.
@@ -13678,7 +13678,7 @@ unsafe extern "C" {
         activationStatus: *mut nvmlReturn_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get MIG mode for the device.
     ///
     /// For Ampere or newer fully supported devices.
@@ -13696,7 +13696,7 @@ unsafe extern "C" {
         pendingMode: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instance profile information.
     ///
     /// Information provided by this API is immutable throughout the lifetime of a MIG mode.
@@ -13714,7 +13714,7 @@ unsafe extern "C" {
         info: *mut nvmlGpuInstanceProfileInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Versioned wrapper around [`nvmlDeviceGetGpuInstanceProfileInfo`] that accepts a versioned [nvmlGpuInstanceProfileInfo_v2_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlGpuInstanceProfileInfo__v2__t.html#structnvmlgpuinstanceprofileinfo__v2__t) or later output structure.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only.
@@ -13730,7 +13730,7 @@ unsafe extern "C" {
         info: *mut nvmlGpuInstanceProfileInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// GPU instance profile query function that accepts profile ID, instead of profile name.
     ///
     /// It accepts a versioned [nvmlGpuInstanceProfileInfo_v2_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlGpuInstanceProfileInfo__v2__t.html#structnvmlgpuinstanceprofileinfo__v2__t) or later output structure.
@@ -13748,7 +13748,7 @@ unsafe extern "C" {
         info: *mut nvmlGpuInstanceProfileInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instance placements.
     ///
     /// A placement represents the location of a GPU instance within a device. This API only returns all the possible placements for the given profile regardless of whether MIG is enabled or not. A created GPU instance occupies memory slices described by its placement. Creation of new GPU instance will fail if there is overlap with the already occupied memory slices.
@@ -13768,7 +13768,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instance profile capacity.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13784,7 +13784,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Create GPU instance.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13802,7 +13802,7 @@ unsafe extern "C" {
         gpuInstance: *mut nvmlGpuInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Create GPU instance with the specified placement.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13822,7 +13822,7 @@ unsafe extern "C" {
         gpuInstance: *mut nvmlGpuInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Destroy GPU instance.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13832,7 +13832,7 @@ unsafe extern "C" {
     /// - `gpuInstance`: The GPU instance handle
     pub fn nvmlGpuInstanceDestroy(gpuInstance: nvmlGpuInstance_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instances for given profile ID.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13850,7 +13850,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instances for given instance ID.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13866,7 +13866,7 @@ unsafe extern "C" {
         gpuInstance: *mut nvmlGpuInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instance information.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only.
@@ -13880,7 +13880,7 @@ unsafe extern "C" {
         info: *mut nvmlGpuInstanceInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instance profile information.
     ///
     /// Information provided by this API is immutable throughout the lifetime of a MIG mode.
@@ -13900,7 +13900,7 @@ unsafe extern "C" {
         info: *mut nvmlComputeInstanceProfileInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Versioned wrapper around [`nvmlGpuInstanceGetComputeInstanceProfileInfo`] that accepts a versioned [nvmlComputeInstanceProfileInfo_v2_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlComputeInstanceProfileInfo__v2__t.html#structnvmlcomputeinstanceprofileinfo__v2__t) or later output structure.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only.
@@ -13918,7 +13918,7 @@ unsafe extern "C" {
         info: *mut nvmlComputeInstanceProfileInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instance profile capacity.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13934,7 +13934,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instance placements.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13954,7 +13954,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Create compute instance.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13972,7 +13972,7 @@ unsafe extern "C" {
         computeInstance: *mut nvmlComputeInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Create compute instance with the specified placement.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -13992,7 +13992,7 @@ unsafe extern "C" {
         computeInstance: *mut nvmlComputeInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Destroy compute instance.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -14004,7 +14004,7 @@ unsafe extern "C" {
         computeInstance: nvmlComputeInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instances for given profile ID.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -14022,7 +14022,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instance for given instance ID.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only. Requires privileged user.
@@ -14038,7 +14038,7 @@ unsafe extern "C" {
         computeInstance: *mut nvmlComputeInstance_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instance information.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only.
@@ -14052,7 +14052,7 @@ unsafe extern "C" {
         info: *mut nvmlComputeInstanceInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Test if the given handle refers to a MIG device.
     ///
     /// A MIG device handle is an NVML abstraction which maps to a MIG compute instance. These overloaded references can be used (with some restrictions) interchangeably with a GPU device handle to execute queries at a per-compute instance granularity.
@@ -14068,7 +14068,7 @@ unsafe extern "C" {
         isMigDevice: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPU instance ID for the given MIG device handle.
     ///
     /// GPU instance IDs are unique per device and remain valid until the GPU instance is destroyed.
@@ -14084,7 +14084,7 @@ unsafe extern "C" {
         id: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get compute instance ID for the given MIG device handle.
     ///
     /// Compute instance IDs are unique per GPU instance and remain valid until the compute instance is destroyed.
@@ -14100,7 +14100,7 @@ unsafe extern "C" {
         id: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the maximum number of MIG devices that can exist under a given parent NVML device.
     ///
     /// Returns zero if MIG is not supported or enabled.
@@ -14116,7 +14116,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get MIG device handle for the given index under its parent NVML device.
     ///
     /// If the compute instance is destroyed either explicitly or by destroying, resetting or unbinding the parent GPU instance or the GPU device itself the MIG device handle would remain invalid and must be requested again using this API. Handles may be reused and their properties can change in the process.
@@ -14134,7 +14134,7 @@ unsafe extern "C" {
         migDevice: *mut nvmlDevice_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get parent device handle from a MIG device handle.
     ///
     /// For Ampere or newer fully supported devices. Supported on Linux only.
@@ -15147,7 +15147,7 @@ pub struct nvmlGpmSupport_t {
     /// OUT: Indicates device support.
     pub isSupportedDevice: ::core::ffi::c_uint,
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Calculate GPM metrics from two samples.
     ///
     /// For Hopper or newer fully supported devices.
@@ -15159,7 +15159,7 @@ unsafe extern "C" {
     /// - `metricsGet`: IN/OUT: populated [`nvmlGpmMetricsGet_t`] struct
     pub fn nvmlGpmMetricsGet(metricsGet: *mut nvmlGpmMetricsGet_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Free an allocated sample buffer that was allocated with [`nvmlGpmSampleAlloc`]
     ///
     /// For Hopper or newer fully supported devices.
@@ -15169,7 +15169,7 @@ unsafe extern "C" {
     /// - `gpmSample`: Sample to free
     pub fn nvmlGpmSampleFree(gpmSample: nvmlGpmSample_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Allocate a sample buffer to be used with NVML GPM .
     ///
     /// You will need to allocate at least two of these buffers to use with the NVML GPM feature
@@ -15181,7 +15181,7 @@ unsafe extern "C" {
     /// - `gpmSample`: Where  the allocated sample will be stored
     pub fn nvmlGpmSampleAlloc(gpmSample: *mut nvmlGpmSample_t) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Read a sample of GPM metrics into the provided `gpmSample` buffer.
     ///
     /// After two samples are gathered, you can call nvmlGpmMetricGet on those samples to retrieve metrics
@@ -15197,7 +15197,7 @@ unsafe extern "C" {
         gpmSample: nvmlGpmSample_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Read a sample of GPM metrics into the provided `gpmSample` buffer for a MIG GPU Instance.
     ///
     /// After two samples are gathered, you can call nvmlGpmMetricGet on those samples to retrieve metrics
@@ -15215,7 +15215,7 @@ unsafe extern "C" {
         gpmSample: nvmlGpmSample_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Indicate whether the supplied device supports GPM.
     ///
     /// For Hopper or newer fully supported devices.
@@ -15229,7 +15229,7 @@ unsafe extern "C" {
         gpmSupport: *mut nvmlGpmSupport_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get GPM stream state.
     ///
     /// For Hopper or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -15243,7 +15243,7 @@ unsafe extern "C" {
         state: *mut ::core::ffi::c_uint,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set GPM stream state.
     ///
     /// For Hopper or newer fully supported devices. Supported on Linux, Windows TCC.
@@ -15268,7 +15268,7 @@ pub struct nvmlDeviceCapabilities_v1_t {
 }
 /// Device capabilities
 pub type nvmlDeviceCapabilities_t = nvmlDeviceCapabilities_v1_t;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get device capabilities
     ///
     /// See [`nvmlDeviceCapabilities_v1_t`] for more information on the struct.
@@ -15465,7 +15465,7 @@ impl Default for nvmlWorkloadPowerProfileUpdateProfiles_v1_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Performance Profiles Information.
     ///
     /// For Blackwell or newer fully supported devices. See [`nvmlWorkloadPowerProfileProfilesInfo_v1_t`] for more information on the struct. The mask `perfProfilesMask` is bitmask of all supported mode indices where the mode is supported if the index is 1. Each supported mode will have a corresponding entry in the `perfProfile` array which will contain the `profileId`, the `priority` of this mode, where the lower the value, the higher the priority, and a `conflictingMask`, where each bit set in the mask corresponds to a different profile which cannot be used in conjunction with the given profile.
@@ -15479,7 +15479,7 @@ unsafe extern "C" {
         profilesInfo: *mut nvmlWorkloadPowerProfileProfilesInfo_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get Current Performance Profiles.
     ///
     /// For Blackwell or newer fully supported devices. See [`nvmlWorkloadPowerProfileCurrentProfiles_v1_t`] for more information on the struct. This API returns a stuct which contains the current `perfProfilesMask`, `requestedProfilesMask` and `enforcedProfilesMask`. Each bit set in each bitmasks indicates the profile is supported, currently requested or currently engaged, respectively.
@@ -15493,7 +15493,7 @@ unsafe extern "C" {
         currentProfiles: *mut nvmlWorkloadPowerProfileCurrentProfiles_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000044):   Use [`nvmlDeviceWorkloadPowerProfileUpdateProfiles_v1`] instead Set Requested Performance Profiles
     ///
     /// For Blackwell or newer fully supported devices. See [`nvmlWorkloadPowerProfileRequestedProfiles_v1_t`] for more information on the struct. Request one or more performance profiles be activated using the input bitmask `requestedProfilesMask`, where each bit set corresponds to a supported bit from the `perfProfilesMask`. These profiles will be added to existing list of currently requested profiles. Requires root/admin permissions.
@@ -15507,7 +15507,7 @@ unsafe extern "C" {
         requestedProfiles: *mut nvmlWorkloadPowerProfileRequestedProfiles_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// [Deprecated:](https://docs.nvidia.com/deploy/nvml-api/latest/api/deprecated.html#deprecated_1_deprecated000045):   Use [`nvmlDeviceWorkloadPowerProfileUpdateProfiles_v1`] instead Clear Requested Performance Profiles
     ///
     /// For Blackwell or newer fully supported devices. See [`nvmlWorkloadPowerProfileRequestedProfiles_v1_t`] for more information on the struct. Clear one or more performance profiles be using the input bitmask `requestedProfilesMask`, where each bit set corresponds to a supported bit from the `perfProfilesMask`. These profiles will be removed from the existing list of currently requested profiles. Requires root/admin permissions.
@@ -15521,7 +15521,7 @@ unsafe extern "C" {
         requestedProfiles: *mut nvmlWorkloadPowerProfileRequestedProfiles_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Update Requested Performance Profiles.
     ///
     /// For Blackwell or newer fully supported devices. See [`nvmlWorkloadPowerProfileUpdateProfiles_v1_t`] for more information on the struct. Update the requested performance profiles using the input bitmask `updateProfilesMask`, where each bit set corresponds to a supported bit from the `perfProfilesMask`. The `operation` parameter specifies the operation to perform, see [`nvmlPowerProfileOperation_t`] for more information. Requires root/admin permissions or access to the NVIDIA WPPS capability.
@@ -15570,7 +15570,7 @@ impl Default for nvmlPowerSmoothingState_v1_t {
 }
 /// Power Smoothing Structure for Feature Enablement
 pub type nvmlPowerSmoothingState_t = nvmlPowerSmoothingState_v1_t;
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Activiate a specific preset profile for datacenter power smoothing.
     ///
     /// The API only sets the active preset profile based on the input profileId, and ignores the other parameters of the structure. Requires root/admin permissions.
@@ -15586,7 +15586,7 @@ unsafe extern "C" {
         profile: *mut nvmlPowerSmoothingProfile_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Update the value of a specific profile parameter contained within [`nvmlPowerSmoothingProfile_v1_t`].
     ///
     /// Requires root/admin permissions.
@@ -15604,7 +15604,7 @@ unsafe extern "C" {
         profile: *mut nvmlPowerSmoothingProfile_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Enable or disable the Power Smoothing Feature.
     ///
     /// Requires root/admin permissions.
@@ -15622,7 +15622,7 @@ unsafe extern "C" {
         state: *mut nvmlPowerSmoothingState_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Retrieves the counts of SRAM unique uncorrected ECC errors.
     ///
     /// For Blackwell or newer fully supported devices.
@@ -15648,7 +15648,7 @@ unsafe extern "C" {
         errorCounts: *mut nvmlEccSramUniqueUncorrectedErrorCounts_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get the status of row remapper.
     ///
     /// For Ampere or newer fully supported devices.
@@ -15662,7 +15662,7 @@ unsafe extern "C" {
         info: *mut nvmlRemappedRowsInfo_v2_t,
     ) -> nvmlReturn_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Set Read-only user shared data (RUSD) settings for GPU.
     ///
     /// Requires root/admin permissions.
@@ -15698,7 +15698,7 @@ pub struct nvmlEccBankRemapperStatus_v1_t {
     /// Bank remapper histogram.
     pub histogram: nvmlEccBankRemapperHistogram_v1_t,
 }
-unsafe extern "C" {
+singe_loader::functions! { LIBRARY;
     /// Get bank remapper status.
     ///
     /// RUBIN_OR_NEWER%.

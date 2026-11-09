@@ -307,6 +307,7 @@ impl SdpaForwardOperation {
         {
             return Err(Error::SdpaStatsDataType { actual });
         }
+
         let mut descriptor =
             BackendDescriptor::create(BackendDescriptorType::OperationSdpaForward)?;
         descriptor.set_attribute_descriptor(
@@ -341,6 +342,7 @@ impl SdpaForwardOperation {
                 )?,
             SdpaForwardSoftmax::Default { stats: None } => {}
         }
+
         if let Some(lengths) = config.sequence.query {
             let attribute = match lengths {
                 SequenceLength::PerBatch(_) => BackendAttributeName::OperationSdpaFwdSeqLenQDesc,
@@ -350,6 +352,7 @@ impl SdpaForwardOperation {
             };
             descriptor.set_attribute_descriptor(attribute, lengths.tensor().descriptor())?;
         }
+
         if let Some(lengths) = config.sequence.key_value {
             let attribute = match lengths {
                 SequenceLength::PerBatch(_) => BackendAttributeName::OperationSdpaFwdSeqLenKvDesc,
@@ -359,24 +362,28 @@ impl SdpaForwardOperation {
             };
             descriptor.set_attribute_descriptor(attribute, lengths.tensor().descriptor())?;
         }
+
         if let Some(page_table_k) = config.page_table_k {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSdpaFwdPageTableKDesc,
                 page_table_k.descriptor(),
             )?;
         }
+
         if let Some(page_table_v) = config.page_table_v {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSdpaFwdPageTableVDesc,
                 page_table_v.descriptor(),
             )?;
         }
+
         if let Some(block_mask) = config.block_mask {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSdpaFwdBlockMaskDesc,
                 block_mask.descriptor(),
             )?;
         }
+
         if let Some(subgraph) = config.subgraph {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSdpaFwdSubgraph,
@@ -391,6 +398,7 @@ impl SdpaForwardOperation {
                 subgraph.output_id.as_i64(),
             )?;
         }
+
         if let Some(dropout) = config.dropout {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSdpaFwdDropoutSeedDesc,
@@ -406,14 +414,17 @@ impl SdpaForwardOperation {
                     dump.descriptor(),
                 )?;
             }
+
             descriptor.set_attribute_f32(
                 BackendAttributeName::OperationSdpaFwdDropoutProbability,
                 dropout.probability,
             )?;
         }
+
         if config.unfuse_fma {
             descriptor.set_attribute_bool(BackendAttributeName::OperationSdpaFwdUnfuseFma, true)?;
         }
+
         if let Some(quantization) = config.quantization {
             for (tensor, attribute) in [
                 (
@@ -454,6 +465,7 @@ impl SdpaForwardOperation {
                 }
             }
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

@@ -38,7 +38,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensors, invalid vector metadata, unequal logical element counts, or incompatible encodings in logical mode. Inferred output dimensions must be positive and their channels-last strides must be representable.
+    /// Returns an error for unknown tensors, invalid vector metadata, unequal logical element counts, or incompatible encodings in logical mode.
+    /// Inferred output dimensions must be positive and their channels-last strides must be representable.
     pub fn reshape(
         &mut self,
         input: TensorId,
@@ -51,6 +52,7 @@ impl Graph {
         if output_dimensions.is_empty() {
             output_dimensions.push(1);
         }
+
         let output_shape = Shape::channels_last(output_dimensions)?;
         let output_spec = output.into_spec(
             self.config.data_type_policy,

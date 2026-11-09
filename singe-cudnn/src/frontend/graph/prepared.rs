@@ -129,6 +129,7 @@ impl PreparedGraph {
                 }
             }
         }
+
         if !queried && let Some(error) = last_error {
             return Err(error);
         }
@@ -143,7 +144,8 @@ impl PreparedGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if target properties or attention planning overrides cannot be resolved, required native engine construction fails, or heuristic and enumeration fallback cannot produce configurations with queryable metadata. Filtering all successfully queried configurations yields an empty result.
+    /// Returns an error if target properties or attention planning overrides cannot be resolved, required native engine construction fails, or heuristic and enumeration fallback cannot produce configurations with queryable metadata.
+    /// Filtering all successfully queried configurations yields an empty result.
     pub fn engine_configs(
         &self,
         context: Option<&Context>,
@@ -226,6 +228,7 @@ impl PreparedGraph {
                 frontend_workspace_bytes,
             );
         }
+
         let queried =
             self.query_heuristics(context, compile_config, HeuristicQueryPolicy::EvaluateAll)?;
         let engine_configs = queried.engine_configs;
@@ -267,6 +270,7 @@ impl PreparedGraph {
                 Err(error) => last_error = Some(error),
             }
         }
+
         if !explicit_configs.is_empty() {
             match Self::prepare_engine_configs(
                 explicit_configs,
@@ -331,7 +335,8 @@ impl PreparedGraph {
     /// Copies existing engine choices and resource targets onto this prepared operation graph.
     /// Accepts owned or shared configurations, including snapshots returned by native execution plans.
     /// Compile controls override each source configuration's targets; otherwise those targets are retained.
-    /// An unset SM target inherits the graph default. Explicit choices bypass attention heuristic overrides.
+    /// An unset SM target inherits the graph default.
+    /// Explicit choices bypass attention heuristic overrides.
     /// All source configurations must finalize for the supplied target before candidate filters apply.
     /// Native construction and metadata-query failures from any source configuration propagate.
     ///
@@ -385,6 +390,7 @@ impl PreparedGraph {
         if engine_configs.is_empty() {
             return Err(Error::NoAvailableEngines);
         }
+
         let entries = PlanCandidates::create_entries(engine_configs);
 
         let graph_name = self.recipe.config.name.clone();

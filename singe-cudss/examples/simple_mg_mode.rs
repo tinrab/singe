@@ -65,6 +65,7 @@ fn main() -> Result<()> {
         let min_memory: i64 = unsafe { data.get_raw(DataParameter::HybridDeviceMemoryMin) }?;
         println!("device {device}: hybrid min device memory = {min_memory} bytes");
     }
+
     Device::new(devices[0]).set_current()?;
 
     for stream in &streams {

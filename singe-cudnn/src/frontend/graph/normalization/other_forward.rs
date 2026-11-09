@@ -137,7 +137,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions. Also returns an error if epsilon is not a logical scalar.
+    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions.
+    /// Also returns an error if epsilon is not a logical scalar.
     pub fn instance_normalization_into(
         &mut self,
         inputs: InstanceNormalizationInputs,
@@ -159,7 +160,9 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions. Also returns an error if epsilon is not a logical scalar. Inferred output or statistic layouts can also fail if their strides are unrepresentable.
+    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions.
+    /// Also returns an error if epsilon is not a logical scalar.
+    /// Inferred output or statistic layouts can also fail if their strides are unrepresentable.
     pub fn instance_normalization(
         &mut self,
         inputs: InstanceNormalizationInputs,
@@ -206,6 +209,7 @@ impl Graph {
         if let Some(bias) = inputs.bias {
             validate_normalization_broadcast_shape(input_shape, self.shape(bias)?)?;
         }
+
         if let Some(stats) = outputs.statistics.saved() {
             self.validate_tensors_dimensions(
                 [
@@ -225,7 +229,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions. Also returns an error if epsilon is not a logical scalar.
+    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions.
+    /// Also returns an error if epsilon is not a logical scalar.
     pub fn adaptive_layer_normalization_into(
         &mut self,
         inputs: AdaptiveLayerNormalizationInputs,
@@ -247,7 +252,9 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions. Also returns an error if epsilon is not a logical scalar. Inferred output or statistic layouts can also fail if their strides are unrepresentable.
+    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions.
+    /// Also returns an error if epsilon is not a logical scalar.
+    /// Inferred output or statistic layouts can also fail if their strides are unrepresentable.
     pub fn adaptive_layer_normalization(
         &mut self,
         inputs: AdaptiveLayerNormalizationInputs,

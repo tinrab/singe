@@ -49,9 +49,8 @@ macro_rules! gated_delta_rule_preprocess_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             beta_out: &mut impl DeviceOutput<$ty>,
@@ -94,16 +93,13 @@ macro_rules! gated_delta_rule_preprocess_g_f32_fn {
     ($name:ident, $ty:ty) => {
         /// Prepares Gated Delta Rule recurrent inputs and stores the gate in f32.
         ///
-        /// This is the mixed-output variant of [`gated_delta_rule_preprocess_f16`]
-        /// and [`gated_delta_rule_preprocess_bf16`] for recurrent paths that keep
-        /// `g = -exp(a_log) * softplus(a_in + dt_bias)` in f32.
+        /// This is the mixed-output variant of [`gated_delta_rule_preprocess_f16`] and [`gated_delta_rule_preprocess_bf16`] for recurrent paths that keep `g = -exp(a_log) * softplus(a_in + dt_bias)` in f32.
         ///
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             beta_out: &mut impl DeviceOutput<$ty>,
@@ -164,9 +160,8 @@ macro_rules! recurrent_gated_delta_rule_no_state_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -216,9 +211,8 @@ macro_rules! recurrent_gated_delta_rule_with_state_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -271,9 +265,8 @@ macro_rules! chunk_gated_delta_rule_no_state_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -328,9 +321,8 @@ macro_rules! chunk_gated_delta_rule_with_state_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -419,9 +411,8 @@ macro_rules! recurrent_gated_delta_rule_decode_with_state_fn {
         /// # Safety
         ///
         /// Input values must be valid when read, with preceding producers ordered before use.
-        /// Retain every allocation in the stream's context through completion on every
-        /// path and throughout captured replay. Output ranges must be exclusive,
-        /// mutually disjoint, and disjoint from readable input ranges.
+        /// Retain every allocation in the stream's context through completion on every path and throughout captured replay.
+        /// Output ranges must be exclusive, mutually disjoint, and disjoint from readable input ranges.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -642,6 +633,7 @@ fn validate_chunk_gated_delta_rule_no_state(
     if config.chunk_size == 0 {
         return Err(Error::InvalidLength);
     }
+
     let recurrent_config = chunk_as_recurrent_config(config);
     recurrent_params(recurrent_config)?;
     ensure_recurrent_lengths(

@@ -447,11 +447,11 @@ pub type cublasHandle_t = *mut cublasContext;
 pub type cublasLogCallback = ::core::option::Option<
     unsafe extern "C" fn(msg: *const ::core::ffi::c_char),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// --------------- CUBLAS Helper Functions  ----------------
     pub fn cublasCreate_v2(handle: *mut cublasHandle_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases hardware resources used by the cuBLAS library. This function is usually the last call with a particular handle to the cuBLAS library. Because [`cublasCreate_v2`] allocates some internal resources and the release of those resources by calling [`cublasDestroy_v2`] will implicitly call `cudaDeviceSynchronize()`, it is recommended to minimize the number of times these functions are called.
     ///
     /// # Return value
@@ -460,7 +460,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: the shut down succeeded.
     pub fn cublasDestroy_v2(handle: cublasHandle_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the version number of the cuBLAS library.
     ///
     /// # Return value
@@ -472,7 +472,7 @@ unsafe extern "C" {
         version: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the value of the requested property in memory pointed to by value. Refer to [`libraryPropertyType`] for supported types.
     ///
     /// # Return value
@@ -485,11 +485,11 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the encoded CUDA runtime version against which the cuBLAS library was built.
     pub fn cublasGetCudartVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the cuBLAS library workspace to a user-owned device buffer, which will be used to execute all subsequent calls to the cuBLAS library functions (on the currently set stream). If the cuBLAS library workspace is not set, all kernels will use the default workspace pool allocated during the cuBLAS context creation. In particular, this routine can be used to change the workspace between kernel launches. The workspace pointer has to be aligned to at least 256 bytes, otherwise [`cublasStatus_t::CUBLAS_STATUS_INVALID_VALUE`] error is returned. The [`cublasSetStream_v2`] function unconditionally resets the cuBLAS library workspace back to the default workspace pool. Calling this function, including with `workspaceSizeInBytes` equal to 0, will prevent the cuBLAS library from utilizing the default workspace. Too small value of `workspaceSizeInBytes` may cause some routines to fail with [`cublasStatus_t::CUBLAS_STATUS_ALLOC_FAILED`] error returned or cause large regressions in performance. Workspace size equal to or larger than 16KiB is enough to prevent [`cublasStatus_t::CUBLAS_STATUS_ALLOC_FAILED`] error, while a larger workspace can provide performance benefits for some routines.
     ///
     /// The table below shows the recommended size of user-provided workspace.
@@ -506,7 +506,7 @@ unsafe extern "C" {
         workspaceSizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the cuBLAS library stream, which will be used to execute all subsequent calls to the cuBLAS library functions. If the cuBLAS library stream is not set, all kernels use the `default` NULL stream. In particular, this routine can be used to change the stream between kernel launches and then to reset the cuBLAS library stream back to NULL. Additionally this function unconditionally resets the cuBLAS library workspace back to the default workspace pool (see [`cublasSetWorkspace_v2`]).
     ///
     /// # Return value
@@ -518,7 +518,7 @@ unsafe extern "C" {
         streamId: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function gets the cuBLAS library stream, which is being used to execute all calls to the cuBLAS library functions. If the cuBLAS library stream is not set, all kernels use the `default` NULL stream.
     ///
     /// # Return value
@@ -531,7 +531,7 @@ unsafe extern "C" {
         streamId: *mut cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the pointer mode used by the cuBLAS library. Please see the section on the [`cublasPointerMode_t`] type for more details.
     ///
     /// # Return value
@@ -544,7 +544,7 @@ unsafe extern "C" {
         mode: *mut cublasPointerMode_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the pointer mode used by the cuBLAS library. The `default` is for the values to be passed by reference on the host. Please see the section on the [`cublasPointerMode_t`] type for more details.
     ///
     /// # Return value
@@ -557,7 +557,7 @@ unsafe extern "C" {
         mode: cublasPointerMode_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the atomic mode of a specific cuBLAS context.
     ///
     /// The default atomics mode of default initialized [`cublasHandle_t`] object is [`cublasAtomicsMode_t::CUBLAS_ATOMICS_NOT_ALLOWED`]. Please see the section on the type for more details.
@@ -572,7 +572,7 @@ unsafe extern "C" {
         mode: *mut cublasAtomicsMode_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Some routines like [cublas&lt;t>symv()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-symv) and [cublas&lt;t>hemv()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-hemv) have an alternate implementation that use atomics to cumulate results. This implementation is generally significantly faster but can generate results that are not strictly identical from one run to the others. Mathematically, those different results are not significant but when debugging those differences can be prejudicial.
     ///
     /// This function allows or disallows the usage of atomics in the cuBLAS library for all routines which have an alternate implementation. When not explicitly specified in the documentation of any cuBLAS routine, it means that this routine does not have an alternate implementation that use atomics. When atomics mode is disabled, each cuBLAS routine should produce the same results from one run to the other when called with identical parameters on the same Hardware.
@@ -588,7 +588,7 @@ unsafe extern "C" {
         mode: cublasAtomicsMode_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the math mode used by the library routines.
     ///
     /// # Return value
@@ -601,7 +601,7 @@ unsafe extern "C" {
         mode: *mut cublasMath_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`cublasSetMathMode`] function enables you to choose the compute precision modes as defined by [`cublasMath_t`]. Users are allowed to set the compute precision mode as a logical combination of them (except the deprecated [`cublasMath_t::CUBLAS_TENSOR_OP_MATH`]). For example, `cublasSetMathMode(handle, CUBLAS_DEFAULT_MATH | CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION)`. Please note that the default math mode is [`cublasMath_t::CUBLAS_DEFAULT_MATH`].
     ///
     /// For matrix and compute precisions allowed for [`cublasGemmEx`] and [cublasLtMatmul()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltmatmul) APIs and their strided variants please refer to: [`cublasGemmEx`], [`cublasGemmBatchedEx`], [`cublasGemmStridedBatchedEx`], and [cublasLtMatmul()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublasltmatmul).
@@ -616,7 +616,7 @@ unsafe extern "C" {
         mode: cublasMath_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -629,7 +629,7 @@ unsafe extern "C" {
         smCountTarget: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`cublasSetSmCountTarget`] function allows overriding the number of multiprocessors available to the library during kernels execution.
     ///
     /// This option can be used to improve the library performance when cuBLAS routines are known to run concurrently with other work on different CUDA streams. For example, on an NVIDIA A100 GPU, which has 108 multiprocessors, when there is a concurrent kenrel running with grid size of 8, one can use [`cublasSetSmCountTarget`] with `smCountTarget` set to `100` to override the library heuristics to optimize for running on the remaining 100 multiprocessors.
@@ -648,7 +648,7 @@ unsafe extern "C" {
         smCountTarget: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -661,7 +661,7 @@ unsafe extern "C" {
         emulationStrategy: *mut cublasEmulationStrategy_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`cublasSetEmulationStrategy`] function enables you to select how the library should make use of [floating point emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation). For more details, please see [`cublasEmulationStrategy_t`].
     ///
     /// # Return value
@@ -674,7 +674,7 @@ unsafe extern "C" {
         emulationStrategy: cublasEmulationStrategy_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -687,7 +687,7 @@ unsafe extern "C" {
         mask: *mut cudaEmulationSpecialValuesSupport,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -700,7 +700,7 @@ unsafe extern "C" {
         mask: cudaEmulationSpecialValuesSupport,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -713,7 +713,7 @@ unsafe extern "C" {
         mantissaControl: *mut cudaEmulationMantissaControl,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -726,7 +726,7 @@ unsafe extern "C" {
         mantissaControl: cudaEmulationMantissaControl,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -739,7 +739,7 @@ unsafe extern "C" {
         maxMantissaBitCount: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -752,7 +752,7 @@ unsafe extern "C" {
         maxMantissaBitCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -765,7 +765,7 @@ unsafe extern "C" {
         mantissaBitOffset: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -778,7 +778,7 @@ unsafe extern "C" {
         mantissaBitOffset: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -791,7 +791,7 @@ unsafe extern "C" {
         mantissaBitCount: *mut *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value previously programmed to the library handle.
     ///
     /// # Return value
@@ -804,7 +804,7 @@ unsafe extern "C" {
         mantissaBitCount: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the string representation of a given status.
     ///
     /// # Return value
@@ -812,7 +812,7 @@ unsafe extern "C" {
     /// - `NULL-terminated string`: The string representation of the `status`.
     pub fn cublasGetStatusName(status: cublasStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the description string for a given status.
     ///
     /// # Return value
@@ -820,7 +820,7 @@ unsafe extern "C" {
     /// - `NULL-terminated string`: The description of the `status`.
     pub fn cublasGetStatusString(status: cublasStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures logging during runtime. Besides this type of configuration, it is possible to configure logging with special environment variables which will be checked by libcublas.
     ///
     /// # Parameters
@@ -840,7 +840,7 @@ unsafe extern "C" {
         logFileName: *const ::core::ffi::c_char,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function installs a custom user defined callback function via cublas C public API.
     ///
     /// # Parameters
@@ -852,7 +852,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: The operation completed successfully.
     pub fn cublasSetLoggerCallback(userCallback: cublasLogCallback) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves function pointer to previously installed custom user defined callback function via [`cublasSetLoggerCallback`] or zero otherwise.
     ///
     /// # Parameters
@@ -867,7 +867,7 @@ unsafe extern "C" {
         userCallback: *mut cublasLogCallback,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies `n` elements from a vector `x` in host memory space to a vector `y` in GPU memory space. Elements in both vectors are assumed to have a size of `elemSize` bytes. The storage spacing between consecutive elements is given by `incx` for the source vector `x` and by `incy` for the destination vector `y`.
@@ -888,7 +888,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies `n` elements from a vector `x` in host memory space to a vector `y` in GPU memory space. Elements in both vectors are assumed to have a size of `elemSize` bytes. The storage spacing between consecutive elements is given by `incx` for the source vector `x` and by `incy` for the destination vector `y`.
@@ -909,7 +909,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies `n` elements from a vector `x` in GPU memory space to a vector `y` in host memory space. Elements in both vectors are assumed to have a size of `elemSize` bytes. The storage spacing between consecutive elements is given by `incx` for the source vector and `incy` for the destination vector `y`.
@@ -930,7 +930,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies `n` elements from a vector `x` in GPU memory space to a vector `y` in host memory space. Elements in both vectors are assumed to have a size of `elemSize` bytes. The storage spacing between consecutive elements is given by `incx` for the source vector and `incy` for the destination vector `y`.
@@ -951,7 +951,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies a tile of `rows x cols` elements from a matrix `A` in host memory space to a matrix `B` in GPU memory space. It is assumed that each element requires storage of `elemSize` bytes and that both matrices are stored in column-major format, with the leading dimension of the source matrix `A` and destination matrix `B` given in `lda` and `ldb`, respectively. The leading dimension indicates the number of rows of the allocated matrix, even if only a submatrix of it is being used.
@@ -971,7 +971,7 @@ unsafe extern "C" {
         ldb: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies a tile of `rows x cols` elements from a matrix `A` in host memory space to a matrix `B` in GPU memory space. It is assumed that each element requires storage of `elemSize` bytes and that both matrices are stored in column-major format, with the leading dimension of the source matrix `A` and destination matrix `B` given in `lda` and `ldb`, respectively. The leading dimension indicates the number of rows of the allocated matrix, even if only a submatrix of it is being used.
@@ -991,7 +991,7 @@ unsafe extern "C" {
         ldb: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies a tile of `rows x cols` elements from a matrix `A` in GPU memory space to a matrix `B` in host memory space. It is assumed that each element requires storage of `elemSize` bytes and that both matrices are stored in column-major format, with the leading dimension of the source matrix `A` and destination matrix `B` given in `lda` and `ldb`, respectively. The leading dimension indicates the number of rows of the allocated matrix, even if only a submatrix of it is being used.
@@ -1011,7 +1011,7 @@ unsafe extern "C" {
         ldb: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies a tile of `rows x cols` elements from a matrix `A` in GPU memory space to a matrix `B` in host memory space. It is assumed that each element requires storage of `elemSize` bytes and that both matrices are stored in column-major format, with the leading dimension of the source matrix `A` and destination matrix `B` given in `lda` and `ldb`, respectively. The leading dimension indicates the number of rows of the allocated matrix, even if only a submatrix of it is being used.
@@ -1031,7 +1031,7 @@ unsafe extern "C" {
         ldb: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasSetVector`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1051,7 +1051,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasSetVector`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1071,7 +1071,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasGetVector`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1091,7 +1091,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasGetVector`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1111,7 +1111,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasSetMatrix`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1132,7 +1132,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasSetMatrix`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1153,7 +1153,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasGetMatrix`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1174,7 +1174,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function has the same functionality as [`cublasGetMatrix`], with the exception that the data transfer is done asynchronously (with respect to the host) using the given CUDA™ stream parameter.
@@ -1195,11 +1195,11 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reports an invalid BLAS argument, identifying the routine with `srName` and the argument position with `info`.
     pub fn cublasXerbla(srName: *const ::core::ffi::c_char, info: ::core::ffi::c_int);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an API generalization of the routine [cublas&lt;t>nrm2()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-nrm2) where input data, output data and compute type can be specified independently.
@@ -1242,7 +1242,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an API generalization of the routine [cublas&lt;t>nrm2()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-nrm2) where input data, output data and compute type can be specified independently.
@@ -1285,7 +1285,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1317,7 +1317,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1349,7 +1349,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1381,7 +1381,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1413,7 +1413,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1445,7 +1445,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1477,7 +1477,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1509,7 +1509,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the Euclidean norm of the vector `x`. The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ in exact arithmetic. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -1541,7 +1541,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions support the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// These functions are an API generalization of the routines [cublas&lt;t>dot()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id6) and [cublas&lt;t>dotc()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-dot) where input data, output data and compute type can be specified independently. Note: [cublas&lt;t>dotc()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-dot) is dot product conjugated, [cublas&lt;t>dotu()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-dot) is dot product unconjugated.
@@ -1590,7 +1590,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// These functions support the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// These functions are an API generalization of the routines [cublas&lt;t>dot()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id6) and [cublas&lt;t>dotc()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-dot) where input data, output data and compute type can be specified independently. Note: [cublas&lt;t>dotc()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-dot) is dot product conjugated, [cublas&lt;t>dotu()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-dot) is dot product unconjugated.
@@ -1639,7 +1639,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the conjugated dot product of `x` and `y`, conjugating `x`. Input representations, result representation, and execution precision are selected separately. Returns a cuBLAS status code.
     pub fn cublasDotcEx(
         handle: cublasHandle_t,
@@ -1655,7 +1655,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the conjugated dot product of `x` and `y`, conjugating `x`. Input representations, result representation, and execution precision are selected separately. Returns a cuBLAS status code.
     pub fn cublasDotcEx_64(
         handle: cublasHandle_t,
@@ -1671,7 +1671,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1706,7 +1706,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1741,7 +1741,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1776,7 +1776,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1811,7 +1811,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1846,7 +1846,7 @@ unsafe extern "C" {
         result: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1881,7 +1881,7 @@ unsafe extern "C" {
         result: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1916,7 +1916,7 @@ unsafe extern "C" {
         result: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1951,7 +1951,7 @@ unsafe extern "C" {
         result: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -1986,7 +1986,7 @@ unsafe extern "C" {
         result: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2021,7 +2021,7 @@ unsafe extern "C" {
         result: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2056,7 +2056,7 @@ unsafe extern "C" {
         result: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the dot product of vectors `x` and `y`. Hence, the result is $\sum_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that in the first equation the conjugate of the element of vector x should be used if the function name ends in character ‘c’ and that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2091,7 +2091,7 @@ unsafe extern "C" {
         result: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2131,7 +2131,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2171,7 +2171,7 @@ unsafe extern "C" {
         executionType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2201,7 +2201,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2231,7 +2231,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2261,7 +2261,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2291,7 +2291,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2321,7 +2321,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2351,7 +2351,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2381,7 +2381,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2411,7 +2411,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2441,7 +2441,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2471,7 +2471,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2501,7 +2501,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function scales the vector `x` by the scalar $\alpha$ and overwrites it with the result. Hence, the performed operation is $\mathbf{x}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack j\rbrack$ for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2531,7 +2531,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an API generalization of the routine [cublas&lt;t>axpy()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-axpy) where input data, output data and compute type can be specified independently.
@@ -2578,7 +2578,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an API generalization of the routine [cublas&lt;t>axpy()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-axpy) where input data, output data and compute type can be specified independently.
@@ -2625,7 +2625,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2659,7 +2659,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2693,7 +2693,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2727,7 +2727,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2761,7 +2761,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2795,7 +2795,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2829,7 +2829,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2863,7 +2863,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function multiplies the vector `x` by the scalar $\alpha$ and adds it to the vector `y` overwriting the latest vector with the result. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2897,7 +2897,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies `n` strided elements from `x` to `y`, with the input and output representations selected by `xType` and `yType`. Returns a cuBLAS status code.
     pub fn cublasCopyEx(
         handle: cublasHandle_t,
@@ -2910,7 +2910,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies `n` strided elements from `x` to `y`, with the input and output representations selected by `xType` and `yType`. Returns a cuBLAS status code.
     pub fn cublasCopyEx_64(
         handle: cublasHandle_t,
@@ -2923,7 +2923,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2955,7 +2955,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -2987,7 +2987,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3019,7 +3019,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3051,7 +3051,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3083,7 +3083,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3115,7 +3115,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3147,7 +3147,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function copies the vector `x` into the vector `y`. Hence, the performed operation is $\mathbf{y}\lbrack j\rbrack = \mathbf{x}\lbrack k\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3179,7 +3179,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3211,7 +3211,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3243,7 +3243,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3275,7 +3275,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3307,7 +3307,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3339,7 +3339,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3371,7 +3371,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3403,7 +3403,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function interchanges the elements of vector `x` and `y`. Hence, the performed operation is $\left. \mathbf{y}\lbrack j\rbrack\Leftrightarrow\mathbf{x}\lbrack k\rbrack \right.$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\\*\text{incx}$ and $j = 1 + \left( {i - 1} \right)\\*\text{incy}$. Notice that the last two equations reflect 1-based indexing used for compatibility with Fortran.
@@ -3435,7 +3435,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Exchanges `n` strided elements of `x` and `y`, using their explicit native data types. Returns a cuBLAS status code.
     pub fn cublasSwapEx(
         handle: cublasHandle_t,
@@ -3448,7 +3448,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Exchanges `n` strided elements of `x` and `y`, using their explicit native data types. Returns a cuBLAS status code.
     pub fn cublasSwapEx_64(
         handle: cublasHandle_t,
@@ -3461,7 +3461,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3493,7 +3493,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3525,7 +3525,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3557,7 +3557,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3589,7 +3589,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3621,7 +3621,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3653,7 +3653,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3685,7 +3685,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the maximum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is maximum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{ incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3717,7 +3717,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the one-based index of the first element of maximum absolute value in the strided vector `x`. Complex magnitudes use the sum of the absolute real and imaginary components. Input and index result types are explicit. Returns a cuBLAS status code.
     pub fn cublasIamaxEx(
         handle: cublasHandle_t,
@@ -3728,7 +3728,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the one-based index of the first element of maximum absolute value in the strided vector `x`. Complex magnitudes use the sum of the absolute real and imaginary components. Input and index result types are explicit. Returns a cuBLAS status code.
     pub fn cublasIamaxEx_64(
         handle: cublasHandle_t,
@@ -3739,7 +3739,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3771,7 +3771,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3803,7 +3803,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3835,7 +3835,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3867,7 +3867,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3899,7 +3899,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3931,7 +3931,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3963,7 +3963,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function finds the (smallest) index of the element of the minimum magnitude. Hence, the result is the first $i$ such that $\left| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ is minimum for $i = 1,\ldots,n$ and $j = 1 + \left( {i - 1} \right)\\*\text{incx}$ Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -3995,7 +3995,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the one-based index of the first element of minimum absolute value in the strided vector `x`. Complex magnitudes use the sum of the absolute real and imaginary components. Input and index result types are explicit. Returns a cuBLAS status code.
     pub fn cublasIaminEx(
         handle: cublasHandle_t,
@@ -4006,7 +4006,7 @@ unsafe extern "C" {
         result: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the one-based index of the first element of minimum absolute value in the strided vector `x`. Complex magnitudes use the sum of the absolute real and imaginary components. Input and index result types are explicit. Returns a cuBLAS status code.
     pub fn cublasIaminEx_64(
         handle: cublasHandle_t,
@@ -4017,7 +4017,7 @@ unsafe extern "C" {
         result: *mut i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the sum of absolute values of `n` strided elements of `x`. For complex values, sums the absolute real and imaginary components. Input, result, and execution types are selected separately. Returns a cuBLAS status code.
     pub fn cublasAsumEx(
         handle: cublasHandle_t,
@@ -4030,7 +4030,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the sum of absolute values of `n` strided elements of `x`. For complex values, sums the absolute real and imaginary components. Input, result, and execution types are selected separately. Returns a cuBLAS status code.
     pub fn cublasAsumEx_64(
         handle: cublasHandle_t,
@@ -4043,7 +4043,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4075,7 +4075,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4107,7 +4107,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4139,7 +4139,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4171,7 +4171,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4203,7 +4203,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4235,7 +4235,7 @@ unsafe extern "C" {
         result: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4267,7 +4267,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function computes the sum of the absolute values of the elements of vector `x`. Hence, the result is $\left. \sum_{i = 1}^{n} \middle| \mathbf{Im}\left( {x\lbrack j\rbrack} \right) \middle| + \middle| \mathbf{Re}\left( {x\lbrack j\rbrack} \right) \right|$ where $j = 1 + \left( {i - 1} \right)\\*\text{incx}$. Notice that the last equation reflects 1-based indexing used for compatibility with Fortran.
@@ -4299,7 +4299,7 @@ unsafe extern "C" {
         result: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4345,7 +4345,7 @@ unsafe extern "C" {
         s: *const f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4391,7 +4391,7 @@ unsafe extern "C" {
         s: *const f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4437,7 +4437,7 @@ unsafe extern "C" {
         s: *const f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4483,7 +4483,7 @@ unsafe extern "C" {
         s: *const f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4529,7 +4529,7 @@ unsafe extern "C" {
         s: *const cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4575,7 +4575,7 @@ unsafe extern "C" {
         s: *const cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4621,7 +4621,7 @@ unsafe extern "C" {
         s: *const f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4667,7 +4667,7 @@ unsafe extern "C" {
         s: *const f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4713,7 +4713,7 @@ unsafe extern "C" {
         s: *const cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4759,7 +4759,7 @@ unsafe extern "C" {
         s: *const cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4805,7 +4805,7 @@ unsafe extern "C" {
         s: *const f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies Givens rotation matrix (i.e., rotation in the x,y plane counter-clockwise by angle defined by $cos(alpha) = c$, $sin(alpha) = s$):
@@ -4851,7 +4851,7 @@ unsafe extern "C" {
         s: *const f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension to the routine [cublas&lt;t>rot()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-rot) where input data, output data, cosine/sine type, and compute type can be specified independently.
@@ -4908,7 +4908,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension to the routine [cublas&lt;t>rot()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cublas-t-rot) where input data, output data, cosine/sine type, and compute type can be specified independently.
@@ -4965,7 +4965,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function constructs the Givens rotation matrix:
@@ -5042,7 +5042,7 @@ unsafe extern "C" {
         s: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function constructs the Givens rotation matrix:
@@ -5119,7 +5119,7 @@ unsafe extern "C" {
         s: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function constructs the Givens rotation matrix:
@@ -5196,7 +5196,7 @@ unsafe extern "C" {
         s: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function constructs the Givens rotation matrix:
@@ -5273,7 +5273,7 @@ unsafe extern "C" {
         s: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Constructs a Givens plane rotation from `a` and `b` and writes its cosine and sine to `c` and `s`. The first input is overwritten with the rotated magnitude; for real inputs, the second input is also overwritten with the native auxiliary rotation value. Data representations and execution type are explicit. Returns a cuBLAS status code.
     pub fn cublasRotgEx(
         handle: cublasHandle_t,
@@ -5286,7 +5286,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies the modified Givens transformation:
@@ -5334,7 +5334,7 @@ unsafe extern "C" {
         param: *const f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies the modified Givens transformation:
@@ -5382,7 +5382,7 @@ unsafe extern "C" {
         param: *const f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies the modified Givens transformation:
@@ -5430,7 +5430,7 @@ unsafe extern "C" {
         param: *const f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function applies the modified Givens transformation:
@@ -5478,7 +5478,7 @@ unsafe extern "C" {
         param: *const f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Applies the modified Givens rotation described by `param` to `n` strided pairs from `x` and `y`, updating both vectors. Data representations and execution type are explicit. Returns a cuBLAS status code.
     pub fn cublasRotmEx(
         handle: cublasHandle_t,
@@ -5494,7 +5494,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Applies the modified Givens rotation described by `param` to `n` strided pairs from `x` and `y`, updating both vectors. Data representations and execution type are explicit. Returns a cuBLAS status code.
     pub fn cublasRotmEx_64(
         handle: cublasHandle_t,
@@ -5510,7 +5510,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function constructs the modified Givens transformation:
@@ -5554,7 +5554,7 @@ unsafe extern "C" {
         param: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function constructs the modified Givens transformation:
@@ -5598,7 +5598,7 @@ unsafe extern "C" {
         param: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Constructs a modified Givens rotation from `d1`, `d2`, `x1`, and `y1`, updating `d1`, `d2`, and `x1` and writing the rotation parameters to `param`. Native data types and execution type are explicit. Returns a cuBLAS status code.
     pub fn cublasRotmgEx(
         handle: cublasHandle_t,
@@ -5615,7 +5615,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -5672,7 +5672,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -5729,7 +5729,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -5786,7 +5786,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -5843,7 +5843,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -5900,7 +5900,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -5957,7 +5957,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -6014,7 +6014,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication:
@@ -6071,7 +6071,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6134,7 +6134,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6197,7 +6197,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6260,7 +6260,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6323,7 +6323,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6386,7 +6386,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6449,7 +6449,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6512,7 +6512,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the banded matrix-vector multiplication:
@@ -6575,7 +6575,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6627,7 +6627,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6679,7 +6679,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6731,7 +6731,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6783,7 +6783,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6835,7 +6835,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6887,7 +6887,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6939,7 +6939,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-vector multiplication:
@@ -6991,7 +6991,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7049,7 +7049,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7107,7 +7107,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7165,7 +7165,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7223,7 +7223,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7281,7 +7281,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7339,7 +7339,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7397,7 +7397,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular banded matrix-vector multiplication:
@@ -7455,7 +7455,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7509,7 +7509,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7563,7 +7563,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7617,7 +7617,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7671,7 +7671,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7725,7 +7725,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7779,7 +7779,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7833,7 +7833,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular packed matrix-vector multiplication:
@@ -7887,7 +7887,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -7942,7 +7942,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -7997,7 +7997,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -8052,7 +8052,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -8107,7 +8107,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -8162,7 +8162,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -8217,7 +8217,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -8272,7 +8272,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with a single right-hand-side:
@@ -8327,7 +8327,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8384,7 +8384,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8441,7 +8441,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8498,7 +8498,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8555,7 +8555,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8612,7 +8612,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8669,7 +8669,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8726,7 +8726,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the packed triangular linear system with a single right-hand-side:
@@ -8783,7 +8783,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -8844,7 +8844,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -8905,7 +8905,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -8966,7 +8966,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -9027,7 +9027,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -9088,7 +9088,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -9149,7 +9149,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -9210,7 +9210,7 @@ unsafe extern "C" {
         incx: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular banded linear system with a single right-hand-side:
@@ -9271,7 +9271,7 @@ unsafe extern "C" {
         incx: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9321,7 +9321,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9371,7 +9371,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9421,7 +9421,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9471,7 +9471,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9521,7 +9521,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9571,7 +9571,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9621,7 +9621,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-vector multiplication.
@@ -9671,7 +9671,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-vector multiplication:
@@ -9723,7 +9723,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-vector multiplication:
@@ -9775,7 +9775,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-vector multiplication:
@@ -9827,7 +9827,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-vector multiplication:
@@ -9879,7 +9879,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric banded matrix-vector multiplication:
@@ -9933,7 +9933,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric banded matrix-vector multiplication:
@@ -9987,7 +9987,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric banded matrix-vector multiplication:
@@ -10041,7 +10041,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric banded matrix-vector multiplication:
@@ -10095,7 +10095,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian banded matrix-vector multiplication:
@@ -10149,7 +10149,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian banded matrix-vector multiplication:
@@ -10203,7 +10203,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian banded matrix-vector multiplication:
@@ -10257,7 +10257,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian banded matrix-vector multiplication:
@@ -10311,7 +10311,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric packed matrix-vector multiplication:
@@ -10361,7 +10361,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric packed matrix-vector multiplication:
@@ -10411,7 +10411,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric packed matrix-vector multiplication:
@@ -10461,7 +10461,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric packed matrix-vector multiplication:
@@ -10511,7 +10511,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian packed matrix-vector multiplication:
@@ -10561,7 +10561,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian packed matrix-vector multiplication:
@@ -10611,7 +10611,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian packed matrix-vector multiplication:
@@ -10661,7 +10661,7 @@ unsafe extern "C" {
         incy: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian packed matrix-vector multiplication:
@@ -10711,7 +10711,7 @@ unsafe extern "C" {
         incy: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -10760,7 +10760,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -10809,7 +10809,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -10858,7 +10858,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -10907,7 +10907,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -10956,7 +10956,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11005,7 +11005,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11054,7 +11054,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11103,7 +11103,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11152,7 +11152,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11201,7 +11201,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11250,7 +11250,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the rank-1 update:
@@ -11299,7 +11299,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11341,7 +11341,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11383,7 +11383,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11425,7 +11425,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11467,7 +11467,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11509,7 +11509,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11551,7 +11551,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11593,7 +11593,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-1 update:
@@ -11635,7 +11635,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-1 update:
@@ -11677,7 +11677,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-1 update:
@@ -11719,7 +11719,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-1 update:
@@ -11761,7 +11761,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-1 update:
@@ -11803,7 +11803,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-1 update:
@@ -11847,7 +11847,7 @@ unsafe extern "C" {
         AP: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-1 update:
@@ -11891,7 +11891,7 @@ unsafe extern "C" {
         AP: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-1 update:
@@ -11935,7 +11935,7 @@ unsafe extern "C" {
         AP: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-1 update:
@@ -11979,7 +11979,7 @@ unsafe extern "C" {
         AP: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-1 update:
@@ -12023,7 +12023,7 @@ unsafe extern "C" {
         AP: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-1 update:
@@ -12067,7 +12067,7 @@ unsafe extern "C" {
         AP: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-1 update:
@@ -12111,7 +12111,7 @@ unsafe extern "C" {
         AP: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-1 update:
@@ -12155,7 +12155,7 @@ unsafe extern "C" {
         AP: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12201,7 +12201,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12247,7 +12247,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12293,7 +12293,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12339,7 +12339,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12385,7 +12385,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12431,7 +12431,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12477,7 +12477,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank-2 update:
@@ -12523,7 +12523,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-2 update:
@@ -12569,7 +12569,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-2 update:
@@ -12615,7 +12615,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-2 update:
@@ -12661,7 +12661,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank-2 update:
@@ -12707,7 +12707,7 @@ unsafe extern "C" {
         lda: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-2 update:
@@ -12755,7 +12755,7 @@ unsafe extern "C" {
         AP: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-2 update:
@@ -12803,7 +12803,7 @@ unsafe extern "C" {
         AP: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-2 update:
@@ -12851,7 +12851,7 @@ unsafe extern "C" {
         AP: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed symmetric rank-2 update:
@@ -12899,7 +12899,7 @@ unsafe extern "C" {
         AP: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-2 update:
@@ -12947,7 +12947,7 @@ unsafe extern "C" {
         AP: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-2 update:
@@ -12995,7 +12995,7 @@ unsafe extern "C" {
         AP: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-2 update:
@@ -13043,7 +13043,7 @@ unsafe extern "C" {
         AP: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the packed Hermitian rank-2 update:
@@ -13091,7 +13091,7 @@ unsafe extern "C" {
         AP: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13150,7 +13150,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13209,7 +13209,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13268,7 +13268,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13327,7 +13327,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13386,7 +13386,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13445,7 +13445,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13504,7 +13504,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. The address of the input matrix and vector, and the output vector of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -13563,7 +13563,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -13626,7 +13626,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -13689,7 +13689,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -13752,7 +13752,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -13815,7 +13815,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -13878,7 +13878,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -13941,7 +13941,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -14004,7 +14004,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-vector multiplication of a batch of matrices and vectors. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n), leading dimension (lda), increments (incx, incy) and transposition (trans) for their respective A matrix, x and y vectors. Input matrix A and vector x, and output vector y for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A matrix, x and y vectors for the first instance are passed to the function by the user along with offsets in number of elements - strideA, stridex and stridey that determine the locations of input matrices and vectors, and output vectors in future instances.
@@ -14067,7 +14067,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14131,7 +14131,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14195,7 +14195,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14259,7 +14259,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14323,7 +14323,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14387,7 +14387,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14451,7 +14451,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the complex matrix-matrix multiplication, using Gauss complexity reduction algorithm. This can lead to an increase in performance up to 25%:
@@ -14515,7 +14515,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the complex matrix-matrix multiplication, using Gauss complexity reduction algorithm. This can lead to an increase in performance up to 25%:
@@ -14579,7 +14579,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes a single-precision complex matrix product using the three-real-multiplication algorithm: `C = alpha * op(A) * op(B) + beta * C`. Operands use column-major storage with explicit leading dimensions and data-type selectors. Returns a cuBLAS status code.
     pub fn cublasCgemm3mEx(
         handle: cublasHandle_t,
@@ -14601,7 +14601,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes a single-precision complex matrix product using the three-real-multiplication algorithm: `C = alpha * op(A) * op(B) + beta * C`. Operands use column-major storage with explicit leading dimensions and data-type selectors. Returns a cuBLAS status code.
     pub fn cublasCgemm3mEx_64(
         handle: cublasHandle_t,
@@ -14623,7 +14623,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14687,7 +14687,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -14751,7 +14751,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the complex matrix-matrix multiplication, using Gauss complexity reduction algorithm. This can lead to an increase in performance up to 25%:
@@ -14815,7 +14815,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the complex matrix-matrix multiplication, using Gauss complexity reduction algorithm. This can lead to an increase in performance up to 25%:
@@ -14879,7 +14879,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasSgemm_v2`]. In this function the input matrices and output matrices can have a lower precision but the computation is still done in the type `S`. For example, in the type `float` for [`cublasSgemmEx`] and in the type `cuComplex` for [`cublasCgemmEx`].
@@ -14956,7 +14956,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasSgemm_v2`]. In this function the input matrices and output matrices can have a lower precision but the computation is still done in the type `S`. For example, in the type `float` for [`cublasSgemmEx`] and in the type `cuComplex` for [`cublasCgemmEx`].
@@ -15033,7 +15033,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [cublas&lt;t>gemm()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id8) that allows the user to individually specify the data types for each of the A, B and C matrices, the precision of computation and the GEMM algorithm to be run. Supported combinations of arguments are listed further down in this section.
@@ -15114,7 +15114,7 @@ unsafe extern "C" {
         algo: cublasGemmAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [cublas&lt;t>gemm()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id8) that allows the user to individually specify the data types for each of the A, B and C matrices, the precision of computation and the GEMM algorithm to be run. Supported combinations of arguments are listed further down in this section.
@@ -15195,7 +15195,7 @@ unsafe extern "C" {
         algo: cublasGemmAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCgemm_v2`]. In this function the input matrices and output matrices can have a lower precision but the computation is still done in the type `C`. For example, in the type `float` for [`cublasSgemmEx`] and in the type `cuComplex` for [`cublasCgemmEx`].
@@ -15272,7 +15272,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCgemm_v2`]. In this function the input matrices and output matrices can have a lower precision but the computation is still done in the type `C`. For example, in the type `float` for [`cublasSgemmEx`] and in the type `cuComplex` for [`cublasCgemmEx`].
@@ -15349,7 +15349,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15403,7 +15403,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15457,7 +15457,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15511,7 +15511,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15565,7 +15565,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15619,7 +15619,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15673,7 +15673,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15727,7 +15727,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $k$ update:
@@ -15781,7 +15781,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCsyrk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`
@@ -15845,7 +15845,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCsyrk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`
@@ -15909,7 +15909,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCsyrk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`. This routine is implemented using the Gauss complexity reduction algorithm which can lead to an increase in performance up to 25%
@@ -15973,7 +15973,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCsyrk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`. This routine is implemented using the Gauss complexity reduction algorithm which can lead to an increase in performance up to 25%
@@ -16037,7 +16037,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $k$ update:
@@ -16091,7 +16091,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $k$ update:
@@ -16145,7 +16145,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $k$ update:
@@ -16199,7 +16199,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $k$ update:
@@ -16253,7 +16253,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCherk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`
@@ -16317,7 +16317,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCherk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`
@@ -16381,7 +16381,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCherk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`. This routine is implemented using the Gauss complexity reduction algorithm which can lead to an increase in performance up to 25%
@@ -16445,7 +16445,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [`cublasCherk_v2`] where the input matrix and output matrix can have a lower precision but the computation is still done in the type `cuComplex`. This routine is implemented using the Gauss complexity reduction algorithm which can lead to an increase in performance up to 25%
@@ -16509,7 +16509,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16567,7 +16567,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16625,7 +16625,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16683,7 +16683,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16741,7 +16741,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16799,7 +16799,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16857,7 +16857,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16915,7 +16915,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric rank- $2k$ update:
@@ -16973,7 +16973,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $2k$ update:
@@ -17031,7 +17031,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $2k$ update:
@@ -17089,7 +17089,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $2k$ update:
@@ -17147,7 +17147,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian rank- $2k$ update:
@@ -17205,7 +17205,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17267,7 +17267,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17329,7 +17329,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17391,7 +17391,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17453,7 +17453,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17515,7 +17515,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17577,7 +17577,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17639,7 +17639,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the symmetric rank- $k$ update:
@@ -17701,7 +17701,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the Hermitian rank- $k$ update:
@@ -17763,7 +17763,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the Hermitian rank- $k$ update:
@@ -17825,7 +17825,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the Hermitian rank- $k$ update:
@@ -17887,7 +17887,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs a variation of the Hermitian rank- $k$ update:
@@ -17949,7 +17949,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18004,7 +18004,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18059,7 +18059,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18114,7 +18114,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18169,7 +18169,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18224,7 +18224,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18279,7 +18279,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18334,7 +18334,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the symmetric matrix-matrix multiplication:
@@ -18389,7 +18389,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-matrix multiplication:
@@ -18444,7 +18444,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-matrix multiplication:
@@ -18499,7 +18499,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-matrix multiplication:
@@ -18554,7 +18554,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the Hermitian matrix-matrix multiplication:
@@ -18609,7 +18609,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -18673,7 +18673,7 @@ unsafe extern "C" {
         ldb: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -18737,7 +18737,7 @@ unsafe extern "C" {
         ldb: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -18801,7 +18801,7 @@ unsafe extern "C" {
         ldb: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -18865,7 +18865,7 @@ unsafe extern "C" {
         ldb: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -18929,7 +18929,7 @@ unsafe extern "C" {
         ldb: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -18993,7 +18993,7 @@ unsafe extern "C" {
         ldb: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -19057,7 +19057,7 @@ unsafe extern "C" {
         ldb: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves the triangular linear system with multiple right-hand-sides:
@@ -19121,7 +19121,7 @@ unsafe extern "C" {
         ldb: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19187,7 +19187,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19253,7 +19253,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19319,7 +19319,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19385,7 +19385,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19451,7 +19451,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19517,7 +19517,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19583,7 +19583,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the triangular matrix-matrix multiplication:
@@ -19649,7 +19649,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -19715,7 +19715,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -19781,7 +19781,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -19847,7 +19847,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -19913,7 +19913,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -19979,7 +19979,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -20045,7 +20045,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes a batch of single-precision complex matrix products with the three-real-multiplication algorithm. Device pointer arrays select each matrix, and all products share the dimensions, operations, leading dimensions, `alpha`, and `beta`. Each product updates `C = alpha * op(A) * op(B) + beta * C`. Returns a cuBLAS status code.
     pub fn cublasCgemm3mBatched(
         handle: cublasHandle_t,
@@ -20065,7 +20065,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes a batch of single-precision complex matrix products with the three-real-multiplication algorithm. Device pointer arrays select each matrix, and all products share the dimensions, operations, leading dimensions, `alpha`, and `beta`. Each product updates `C = alpha * op(A) * op(B) + beta * C`. Returns a cuBLAS status code.
     pub fn cublasCgemm3mBatched_64(
         handle: cublasHandle_t,
@@ -20085,7 +20085,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -20151,7 +20151,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller.
@@ -20217,7 +20217,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20287,7 +20287,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20357,7 +20357,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20427,7 +20427,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20497,7 +20497,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20567,7 +20567,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20637,7 +20637,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes a strided batch of single-precision complex matrix products with the three-real-multiplication algorithm. Each batch updates `C = alpha * op(A) * op(B) + beta * C`; fixed element strides select successive matrices. Returns a cuBLAS status code.
     pub fn cublasCgemm3mStridedBatched(
         handle: cublasHandle_t,
@@ -20660,7 +20660,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes a strided batch of single-precision complex matrix products with the three-real-multiplication algorithm. Each batch updates `C = alpha * op(A) * op(B) + beta * C`; fixed element strides select successive matrices. Returns a cuBLAS status code.
     pub fn cublasCgemm3mStridedBatched_64(
         handle: cublasHandle_t,
@@ -20683,7 +20683,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20753,7 +20753,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication of a batch of matrices. The batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -20823,7 +20823,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [cublas&lt;t>gemmBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id9) that performs the matrix-matrix multiplication of a batch of matrices and allows the user to individually specify the data types for each of the A, B and C matrix arrays, the precision of computation and the GEMM algorithm to be run. Like [cublas&lt;t>gemmBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id9), the batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. Supported combinations of arguments are listed further down in this section.
@@ -20904,7 +20904,7 @@ unsafe extern "C" {
         algo: cublasGemmAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [cublas&lt;t>gemmBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id9) that performs the matrix-matrix multiplication of a batch of matrices and allows the user to individually specify the data types for each of the A, B and C matrix arrays, the precision of computation and the GEMM algorithm to be run. Like [cublas&lt;t>gemmBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id9), the batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. Supported combinations of arguments are listed further down in this section.
@@ -20985,7 +20985,7 @@ unsafe extern "C" {
         algo: cublasGemmAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [cublas&lt;t>gemmStridedBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id10) that performs the matrix-matrix multiplication of a batch of matrices and allows the user to individually specify the data types for each of the A, B and C matrices, the precision of computation and the GEMM algorithm to be run. Like [cublas&lt;t>gemmStridedBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id10), the batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with the offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -21070,7 +21070,7 @@ unsafe extern "C" {
         algo: cublasGemmAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function is an extension of [cublas&lt;t>gemmStridedBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id10) that performs the matrix-matrix multiplication of a batch of matrices and allows the user to individually specify the data types for each of the A, B and C matrices, the precision of computation and the GEMM algorithm to be run. Like [cublas&lt;t>gemmStridedBatched()](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#id10), the batch is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. Input matrices A, B and output matrix C for each instance of the batch are located at fixed offsets in number of elements from their locations in the previous instance. Pointers to A, B and C matrices for the first instance are passed to the function by the user along with the offsets in number of elements - strideA, strideB and strideC that determine the locations of input and output matrices in future instances.
@@ -21155,7 +21155,7 @@ unsafe extern "C" {
         algo: cublasGemmAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication on groups of matrices. A given group is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. However, the dimensions, leading dimensions, transpositions, and scaling factors (alpha, beta) may vary between groups. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. This is functionally equivalent to the following:
@@ -21203,7 +21203,7 @@ unsafe extern "C" {
         group_size: *const ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication on groups of matrices. A given group is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. However, the dimensions, leading dimensions, transpositions, and scaling factors (alpha, beta) may vary between groups. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. This is functionally equivalent to the following:
@@ -21251,7 +21251,7 @@ unsafe extern "C" {
         group_size: *const i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication on groups of matrices. A given group is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. However, the dimensions, leading dimensions, transpositions, and scaling factors (alpha, beta) may vary between groups. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. This is functionally equivalent to the following:
@@ -21299,7 +21299,7 @@ unsafe extern "C" {
         group_size: *const ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication on groups of matrices. A given group is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. However, the dimensions, leading dimensions, transpositions, and scaling factors (alpha, beta) may vary between groups. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. This is functionally equivalent to the following:
@@ -21347,7 +21347,7 @@ unsafe extern "C" {
         group_size: *const i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication on groups of matrices. A given group is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. However, the dimensions, leading dimensions, transpositions, and scaling factors (alpha, beta) may vary between groups. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. This is functionally equivalent to the following:
@@ -21401,7 +21401,7 @@ unsafe extern "C" {
         computeType: cublasComputeType_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication on groups of matrices. A given group is considered to be “uniform”, i.e. all instances have the same dimensions (m, n, k), leading dimensions (lda, ldb, ldc) and transpositions (transa, transb) for their respective A, B and C matrices. However, the dimensions, leading dimensions, transpositions, and scaling factors (alpha, beta) may vary between groups. The address of the input matrices and the output matrix of each instance of the batch are read from arrays of pointers passed to the function by the caller. This is functionally equivalent to the following:
@@ -21455,7 +21455,7 @@ unsafe extern "C" {
         computeType: cublasComputeType_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21531,7 +21531,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21607,7 +21607,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21683,7 +21683,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21759,7 +21759,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21835,7 +21835,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21911,7 +21911,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -21987,7 +21987,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix addition/transposition:
@@ -22063,7 +22063,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22133,7 +22133,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22203,7 +22203,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22273,7 +22273,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22343,7 +22343,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22413,7 +22413,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22483,7 +22483,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22553,7 +22553,7 @@ unsafe extern "C" {
         batchCount: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function solves an array of triangular linear systems with multiple right-hand-sides:
@@ -22623,7 +22623,7 @@ unsafe extern "C" {
         batchCount: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -22682,7 +22682,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -22741,7 +22741,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -22800,7 +22800,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -22859,7 +22859,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -22918,7 +22918,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -22977,7 +22977,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -23036,7 +23036,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function supports the [64-bit Integer Interface](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#bit-integer-interface).
     ///
     /// This function performs the matrix-matrix multiplication:
@@ -23095,7 +23095,7 @@ unsafe extern "C" {
         ldc: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `A` and `Ainv` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `lda_inv` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -23132,7 +23132,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `A` and `Ainv` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `lda_inv` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -23169,7 +23169,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `A` and `Ainv` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `lda_inv` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -23206,7 +23206,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `A` and `Ainv` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `lda_inv` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -23243,7 +23243,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `m x n` and leading dimension `lda`. `TauArray` is an array of pointers to vectors of dimension of at least `max (1, min(m, n)`.
     ///
     /// This function performs the QR factorization of each `Aarray\[i\]` for `i = 0, ...,batchSize-1` using Householder reflections. Each matrix `Q\[i\]` is represented as a product of elementary reflectors and is stored in the lower part of each `Aarray\[i\]` as follows :
@@ -23278,7 +23278,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `m x n` and leading dimension `lda`. `TauArray` is an array of pointers to vectors of dimension of at least `max (1, min(m, n)`.
     ///
     /// This function performs the QR factorization of each `Aarray\[i\]` for `i = 0, ...,batchSize-1` using Householder reflections. Each matrix `Q\[i\]` is represented as a product of elementary reflectors and is stored in the lower part of each `Aarray\[i\]` as follows :
@@ -23313,7 +23313,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `m x n` and leading dimension `lda`. `TauArray` is an array of pointers to vectors of dimension of at least `max (1, min(m, n)`.
     ///
     /// This function performs the QR factorization of each `Aarray\[i\]` for `i = 0, ...,batchSize-1` using Householder reflections. Each matrix `Q\[i\]` is represented as a product of elementary reflectors and is stored in the lower part of each `Aarray\[i\]` as follows :
@@ -23348,7 +23348,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `m x n` and leading dimension `lda`. `TauArray` is an array of pointers to vectors of dimension of at least `max (1, min(m, n)`.
     ///
     /// This function performs the QR factorization of each `Aarray\[i\]` for `i = 0, ...,batchSize-1` using Householder reflections. Each matrix `Q\[i\]` is represented as a product of elementary reflectors and is stored in the lower part of each `Aarray\[i\]` as follows :
@@ -23383,7 +23383,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format. `Carray` is an array of pointers to matrices stored in column-major format.
     ///
     /// This function find the least squares solution of a batch of overdetermined systems: it solves the least squares problem described as follows :
@@ -23437,7 +23437,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format. `Carray` is an array of pointers to matrices stored in column-major format.
     ///
     /// This function find the least squares solution of a batch of overdetermined systems: it solves the least squares problem described as follows :
@@ -23491,7 +23491,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format. `Carray` is an array of pointers to matrices stored in column-major format.
     ///
     /// This function find the least squares solution of a batch of overdetermined systems: it solves the least squares problem described as follows :
@@ -23545,7 +23545,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format. `Carray` is an array of pointers to matrices stored in column-major format.
     ///
     /// This function find the least squares solution of a batch of overdetermined systems: it solves the least squares problem described as follows :
@@ -23599,7 +23599,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular packed format to the triangular format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the elements of `AP` are copied into the lower triangular part of the triangular matrix `A` and the upper part of `A` is left untouched. If `uplo == CUBLAS_FILL_MODE_UPPER` then the elements of `AP` are copied into the upper triangular part of the triangular matrix `A` and the lower part of `A` is left untouched.
@@ -23632,7 +23632,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular packed format to the triangular format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the elements of `AP` are copied into the lower triangular part of the triangular matrix `A` and the upper part of `A` is left untouched. If `uplo == CUBLAS_FILL_MODE_UPPER` then the elements of `AP` are copied into the upper triangular part of the triangular matrix `A` and the lower part of `A` is left untouched.
@@ -23665,7 +23665,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular packed format to the triangular format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the elements of `AP` are copied into the lower triangular part of the triangular matrix `A` and the upper part of `A` is left untouched. If `uplo == CUBLAS_FILL_MODE_UPPER` then the elements of `AP` are copied into the upper triangular part of the triangular matrix `A` and the lower part of `A` is left untouched.
@@ -23698,7 +23698,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular packed format to the triangular format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the elements of `AP` are copied into the lower triangular part of the triangular matrix `A` and the upper part of `A` is left untouched. If `uplo == CUBLAS_FILL_MODE_UPPER` then the elements of `AP` are copied into the upper triangular part of the triangular matrix `A` and the lower part of `A` is left untouched.
@@ -23731,7 +23731,7 @@ unsafe extern "C" {
         lda: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular format to the triangular packed format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the lower triangular part of the triangular matrix `A` is copied into the array `AP`. If `uplo == CUBLAS_FILL_MODE_UPPER` then then the upper triangular part of the triangular matrix `A` is copied into the array `AP`.
@@ -23764,7 +23764,7 @@ unsafe extern "C" {
         AP: *mut f32,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular format to the triangular packed format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the lower triangular part of the triangular matrix `A` is copied into the array `AP`. If `uplo == CUBLAS_FILL_MODE_UPPER` then then the upper triangular part of the triangular matrix `A` is copied into the array `AP`.
@@ -23797,7 +23797,7 @@ unsafe extern "C" {
         AP: *mut f64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular format to the triangular packed format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the lower triangular part of the triangular matrix `A` is copied into the array `AP`. If `uplo == CUBLAS_FILL_MODE_UPPER` then then the upper triangular part of the triangular matrix `A` is copied into the array `AP`.
@@ -23830,7 +23830,7 @@ unsafe extern "C" {
         AP: *mut cuComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the conversion from the triangular format to the triangular packed format
     ///
     /// If `uplo == CUBLAS_FILL_MODE_LOWER` then the lower triangular part of the triangular matrix `A` is copied into the array `AP`. If `uplo == CUBLAS_FILL_MODE_UPPER` then then the upper triangular part of the triangular matrix `A` is copied into the array `AP`.
@@ -23863,7 +23863,7 @@ unsafe extern "C" {
         AP: *mut cuDoubleComplex,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `nxn` and leading dimension `lda`.
     ///
     /// This function performs the LU factorization of each `Aarray\[i\]` for i = 0, …, `batchSize-1` by the following equation:
@@ -23914,7 +23914,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `nxn` and leading dimension `lda`.
     ///
     /// This function performs the LU factorization of each `Aarray\[i\]` for i = 0, …, `batchSize-1` by the following equation:
@@ -23965,7 +23965,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `nxn` and leading dimension `lda`.
     ///
     /// This function performs the LU factorization of each `Aarray\[i\]` for i = 0, …, `batchSize-1` by the following equation:
@@ -24016,7 +24016,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` is an array of pointers to matrices stored in column-major format with dimensions `nxn` and leading dimension `lda`.
     ///
     /// This function performs the LU factorization of each `Aarray\[i\]` for i = 0, …, `batchSize-1` by the following equation:
@@ -24067,7 +24067,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` and `Carray` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `ldc` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -24114,7 +24114,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` and `Carray` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `ldc` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -24161,7 +24161,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` and `Carray` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `ldc` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -24208,7 +24208,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Aarray` and `Carray` are arrays of pointers to matrices stored in column-major format with dimensions `n*n` and leading dimension `lda` and `ldc` respectively.
     ///
     /// This function performs the inversion of matrices `A\[i\]` for i = 0, …, `batchSize-1`.
@@ -24255,7 +24255,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves an array of systems of linear equations of the form:
     /// $$
     /// \text{op}(A\lbrack i \rbrack) X\lbrack i\rbrack = B\lbrack i\rbrack
@@ -24316,7 +24316,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves an array of systems of linear equations of the form:
     /// $$
     /// \text{op}(A\lbrack i \rbrack) X\lbrack i\rbrack = B\lbrack i\rbrack
@@ -24377,7 +24377,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves an array of systems of linear equations of the form:
     /// $$
     /// \text{op}(A\lbrack i \rbrack) X\lbrack i\rbrack = B\lbrack i\rbrack
@@ -24438,7 +24438,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function solves an array of systems of linear equations of the form:
     /// $$
     /// \text{op}(A\lbrack i \rbrack) X\lbrack i\rbrack = B\lbrack i\rbrack
@@ -24499,7 +24499,7 @@ unsafe extern "C" {
         batchSize: ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Deprecated
     pub fn cublasUint8gemmBias(
         handle: cublasHandle_t,

@@ -55,12 +55,15 @@ impl VectorCopy {
         if n == 0 {
             return Ok(None);
         }
+
         if source_stride == 0 || destination_stride == 0 {
             return Err(Error::InvalidIncrement);
         }
+
         if size_of::<T>() == 0 {
             return Err(Error::out_of_range("element size"));
         }
+
         let span = |stride: usize| {
             (n - 1)
                 .checked_mul(stride)
@@ -70,6 +73,7 @@ impl VectorCopy {
         if span(source_stride)? > source_len || span(destination_stride)? > destination_len {
             return Err(Error::InvalidVectorShape);
         }
+
         check_byte_spans::<T>(&[
             span(source_stride)?,
             span(destination_stride)?,
@@ -146,12 +150,15 @@ impl MatrixCopy {
         if rows == 0 || cols == 0 {
             return Ok(None);
         }
+
         if source_leading < rows || destination_leading < rows {
             return Err(Error::InvalidLeadingDimension);
         }
+
         if size_of::<T>() == 0 {
             return Err(Error::out_of_range("element size"));
         }
+
         let span = |leading: usize| {
             (cols - 1)
                 .checked_mul(leading)
@@ -161,6 +168,7 @@ impl MatrixCopy {
         if span(source_leading)? > source_len || span(destination_leading)? > destination_len {
             return Err(Error::InvalidMatrixShape);
         }
+
         check_byte_spans::<T>(&[
             span(source_leading)?,
             span(destination_leading)?,
@@ -222,7 +230,8 @@ impl MatrixCopy {
 
 /// Copies a strided vector from host to device.
 ///
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Completes default-stream work on success, failure and unwind before returning.
 ///
 /// # Errors
@@ -254,7 +263,8 @@ where
 
 /// Copies a strided vector from host to device.
 ///
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Borrows both operands until the scope completes, including failure and unwind.
 ///
 /// # Errors
@@ -279,13 +289,13 @@ where
 }
 
 /// Copies a strided vector from host to device.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 ///
 /// # Safety
-/// Retain both ranges and the stream through completion and failed submission;
-/// preserve valid source elements and exclusive destination access until then.
-/// Order source producers before this copy. Captured replays require retaining
-/// both addresses and establishing the same access contract on every replay.
+/// Retain both ranges and the stream through completion and failed submission; preserve valid source elements and exclusive destination access until then.
+/// Order source producers before this copy.
+/// Captured replays require retaining both addresses and establishing the same access contract on every replay.
 ///
 /// # Errors
 ///
@@ -307,6 +317,7 @@ where
     if y.region().context() != stream.context() {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     let Some(copy) = VectorCopy::create::<T>(n, incx, incy, x.len(), y.len())? else {
         return Ok(());
     };
@@ -325,7 +336,8 @@ where
 
 /// Copies a strided vector from device to host.
 ///
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Completes default-stream work on success, failure and unwind before returning.
 ///
 /// # Errors
@@ -364,7 +376,8 @@ where
 
 /// Copies a strided vector from device to host.
 ///
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Borrows both operands until the scope completes, including failure and unwind.
 ///
 /// # Errors
@@ -389,13 +402,13 @@ where
 }
 
 /// Copies a strided vector from device to host.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 ///
 /// # Safety
-/// Retain both ranges and the stream through completion and failed submission;
-/// preserve valid source elements and exclusive destination access until then.
-/// Order source producers before this copy. Captured replays require retaining
-/// both addresses and establishing the same access contract on every replay.
+/// Retain both ranges and the stream through completion and failed submission; preserve valid source elements and exclusive destination access until then.
+/// Order source producers before this copy.
+/// Captured replays require retaining both addresses and establishing the same access contract on every replay.
 ///
 /// # Errors
 ///
@@ -417,6 +430,7 @@ where
     if x.region().context() != stream.context() {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     let Some(copy) = VectorCopy::create::<T>(n, incx, incy, x.len(), y.len())? else {
         return Ok(());
     };
@@ -436,7 +450,8 @@ where
 /// Copies a strided matrix from host to device.
 ///
 /// Matrices use column-major leading dimensions; only the selected rows are copied.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Completes default-stream work on success, failure and unwind before returning.
 ///
 /// # Errors
@@ -470,7 +485,8 @@ where
 /// Copies a strided matrix from host to device.
 ///
 /// Matrices use column-major leading dimensions; only the selected rows are copied.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Borrows both operands until the scope completes, including failure and unwind.
 ///
 /// # Errors
@@ -498,13 +514,13 @@ where
 /// Copies a strided matrix from host to device.
 ///
 /// Matrices use column-major leading dimensions; only the selected rows are copied.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 ///
 /// # Safety
-/// Retain both ranges and the stream through completion and failed submission;
-/// preserve valid source elements and exclusive destination access until then.
-/// Order source producers before this copy. Captured replays require retaining
-/// both addresses and establishing the same access contract on every replay.
+/// Retain both ranges and the stream through completion and failed submission; preserve valid source elements and exclusive destination access until then.
+/// Order source producers before this copy.
+/// Captured replays require retaining both addresses and establishing the same access contract on every replay.
 ///
 /// # Errors
 ///
@@ -527,6 +543,7 @@ where
     if b.region().context() != stream.context() {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     let Some(copy) = MatrixCopy::create::<T>(rows, cols, lda, ldb, a.len(), b.len())? else {
         return Ok(());
     };
@@ -546,7 +563,8 @@ where
 /// Copies a strided matrix from device to host.
 ///
 /// Matrices use column-major leading dimensions; only the selected rows are copied.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Completes default-stream work on success, failure and unwind before returning.
 ///
 /// # Errors
@@ -587,7 +605,8 @@ where
 /// Copies a strided matrix from device to host.
 ///
 /// Matrices use column-major leading dimensions; only the selected rows are copied.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 /// Borrows both operands until the scope completes, including failure and unwind.
 ///
 /// # Errors
@@ -615,13 +634,13 @@ where
 /// Copies a strided matrix from device to host.
 ///
 /// Matrices use column-major leading dimensions; only the selected rows are copied.
-/// Gaps and tails are unchanged. Dimensions select the native 32-bit or 64-bit interface.
+/// Gaps and tails are unchanged.
+/// Dimensions select the native 32-bit or 64-bit interface.
 ///
 /// # Safety
-/// Retain both ranges and the stream through completion and failed submission;
-/// preserve valid source elements and exclusive destination access until then.
-/// Order source producers before this copy. Captured replays require retaining
-/// both addresses and establishing the same access contract on every replay.
+/// Retain both ranges and the stream through completion and failed submission; preserve valid source elements and exclusive destination access until then.
+/// Order source producers before this copy.
+/// Captured replays require retaining both addresses and establishing the same access contract on every replay.
 ///
 /// # Errors
 ///
@@ -644,6 +663,7 @@ where
     if a.region().context() != stream.context() {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     let Some(copy) = MatrixCopy::create::<T>(rows, cols, lda, ldb, a.len(), b.len())? else {
         return Ok(());
     };

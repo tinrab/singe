@@ -1,10 +1,8 @@
 //! End-to-end CUDA checkpoint and CRIU restore test.
 //!
-//! This test is ignored by default because it needs Linux, CRIU, a checkpoint-capable
-//! NVIDIA driver, and permission to dump and restore a child process.
-//! CRIU usually needs either `CAP_SYS_ADMIN` or `CAP_CHECKPOINT_RESTORE`. The
-//! most direct way to run this test is to run the cargo command under `sudo` or
-//! as root in the same development environment.
+//! This test is ignored by default because it needs Linux, CRIU, a checkpoint-capable NVIDIA driver, and permission to dump and restore a child process.
+//! CRIU usually needs either `CAP_SYS_ADMIN` or `CAP_CHECKPOINT_RESTORE`.
+//! The most direct way to run this test is to run the cargo command under `sudo` or as root in the same development environment.
 //!
 //! Compile the test as the current user first:
 //!
@@ -183,7 +181,7 @@ fn build_child(test_dir: &Path) -> PathBuf {
 fn cuda_driver_library_search_arg() -> String {
     let library_path = singe_cuda_find::find_cuda_driver_path()
         .unwrap()
-        .expect("CUDA driver library was not found");
+        .expect("the CUDA driver library was not found");
     format!("-L{}", library_path.display())
 }
 

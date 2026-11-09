@@ -1,0 +1,14 @@
+[package]
+name = "singe-loader"
+description = "Loads NVIDIA libraries at run time for the Singe FFI crates."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+readme = "README.md"
+keywords = ["cuda", "nvidia", "ffi", "dlopen"]
+include.workspace = true
+
+[dependencies]
+libloading.workspace = true
+thiserror.workspace = true

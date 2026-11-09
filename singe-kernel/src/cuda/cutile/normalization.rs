@@ -56,9 +56,11 @@ fn normalization_compile_options(compile: KernelCompileConfig) -> CompileOptions
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -730,22 +732,27 @@ unsafe fn launch_tiled_normalization<T: ElementType + DType + Send>(
     if cols == 0 {
         return Err(Error::InvalidLength);
     }
+
     checked_i32_value(checked_element_count(rows, cols)?)?;
     let (bm, bn) = (tile.rows, tile.columns);
     if ![1, 2, 4, 8].contains(&bm) || !bn.is_power_of_two() {
         return Err(Error::InvalidLength);
     }
+
     if rows == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     if has_weight {
         checked_device_pointer(&weight)?;
     }
+
     if has_bias {
         checked_device_pointer(&bias)?;
     }
+
     if cols > 8192 {
         if bm != 1 || bn != 128 {
             return Err(Error::UnsupportedWidth {
@@ -767,12 +774,14 @@ unsafe fn launch_tiled_normalization<T: ElementType + DType + Send>(
             compile,
         );
     }
+
     if bn < cols || bm.checked_mul(bn).is_none_or(|n| n > 8192) {
         return Err(Error::UnsupportedWidth {
             op: "normalization tile".into(),
             width: bn,
         });
     }
+
     // SAFETY: validated dimensions and the caller's retained input/output buffers cover this tile grid.
     unsafe {
         kernel_normalization::normalization(
@@ -954,9 +963,11 @@ pub unsafe fn group_norm_f32(
     if batch == 0 || channels == 0 || groups == 0 || spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !channels.is_multiple_of(groups) {
         return Err(Error::LengthMismatch);
     }
+
     let len = checked_element_count(checked_element_count(batch, channels)?, spatial_len)?;
     checked_i32_value(len)?;
     checked_i32_value(channels)?;
@@ -1005,9 +1016,11 @@ pub unsafe fn group_norm_f16(
     if batch == 0 || channels == 0 || groups == 0 || spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !channels.is_multiple_of(groups) {
         return Err(Error::LengthMismatch);
     }
+
     let len = checked_element_count(checked_element_count(batch, channels)?, spatial_len)?;
     checked_i32_value(len)?;
     checked_i32_value(channels)?;
@@ -1056,9 +1069,11 @@ pub unsafe fn group_norm_bf16(
     if batch == 0 || channels == 0 || groups == 0 || spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !channels.is_multiple_of(groups) {
         return Err(Error::LengthMismatch);
     }
+
     let len = checked_element_count(checked_element_count(batch, channels)?, spatial_len)?;
     checked_i32_value(len)?;
     checked_i32_value(channels)?;

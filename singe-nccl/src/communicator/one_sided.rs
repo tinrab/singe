@@ -9,8 +9,7 @@ use crate::{
     utility::to_i32,
 };
 
-/// Describes how many signal operations to wait for
-/// from a particular rank on a given signal index and context.
+/// Describes how many signal operations to wait for from a particular rank on a given signal index and context.
 #[derive(Debug, Clone, Copy)]
 pub struct WaitSignal {
     /// Number of signal operations to wait for.
@@ -50,17 +49,13 @@ impl Window<'_> {
         Ok(pointer.cast())
     }
 
-    /// One-sided communication operation that writes data from the local buffer to a
-    /// remote peer's registered memory window without explicit participation from the
-    /// target process.
+    /// One-sided communication operation that writes data from the local buffer to a remote peer's registered memory window without explicit participation from the target process.
     ///
-    /// `source` is a byte range in this registered window; `offset` is the byte offset
-    /// in the peer's corresponding registration of `destination`.
+    /// `source` is a byte range in this registered window; `offset` is the byte offset in the peer's corresponding registration of `destination`.
     ///
     /// # Safety
-    /// The remote window must cover the destination range. The caller must coordinate
-    /// remote access, keep both windows registered until all peers finish, and keep
-    /// signal and context indices within the communicator's configured limits.
+    /// The remote window must cover the destination range.
+    /// The caller must coordinate remote access, keep both windows registered until all peers finish, and keep signal and context indices within the communicator's configured limits.
     /// CUDA graph executions using these windows must finish before deregistration.
     ///
     /// # Errors
@@ -82,6 +77,7 @@ impl Window<'_> {
                 name: "window communicator".into(),
             });
         }
+
         let end_out_of_bounds = source.end > self.byte_len;
         if source.start > source.end
             || end_out_of_bounds
@@ -89,6 +85,7 @@ impl Window<'_> {
         {
             return Err(Error::out_of_range("window byte range"));
         }
+
         self.communicator.validate_signal(peer, signal, context)?;
         self.communicator.ensure_stream(stream)?;
         let start =
@@ -145,8 +142,7 @@ impl Communicator {
     }
 
     /// Waits for signals as described in the signal descriptor array.
-    /// Each descriptor indicates how many signals to expect from
-    /// a specific peer on a particular signal index and context.
+    /// Each descriptor indicates how many signals to expect from a specific peer on a particular signal index and context.
     ///
     /// # Errors
     ///

@@ -54,18 +54,18 @@ impl<T: DeviceRepr> InterpolatedContours<T> {
 
     /// Borrows the compact interpolated device point list for one selected label.
     ///
-    /// Points follow the completed native contour order. Slots with unset ordered geometry
-    /// locations are omitted; a selected label with no retained points yields an empty view.
+    /// Points follow the completed native contour order.
+    /// Slots with unset ordered geometry locations are omitted; a selected label with no retained points yields an empty view.
     /// The view borrows this result and retains its allocation bounds.
     ///
     /// # Errors
     ///
-    /// Returns an error if `label` is outside the selected geometry range or constructing
-    /// the checked device slice fails.
+    /// Returns an error if `label` is outside the selected geometry range or constructing the checked device slice fails.
     pub fn points(&self, label: u32) -> Result<DeviceView<'_, T>> {
         if !self.geometry.labels.contains(&label) {
             return Err(Error::out_of_range("contour label"));
         }
+
         let index = label as usize;
         let span = self.offsets[index]..self.offsets[index + 1];
         DeviceView::from_memory(&self.points)
@@ -79,20 +79,16 @@ macro_rules! impl_interpolation {
         impl ContourGeometry {
             /// Completes marching-squares interpolation using this matching native geometry.
             ///
-            /// Consumes the retained geometry and allocates a zero-initialized coordinate image
-            /// and device point workspace. Uploads ordered host geometry before native interpolation,
-            /// then compacts points in contour order, omitting unset ordered locations. The returned
-            /// `InterpolatedContours` retains the matching geometry and exposes per-label device
-            /// point views. Pixels outside native writes retain zero coordinates.
-            /// The supplied stream context must match the geometry context. Rejects capture and
-            /// returns after successful native execution and device-copy completion.
+            /// Consumes the retained geometry and allocates a zero-initialized coordinate image and device point workspace.
+            /// Uploads ordered host geometry before native interpolation, then compacts points in contour order, omitting unset ordered locations.
+            /// The returned `InterpolatedContours` retains the matching geometry and exposes per-label device point views.
+            /// Pixels outside native writes retain zero coordinates.
+            /// The supplied stream context must match the geometry context.
+            /// Rejects capture and returns after successful native execution and device-copy completion.
             ///
             /// # Errors
             ///
-            /// Returns an error if capture checks, context validation, capture-time allocation
-            /// retention, geometry upload, checked image or point-count arithmetic, allocation,
-            /// image view construction, native interpolation, synchronization, geometry-span
-            /// validation, or device-to-device compaction fails.
+            /// Returns an error if capture checks, context validation, capture-time allocation retention, geometry upload, checked image or point-count arithmetic, allocation, image view construction, native interpolation, synchronization, geometry-span validation, or device-to-device compaction fails.
             pub fn $method(
                 mut self,
                 stream_context: &StreamContext,
@@ -191,8 +187,10 @@ fn compact_points<T: DeviceRepr>(
                 runs.push(start..span.end);
             }
         }
+
         offsets[label + 1] = total;
     }
+
     let output = DeviceMemory::<T>::create_uninit(geometry.context(), total)?;
     stream_context.sync_scope(|| {
         let mut written = 0;
@@ -209,6 +207,7 @@ fn compact_points<T: DeviceRepr>(
                     stream_context.stream(),
                 )?;
             }
+
             written += run.len();
         }
         Ok(())

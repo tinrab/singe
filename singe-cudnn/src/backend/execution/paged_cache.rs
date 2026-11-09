@@ -108,6 +108,7 @@ impl PagedCacheLoadOperation {
         ] {
             descriptor.set_attribute_descriptor(attribute, tensor.descriptor())?;
         }
+
         descriptor.finalize()?;
         Ok(Self {
             descriptor,

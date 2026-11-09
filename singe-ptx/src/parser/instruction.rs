@@ -6,7 +6,7 @@ use nom::{
 use crate::{
     ast::{Instruction, PredicateGuard, Span},
     parser::{
-        common::{
+        lexical::{
             Input, PResult, SyntaxError, SyntaxErrorKind, comma_sep, identifier, lexeme, semicolon,
             text, with_span, ws,
         },
@@ -42,6 +42,7 @@ pub fn instruction(input: Input<'_>, depth: usize) -> PResult<'_, Instruction> {
     {
         return Err(SyntaxError::failure(input, SyntaxErrorKind::Unexpected));
     }
+
     let (input, operands) =
         separated_list0(comma_sep, lexeme(|input| operand(input, depth))).parse(input)?;
     let (input, ()) = semicolon(input)?;

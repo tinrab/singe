@@ -20,15 +20,21 @@ type Result<T> = StdResult<T, ExecutionError>;
 
 /// Bits below the window tag in a canonical address.
 const WINDOW_BITS: u32 = 60;
+
 /// Size of one canonical state-space window.
 pub const WINDOW_BYTES: u64 = 1 << WINDOW_BITS;
+
 /// Bits below the window tag in a compact generic address.
 const COMPACT_BITS: u32 = 28;
+
 const COMPACT_WINDOW: u64 = 1 << COMPACT_BITS;
+
 /// Global allocations start after the compact generic windows of the other spaces.
 const GLOBAL_WIDE_START: u64 = 5 * COMPACT_WINDOW;
+
 /// First offset handed out in every window, so that null is never a valid address.
 const FIRST_OFFSET: u64 = 65536;
+
 pub const CHUNK_BYTES: usize = 65536;
 
 /// One canonical address window per addressable state space.
@@ -324,6 +330,7 @@ impl Memory {
                     .expect("indexed grid allocation");
                 debug_assert_eq!(allocation.owner.grid(), Some(grid));
             }
+
             self.execution_budget.release(storage.charge);
         }
     }
@@ -346,6 +353,7 @@ impl Memory {
         if cancellation.load(Ordering::Acquire) {
             return Err(ExecutionError::Cancelled);
         }
+
         let address = self.reserve(size, alignment, space, owner)?;
         loop {
             if cancellation.load(Ordering::Acquire) {
@@ -378,6 +386,7 @@ impl Memory {
         } else if window == Window::Global && offset < GLOBAL_WIDE_START {
             offset = align(GLOBAL_WIDE_START)?;
         }
+
         let end = offset
             .checked_add(size)
             .filter(|end| *end < window.limit())?;
@@ -386,9 +395,9 @@ impl Memory {
 
     /// Chooses the next free range in a window, scanning upward from the cursor.
     ///
-    /// Addresses are not reused until the cursor reaches the end of a transient window, so
-    /// stale pointers from earlier launches fault. The scan then wraps once, skipping live
-    /// allocations. Device-lifetime windows never wrap.
+    /// Addresses are not reused until the cursor reaches the end of a transient window, so stale pointers from earlier launches fault.
+    /// The scan then wraps once, skipping live allocations.
+    /// Device-lifetime windows never wrap.
     fn next_range(&self, window: Window, size: usize, alignment: u32) -> Result<(u64, u64)> {
         let starts = [self.windows[window.index()], FIRST_OFFSET];
         let passes = if window.is_transient() { 2 } else { 1 };
@@ -409,10 +418,10 @@ impl Memory {
         }
         Err(ExecutionError::AddressSpaceExhausted(window.space_name()))
     }
+
     /// Reserves an allocation of `size` bytes in `space` and returns its address.
     ///
-    /// The allocation stays pending, and every access to it faults, until
-    /// [`initialize_chunk`](Self::initialize_chunk) reports it ready.
+    /// The allocation stays pending, and every access to it faults, until [`initialize_chunk`](Self::initialize_chunk) reports it ready.
     pub(crate) fn reserve(
         &mut self,
         size: usize,
@@ -461,10 +470,12 @@ impl Memory {
             } else {
                 current.allocation_credit -= charge;
             }
+
             current.allocations.insert(address);
         } else {
             self.used += charge;
         }
+
         self.allocations.insert(
             address,
             Allocation {
@@ -530,6 +541,7 @@ impl Memory {
         if !address.is_multiple_of(alignment as u64) {
             return Err(ExecutionError::Memory("misaligned address".into()));
         }
+
         let (&base, allocation) = self
             .allocations
             .range(..=address)
@@ -540,6 +552,7 @@ impl Memory {
         if allocation.bytes.len() != allocation.size {
             return Err(ExecutionError::Memory("allocation is initializing".into()));
         }
+
         if offset
             .checked_add(size)
             .is_none_or(|end| end > allocation.bytes.len())
@@ -548,9 +561,11 @@ impl Memory {
                 "allocation bounds exceeded or stale address".into(),
             ));
         }
+
         if space.is_some_and(|s| s != allocation.space) {
             return Err(ExecutionError::Memory("wrong address space".into()));
         }
+
         if let Some(actor) = actor {
             let visible = match allocation.owner {
                 Owner::Device => true,
@@ -613,6 +628,7 @@ impl Memory {
         if !allocation.writable {
             return Err(ExecutionError::Memory("read-only storage".into()));
         }
+
         allocation.bytes[offset..offset + bytes.len()].copy_from_slice(bytes);
         allocation
             .initialized
@@ -638,10 +654,12 @@ impl Memory {
         if !self.allocations[&destination_base].writable {
             return Err(ExecutionError::Memory("read-only parameter storage".into()));
         }
+
         for offset in (0..size).step_by(CHUNK_BYTES) {
             if cancellation.load(Ordering::Acquire) {
                 return Err(ExecutionError::Cancelled);
             }
+
             let length = (size - offset).min(CHUNK_BYTES);
             let source = &self.allocations[&source_base];
             let range = source_offset + offset..source_offset + offset + length;

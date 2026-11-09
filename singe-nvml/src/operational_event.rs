@@ -6,11 +6,6 @@ use singe_nvml_sys as sys;
 use crate::{
     error::{Error, Result, Status},
     library::EventSet,
-    optional::{
-        nvmlEventSetGetContextCount_v1, nvmlEventSetGetContextData_v1,
-        nvmlEventSetGetContextInfo_v1, nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1,
-        nvmlEventSetRegisterGpuOperationalEvents_v1, nvmlEventSetWait_v3,
-    },
     try_ffi,
     types::EventTypes,
 };
@@ -27,7 +22,8 @@ pub enum EventNotification {
 /// Information about an NVML event-bit notification.
 #[derive(Debug)]
 pub struct LegacyEvent {
-    /// UUID for the GPU where the event occurred. Empty if unavailable.
+    /// UUID for the GPU where the event occurred.
+    /// Empty if unavailable.
     pub uuid: String,
     /// Information about what specific event occurred.
     pub event_types: EventTypes,
@@ -57,12 +53,14 @@ pub struct EventContext {
 impl EventSet {
     /// Registers structured GPU Operational Events for a GPU UUID.
     ///
-    /// For Turing or newer fully supported devices on Linux. Registrations are
-    /// idempotent. Legacy event-bit subscriptions may coexist on the same set.
+    /// For Turing or newer fully supported devices on Linux.
+    /// Registrations are idempotent.
+    /// Legacy event-bit subscriptions may coexist on the same set.
     ///
     /// # Errors
     ///
-    /// Returns `Status::InvalidArgument` if the UUID, including its terminator, exceeds the native buffer. Also returns an error if the entry point is unavailable or NVML rejects the event set, GPU UUID, filter levels, or caller permissions.
+    /// Returns `Status::InvalidArgument` if the UUID, including its terminator, exceeds the native buffer.
+    /// Also returns an error if the entry point is unavailable or NVML rejects the event set, GPU UUID, filter levels, or caller permissions.
     pub fn register_operational_events(
         &mut self,
         uuid: &CStr,
@@ -78,12 +76,13 @@ impl EventSet {
         if bytes.len() > config.uuid.len() {
             return Err(Status::InvalidArgument.into());
         }
+
         for (target, source) in config.uuid.iter_mut().zip(bytes) {
             *target = source.cast_signed();
         }
         // SAFETY: `nvmlEventSetRegisterGpuOperationalEvents_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlEventSetRegisterGpuOperationalEvents_v1(
+            try_ffi!(sys::nvmlEventSetRegisterGpuOperationalEvents_v1(
                 self.as_raw(),
                 &raw const config
             ))
@@ -92,12 +91,13 @@ impl EventSet {
 
     /// Waits for the next NVML event-bit or structured GPU Operational Event.
     ///
-    /// Context records are copied before returning. They remain valid after a
-    /// later successful wait replaces NVML's event-set context storage.
+    /// Context records are copied before returning.
+    /// They remain valid after a later successful wait replaces NVML's event-set context storage.
     ///
     /// # Errors
     ///
-    /// Propagates NVML wait and context-data query errors, including timeout and unavailable entry points. Also rejects an unknown event-data discriminator or a context payload whose returned size exceeds the allocated buffer.
+    /// Propagates NVML wait and context-data query errors, including timeout and unavailable entry points.
+    /// Also rejects an unknown event-data discriminator or a context payload whose returned size exceeds the allocated buffer.
     pub fn wait(&mut self, timeout_ms: u32) -> Result<EventNotification> {
         let mut data = sys::nvmlEventSetWait_v3_t {
             timeoutMs: timeout_ms,
@@ -105,8 +105,9 @@ impl EventSet {
         };
         // SAFETY: `nvmlEventSetWait_v3` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlEventSetWait_v3(self.as_raw(), &raw mut data))?;
+            try_ffi!(sys::nvmlEventSetWait_v3(self.as_raw(), &raw mut data))?;
         }
+
         if data.dataType == sys::nvmlEventDataType_t::NVML_EVENT_DATA_TYPE_NVML_EVENT as u32 {
             return Ok(EventNotification::Legacy(LegacyEvent {
                 uuid: string_from_c_chars(&data.uuid),
@@ -118,6 +119,7 @@ impl EventSet {
                     .then_some(data.computeInstanceId),
             }));
         }
+
         if data.dataType
             != sys::nvmlEventDataType_t::NVML_EVENT_DATA_TYPE_GPU_OPERATIONAL_EVENT as u32
         {
@@ -126,14 +128,16 @@ impl EventSet {
                 value: data.dataType,
             });
         }
+
         let mut count = sys::nvmlEventSetGetContextCount_v1_t::default();
         // SAFETY: `nvmlEventSetGetContextCount_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlEventSetGetContextCount_v1(
+            try_ffi!(sys::nvmlEventSetGetContextCount_v1(
                 self.as_raw(),
                 &raw mut count
             ))?;
         }
+
         let mut contexts = Vec::with_capacity(count.count as usize);
         for index in 0..count.count {
             let mut info = sys::nvmlEventSetGetContextInfo_v1_t {
@@ -142,8 +146,12 @@ impl EventSet {
             };
             // SAFETY: `nvmlEventSetGetContextInfo_v1` receives a live handle and a versioned local struct that outlives the call.
             unsafe {
-                try_ffi!(nvmlEventSetGetContextInfo_v1(self.as_raw(), &raw mut info))?;
+                try_ffi!(sys::nvmlEventSetGetContextInfo_v1(
+                    self.as_raw(),
+                    &raw mut info
+                ))?;
             }
+
             let mut payload = vec![0; info.dataSize as usize];
             let mut request = sys::nvmlEventSetGetContextData_v1_t {
                 index,
@@ -156,14 +164,16 @@ impl EventSet {
             };
             // SAFETY: `nvmlEventSetGetContextData_v1` receives a live handle and a versioned local struct that outlives the call.
             unsafe {
-                try_ffi!(nvmlEventSetGetContextData_v1(
+                try_ffi!(sys::nvmlEventSetGetContextData_v1(
                     self.as_raw(),
                     &raw mut request
                 ))?;
             }
+
             if request.dataSize as usize > payload.len() {
                 return Err(Status::InsufficientSize.into());
             }
+
             payload.truncate(request.dataSize as usize);
             let kind = EventContextType(info.nvmlGpuOperationalEventContextType);
             let legacy_xid = if kind == EventContextType::LEGACY_XID {
@@ -173,7 +183,7 @@ impl EventSet {
                 };
                 // SAFETY: `nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1` receives a live handle and a versioned local struct that outlives the call.
                 unsafe {
-                    try_ffi!(nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(
+                    try_ffi!(sys::nvmlEventSetGetGpuOperationalEventContextLegacyXid_v1(
                         self.as_raw(),
                         &raw mut xid
                     ))?;
@@ -310,9 +320,12 @@ bitflags::bitflags! {
 /// Structured GPU Operational Event metadata and context payloads.
 #[derive(Debug)]
 pub struct OperationalEvent {
-    /// UUID for the GPU where the event occurred. Empty if unavailable.
+    /// UUID for the GPU where the event occurred.
+    /// Empty if unavailable.
     pub uuid: String,
-    /// Source module signature for structured events. Not guaranteed to be NULL-terminated. Empty for NVML event-bit events.
+    /// Source module signature for structured events.
+    /// Not guaranteed to be NULL-terminated.
+    /// Empty for NVML event-bit events.
     pub source_module: String,
     /// Structured event group identifier. 0 for NVML event-bit events.
     pub group_cursor: u64,
@@ -322,11 +335,14 @@ pub struct OperationalEvent {
     pub timestamp_usec: u64,
     /// Structured event trace identifier. 0 for NVML event-bit events.
     pub trace_id: u64,
-    /// `nvmlOperationalEventSeverity_t` value for structured events. May contain newer severity values not named in this header. `nvmlOperationalEventSeverity_t::NVML_OPERATIONAL_EVENT_SEVERITY_ALL` for NVML event-bit events.
+    /// `nvmlOperationalEventSeverity_t` value for structured events.
+    /// May contain newer severity values not named in this header.
+    /// `nvmlOperationalEventSeverity_t::NVML_OPERATIONAL_EVENT_SEVERITY_ALL` for NVML event-bit events.
     pub severity: EventSeverity,
     /// Source-defined structured event category identifier. 0 for NVML event-bit events.
     pub category_id: u32,
-    /// Source-module-defined event code. Interpret with `sourceModule`. 0 for NVML event-bit events.
+    /// Source-module-defined event code.
+    /// Interpret with `sourceModule`. 0 for NVML event-bit events.
     pub module_event_code: u32,
     /// Structured event scope identifier. 0 for NVML event-bit events.
     pub scope: u32,
@@ -336,13 +352,18 @@ pub struct OperationalEvent {
     pub module_instance: u32,
     /// Structured event chiplet identifier. 0 for NVML event-bit events.
     pub chiplet_id: u32,
-    /// `nvmlGpuOperationalEventLogLevel_t` value for structured GPU Operational Events. May contain newer log-level values not named in this header. `nvmlGpuOperationalEventLogLevel_t::NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_ALL` for NVML event-bit events.
+    /// `nvmlGpuOperationalEventLogLevel_t` value for structured GPU Operational Events.
+    /// May contain newer log-level values not named in this header.
+    /// `nvmlGpuOperationalEventLogLevel_t::NVML_GPU_OPERATIONAL_EVENT_LOG_LEVEL_ALL` for NVML event-bit events.
     pub log_level: EventLogLevel,
-    /// Bitmask of `NVML_OPERATIONAL_EVENT_ATTR_*` values for structured events. May contain newer bits not named in this header. 0 for NVML event-bit events. May include `NVML_OPERATIONAL_EVENT_ATTR_OVERFLOW` if events or associated payloads were dropped.
+    /// Bitmask of `NVML_OPERATIONAL_EVENT_ATTR_*` values for structured events.
+    /// May contain newer bits not named in this header. 0 for NVML event-bit events.
+    /// May include `NVML_OPERATIONAL_EVENT_ATTR_OVERFLOW` if events or associated payloads were dropped.
     pub attributes: EventAttributes,
     /// Associated CPER record size in bytes. 0 when unavailable.
     pub group_cper_size: u32,
-    /// Bitmask of `NVML_OPERATIONAL_EVENT_GROUP_ATTR_*` values for structured events. May contain newer bits not named in this header. 0 for NVML event-bit events.
+    /// Bitmask of `NVML_OPERATIONAL_EVENT_GROUP_ATTR_*` values for structured events.
+    /// May contain newer bits not named in this header. 0 for NVML event-bit events.
     pub group_attributes: EventGroupAttributes,
     /// Total number of events in the structured event group. 0 for NVML event-bit events.
     pub group_size: u8,

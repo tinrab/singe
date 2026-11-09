@@ -88,6 +88,7 @@ impl ResampleOperation {
                         "resample backward input shape",
                     )?;
                 }
+
                 if let Some(output) = inputs.output {
                     graph.validate_tensor_dimensions(
                         output,
@@ -95,6 +96,7 @@ impl ResampleOperation {
                         "resample backward output shape",
                     )?;
                 }
+
                 graph.validate_resample_indices(
                     inputs.indices,
                     graph.shape(inputs.output_gradient)?.dimensions(),
@@ -385,6 +387,7 @@ impl ResampleConfig {
         if values.is_empty() {
             return Ok(vec![default_value; spatial_dims]);
         }
+
         if values.len() != spatial_dims {
             return Err(Error::LengthMismatch {
                 name: name.into(),
@@ -399,7 +402,8 @@ impl ResampleConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`. Fraction validity is checked by [`Self::resolve_geometry`].
+    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`.
+    /// Fraction validity is checked by [`Self::resolve_geometry`].
     pub fn effective_pre_paddings(&self, spatial_dims: usize) -> Result<Vec<Fraction>> {
         Self::resolve_spatial_values(
             &self.pre_paddings,
@@ -413,7 +417,8 @@ impl ResampleConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`. Fraction validity is checked by [`Self::resolve_geometry`].
+    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`.
+    /// Fraction validity is checked by [`Self::resolve_geometry`].
     pub fn effective_post_paddings(&self, spatial_dims: usize) -> Result<Vec<Fraction>> {
         Self::resolve_spatial_values(
             &self.post_paddings,
@@ -427,7 +432,8 @@ impl ResampleConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`. Fraction validity is checked by [`Self::resolve_geometry`].
+    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`.
+    /// Fraction validity is checked by [`Self::resolve_geometry`].
     pub fn effective_strides(&self, spatial_dims: usize) -> Result<Vec<Fraction>> {
         Self::resolve_spatial_values(
             &self.strides,
@@ -441,7 +447,8 @@ impl ResampleConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`. Fraction validity is checked by [`Self::resolve_geometry`].
+    /// Returns an error if the explicit nonempty array length differs from `spatial_dims`.
+    /// Fraction validity is checked by [`Self::resolve_geometry`].
     pub fn effective_window_dims(&self, spatial_dims: usize) -> Result<Vec<Fraction>> {
         Self::resolve_spatial_values(
             &self.window_dimensions,

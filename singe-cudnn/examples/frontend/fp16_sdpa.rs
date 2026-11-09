@@ -116,6 +116,7 @@ fn create_sdpa_forward_graph(
                 .with_padding(padding_mask),
         ));
     }
+
     if padding_mask {
         score_config = score_config.with_sequence_inputs(AttentionSequenceInputs::per_batch(
             sequence_length_query,
@@ -125,6 +126,7 @@ fn create_sdpa_forward_graph(
             score_config = score_config.with_mask_mode(AttentionMaskMode::Padding);
         }
     }
+
     sdpa_options = sdpa_options.with_score_config(score_config);
 
     let inputs = SdpaInputs {
@@ -233,6 +235,7 @@ fn run() -> Result<()> {
             DeviceMemory::<u8>::zeroed(context.cudnn.cuda_context(), bytes)?,
         ));
     }
+
     let mut workspace = common::workspace(
         context.cudnn.cuda_context(),
         compiled_graph.workspace_size(),
@@ -249,6 +252,7 @@ fn run() -> Result<()> {
     for (id, memory) in &mut auxiliary_buffers {
         bindings.set_encoded_bytes(*id, memory)?;
     }
+
     // SAFETY: the example retains its plan and buffers through the surrounding completion or replay sequence.
     unsafe {
         compiled_graph.execute(
@@ -282,6 +286,7 @@ fn run() -> Result<()> {
             &bytes[..bytes.len().min(16)],
         );
     }
+
     println!(
         "q_bits: first={}, second={}, third={}, fourth={}",
         q_host[0].to_bits(),

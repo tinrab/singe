@@ -72,10 +72,12 @@ impl Fp8GroupQuantConfig {
         {
             return Err(Error::InvalidLength);
         }
+
         checked_i32_value(checked_element_count(self.rows, self.columns)?)?;
         if self.rows == 0 {
             return Ok(0);
         }
+
         let groups = self.columns / self.group_size;
         let len = match self.layout {
             Fp8ScaleLayout::RowMajor => checked_element_count(self.rows, groups)?,
@@ -154,8 +156,8 @@ pub struct PerTokenGroupQuantConfig {
 #[derive(Clone, Copy, Debug, PartialEq)]
 /// Column-major scale layout variant of per-token group quantization.
 ///
-/// Quantized values are written in row-major input order. Scales are stored at
-/// `group * scale_column_stride + row`.
+/// Quantized values are written in row-major input order.
+/// Scales are stored at `group * scale_column_stride + row`.
 /// Int8 values use round-to-nearest-even.
 pub struct PerTokenGroupQuantColumnMajorConfig {
     pub rows: usize,
@@ -177,9 +179,8 @@ pub struct RopeQuantizeFp8Config {
 #[derive(Clone, Copy, Debug, PartialEq)]
 /// Interleaved Q/K `RoPE` FP8 quantization layout.
 ///
-/// Q and K `RoPE` channels are rotated from `cos_sin_cache` using `pos_ids`,
-/// scaled independently, clamped to the finite f8e4m3 range, and converted to
-/// byte-backed FP8 output. Optional no-RoPE channels are scaled and quantized without rotation.
+/// Q and K `RoPE` channels are rotated from `cos_sin_cache` using `pos_ids`, scaled independently, clamped to the finite f8e4m3 range, and converted to byte-backed FP8 output.
+/// Optional no-RoPE channels are scaled and quantized without rotation.
 pub struct QkRopeQuantizeFp8Config {
     pub tokens: usize,
     pub q_heads: usize,
@@ -194,9 +195,8 @@ pub struct QkRopeQuantizeFp8Config {
 #[derive(Clone, Copy, Debug, PartialEq)]
 /// MLA variant of interleaved Q/K `RoPE` FP8 quantization.
 ///
-/// This layout has multiple query heads and a single shared K head. `RoPE`
-/// channels are rotated and quantized like [`QkRopeQuantizeFp8Config`], while
-/// optional no-RoPE channels are scaled directly.
+/// This layout has multiple query heads and a single shared K head.
+/// `RoPE` channels are rotated and quantized like [`QkRopeQuantizeFp8Config`], while optional no-RoPE channels are scaled directly.
 pub struct MlaRopeQuantizeFp8Config {
     pub tokens: usize,
     pub q_heads: usize,
@@ -419,6 +419,7 @@ where
     if config.length == 0 {
         return Ok(());
     }
+
     match config.tuning {
         TuningChoice::Default => return launch(None),
         TuningChoice::Explicit(tuning) => return launch(Some(tuning)),
@@ -644,6 +645,7 @@ pub unsafe fn quantize_f32_to_f8e4m3_block(
         ensure_len(out.len(), 0)?;
         return Ok(());
     }
+
     let blocks = validate_block_quant(out.len(), scales.len(), len, block_size)?;
     let stream = stream.to_cuda_core()?;
     // SAFETY: the caller upholds this function's safety contract.
@@ -840,6 +842,7 @@ pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved(
             )
         };
     }
+
     let stream = stream.to_cuda_core()?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
@@ -981,6 +984,7 @@ pub unsafe fn mla_rope_quantize_f8e4m3_f32_interleaved(
             )
         };
     }
+
     let stream = stream.to_cuda_core()?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
@@ -1676,9 +1680,11 @@ fn validate_per_token_group_quant(
     {
         return Err(Error::InvalidLength);
     }
+
     if !input_len.is_multiple_of(config.group_size) {
         return Err(Error::LengthMismatch);
     }
+
     let groups = input_len / config.group_size;
     ensure_len(out_len, input_len)?;
     ensure_len(scales_len, groups)?;
@@ -1707,6 +1713,7 @@ fn validate_per_token_group_quant_column_major(
     {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(config.rows, config.columns)?;
     ensure_len(out_len, len)?;
     ensure_len(input_len, len)?;
@@ -1727,6 +1734,7 @@ fn validate_grouped_dequant(
     if group_size == 0 || groups == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(group_size, groups)?;
     ensure_len(out_len, len)?;
     ensure_len(input_len, len)?;
@@ -1745,6 +1753,7 @@ fn validate_block_quant(
     if len == 0 || block_size == 0 || block_size > 128 {
         return Err(Error::InvalidLength);
     }
+
     ensure_len(out_len, len)?;
     let blocks = len.div_ceil(block_size);
     ensure_len(scales_len, blocks)?;
@@ -1763,6 +1772,7 @@ fn validate_block_dequant(
     if rows == 0 || columns == 0 || block_size == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(rows, columns)?;
     ensure_len(out_len, len)?;
     ensure_len(input_len, len)?;
@@ -1792,6 +1802,7 @@ fn validate_block_scaled_fp8_matmul(
     {
         return Err(Error::InvalidLength);
     }
+
     ensure_len(out_len, checked_element_count(config.rows, config.columns)?)?;
     ensure_len(
         activations_len,
@@ -1831,6 +1842,7 @@ fn validate_rope_quantize_fp8(
     {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(
         checked_element_count(config.tokens, config.heads)?,
         config.rope_dim,
@@ -1873,6 +1885,7 @@ fn validate_qk_rope_quantize_fp8(
     {
         return Err(Error::InvalidLength);
     }
+
     let q_rope_expected = checked_element_count(
         checked_element_count(config.tokens, config.q_heads)?,
         config.rope_dim,
@@ -1960,6 +1973,7 @@ fn validate_mla_rope_quantize_fp8(
     {
         return Err(Error::InvalidLength);
     }
+
     let q_rope_expected = checked_element_count(
         checked_element_count(config.tokens, config.q_heads)?,
         config.rope_dim,
@@ -2030,6 +2044,7 @@ fn validate_dequantized_weight_matmul(
     {
         return Err(Error::InvalidLength);
     }
+
     ensure_len(
         activations_len,
         strided_matrix_reach(config.rows, config.reduction, config.activation_row_stride)?,
@@ -2063,6 +2078,7 @@ fn validate_quantized_matmul(
     {
         return Err(Error::InvalidLength);
     }
+
     ensure_len(
         activations_len,
         strided_matrix_reach(config.rows, config.reduction, config.activation_row_stride)?,
@@ -2090,6 +2106,7 @@ fn validate_unpack_int4(out_len: usize, packed_len: usize) -> Result<usize> {
     if out_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     let expected_packed_len = out_len.div_ceil(2);
     ensure_len(packed_len, expected_packed_len)?;
     Ok(out_len)

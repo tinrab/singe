@@ -114,6 +114,7 @@ impl<T: GemmElement + DeviceRepr + Send + Sync> Gemm<T> {
         if context.cuda_context() != stream.context() {
             return Err(CudaError::StreamContextMismatch);
         }
+
         context
             .set_stream(Some(stream))
             .map_err(|error| CudaError::Operation(Box::new(error)))?;

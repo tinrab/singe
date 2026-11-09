@@ -29,9 +29,11 @@ fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }

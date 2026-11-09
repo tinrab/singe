@@ -39,6 +39,7 @@ impl Graph {
                 None,
             )?;
         }
+
         scores = self.sdpa_optional_add(scores, modifiers.bias(), compute_type, output_type)?;
         let alibi_bias = self.sdpa_optional_alibi_bias(scores, modifiers)?;
         scores = self.sdpa_optional_add(scores, alibi_bias, compute_type, output_type)?;
@@ -51,6 +52,7 @@ impl Graph {
             scores =
                 self.padding_mask_select(scores, sequence_length_query, sequence_length_key_value)?;
         }
+
         if let Some(band) = modifiers.diagonal_band() {
             scores = self.sdpa_diagonal_band_mask(scores, band, modifiers.sequence_inputs())?;
         }

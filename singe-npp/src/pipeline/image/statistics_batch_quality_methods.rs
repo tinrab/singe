@@ -92,9 +92,11 @@ where
     for image in source_0 {
         stream_context.prepare_region(image)?;
     }
+
     for image in source_1 {
         stream_context.prepare_region(image)?;
     }
+
     stream_context.prepare_region(&output)?;
     stream_context.sync_scope(|| {
         // SAFETY: checked batch dispatch writes each channel result and the scope retains

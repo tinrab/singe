@@ -52,9 +52,8 @@ pub unsafe trait ZeroableDeviceRepr: DeviceRepr {}
 ///
 /// # Safety
 ///
-/// Every byte of every valid value must be initialized whenever `Self::LAYOUT`
-/// evaluates successfully. Consumers must evaluate that layout before reading
-/// or reinterpreting the representation's bytes.
+/// Every byte of every valid value must be initialized whenever `Self::LAYOUT` evaluates successfully.
+/// Consumers must evaluate that layout before reading or reinterpreting the representation's bytes.
 pub unsafe trait NoUninitDeviceRepr: DeviceRepr {}
 
 /// A [`DeviceRepr`] for which every initialized byte pattern is a valid value.
@@ -71,14 +70,13 @@ pub unsafe trait AnyBitPatternDeviceRepr: ZeroableDeviceRepr {}
 /// Contiguous device storage that a producer may initialize as values of `T`.
 ///
 /// Both initialized and uninitialized buffers can provide output storage.
-/// This trait does not grant permission to read existing elements or establish
-/// that a producer initializes the entire range.
+/// This trait does not grant permission to read existing elements or establish that a producer initializes the entire range.
 ///
 /// # Safety
 ///
-/// The pointer must identify writable storage for `len()` elements with the
-/// device ABI and alignment of `T`, owned by `context()` and live for the
-/// borrow. Mutable access must be exclusive. The byte length must fit `usize`.
+/// The pointer must identify writable storage for `len()` elements with the device ABI and alignment of `T`, owned by `context()` and live for the borrow.
+/// Mutable access must be exclusive.
+/// The byte length must fit `usize`.
 /// `region()` must describe that same pointer and the exact byte range of those elements.
 pub unsafe trait DeviceOutput<T: DeviceRepr>: DeviceInput<T> {
     /// Returns a pointer to the writable device output range.
@@ -316,9 +314,8 @@ impl<'a> DeviceRegion<'a> {
     ///
     /// # Safety
     ///
-    /// `base` must identify `bytes` live CUDA-accessible bytes in `context`
-    /// for `'a`. `allocation_id` must be shared by all aliases of this allocation
-    /// and must not identify another live allocation.
+    /// `base` must identify `bytes` live CUDA-accessible bytes in `context` for `'a`.
+    /// `allocation_id` must be shared by all aliases of this allocation and must not identify another live allocation.
     ///
     /// # Errors
     ///
@@ -332,6 +329,7 @@ impl<'a> DeviceRegion<'a> {
         if bytes != 0 && base.is_null() {
             return Err(Error::InvalidMemoryAccess);
         }
+
         (base as usize)
             .checked_add(bytes)
             .ok_or(Error::InvalidMemoryAccess)?;
@@ -387,6 +385,7 @@ impl<'a> DeviceRegion<'a> {
         if stream.context() != self.context {
             return Err(Error::StreamContextMismatch);
         }
+
         if let Some(ready) = self.stream {
             stream.join(ready)?;
         }
@@ -462,8 +461,8 @@ impl<'a> DeviceRegion<'a> {
 ///
 /// # Safety
 ///
-/// Reported metadata must describe the same live memory as the provider's
-/// pointers. All aliases must preserve allocation identity and byte offsets.
+/// Reported metadata must describe the same live memory as the provider's pointers.
+/// All aliases must preserve allocation identity and byte offsets.
 /// The context must stay retained while the provider is alive.
 /// Returned regions must retain their identity, bounds, and liveness for the shared borrow.
 pub unsafe trait DeviceRegionProvider {
@@ -545,6 +544,7 @@ impl<O: DeviceRegionProvider + 'static> OwnedDeviceRegion<O> {
         if self.context() != stream.context() {
             return Err(Error::StreamContextMismatch);
         }
+
         self.readiness = Some(stream.clone());
         Ok(self)
     }
@@ -603,15 +603,15 @@ pub(crate) fn cast_length<T: DeviceRepr>(region: DeviceRegion<'_>) -> Result<usi
 /// Typed input metadata for a contiguous CUDA allocation range.
 ///
 /// The range may be initialized by an earlier operation in a captured graph.
-/// This trait does not establish initialized values or grant permission to read
-/// them. Raw consumers must establish validity and ordering when they execute.
+/// This trait does not establish initialized values or grant permission to read them.
+/// Raw consumers must establish validity and ordering when they execute.
 ///
 /// # Safety
 ///
-/// The pointer must identify live, aligned CUDA-accessible storage for `len()`
-/// elements of `T` throughout the borrow. The byte length must fit `usize`.
-/// `region()` must describe the exact byte range, actual context, allocation
-/// identity, and offset. Nonempty ranges must have the same pointer.
+/// The pointer must identify live, aligned CUDA-accessible storage for `len()` elements of `T` throughout the borrow.
+/// The byte length must fit `usize`.
+/// `region()` must describe the exact byte range, actual context, allocation identity, and offset.
+/// Nonempty ranges must have the same pointer.
 pub unsafe trait DeviceInput<T: DeviceRepr>: DeviceRegionProvider {
     /// Returns the context associated with the input allocation.
     fn context(&self) -> &Arc<Context> {
@@ -654,16 +654,15 @@ pub unsafe trait DeviceInput<T: DeviceRepr>: DeviceRegionProvider {
 ///
 /// # Safety
 ///
-/// Every element must contain a valid `T` for the borrow. Safe consumers may
-/// read the range using CUDA, subject to stream ordering and shared-borrow rules.
+/// Every element must contain a valid `T` for the borrow.
+/// Safe consumers may read the range using CUDA, subject to stream ordering and shared-borrow rules.
 pub unsafe trait DeviceSlice<T: DeviceRepr>: DeviceInput<T> {}
 
 /// A mutable typed contiguous range of CUDA-accessible device memory.
 ///
 /// # Safety
 ///
-/// The mutable pointer must identify the same range as `DeviceSlice` and grant
-/// exclusive access for its mutable borrow, including work using that borrow.
+/// The mutable pointer must identify the same range as `DeviceSlice` and grant exclusive access for its mutable borrow, including work using that borrow.
 /// Its initialized input and writable output capabilities must describe the same range.
 pub unsafe trait DeviceSliceMut<T: DeviceRepr>: DeviceSlice<T> + DeviceOutput<T> {}
 
@@ -671,8 +670,8 @@ pub unsafe trait DeviceSliceMut<T: DeviceRepr>: DeviceSlice<T> + DeviceOutput<T>
 ///
 /// # Safety
 ///
-/// The pointer must identify `len()` live, aligned `T` values readable for the
-/// borrow. The byte length must fit `usize`; shared access must not mutate them.
+/// The pointer must identify `len()` live, aligned `T` values readable for the borrow.
+/// The byte length must fit `usize`; shared access must not mutate them.
 pub unsafe trait HostSlice<T: DeviceRepr> {
     /// Returns a pointer to the readable host elements.
     fn as_host_ptr(&self) -> *const T;
@@ -690,8 +689,7 @@ pub unsafe trait HostSlice<T: DeviceRepr> {
 ///
 /// # Safety
 ///
-/// The mutable pointer must identify the same range as `HostSlice`, writable
-/// exclusively for the mutable borrow.
+/// The mutable pointer must identify the same range as `HostSlice`, writable exclusively for the mutable borrow.
 pub unsafe trait HostSliceMut<T: DeviceRepr>: HostSlice<T> {
     /// Returns a pointer to the exclusively writable host elements.
     fn as_host_mut_ptr(&mut self) -> *mut T;
@@ -720,8 +718,7 @@ pub unsafe trait ByteBuffer {
 ///
 /// # Safety
 ///
-/// The mutable pointer must identify the same bytes as `ByteBuffer` and grant
-/// exclusive writable access for the mutable borrow.
+/// The mutable pointer must identify the same bytes as `ByteBuffer` and grant exclusive writable access for the mutable borrow.
 pub unsafe trait ByteBufferMut: ByteBuffer {
     /// Returns a pointer to the exclusively writable bytes in the buffer’s address space.
     fn as_byte_mut_ptr(&mut self) -> *mut u8;
@@ -751,9 +748,8 @@ where
 
 /// Typed CUDA input metadata without an initialization guarantee.
 ///
-/// Construction checks the element layout and preserves the allocation's
-/// context and range. Reading values requires an unsafe consumer to establish
-/// initialization and order preceding producers before each read.
+/// Construction checks the element layout and preserves the allocation's context and range.
+/// Reading values requires an unsafe consumer to establish initialization and order preceding producers before each read.
 #[derive(Debug, Clone, Copy)]
 pub struct DeviceInputView<'a, T: DeviceRepr> {
     region: DeviceRegion<'a>,
@@ -788,7 +784,8 @@ impl<'a, T: DeviceRepr> DeviceInputView<'a, T> {
 
     /// Returns the CUDA-accessible element pointer.
     ///
-    /// An empty view returns an aligned dangling pointer. This pointer does not grant host access.
+    /// An empty view returns an aligned dangling pointer.
+    /// This pointer does not grant host access.
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
         if self.length == 0 {
@@ -904,8 +901,7 @@ impl<'a, T: DeviceRepr> DeviceOutputView<'a, T> {
     ///
     /// # Safety
     ///
-    /// The region must remain live and exclusively writable for the returned
-    /// lifetime, including queued CUDA accesses using this output.
+    /// The region must remain live and exclusively writable for the returned lifetime, including queued CUDA accesses using this output.
     ///
     /// # Errors
     ///
@@ -982,6 +978,7 @@ impl<'a, T: DeviceRepr> DeviceOutputView<'a, T> {
         if mid > self.length {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let boundary = mid * size_of::<T>();
         let left = Self {
             region: self.region.slice(..boundary)?,
@@ -1078,7 +1075,8 @@ impl<'a, T: DeviceRepr> DeviceView<'a, T> {
 
     /// Returns the CUDA-accessible element pointer.
     ///
-    /// An empty view returns an aligned dangling pointer. This pointer does not grant host access.
+    /// An empty view returns an aligned dangling pointer.
+    /// This pointer does not grant host access.
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
         if self.length == 0 {
@@ -1116,7 +1114,9 @@ impl<'a, T: DeviceRepr> DeviceView<'a, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error for unequal element counts or byte-size overflow. Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+    /// Returns an error for unequal element counts or byte-size overflow.
+    /// Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors.
+    /// A nonempty synchronous transfer is rejected during stream capture.
     pub fn copy_to_host(&self, destination: &mut [T]) -> Result<()>
     where
         T: AnyBitPatternDeviceRepr,
@@ -1128,7 +1128,8 @@ impl<'a, T: DeviceRepr> DeviceView<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates byte-size overflow, access-tracking, readiness synchronization, context-binding, stream-capture, CUDA copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+    /// Propagates byte-size overflow, access-tracking, readiness synchronization, context-binding, stream-capture, CUDA copy, and stream synchronization errors.
+    /// A nonempty synchronous transfer is rejected during stream capture.
     pub fn copy_to_host_vec(&self) -> Result<Vec<T>>
     where
         T: AnyBitPatternDeviceRepr,
@@ -1198,8 +1199,7 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     ///
     /// # Safety
     ///
-    /// The region must contain valid `T` values and remain exclusively borrowed
-    /// for the returned lifetime, including all GPU work using this view.
+    /// The region must contain valid `T` values and remain exclusively borrowed for the returned lifetime, including all GPU work using this view.
     ///
     /// # Errors
     ///
@@ -1246,7 +1246,8 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
 
     /// Returns the CUDA-accessible element pointer.
     ///
-    /// An empty view returns an aligned dangling pointer. This pointer does not grant host access.
+    /// An empty view returns an aligned dangling pointer.
+    /// This pointer does not grant host access.
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
         if self.length == 0 {
@@ -1291,7 +1292,9 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error for unequal element counts or byte-size overflow. Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+    /// Returns an error for unequal element counts or byte-size overflow.
+    /// Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors.
+    /// A nonempty synchronous transfer is rejected during stream capture.
     pub fn copy_from_host(&mut self, source: &[T]) -> Result<()> {
         transfer::copy_from_host(self, source)
     }
@@ -1300,7 +1303,9 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the ranges have different contexts or element counts, overlap in the same allocation, or their byte size overflows. Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+    /// Returns an error if the ranges have different contexts or element counts, overlap in the same allocation, or their byte size overflows.
+    /// Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors.
+    /// A nonempty synchronous transfer is rejected during stream capture.
     pub fn copy_from_device<B: DeviceSlice<T> + ?Sized>(&mut self, source: &B) -> Result<()> {
         copy_device(self, source)
     }
@@ -1309,7 +1314,9 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error for unequal element counts or byte-size overflow. Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+    /// Returns an error for unequal element counts or byte-size overflow.
+    /// Also propagates access-tracking, readiness synchronization, context binding, stream-capture, CUDA copy, and stream synchronization errors.
+    /// A nonempty synchronous transfer is rejected during stream capture.
     pub fn copy_to_host(&self, destination: &mut [T]) -> Result<()>
     where
         T: AnyBitPatternDeviceRepr,
@@ -1321,7 +1328,8 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
     ///
     /// # Errors
     ///
-    /// Propagates byte-size overflow, access-tracking, readiness synchronization, context-binding, stream-capture, CUDA copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+    /// Propagates byte-size overflow, access-tracking, readiness synchronization, context-binding, stream-capture, CUDA copy, and stream synchronization errors.
+    /// A nonempty synchronous transfer is rejected during stream capture.
     pub fn copy_to_host_vec(&self) -> Result<Vec<T>>
     where
         T: AnyBitPatternDeviceRepr,
@@ -1377,6 +1385,7 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, T> {
         if mid > self.length {
             return Err(Error::InvalidMemoryAccess);
         }
+
         let bytes = mid * size_of::<T>();
         Ok((
             DeviceViewMut {
@@ -1469,8 +1478,8 @@ impl<'a, T: DeviceRepr> DeviceViewMut<'a, MaybeUninit<T>> {
     ///
     /// # Safety
     ///
-    /// Every element must contain a valid T value. Producing writes must be
-    /// ordered before all consumers, and must complete before host readback.
+    /// Every element must contain a valid T value.
+    /// Producing writes must be ordered before all consumers, and must complete before host readback.
     #[must_use]
     pub unsafe fn assume_init(self) -> DeviceViewMut<'a, T> {
         let () = T::LAYOUT;

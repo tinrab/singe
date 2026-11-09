@@ -3,15 +3,15 @@
 //! Prefer the safe `singe-cudss` crate unless direct NVIDIA ABI access is required.
 
 #![allow(
+    unpredictable_function_pointer_comparisons,
+    non_upper_case_globals,
     deprecated,
-    warnings,
     dead_code,
     non_camel_case_types,
     non_snake_case,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -31,6 +31,22 @@ use singe_cuda_sys::{
 
 #[cfg(feature = "cudss_0_8")]
 include!("sys_800.rs");
+
+pub use singe_loader::LoadError;
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::cudss();
+
+// Loads cuDSS, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "cudss_0_8")]
+singe_loader::missing_status!(
+    cudssStatus_t,
+    library: cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED,
+    symbol: cudssStatus_t::CUDSS_STATUS_NOT_SUPPORTED,
+);
 
 #[cfg(test)]
 mod tests {

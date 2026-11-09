@@ -81,6 +81,7 @@ impl OperationGraph {
                 )
             }?;
         }
+
         descriptor
             .set_attribute_descriptor_slice(BackendAttributeName::OperationGraphOps, operations)?;
         if config.dynamic_shape_enabled {
@@ -89,12 +90,14 @@ impl OperationGraph {
                 true,
             )?;
         }
+
         if config.override_shape_enabled {
             descriptor.set_attribute_bool(
                 BackendAttributeName::OperationGraphIsOverrideShapeEnabled,
                 true,
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

@@ -1,27 +1,32 @@
 //! cuDSS wrappers for direct sparse solver operations.
 //!
-//! This crate covers cuDSS context management, solver configuration/data
-//! objects, matrix descriptors, execution phases, and basic logging controls.
-//! Matrix views retain their actual CUDA context and distinguish initialized
-//! inputs from write-only destinations. Raw execution is public and unsafe: the
-//! caller retains all resources through completion and checks numerical status
-//! before treating produced values as initialized.
+//! This crate covers cuDSS context management, solver configuration/data objects, matrix descriptors, execution phases, and basic logging controls.
+//! Matrix views retain their actual CUDA context and distinguish initialized inputs from write-only destinations.
+//! Raw execution is public and unsafe: the caller retains all resources through completion and checks numerical status before treating produced values as initialized.
 
 /// Solver configuration and typed configuration parameters.
 pub mod config;
+
 /// cuDSS handles, CUDA context ownership, streams, and execution phases.
 pub mod context;
+
 /// Solver state and host or device queries of solver results.
 pub mod data;
+
 /// Native statuses and errors from the Rust wrappers.
 pub mod error;
+
 /// Process-wide cuDSS logging controls and callbacks.
 pub mod logger;
+
 /// Dense and sparse matrix descriptors that borrow device storage.
 pub mod matrix;
+
 pub mod memory;
+
 /// Numeric representations, algorithm choices, flags, and parameter identifiers.
 pub mod types;
+
 mod utility;
 
 #[cfg(feature = "testing")]
@@ -48,8 +53,7 @@ pub fn version() -> Result<LibraryVersion> {
 
 /// Returns a cuDSS runtime library property.
 ///
-/// cuDSS supports the standard CUDA [`LibraryProperty`] values for major,
-/// minor, and patch version components.
+/// cuDSS supports the standard CUDA [`LibraryProperty`] values for major, minor, and patch version components.
 ///
 /// # Errors
 ///

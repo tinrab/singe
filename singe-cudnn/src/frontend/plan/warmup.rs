@@ -28,11 +28,13 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if stream or capture-state queries fail, placeholder allocation or scalar preparation fails, binding metadata or alignment is invalid, native variant-pack construction fails, execution-context retention fails, or stream configuration or capture fails. A native execution rejection during completed capture is retained in the returned outcome.
+    /// Returns an error if stream or capture-state queries fail, placeholder allocation or scalar preparation fails, binding metadata or alignment is invalid, native variant-pack construction fails, execution-context retention fails, or stream configuration or capture fails.
+    /// A native execution rejection during completed capture is retained in the returned outcome.
     pub fn warmup(&self, context: &mut Context) -> Result<WarmupOutcome> {
         if context.stream()?.capture_status()? != StreamCaptureStatus::None {
             return Ok(WarmupOutcome::SkippedActiveCapture);
         }
+
         let pack = CaptureOnlyPack::create(self, context)?;
         // SAFETY: host scalars and placeholder allocations remain live through capture and graph destruction.
         // The private pack is never exposed to normal execution or graph replay.
@@ -47,10 +49,9 @@ impl CompiledGraph {
     /// Returns binding, workspace, stream configuration or capture errors.
     ///
     /// # Safety
-    /// Keep borrowed device buffers, workspace and by-value host arguments valid
-    /// through this call. Host values must be initialized with their declared native
-    /// encodings. Device inputs need not be initialized because the captured graph
-    /// is discarded without launching its reads or writes.
+    /// Keep borrowed device buffers, workspace and by-value host arguments valid through this call.
+    /// Host values must be initialized with their declared native encodings.
+    /// Device inputs need not be initialized because the captured graph is discarded without launching its reads or writes.
     pub unsafe fn warmup_with_bindings(
         &self,
         context: &mut Context,
@@ -61,6 +62,7 @@ impl CompiledGraph {
         if context.stream()?.capture_status()? != StreamCaptureStatus::None {
             return Ok(WarmupOutcome::SkippedActiveCapture);
         }
+
         let pack = self.variant_pack_with_overrides(
             context.cuda_context(),
             bindings,
@@ -127,6 +129,7 @@ impl<'a> CaptureOnlyPack<'a> {
                         name: "warmup scalar shape".into(),
                     });
                 }
+
                 let (source, offset) = resolve_binding_source(
                     &compiled.core.artifacts.binding_replacements,
                     record.id,
@@ -136,6 +139,7 @@ impl<'a> CaptureOnlyPack<'a> {
                         name: "runtime scalar alias byte offset".into(),
                     });
                 }
+
                 if scalars.scalar_value(source).is_none() {
                     scalars.set_scalar(source, ScalarValue::one(record.tensor.data_type)?)?;
                 }
@@ -150,6 +154,7 @@ impl<'a> CaptureOnlyPack<'a> {
             pointers.push(pointer.cast());
             ids.push(record.id.as_i64());
         }
+
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::VariantPack)?;
         // SAFETY: all arrays and pointees remain live in this private pack until its discarded capture ends.
         // Device placeholder capacities and overlaps are permitted only by capture_plan_warmup's contract.
@@ -163,6 +168,7 @@ impl<'a> CaptureOnlyPack<'a> {
                 &pointers,
             )?;
         }
+
         descriptor.set_attribute_i64_slice(BackendAttributeName::VariantPackUniqueIds, &ids)?;
         descriptor.finalize()?;
         Ok(Self {

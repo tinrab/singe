@@ -59,13 +59,13 @@ impl<K: Eq + Hash> CacheState<K> {
 
 /// Thread-safe cache of built native execution plans, including C++ winner saturation.
 ///
-/// Keys are caller-selected feature vectors or other graph identities. Scope each key to the
-/// compatible device/context, operation graph, tensor UIDs, concrete layouts and compile policy.
+/// Keys are caller-selected feature vectors or other graph identities.
+/// Scope each key to the compatible device/context, operation graph, tensor UIDs, concrete layouts and compile policy.
 /// A shape-independent dynamic graph key alone does not identify interchangeable native plans.
 ///
-/// Unlike the frontend engine-choice cache, hits clone the retained native descriptor without
-/// rebuilding it. Returned plans remain alive after cache removal or destruction. Bindings,
-/// workspace and any other caller-owned execution resources still follow their ordinary contracts.
+/// Unlike the frontend engine-choice cache, hits clone the retained native descriptor without rebuilding it.
+/// Returned plans remain alive after cache removal or destruction.
+/// Bindings, workspace and any other caller-owned execution resources still follow their ordinary contracts.
 /// Rejected, replaced and removed keys and entries are released after unlocking the cache.
 #[derive(Debug)]
 pub struct ExecutionPlanCache<K = Vec<i64>> {
@@ -91,7 +91,8 @@ impl<K: Eq + Hash> ExecutionPlanCache<K> {
     }
 
     /// Sets how often the same winner must be observed before admission.
-    /// Observations need not be consecutive. Existing counts and cached plans are preserved.
+    /// Observations need not be consecutive.
+    /// Existing counts and cached plans are preserved.
     ///
     /// # Errors
     ///
@@ -139,8 +140,8 @@ impl<K: Eq + Hash> ExecutionPlanCache<K> {
     }
 
     /// Records one autotuning winner and caches it when its cumulative count reaches saturation.
-    /// Counts are separate for each key and native engine/knob tag. Admission and insertion use
-    /// one lock, so concurrent observations cannot replace the first admitted plan.
+    /// Counts are separate for each key and native engine/knob tag.
+    /// Admission and insertion use one lock, so concurrent observations cannot replace the first admitted plan.
     /// An already cached key or a saturation count of one needs no native tag query.
     ///
     /// # Errors
@@ -159,6 +160,7 @@ impl<K: Eq + Hash> ExecutionPlanCache<K> {
                 return Ok(PlanCacheAdmission::Inserted);
             }
         }
+
         // Native metadata can call CUDA; leave other cache operations unblocked during the query.
         let tag = plan.tag()?;
         let mut state = self.lock()?;
@@ -188,6 +190,7 @@ impl<K: Eq + Hash> ExecutionPlanCache<K> {
                 required,
             });
         }
+
         let (_, retired) = state.cache_plan(key, plan.clone());
         drop(state);
         drop(retired);

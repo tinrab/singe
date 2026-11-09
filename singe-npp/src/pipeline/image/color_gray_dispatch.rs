@@ -9,22 +9,19 @@ use crate::{
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait RgbToGrayImage<T, L> {
     /// Converts packed RGB to one-channel gray using the native fixed weights.
     /// Uses `0.299 * R + 0.587 * G + 0.114 * B` for gamma-corrected RGB.
     /// AC4 input alpha is ignored.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     fn rgb_to_gray_image(
         stream_context: &StreamContext,
@@ -37,24 +34,20 @@ pub unsafe trait RgbToGrayImage<T, L> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait ColorToGrayImage<T, L, const COEFFICIENTS: usize> {
     /// Converts packed color to one-channel gray using `coefficients`.
     /// Passes the host coefficient array directly to NPP without validating its values.
     /// Each output gray sample is the sum of the processed channels multiplied by their weights.
-    /// The provided C3 and AC4 implementations use three weights, ignoring AC4 input alpha;
-    /// C4 uses four weights and includes its fourth channel.
+    /// The provided C3 and AC4 implementations use three weights, ignoring AC4 input alpha; C4 uses four weights and includes its fourth channel.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     fn color_to_gray_image(
         stream_context: &StreamContext,
@@ -68,21 +61,18 @@ pub unsafe trait ColorToGrayImage<T, L, const COEFFICIENTS: usize> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait GradientColorToGrayImage<T> {
     /// Converts packed RGB to a one-channel gray gradient.
     /// `normalization` selects the native gradient distance method.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     fn gradient_color_to_gray_image(
         stream_context: &StreamContext,
@@ -96,24 +86,21 @@ pub unsafe trait GradientColorToGrayImage<T> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait CfaToRgbImage<T> {
     /// Converts a one-channel Bayer CFA image to packed RGB.
-    /// `source_roi` selects pixels in the full source image. `grid` specifies the Bayer
-    /// registration at the ROI origin. Uses the native required undefined interpolation setting.
+    /// `source_roi` selects pixels in the full source image.
+    /// `grid` specifies the Bayer registration at the ROI origin.
+    /// Uses the native required undefined interpolation setting.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source ROI must have a nonnegative origin and positive dimensions, fit inside
-    /// the source without coordinate overflow, and match the destination dimensions.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have a nonnegative origin and positive dimensions, fit inside the source without coordinate overflow, and match the destination dimensions.
     fn cfa_to_rgb_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C1>,
@@ -127,25 +114,22 @@ pub unsafe trait CfaToRgbImage<T> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and channel-layout ABI, validate
-/// participating regions and output geometry, and complete borrowed native work on every
-/// return path. Success must initialize every logical destination sample, including all mask
-/// pixels or supplied alpha values where applicable.
+/// Implementations must preserve the native element and channel-layout ABI, validate participating regions and output geometry, and complete borrowed native work on every return path.
+/// Success must initialize every logical destination sample, including all mask pixels or supplied alpha values where applicable.
 pub unsafe trait CfaToRgbaImage<T> {
     /// Converts a one-channel Bayer CFA image to packed RGB with supplied alpha.
-    /// `source_roi` selects pixels in the full source image. `grid` specifies the Bayer
-    /// registration at the ROI origin. Uses the native required undefined interpolation setting.
+    /// `source_roi` selects pixels in the full source image.
+    /// `grid` specifies the Bayer registration at the ROI origin.
+    /// Uses the native required undefined interpolation setting.
     /// Writes `alpha` to every destination alpha channel, including the AC4 layout.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source ROI must have a nonnegative origin and positive dimensions, fit inside
-    /// the source without coordinate overflow, and match the destination dimensions.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have a nonnegative origin and positive dimensions, fit inside the source without coordinate overflow, and match the destination dimensions.
     fn cfa_to_rgba_image(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C1>,

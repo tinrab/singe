@@ -1,7 +1,6 @@
 //! Scratch-buffer support for NPP wrappers.
 //!
-//! `ScratchBuffer` owns temporary device memory used by NPP operations that
-//! expose host-side buffer-size queries.
+//! `ScratchBuffer` owns temporary device memory used by NPP operations that expose host-side buffer-size queries.
 
 use std::{iter, mem::MaybeUninit, sync::Arc};
 

@@ -67,9 +67,7 @@ impl MatmulOperation {
 
 /// Attributes for a cuDNN frontend matmul operation.
 ///
-/// The operation computes `C[M, N] = A[M, K] * B[K, N]`; the last two input
-/// dimensions are interpreted as the matrix dimensions and preceding dimensions
-/// as batch dimensions.
+/// The operation computes `C[M, N] = A[M, K] * B[K, N]`; the last two input dimensions are interpreted as the matrix dimensions and preceding dimensions as batch dimensions.
 /// Omitted compute precision inherits graph policy during lowering.
 /// An explicit override remains independent of result encoding and FP8 epilogue precision.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

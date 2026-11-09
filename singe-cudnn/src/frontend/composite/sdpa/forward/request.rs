@@ -33,6 +33,7 @@ impl Graph {
         {
             config.to_mut().remove_zero_probability_dropout();
         }
+
         let paged = config.paged();
         if paged.k().is_some()
             && paged.v().is_some()
@@ -98,6 +99,7 @@ impl Graph {
             }
             .into());
         }
+
         if matches!(inputs, AttentionForwardInputs::Mxfp8(_)) && config.paged().is_enabled() {
             return Err(FrontendError::SdpaUnsupported {
                 operation: "mxfp8 sdpa",
@@ -106,6 +108,7 @@ impl Graph {
             }
             .into());
         }
+
         let aux_type = self.tensor_spec(q)?.data_type;
         let output_type = match inputs {
             AttentionForwardInputs::Mxfp8(_) => DataType::BF16,
@@ -179,6 +182,7 @@ impl Graph {
         {
             return Ok(());
         }
+
         if self.config.sm_version.is_none_or(|sm| sm <= 0) {
             return Err(FrontendError::SdpaRequires {
                 requirement: SdpaRequirement::TargetArchitecture,
@@ -186,6 +190,7 @@ impl Graph {
             }
             .into());
         }
+
         for operation in self.take_operations() {
             let Operation::AttentionForward(mut request) = operation else {
                 self.operations.push(operation);
@@ -196,6 +201,7 @@ impl Graph {
             {
                 request.config = config;
             }
+
             if let Some(stats) = request.outputs.stats {
                 self.validate_sdpa_tensor_data_type_match(
                     stats,
@@ -203,6 +209,7 @@ impl Graph {
                     SDPA_STATS_DATA_TYPE,
                 )?;
             }
+
             let output_data_type = self.tensor_spec(request.outputs.output)?.data_type;
             let implementation = self.resolve_attention_request(&request)?;
             request.config = request.config.with_implementation(implementation.into());

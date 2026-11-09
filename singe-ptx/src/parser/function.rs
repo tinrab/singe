@@ -10,11 +10,11 @@ use nom::{
 use crate::{
     ast::{Function, Span, Statement},
     parser::{
-        common,
-        common::{Input, PResult, identifier, keyword, lexeme, linking_directive, semicolon},
         depth, directive,
         directive::{attributes, directive_statement, function_directive, param_list},
         instruction::instruction,
+        lexical,
+        lexical::{Input, PResult, identifier, keyword, lexeme, linking_directive, semicolon},
     },
 };
 
@@ -77,7 +77,7 @@ fn has_return_param_list(input: Input<'_>) -> PResult<'_, ()> {
 }
 
 pub fn function(input: Input<'_>) -> PResult<'_, Function> {
-    let (input, ()) = common::ws(input)?;
+    let (input, ()) = lexical::ws(input)?;
     let start = input.location_offset();
     let (input, linkage) = opt(lexeme(linking_directive)).parse(input)?;
     let (input, kind) = lexeme(alt((keyword(".entry"), keyword(".func")))).parse(input)?;

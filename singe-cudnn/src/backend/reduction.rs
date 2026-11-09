@@ -54,7 +54,8 @@ impl_enum_display!(ReduceTensorOperator, {
 pub enum ReduceTensorIndices {
     /// Do not compute indices.
     None = sys::cudnnReduceTensorIndices_t::CUDNN_REDUCE_TENSOR_NO_INDICES as _,
-    /// Compute indices. The resulting indices are relative, and flattened.
+    /// Compute indices.
+    /// The resulting indices are relative, and flattened.
     Flattened = sys::cudnnReduceTensorIndices_t::CUDNN_REDUCE_TENSOR_FLATTENED_INDICES as _,
 }
 
@@ -63,7 +64,8 @@ impl_enum_display!(ReduceTensorIndices, {
     Self::Flattened => "CUDNN_REDUCE_TENSOR_FLATTENED_INDICES",
 });
 
-/// `cudnnIndicesType_t` is an enumerated type used to indicate the data type for the indices to be computed by the `cudnnReduceTensor` routine. This enumerated type is used as a field for the `cudnnReduceTensorDescriptor_t` descriptor.
+/// `cudnnIndicesType_t` is an enumerated type used to indicate the data type for the indices to be computed by the `cudnnReduceTensor` routine.
+/// This enumerated type is used as a field for the `cudnnReduceTensorDescriptor_t` descriptor.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive, Serialize, Deserialize,
 )]

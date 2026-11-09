@@ -133,6 +133,7 @@ pub fn sdpa_mask_scalar(data_type: DataType, value: f32) -> Result<TensorSpec> {
     sdpa_scalar_tensor(data_type, value)
 }
 
+// Always a run-time scalar: on cuDNN 9.27.0.42, attention accepts a compile-time constant and then computes scores that change from one process to the next, as `tests/sdpa_masks.rs` records.
 pub fn sdpa_scalar_tensor(data_type: DataType, value: f32) -> Result<TensorSpec> {
     let value = match data_type {
         DataType::F32 => ScalarValue::F32(value),
@@ -141,10 +142,20 @@ pub fn sdpa_scalar_tensor(data_type: DataType, value: f32) -> Result<TensorSpec>
         DataType::BF16 => ScalarValue::bf16_bits(bf16::from_f32(value).to_bits()),
         _ => return Err(FrontendError::SdpaScalarDataTypeUnsupported { data_type }.into()),
     };
-    Ok(TensorSpec::constant(value).with_shape(Shape::contiguous([1, 1, 1, 1])?))
+    Ok(TensorSpec::scalar(value).with_shape(Shape::contiguous([1, 1, 1, 1])?))
 }
 
 impl Graph {
+    // A caller's constant scale becomes a run-time scalar of that value, for the reason `sdpa_scalar_tensor` gives.
+    fn sdpa_scale_at_run_time(&mut self, scale: TensorId) -> Result<()> {
+        let tensor = self.tensor_spec(scale)?;
+        if tensor.is_constant() {
+            let tensor = tensor.clone().pass_by_value();
+            self.replace_tensor(scale, tensor)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn sdpa_effective_scale(
         &mut self,
         scale: TensorId,
@@ -153,6 +164,7 @@ impl Graph {
     ) -> Result<TensorId> {
         self.validate_tensor_scalar_shape(scale, SDPA_SCALE)?;
         let Some(attention_scale) = attention_scale else {
+            self.sdpa_scale_at_run_time(scale)?;
             return Ok(scale);
         };
 
@@ -175,11 +187,13 @@ impl Graph {
             };
             if let Some(combined) = combined {
                 return Ok(self.tensor(
-                    TensorSpec::new(scale_data_type, Shape::contiguous([1, 1, 1, 1])?)
-                        .with_constant_value(combined)?,
+                    TensorSpec::scalar(combined).with_shape(Shape::contiguous([1, 1, 1, 1])?),
                 ));
             }
         }
+
+        self.sdpa_scale_at_run_time(scale)?;
+
         let inline_scale = self.tensor(sdpa_scalar_tensor(scale_data_type, attention_scale)?);
         self.sdpa_binary(
             PointwiseMode::Mul,
@@ -244,6 +258,7 @@ pub fn require_sdpa_forward_mask_lengths(
     if has_padding_mask || query_sequence_length <= key_sequence_length {
         return Ok(());
     }
+
     if has_sliding_window {
         return Err(FrontendError::SdpaSlidingWindowSequenceLengthUnsupported {
             query_sequence_length,
@@ -251,6 +266,7 @@ pub fn require_sdpa_forward_mask_lengths(
         }
         .into());
     }
+
     if has_causal_bottom_right {
         return Err(
             FrontendError::SdpaCausalBottomRightSequenceLengthUnsupported {
@@ -396,6 +412,7 @@ impl SdpaBackwardSupport {
         if !rule.enabled {
             return Ok(());
         }
+
         if self
             .sm_version
             .is_some_and(|sm_version| sm_version / 10 < 10)
@@ -407,6 +424,7 @@ impl SdpaBackwardSupport {
             }
             .into());
         }
+
         if rule.query_sequence_length > rule.key_sequence_length {
             return Err(
                 FrontendError::SdpaBackwardCausalBottomRightSequenceLengthUnsupported {
@@ -416,6 +434,7 @@ impl SdpaBackwardSupport {
                 .into(),
             );
         }
+
         if rule.has_dropout {
             return Err(FrontendError::SdpaUnsupported {
                 feature: SdpaFeature::Dropout,
@@ -424,6 +443,7 @@ impl SdpaBackwardSupport {
             }
             .into());
         }
+
         if rule.query_sequence_length % 64 != 0 || rule.key_sequence_length % 64 != 0 {
             return Err(
                 FrontendError::SdpaBackwardCausalBottomRightSequenceLengthAlignmentUnsupported {
@@ -440,6 +460,7 @@ impl SdpaBackwardSupport {
         if !rule.enabled {
             return Ok(());
         }
+
         if self
             .sm_version
             .is_some_and(|sm_version| sm_version / 10 == 10)
@@ -462,6 +483,7 @@ impl SdpaBackwardSupport {
         if !rule.enabled {
             return Ok(());
         }
+
         if self.sm_version.is_some_and(|sm| sm / 10 == 10)
             && (rule.has_bias_gradient || rule.has_dropout || rule.has_alibi)
         {
@@ -472,6 +494,7 @@ impl SdpaBackwardSupport {
             }
             .into());
         }
+
         if rule.is_ragged && self.rejects_ragged_stats(true) {
             return Err(FrontendError::SdpaUnsupported {
                 sm_version: self.sm_version,

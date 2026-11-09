@@ -21,7 +21,8 @@ pub struct VariableDecl {
     pub vector: Option<VectorSize>,
     /// Number of registers requested by a numbered declaration such as `%r<4>`.
     pub count: Option<u32>,
-    /// Array dimensions in source order. A `None` entry represents an unsized dimension.
+    /// Array dimensions in source order.
+    /// A `None` entry represents an unsized dimension.
     pub array_bounds: Vec<Option<u32>>,
     /// Optional constant initializer expression.
     pub initializer: Option<Initializer>,

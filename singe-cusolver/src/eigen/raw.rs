@@ -1,18 +1,16 @@
 //! Native symmetric, generalized, and general eigenvalue operations.
 //!
 //! Execution enqueues work without completing its borrows.
-//! Keep the context, parameter objects, matrices, outputs, workspaces, selection
-//! bounds, and host count destinations alive through completion and captured replay.
+//! Keep the context, parameter objects, matrices, outputs, workspaces, selection bounds, and host count destinations alive through completion and captured replay.
 //! Order prior writes before execution and exclude overlapping accesses to writes.
 //! A successful enqueue does not establish a successful numerical result.
 //! Inspect completed device status before promoting outputs.
 //!
-//! Symmetric operations produce real eigenvalues and overwrite A with vectors
-//! when requested. Generalized operations also overwrite B with its selected
-//! triangular factor. Padding, scratch, and allocation tails are not results.
+//! Symmetric operations produce real eigenvalues and overwrite A with vectors when requested.
+//! Generalized operations also overwrite B with its selected triangular factor.
+//! Padding, scratch, and allocation tails are not results.
 //! Selected operations produce only the returned count of values and columns.
-//! Batched operations pack A at lda*n elements per matrix and values at n;
-//! they produce one status per matrix.
+//! Batched operations pack A at lda*n elements per matrix and values at n; they produce one status per matrix.
 //!
 //! Capture support follows the native routine.
 //! Batched Jacobi supports captured replay in cuSOLVER 12.3.4.
@@ -77,8 +75,8 @@ pub fn ssyevj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -164,8 +162,8 @@ pub fn ssyevj_batched_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -258,8 +256,8 @@ pub fn ssygvj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -363,8 +361,8 @@ pub fn ssygvd_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -474,8 +472,8 @@ pub fn ssygvdx_selected_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -582,8 +580,8 @@ pub fn dsyevj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -669,8 +667,8 @@ pub fn dsyevj_batched_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -763,8 +761,8 @@ pub fn dsygvj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -868,8 +866,8 @@ pub fn dsygvd_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -979,8 +977,8 @@ pub fn dsygvdx_selected_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1087,8 +1085,8 @@ pub fn cheevj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1174,8 +1172,8 @@ pub fn cheevj_batched_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1268,8 +1266,8 @@ pub fn chegvj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1373,8 +1371,8 @@ pub fn chegvd_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1484,8 +1482,8 @@ pub fn chegvdx_selected_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1592,8 +1590,8 @@ pub fn zheevj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1679,8 +1677,8 @@ pub fn zheevj_batched_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1773,8 +1771,8 @@ pub fn zhegvj_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1878,8 +1876,8 @@ pub fn zhegvd_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -1989,8 +1987,8 @@ pub fn zhegvdx_selected_buffer_size(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -2105,8 +2103,8 @@ pub fn xsyevd_buffer_size<T: SolverElement>(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -2213,8 +2211,8 @@ pub fn xsyevdx_buffer_size<T: SolverElement>(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -2324,8 +2322,8 @@ pub fn xsyev_batched_buffer_size<T: SolverElement>(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
@@ -2391,10 +2389,10 @@ pub unsafe fn xsyev_batched<T: SolverElement>(
 
 /// Queries scratch capacity from layout metadata without allocating buffers.
 ///
-/// Real inputs support n complex eigenvalues or two n-element real blocks
-/// holding real and imaginary parts. Eigenvectors always use the input type.
-/// For real A, a conjugate pair uses adjacent real and imaginary vector columns:
-/// `v[j] + i*v[j+1]` and `v[j] - i*v[j+1]`. Complex A produces complex columns.
+/// Real inputs support n complex eigenvalues or two n-element real blocks holding real and imaginary parts.
+/// Eigenvectors always use the input type.
+/// For real A, a conjugate pair uses adjacent real and imaginary vector columns: `v[j] + i*v[j+1]` and `v[j] - i*v[j+1]`.
+/// Complex A produces complex columns.
 ///
 /// # Errors
 ///
@@ -2411,6 +2409,7 @@ pub fn xgeev_buffer_size<T: SolverElement, W: EigenvalueElement<T>>(
     if let Some(vectors) = right_vectors {
         vectors.validate(n, n)?;
     }
+
     let mode = if right_vectors.is_some() {
         EigenMode::Vector
     } else {
@@ -2455,15 +2454,15 @@ pub fn xgeev_buffer_size<T: SolverElement, W: EigenvalueElement<T>>(
 /// Enqueues the native eigenvalue operation.
 ///
 /// # Safety
-/// Keep all borrowed resources alive and order their accesses through completion
-/// and every replay. Inspect completed status before reading or promoting results.
+/// Keep all borrowed resources alive and order their accesses through completion and every replay.
+/// Inspect completed status before reading or promoting results.
 /// Jacobi parameter storage is exclusive through completion when present.
 /// Selected host counts and bounds must also survive completion and replay.
 ///
-/// Real inputs support n complex eigenvalues or two n-element real blocks
-/// holding real and imaginary parts. Eigenvectors always use the input type.
-/// For real A, a conjugate pair uses adjacent real and imaginary vector columns:
-/// `v[j] + i*v[j+1]` and `v[j] - i*v[j+1]`. Complex A produces complex columns.
+/// Real inputs support n complex eigenvalues or two n-element real blocks holding real and imaginary parts.
+/// Eigenvectors always use the input type.
+/// For real A, a conjugate pair uses adjacent real and imaginary vector columns: `v[j] + i*v[j+1]` and `v[j] - i*v[j+1]`.
+/// Complex A produces complex columns.
 ///
 /// # Errors
 ///
@@ -2488,6 +2487,7 @@ pub unsafe fn xgeev<T: SolverElement, W: EigenvalueElement<T>>(
         MatrixLayout::new(vectors.leading_dimension).require_capacity(n, n, vectors.data.len())?;
         context.validate_region(&vectors.data)?;
     }
+
     output(&w, values)?;
     output(&dev_info, 1)?;
     context.validate_region(&a.data)?;

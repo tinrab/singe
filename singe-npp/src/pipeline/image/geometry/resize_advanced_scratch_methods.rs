@@ -10,38 +10,34 @@ use crate::{
 impl ImagePipeline<'_, u8, C1> {
     /// Returns the device scratch capacity in bytes for advanced C1 `u8` resizing.
     ///
-    /// Uses the source and destination ROI sizes and interpolation from `resize`. Queries
-    /// NPP without allocating storage or submitting stream work.
+    /// Uses the source and destination ROI sizes and interpolation from `resize`.
+    /// Queries NPP without allocating storage or submitting stream work.
     ///
     /// # Errors
     ///
-    /// Returns an error if NPP rejects the ROI sizes or interpolation, or converting the
-    /// returned byte count to `usize` fails.
+    /// Returns an error if NPP rejects the ROI sizes or interpolation, or converting the returned byte count to `usize` fails.
     pub fn resize_sqr_pixel_advanced_buffer_size(resize: &ResizeSqrPixelAdvanced) -> Result<usize> {
         geometry::resize_sqr_pixel_c1_advanced_buffer_size::<u8>(resize)
     }
 
     /// Resizes with explicit scale factors and advanced interpolation.
     ///
-    /// `resize` supplies source and destination ROIs, independent horizontal and vertical
-    /// scale factors, and interpolation. The provided implementation uses C1 `u8` images.
+    /// `resize` supplies source and destination ROIs, independent horizontal and vertical scale factors, and interpolation.
+    /// The provided implementation uses C1 `u8` images.
     /// Uses the supplied scratch buffer, checking its CUDA context and queried capacity.
-    /// Takes ownership of the supplied initialized `destination` and returns it in the
-    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
-    /// destination values.
-    /// Prepares all participating image regions and scratch, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the resulting pipeline.
+    /// Pixels outside native writes and ignored alpha retain their destination values.
+    /// Prepares all participating image regions and scratch, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source ROI must have positive dimensions and representable endpoints. The
-    /// destination ROI must fit within the destination image. NPP may reject geometry
-    /// or interpolation parameters.
-    /// Scratch-size queries and checked size conversions can fail. Insufficient scratch
-    /// capacity or a scratch context mismatch is rejected.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints.
+    /// The destination ROI must fit within the destination image.
+    /// NPP may reject geometry or interpolation parameters.
+    /// Scratch-size queries and checked size conversions can fail.
+    /// Insufficient scratch capacity or a scratch context mismatch is rejected.
     /// Image view construction or capture-time destination retention can also fail.
     pub fn resize_sqr_pixel_advanced_with_scratch(
         self,

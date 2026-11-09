@@ -1,7 +1,6 @@
 //! Sobol direction-vector and scramble-constant tables.
 //!
-//! These wrappers expose library-owned host-memory tables returned by cuRAND for
-//! quasirandom number generation.
+//! These wrappers expose library-owned host-memory tables returned by cuRAND for quasirandom number generation.
 
 use std::{
     ops::{Index, RangeFull},
@@ -19,8 +18,7 @@ use crate::{
 
 /// Number of Sobol dimensions in the direction-vector and scramble-constant tables.
 ///
-/// cuRAND documents the Joe-Kuo direction-vector sets exposed by
-/// `curandGetDirectionVectors32` and `curandGetDirectionVectors64` as containing 20,000 dimensions.
+/// cuRAND documents the Joe-Kuo direction-vector sets exposed by `curandGetDirectionVectors32` and `curandGetDirectionVectors64` as containing 20,000 dimensions.
 /// The same dimension limit is used by `curandSetQuasiRandomGeneratorDimensions`.
 pub const MAX_QUASI_RANDOM_DIMENSIONS: usize = 20_000;
 
@@ -76,13 +74,12 @@ pub struct ScrambleConstants64 {
 
 /// Returns a table of 32-bit Sobol direction vectors for `set`.
 ///
-/// cuRAND returns a pointer to host memory owned by the library. The returned
-/// wrapper borrows that stable table and exposes it as a Rust slice.
+/// cuRAND returns a pointer to host memory owned by the library.
+/// The returned wrapper borrows that stable table and exposes it as a Rust slice.
 ///
 /// # Errors
 ///
-/// Returns an error if `set` is not valid for 32-bit direction vectors or if
-/// cuRAND does not return a table pointer.
+/// Returns an error if `set` is not valid for 32-bit direction vectors or if cuRAND does not return a table pointer.
 pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<DirectionVectorTable32> {
     let mut vectors = ptr::null_mut();
     // SAFETY: `curandGetDirectionVectors32` receives valid output locations.
@@ -98,13 +95,12 @@ pub fn direction_vectors_32(set: DirectionVectorSet) -> Result<DirectionVectorTa
 
 /// Returns a table of 64-bit Sobol direction vectors for `set`.
 ///
-/// cuRAND returns a pointer to host memory owned by the library. The returned
-/// wrapper borrows that stable table and exposes it as a Rust slice.
+/// cuRAND returns a pointer to host memory owned by the library.
+/// The returned wrapper borrows that stable table and exposes it as a Rust slice.
 ///
 /// # Errors
 ///
-/// Returns an error if `set` is not valid for 64-bit direction vectors or if
-/// cuRAND does not return a table pointer.
+/// Returns an error if `set` is not valid for 64-bit direction vectors or if cuRAND does not return a table pointer.
 pub fn direction_vectors_64(set: DirectionVectorSet) -> Result<DirectionVectorTable64> {
     let mut vectors = ptr::null_mut();
     // SAFETY: `curandGetDirectionVectors64` receives valid output locations.

@@ -83,6 +83,7 @@ fn main() -> Result<()> {
         println!("row_perm[{index}] = {actual}, expected {expected}");
         assert_eq!(*actual, expected);
     }
+
     for (index, (actual, expected)) in col_perm.iter().zip(col_perm_expected).enumerate() {
         println!("col_perm[{index}] = {actual}, expected {expected}");
         assert_eq!(*actual, expected);

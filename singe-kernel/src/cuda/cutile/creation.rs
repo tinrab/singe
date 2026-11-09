@@ -7,7 +7,7 @@ use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 use crate::{
     cuda::cutile::{
         DeviceOpExt, TileKernel,
-        kernel::common as kernel_common,
+        kernel::vector as vector_kernels,
         utility::{VectorLaunch, checked_device_pointer},
     },
     error::Result,
@@ -30,7 +30,7 @@ macro_rules! fill_fn {
             checked_device_pointer(&out)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, value, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, value, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -56,7 +56,7 @@ macro_rules! arange_fn {
             checked_device_pointer(&out)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, start, step, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, start, step, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())

@@ -240,15 +240,13 @@ unsafe impl Send for Matrix<'_> {}
 impl<'a> Matrix<'a> {
     /// Creates a dense producer destination from exclusive write-only storage.
     ///
-    /// Descriptor construction does not initialize values. A completed solve
-    /// produces logical matrix elements, not pitch padding or allocation tails.
+    /// Descriptor construction does not initialize values.
+    /// A completed solve produces logical matrix elements, not pitch padding or allocation tails.
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid dimensions or leading dimension, a required
-    /// element count that cannot be represented, or insufficient storage.
-    /// Context-binding and cuDSS descriptor-creation errors are propagated; a
-    /// null descriptor returned after successful creation is also rejected.
+    /// Returns an error for invalid dimensions or leading dimension, a required element count that cannot be represented, or insufficient storage.
+    /// Context-binding and cuDSS descriptor-creation errors are propagated; a null descriptor returned after successful creation is also rejected.
     pub fn create_dense_output<T: DataTypeLike>(
         desc: DenseMatrixDescriptor,
         mut values: DeviceOutputView<'a, T>,
@@ -270,11 +268,8 @@ impl<'a> Matrix<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the buffer belongs to another context, its element
-    /// type does not match the descriptor, or it is too short for the matrix.
-    /// Errors querying the existing format and shape, validating dimensions or
-    /// size conversions, binding the context, or updating the native pointer
-    /// are also propagated.
+    /// Returns an error if the buffer belongs to another context, its element type does not match the descriptor, or it is too short for the matrix.
+    /// Errors querying the existing format and shape, validating dimensions or size conversions, binding the context, or updating the native pointer are also propagated.
     pub fn set_output<T: DataTypeLike>(
         &mut self,
         mut values: DeviceOutputView<'a, T>,
@@ -337,19 +332,16 @@ impl<'a> Matrix<'a> {
 
     /// Creates a dense matrix descriptor from an untyped pointer.
     ///
-    /// cuDSS stores the values pointer without taking ownership of the backing
-    /// allocation.
+    /// cuDSS stores the values pointer without taking ownership of the backing allocation.
     ///
     /// # Safety
     ///
-    /// `values` must be null or point to a device-visible dense matrix buffer
-    /// with element type `value_type` and layout described by `desc`. The buffer
-    /// must outlive this descriptor and every cuDSS operation that uses it.
+    /// `values` must be null or point to a device-visible dense matrix buffer with element type `value_type` and layout described by `desc`.
+    /// The buffer must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// # Errors
     ///
-    /// Returns an error if `desc` is invalid, if cuDSS cannot create the matrix
-    /// descriptor, or if cuDSS returns a null handle.
+    /// Returns an error if `desc` is invalid, if cuDSS cannot create the matrix descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_dense_raw(
         context: &Arc<CudaContext>,
         desc: DenseMatrixDescriptor,
@@ -406,6 +398,7 @@ impl<'a> Matrix<'a> {
         if let Some(row_end) = row_end {
             ensure_context(values.context(), row_end.context())?;
         }
+
         validate_csr_descriptor(
             desc,
             Some(row_start.len()),
@@ -435,20 +428,15 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// `row_start`, `row_end`, `column_indices`, and `values` must be null only
-    /// where cuDSS permits null pointers, otherwise they must point to CSR
-    /// arrays with types `offset_type`, `index_type`, and `value_type`. The
-    /// arrays, [`IndexBase`], [`MatrixType`], and [`MatrixViewType`] in `desc`
-    /// must describe the same matrix. The buffers must outlive this descriptor
-    /// and every cuDSS operation that uses it.
+    /// `row_start`, `row_end`, `column_indices`, and `values` must be null only where cuDSS permits null pointers, otherwise they must point to CSR arrays with types `offset_type`, `index_type`, and `value_type`.
+    /// The arrays, [`IndexBase`], [`MatrixType`], and [`MatrixViewType`] in `desc` must describe the same matrix.
+    /// The buffers must outlive this descriptor and every cuDSS operation that uses it.
     ///
-    /// Host pointers are only valid for cuDSS modes that explicitly support
-    /// them.
+    /// Host pointers are only valid for cuDSS modes that explicitly support them.
     ///
     /// # Errors
     ///
-    /// Returns an error if `desc` is invalid, if cuDSS cannot create the matrix
-    /// descriptor, or if cuDSS returns a null handle.
+    /// Returns an error if `desc` is invalid, if cuDSS cannot create the matrix descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_csr_raw(
         context: &Arc<CudaContext>,
         desc: CsrMatrixDescriptor,
@@ -518,17 +506,14 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// `values` must point to a device-visible pointer table whose entries
-    /// point to device-visible dense matrix buffers with element type
-    /// `value_type`. The table and every referenced buffer must outlive this
-    /// descriptor and every cuDSS operation that uses it.
+    /// `values` must point to a device-visible pointer table whose entries point to device-visible dense matrix buffers with element type `value_type`.
+    /// The table and every referenced buffer must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// Matrix batches are not supported in MGMN mode.
     ///
     /// # Errors
     ///
-    /// Returns an error if the descriptor shape arrays are invalid, if cuDSS
-    /// cannot create the matrix descriptor, or if cuDSS returns a null handle.
+    /// Returns an error if the descriptor shape arrays are invalid, if cuDSS cannot create the matrix descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_batch_dense_raw<I: BatchIndex>(
         context: &Arc<CudaContext>,
         desc: BatchDenseMatrixDescriptor<'a, I>,
@@ -592,6 +577,7 @@ impl<'a> Matrix<'a> {
         ] {
             validate_min_len(name, desc.rows.len(), length)?;
         }
+
         if let Some(row_end) = row_end {
             ensure_context(values.context(), row_end.context())?;
             validate_min_len("row end table", desc.rows.len(), row_end.len())?;
@@ -614,21 +600,18 @@ impl<'a> Matrix<'a> {
 
     /// Creates a non-uniform batch CSR descriptor from untyped pointer tables.
     ///
-    /// cuDSS supports non-uniform batches with varying row, column, and nonzero
-    /// counts. It does not validate CSR consistency at creation time.
+    /// cuDSS supports non-uniform batches with varying row, column, and nonzero counts.
+    /// It does not validate CSR consistency at creation time.
     ///
     /// # Safety
     ///
-    /// `row_start`, `row_end`, `col_indices`, and `values` must point to
-    /// device-visible pointer tables. Each table entry used by cuDSS must point
-    /// to a live CSR array with the corresponding data type. The tables and all
-    /// referenced arrays must outlive this descriptor and every cuDSS operation
-    /// that uses it.
+    /// `row_start`, `row_end`, `col_indices`, and `values` must point to device-visible pointer tables.
+    /// Each table entry used by cuDSS must point to a live CSR array with the corresponding data type.
+    /// The tables and all referenced arrays must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// # Errors
     ///
-    /// Returns an error if the descriptor shape arrays are invalid, if cuDSS
-    /// cannot create the matrix descriptor, or if cuDSS returns a null handle.
+    /// Returns an error if the descriptor shape arrays are invalid, if cuDSS cannot create the matrix descriptor, or if cuDSS returns a null handle.
     pub unsafe fn create_batch_csr_raw<I: BatchIndex>(
         context: &Arc<CudaContext>,
         desc: BatchCsrMatrixDescriptor<'a, I>,
@@ -767,9 +750,7 @@ impl<'a> Matrix<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDSS cannot report the descriptor metadata, if the
-    /// reported batch count cannot be represented as `usize`, or if cuDSS
-    /// reports an unsupported batch index type.
+    /// Returns an error if cuDSS cannot report the descriptor metadata, if the reported batch count cannot be represented as `usize`, or if cuDSS reports an unsupported batch index type.
     pub fn batch_dense_info(&self) -> Result<BatchDenseMatrixInfo> {
         // SAFETY: cuDSS writes only into the local output locations declared in this block.
         unsafe {
@@ -810,9 +791,7 @@ impl<'a> Matrix<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDSS cannot report the descriptor metadata, if the
-    /// reported batch count cannot be represented as `usize`, or if cuDSS
-    /// reports an unsupported batch index type.
+    /// Returns an error if cuDSS cannot report the descriptor metadata, if the reported batch count cannot be represented as `usize`, or if cuDSS reports an unsupported batch index type.
     pub fn batch_csr_info(&self) -> Result<BatchCsrMatrixInfo> {
         // SAFETY: cuDSS writes only into the local output locations declared in this block.
         unsafe {
@@ -885,9 +864,8 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// `values` must be null or point to a buffer whose type, layout, and
-    /// length match this descriptor. The buffer must outlive this descriptor and
-    /// every cuDSS operation that uses it.
+    /// `values` must be null or point to a buffer whose type, layout, and length match this descriptor.
+    /// The buffer must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// # Errors
     ///
@@ -927,6 +905,7 @@ impl<'a> Matrix<'a> {
         if let Some(row_end) = row_end {
             ensure_context(&self.context, row_end.context())?;
         }
+
         let info = self.csr_info()?;
         if info.offset_type != O::DATA_TYPE
             || info.index_type != I::DATA_TYPE
@@ -936,6 +915,7 @@ impl<'a> Matrix<'a> {
                 name: "csr replacement buffers".into(),
             });
         }
+
         validate_csr_descriptor(
             CsrMatrixDescriptor {
                 rows: info.rows,
@@ -965,10 +945,8 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// The pointers must be null only where cuDSS permits null pointers,
-    /// otherwise they must point to buffers whose types, lengths, and CSR
-    /// contents match this descriptor. The buffers must outlive this descriptor
-    /// and every cuDSS operation that uses it.
+    /// The pointers must be null only where cuDSS permits null pointers, otherwise they must point to buffers whose types, lengths, and CSR contents match this descriptor.
+    /// The buffers must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// # Errors
     ///
@@ -1016,6 +994,7 @@ impl<'a> Matrix<'a> {
                 name: "batch replacement values".into(),
             });
         }
+
         validate_min_len("values table", count, values.len())?;
         // SAFETY: the descriptor and buffers were validated above and stay borrowed for the matrix lifetime.
         unsafe { self.set_batch_values_raw(values.as_ptr()) }
@@ -1025,9 +1004,8 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// `values` must point to a device-visible pointer table whose entries
-    /// match this batch descriptor. The table and referenced buffers must
-    /// outlive this descriptor and every cuDSS operation that uses it.
+    /// `values` must point to a device-visible pointer table whose entries match this batch descriptor.
+    /// The table and referenced buffers must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// # Errors
     ///
@@ -1070,6 +1048,7 @@ impl<'a> Matrix<'a> {
                 name: "batch csr replacement buffers".into(),
             });
         }
+
         for (name, table_context, count) in [
             ("row start table", row_start.context(), row_start.len()),
             (
@@ -1082,6 +1061,7 @@ impl<'a> Matrix<'a> {
             ensure_context(&self.context, table_context)?;
             validate_min_len(name, info.rows.len(), count)?;
         }
+
         if let Some(row_end) = row_end {
             ensure_context(&self.context, row_end.context())?;
             validate_min_len("row end table", info.rows.len(), row_end.len())?;
@@ -1101,9 +1081,8 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// Each pointer must point to a device-visible pointer table whose entries
-    /// match this batch descriptor. The tables and referenced buffers must
-    /// outlive this descriptor and every cuDSS operation that uses it.
+    /// Each pointer must point to a device-visible pointer table whose entries match this batch descriptor.
+    /// The tables and referenced buffers must outlive this descriptor and every cuDSS operation that uses it.
     ///
     /// # Errors
     ///
@@ -1143,15 +1122,12 @@ impl<'a> Matrix<'a> {
 
     /// Sets the 1D row distribution for MGMN mode.
     ///
-    /// `first_row` and `last_row` are zero-based inclusive global row indices
-    /// for the local matrix on the calling process. Set `first_row > last_row`
-    /// to mark an empty local matrix.
+    /// `first_row` and `last_row` are zero-based inclusive global row indices for the local matrix on the calling process.
+    /// Set `first_row > last_row` to mark an empty local matrix.
     ///
-    /// The system matrix, right-hand side, and solution may use different
-    /// distributions. If sparse matrix or right-hand side distributions overlap,
-    /// overlapping contributions are summed. If solution distributions overlap,
-    /// overlapping solution entries have the same values on the corresponding
-    /// processes.
+    /// The system matrix, right-hand side, and solution may use different distributions.
+    /// If sparse matrix or right-hand side distributions overlap, overlapping contributions are summed.
+    /// If solution distributions overlap, overlapping solution entries have the same values on the corresponding processes.
     ///
     /// # Errors
     ///
@@ -1198,9 +1174,8 @@ impl<'a> Matrix<'a> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuDSS matrix descriptor. The descriptor may
-    /// store borrowed pointers, and the caller must ensure those buffers outlive
-    /// the returned wrapper's lifetime.
+    /// `handle` must be a valid cuDSS matrix descriptor.
+    /// The descriptor may store borrowed pointers, and the caller must ensure those buffers outlive the returned wrapper's lifetime.
     ///
     /// # Errors
     ///
@@ -1233,8 +1208,10 @@ impl Drop for Matrix<'_> {
         // SAFETY: `cudssMatrixDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudssMatrixDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudss matrix: {error}");
+                eprintln!(
+                    "failed to destroy cudss matrix: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -1254,8 +1231,7 @@ impl DenseMatrixDescriptor {
 
     /// Creates a row-major dense matrix descriptor.
     ///
-    /// cuDSS documents row-major layout but does not currently support it for
-    /// solve right-hand side and solution matrices.
+    /// cuDSS documents row-major layout but does not currently support it for solve right-hand side and solution matrices.
     #[must_use]
     pub fn new_row_major(rows: i64, columns: i64, leading_dim: i64) -> Self {
         Self {
@@ -1325,12 +1301,15 @@ fn validate_csr_descriptor(
         };
         validate_min_len("row_start", expected, row_start_len)?;
     }
+
     if let Some(row_end_len) = row_end_len {
         validate_min_len("row_end", rows, row_end_len)?;
     }
+
     if let Some(column_indices_len) = column_indices_len {
         validate_min_len("column_indices", nnz, column_indices_len)?;
     }
+
     if let Some(values_len) = values_len {
         validate_min_len("values", nnz, values_len)?;
     }

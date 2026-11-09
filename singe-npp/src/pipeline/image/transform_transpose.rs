@@ -76,17 +76,14 @@ where
 {
     /// Transposes image pixels, exchanging horizontal and vertical coordinates.
     ///
-    /// The provided implementations retain `u8`, `u16`, `i16`, `i32`, or `f32` samples in
-    /// C1, C3, or C4 layouts. Destination width must equal source height and destination
-    /// height must equal source width.
-    /// Prepares all participating image regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// The provided implementations retain `u8`, `u16`, `i16`, `i32`, or `f32` samples in C1, C3, or C4 layouts.
+    /// Destination width must equal source height and destination height must equal source width.
+    /// Prepares all participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
     /// Destination dimensions must be the exchanged source dimensions.
     pub fn transpose_into(
         stream_context: &StreamContext,
@@ -105,17 +102,15 @@ where
 {
     /// Transposes image pixels, exchanging horizontal and vertical coordinates.
     ///
-    /// The provided implementations retain `u8`, `u16`, `i16`, `i32`, or `f32` samples in
-    /// C1, C3, or C4 layouts. Allocates a new image with source width and height
-    /// exchanged. Every logical output channel is written.
-    /// Prepares all participating image regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// The provided implementations retain `u8`, `u16`, `i16`, `i32`, or `f32` samples in C1, C3, or C4 layouts.
+    /// Allocates a new image with source width and height exchanged.
+    /// Every logical output channel is written.
+    /// Prepares all participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
     /// Destination dimensions must be the exchanged source dimensions.
     /// Image view construction, output allocation, or copying source alpha can also fail.
     pub fn transpose(self) -> Result<Self> {

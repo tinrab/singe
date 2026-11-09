@@ -94,7 +94,8 @@ impl DataType {
     ///
     /// # Panics
     ///
-    /// Panics if the native byte size cannot be represented as `usize`. Every current variant has a byte size between 1 and 16, so valid variants fit supported host targets.
+    /// Panics if the native byte size cannot be represented as `usize`.
+    /// Every current variant has a byte size between 1 and 16, so valid variants fit supported host targets.
     #[must_use]
     pub fn storage_bits(self) -> usize {
         match self {

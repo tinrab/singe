@@ -1,5 +1,4 @@
-//! Rust take on the CUDA "vectorAdd" sample: compile a kernel with NVRTC through
-//! `cuda_module!`, add two vectors on the device, and verify the result on the host.
+//! Rust take on the CUDA "vectorAdd" sample: compile a kernel with NVRTC through `cuda_module!`, add two vectors on the device, and verify the result on the host.
 
 use std::error::Error;
 
@@ -62,6 +61,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(index) = mismatch {
         return Err(format!("result verification failed at element {index}").into());
     }
+
     println!("vector addition of {COUNT} elements passed");
     Ok(())
 }

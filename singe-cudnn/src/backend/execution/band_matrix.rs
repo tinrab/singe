@@ -67,12 +67,14 @@ impl ExpandBandMatrixOperation {
                 kv_token_offset.descriptor(),
             )?;
         }
+
         if let Some(speculative_mask) = speculative_mask {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationExpandBandMatrixSpeculativeMaskDesc,
                 speculative_mask.descriptor(),
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self { descriptor })
@@ -109,12 +111,15 @@ impl ContractBandMatrixOperation {
         if lower_bandwidth < 0 {
             return Err(Error::out_of_range("lower_bandwidth"));
         }
+
         if upper_bandwidth < 0 {
             return Err(Error::out_of_range("upper_bandwidth"));
         }
+
         if max_token_value < 0 {
             return Err(Error::out_of_range("max_token_value"));
         }
+
         if !usize::try_from(axis).is_ok_and(|axis| axis < x.rank()) {
             return Err(Error::out_of_range("axis"));
         }

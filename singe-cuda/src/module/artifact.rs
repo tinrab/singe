@@ -118,7 +118,8 @@ impl ArtifactLibrary {
 
     /// Reads artifact bundles from the embedded `.oxart` sections of a host object image.
     ///
-    /// A valid object without artifact sections produces an empty library. Returned bundles own their metadata and payload bytes.
+    /// A valid object without artifact sections produces an empty library.
+    /// Returned bundles own their metadata and payload bytes.
     ///
     /// # Errors
     ///
@@ -131,7 +132,8 @@ impl ArtifactLibrary {
 
     /// Parses artifact bundles from the contents of an artifact section.
     ///
-    /// Accepts concatenated bundles and trailing zero padding. Returned bundles own their metadata and payload bytes.
+    /// Accepts concatenated bundles and trailing zero padding.
+    /// Returned bundles own their metadata and payload bytes.
     ///
     /// # Errors
     ///
@@ -156,7 +158,10 @@ impl ArtifactLibrary {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device compute capability cannot be queried or converted. Returns `Error::NoCompatibleArtifact` if no named bundle has an eligible PTX or cubin payload. Image-compatibility failures try the next candidate; if every candidate fails, the last such error is returned. Other loading or policy-finalization failures return immediately.
+    /// Returns an error if the device compute capability cannot be queried or converted.
+    /// Returns `Error::NoCompatibleArtifact` if no named bundle has an eligible PTX or cubin payload.
+    /// Image-compatibility failures try the next candidate; if every candidate fails, the last such error is returned.
+    /// Other loading or policy-finalization failures return immediately.
     pub fn load(&self, context: &Arc<Context>, name: &str) -> Result<Module> {
         let capability = capability(context)?;
         let mut candidates = Vec::new();
@@ -180,6 +185,7 @@ impl ArtifactLibrary {
                 }
             }
         }
+
         candidates.sort_by_key(|(score, ..)| Reverse(*score));
         let mut last_error = None;
         for (_, bundle, payload, kind) in candidates {
@@ -230,6 +236,7 @@ impl Target {
         if digits.is_empty() || !digits.bytes().all(|digit| digit.is_ascii_digit()) {
             return None;
         }
+
         let code: u32 = digits.parse().ok()?;
         let suffix = match &target[digits.len()..] {
             "" => None,
@@ -300,11 +307,15 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for an empty image, or a NUL-byte error for PTX with an interior NUL. Also propagates context binding and module loading errors. PTX with a nondefault compilation policy requires `nvjitlink_13_4`; without it, returns `Error::Compiler`. With the feature enabled, device capability queries, target architecture parsing, native linker creation or finalization, and artifact-name conversion can also fail.
+    /// Returns `Error::InvalidValue` for an empty image, or a NUL-byte error for PTX with an interior NUL.
+    /// Also propagates context binding and module loading errors.
+    /// PTX with a nondefault compilation policy requires `nvjitlink_13_4`; without it, returns `Error::Compiler`.
+    /// With the feature enabled, device capability queries, target architecture parsing, native linker creation or finalization, and artifact-name conversion can also fail.
     pub fn load_precompiled(self: &Arc<Self>, image: &PrecompiledImage<'_>) -> Result<Module> {
         if image.image.as_bytes().is_empty() {
             return Err(Error::InvalidValue);
         }
+
         let terminated;
         let bytes = if image.kind == ImageKind::Ptx {
             let bytes = image.image.as_bytes();
@@ -351,6 +362,7 @@ fn load_with_policy(
         ArtifactDebugPolicy::LineTables => options.line_info = true,
         ArtifactDebugPolicy::Full => options.raw_options.push("-g".into()),
     }
+
     let mut linker = Linker::create(options)?;
     linker.add_data(InputType::Ptx, bytes, &image.metadata.name)?;
     let binary = linker.complete()?;
@@ -382,7 +394,8 @@ impl Module {
     ///
     /// # Errors
     ///
-    /// Propagates errors from looking up `symbol` and validating the typed launch. Validation can fail if native parameter sizes or offsets disagree with `K`, parameter layout overflows, the launch violates the signature's requirements or device limits, or CUDA cannot query the required kernel or device attributes.
+    /// Propagates errors from looking up `symbol` and validating the typed launch.
+    /// Validation can fail if native parameter sizes or offsets disagree with `K`, parameter layout overflows, the launch violates the signature's requirements or device limits, or CUDA cannot query the required kernel or device attributes.
     pub unsafe fn prepare<K: KernelSignature>(
         &self,
         symbol: &str,

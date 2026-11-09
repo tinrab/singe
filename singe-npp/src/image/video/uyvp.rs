@@ -15,13 +15,12 @@ impl Frame<u8> {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native color conversion, or stream synchronization fail. The source
-    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
-    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
-    /// color space or other conversion parameters.
-    /// Image or video view construction can fail. Output image allocation and checked
-    /// byte-size arithmetic can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native color conversion, or stream synchronization fail.
+    /// The source frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions must match.
+    /// Packed UYVP requires an even pixel width.
+    /// NPP can reject the selected color space or other conversion parameters.
+    /// Image or video view construction can fail.
+    /// Output image allocation and checked byte-size arithmetic can also fail.
     pub fn to_rgb<T>(
         &self,
         stream_context: &StreamContext,
@@ -42,11 +41,10 @@ impl Frame<u8> {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native color conversion, or stream synchronization fail. The source
-    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
-    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
-    /// color space or other conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native color conversion, or stream synchronization fail.
+    /// The source frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions must match.
+    /// Packed UYVP requires an even pixel width.
+    /// NPP can reject the selected color space or other conversion parameters.
     /// Image or video view construction can fail.
     pub fn to_rgb_into<T: color::Uyvp10uToRgb>(
         &self,
@@ -59,6 +57,7 @@ impl Frame<u8> {
             for plane in source.planes() {
                 stream_context.prepare_region(plane)?;
             }
+
             stream_context.prepare_region(destination)?;
             // SAFETY: native dispatch checks packed geometry and initializes the full RGB ROI.
             // The completion scope retains every borrow through the queued accesses.
@@ -79,13 +78,12 @@ impl Frame<u8> {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native color conversion, or stream synchronization fail. The source
-    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
-    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
-    /// color space or other conversion parameters.
-    /// Image or video view construction can fail. Output image allocation and checked
-    /// byte-size arithmetic can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native color conversion, or stream synchronization fail.
+    /// The source frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions must match.
+    /// Packed UYVP requires an even pixel width.
+    /// NPP can reject the selected color space or other conversion parameters.
+    /// Image or video view construction can fail.
+    /// Output image allocation and checked byte-size arithmetic can also fail.
     pub fn to_rgba<T>(
         &self,
         stream_context: &StreamContext,
@@ -112,11 +110,10 @@ impl Frame<u8> {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native color conversion, or stream synchronization fail. The source
-    /// frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions
-    /// must match. Packed UYVP requires an even pixel width. NPP can reject the selected
-    /// color space or other conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native color conversion, or stream synchronization fail.
+    /// The source frame must use `VideoFormat::Uyvp10`, and full-resolution RGB and frame dimensions must match.
+    /// Packed UYVP requires an even pixel width.
+    /// NPP can reject the selected color space or other conversion parameters.
     /// Image or video view construction can fail.
     pub fn to_rgba_into<T: color::Uyvp10uToRgba>(
         &self,
@@ -130,6 +127,7 @@ impl Frame<u8> {
             for plane in source.planes() {
                 stream_context.prepare_region(plane)?;
             }
+
             stream_context.prepare_region(destination)?;
             // SAFETY: native dispatch checks packed geometry and writes every RGBA channel.
             // The completion scope retains every borrow through the queued accesses.

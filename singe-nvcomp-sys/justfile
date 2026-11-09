@@ -1,0 +1,86 @@
+nvcomp_include_path := "$NVCOMP_INCLUDE_PATH"
+cuda_path := "$CUDA_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "nvcompStatus_t"
+        "nvcompType_t"
+        "nvcompDecompressBackend_t"
+        "nvcompBitshuffleMode_t"
+        "nvcompANSType_t"
+        "bitcompMode_t"
+        "nvcompCascadedMode_t"
+        "nvcompBatchedGzipDecompressAlgorithm_t"
+        "nvcompCRC32KernelKind_t"
+        "nvcompCRC32SegmentKind_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    nvcomp_headers=(
+        "nvcomp/ans.h"
+        "nvcomp/bitcomp.h"
+        "nvcomp/cascaded.h"
+        "nvcomp/crc32.h"
+        "nvcomp/deflate.h"
+        "nvcomp/gdeflate.h"
+        "nvcomp/gzip.h"
+        "nvcomp/lz4.h"
+        "nvcomp/snappy.h"
+        "nvcomp/zstd.h"
+    )
+    include_args=$(for header in "${nvcomp_headers[@]}"; do echo -n "-include $header "; done)
+
+    bindgen {{nvcomp_include_path}}/nvcomp.h \
+        $enum_args \
+        --allowlist-item "^nvcomp.*" \
+        --allowlist-item "^NVCOMP.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^CUstream_st$" \
+        --blocklist-item "^dim3$" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --blocklist-item "^nvcompBatched.*DefaultOpts$" \
+        --blocklist-item "^nvcompCRC32$" \
+        --blocklist-item "^nvcompCRC32_.*$" \
+        --blocklist-item "^nvcompCRC32IgnoredInputChunkBytes$" \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -fparse-all-comments \
+            -fretain-comments-from-system-headers \
+            -I {{nvcomp_include_path}} \
+            -I {{cuda_path}}/include \
+            $include_args \
+        > bindings.rs
+
+    NVCOMP_MAJOR=$(grep "NVCOMP_VER_MAJOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVCOMP_MINOR=$(grep "NVCOMP_VER_MINOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVCOMP_PATCH=$(grep "NVCOMP_VER_PATCH:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVCOMP_VERSION="${NVCOMP_MAJOR}${NVCOMP_MINOR}${NVCOMP_PATCH}0"
+    if [ -z "${NVCOMP_VERSION}" ]; then
+        echo "NVCOMP_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${NVCOMP_VERSION}.rs
+
+    bindgen cpp/bridge.h \
+        --allowlist-item "^(singe_nvcomp_|SingeNvcomp).*" \
+        --no-layout-tests --with-derive-default --use-core --default-enum-style=rust \
+        > src/manager_sys.rs
+
+    # Each declared function loads its symbol at run time, through singe-loader.
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::LIBRARY;/' ./src/sys_[0-9]*.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs ./src/manager_sys.rs

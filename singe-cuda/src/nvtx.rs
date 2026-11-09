@@ -5,18 +5,10 @@ use std::{
 };
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use singe_core::{impl_enum_conversion, impl_enum_display};
+use singe_core::{LibraryVersion, impl_enum_conversion, impl_enum_display};
 use singe_cuda_sys::nvtx as sys;
 
 use crate::error::{Error, Result};
-
-// TODO: move to a core version type
-/// Compile-time NVTX API version used by this crate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Version {
-    /// Major NVTX API version from the headers used to build this crate.
-    pub major: u32,
-}
 
 /// A 32-bit annotation color in `0xAARRGGBB` order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -208,7 +200,8 @@ impl Payload {
 
 /// Borrowed message and optional metadata for one NVTX marker or range.
 ///
-/// The message must remain live through the annotation call. Unset color and payload fields use the native unknown selectors, and an unset category uses zero.
+/// The message must remain live through the annotation call.
+/// Unset color and payload fields use the native unknown selectors, and an unset category uses zero.
 #[derive(Debug, Clone, Copy)]
 pub struct EventAttributes<'a> {
     message: Option<&'a CStr>,
@@ -283,9 +276,9 @@ impl<'a> EventAttributes<'a> {
 
     fn encode(self) -> sys::nvtxEventAttributes_t {
         let mut raw = sys::nvtxEventAttributes_t {
-            version: u16::try_from(sys::NVTX_VERSION).expect("NVTX version fits its ABI field"),
+            version: u16::try_from(sys::NVTX_VERSION).expect("the NVTX version fits its ABI field"),
             size: u16::try_from(size_of::<sys::nvtxEventAttributes_t>())
-                .expect("NVTX event attributes fit their ABI size field"),
+                .expect("the NVTX event attributes fit their ABI size field"),
             ..Default::default()
         };
 
@@ -379,7 +372,8 @@ impl Event {
         mark_with_attributes(self.attributes());
     }
 
-    /// Pushes this event onto the global domain's current-thread range stack. The returned guard pops it on drop.
+    /// Pushes this event onto the global domain's current-thread range stack.
+    /// The returned guard pops it on drop.
     #[must_use]
     pub fn local_range(&self) -> LocalRange {
         LocalRange::from_attributes(self.attributes())
@@ -396,7 +390,8 @@ impl Event {
         domain.mark_with_attributes(self.attributes());
     }
 
-    /// Pushes this event onto `domain`'s current-thread range stack. The returned guard pops it on drop.
+    /// Pushes this event onto `domain`'s current-thread range stack.
+    /// The returned guard pops it on drop.
     #[must_use]
     pub fn domain_local_range<'a>(&self, domain: &'a Domain) -> DomainLocalRange<'a> {
         domain.range_with_attributes(self.attributes())
@@ -431,7 +426,8 @@ impl Event {
 
 /// An owned NVTX annotation domain.
 ///
-/// A domain scopes category names and annotations and maintains its own per-thread range stacks. Dropping this wrapper destroys the native domain; domain range guards borrow it.
+/// A domain scopes category names and annotations and maintains its own per-thread range stacks.
+/// Dropping this wrapper destroys the native domain; domain range guards borrow it.
 #[derive(Debug)]
 pub struct Domain {
     handle: sys::nvtxDomainHandle_t,
@@ -575,7 +571,8 @@ impl Drop for Domain {
 
 /// A guard for one range on the global domain's current-thread stack.
 ///
-/// Dropping the guard pops the most recently pushed range on that thread. Guards must be dropped in reverse push order and cannot move to another thread.
+/// Dropping the guard pops the most recently pushed range on that thread.
+/// Guards must be dropped in reverse push order and cannot move to another thread.
 #[derive(Debug)]
 pub struct LocalRange {
     _not_send: PhantomData<*mut ()>,
@@ -623,7 +620,8 @@ impl Drop for LocalRange {
 
 /// A guard for a process range in the global NVTX domain.
 ///
-/// Dropping the guard ends the range by its native ID. These ranges need not be nested and can end on another thread.
+/// Dropping the guard ends the range by its native ID.
+/// These ranges need not be nested and can end on another thread.
 #[derive(Debug)]
 pub struct Range {
     id: sys::nvtxRangeId_t,
@@ -667,7 +665,8 @@ impl Drop for Range {
 
 /// A guard for a range on a domain's current-thread stack.
 ///
-/// Dropping the guard pops that domain's most recently pushed range on the thread. Guards must be dropped in reverse push order and cannot move to another thread.
+/// Dropping the guard pops that domain's most recently pushed range on the thread.
+/// Guards must be dropped in reverse push order and cannot move to another thread.
 #[derive(Debug)]
 pub struct DomainLocalRange<'a> {
     domain: &'a Domain,
@@ -683,7 +682,8 @@ impl Drop for DomainLocalRange<'_> {
 
 /// A process-range guard borrowing its NVTX domain.
 ///
-/// Dropping the guard ends its native range ID. These ranges need not be nested and can end on another thread.
+/// Dropping the guard ends its native range ID.
+/// These ranges need not be nested and can end on another thread.
 #[derive(Debug)]
 pub struct DomainRange<'a> {
     domain: &'a Domain,
@@ -699,10 +699,8 @@ impl Drop for DomainRange<'_> {
 
 /// Returns the compile-time NVTX API version used by this crate.
 #[must_use]
-pub fn version() -> Version {
-    Version {
-        major: sys::NVTX_VERSION,
-    }
+pub fn version() -> LibraryVersion {
+    LibraryVersion::new(u64::from(sys::NVTX_VERSION), 0, 0)
 }
 
 /// Initializes NVTX before the first annotation call.
@@ -750,11 +748,14 @@ pub fn name_category(category: Category, name: &str) -> Result<()> {
 
 /// Assigns `name` to an active operating-system thread in the current process.
 ///
-/// Use the operating system's native numeric thread ID. A POSIX `pthread_t` need not have the required representation. Tool behavior is unspecified for invalid IDs or IDs from another process.
+/// Use the operating system's native numeric thread ID.
+/// A POSIX `pthread_t` need not have the required representation.
+/// Tool behavior is unspecified for invalid IDs or IDs from another process.
 ///
 /// # Errors
 ///
-/// Returns an error if `name` contains an interior NUL byte. Native thread-ID validity is not checked by this wrapper.
+/// Returns an error if `name` contains an interior NUL byte.
+/// Native thread-ID validity is not checked by this wrapper.
 pub fn name_os_thread(thread_id: u32, name: &str) -> Result<()> {
     let name = CString::new(name)?;
     // SAFETY: `nvtxNameOsThreadA` receives pointers into buffers borrowed for the call.
@@ -788,12 +789,12 @@ mod tests {
 
         assert_eq!(
             raw.version,
-            u16::try_from(sys::NVTX_VERSION).expect("NVTX version fits its ABI field")
+            u16::try_from(sys::NVTX_VERSION).expect("the NVTX version fits its ABI field")
         );
         assert_eq!(
             raw.size,
             u16::try_from(size_of::<sys::nvtxEventAttributes_t>())
-                .expect("NVTX event attributes fit their ABI size field")
+                .expect("the NVTX event attributes fit their ABI size field")
         );
         assert_eq!(raw.category, 7);
         assert_eq!(raw.colorType, sys::nvtxColorType_t::NVTX_COLOR_ARGB as i32);

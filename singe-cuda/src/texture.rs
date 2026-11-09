@@ -216,7 +216,8 @@ impl TextureResource {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` if the region is empty or its byte length is not a multiple of `size_of::<T>()`. Also returns an error if the byte length cannot be represented by the native 64-bit descriptor field.
+    /// Returns `Error::InvalidMemoryAccess` if the region is empty or its byte length is not a multiple of `size_of::<T>()`.
+    /// Also returns an error if the byte length cannot be represented by the native 64-bit descriptor field.
     pub fn linear<T: ArrayElement, O: DeviceRegionProvider + Send + Sync + 'static>(
         region: OwnedDeviceRegion<O>,
     ) -> Result<Self> {
@@ -353,11 +354,13 @@ unsafe impl Sync for TextureObject {}
 impl TextureObject {
     /// Creates a native texture sampler and retains its backing resource.
     ///
-    /// The sampler does not initialize storage or authorize concurrent sampling and writes. Kernel callers must establish initialization, lifetime, and access ordering.
+    /// The sampler does not initialize storage or authorize concurrent sampling and writes.
+    /// Kernel callers must establish initialization, lifetime, and access ordering.
     ///
     /// # Errors
     ///
-    /// Returns an error if the resource context cannot be bound or CUDA rejects the resource format, dimensions, alignment, device limits, or sampler options. Returns `Error::NullHandle` for a zero native texture handle.
+    /// Returns an error if the resource context cannot be bound or CUDA rejects the resource format, dimensions, alignment, device limits, or sampler options.
+    /// Returns `Error::NullHandle` for a zero native texture handle.
     pub fn create(resource: TextureResource, options: TextureOptions) -> Result<Self> {
         let native = options.native(resource.levels());
         resource.context().bind()?;
@@ -371,6 +374,7 @@ impl TextureObject {
                 ptr::null()
             ))?;
         }
+
         if handle == 0 {
             return Err(Error::NullHandle);
         }
@@ -384,7 +388,8 @@ impl TextureObject {
     ///
     /// # Errors
     ///
-    /// Returns an error if the resource context cannot be bound or CUDA rejects the resource, sampler options, or view descriptor. Returns `Error::NullHandle` for a zero native texture handle.
+    /// Returns an error if the resource context cannot be bound or CUDA rejects the resource, sampler options, or view descriptor.
+    /// Returns `Error::NullHandle` for a zero native texture handle.
     pub unsafe fn create_with_raw_view(
         resource: TextureResource,
         options: TextureOptions,
@@ -401,6 +406,7 @@ impl TextureObject {
                 view
             ))?;
         }
+
         if handle == 0 {
             return Err(Error::NullHandle);
         }
@@ -414,7 +420,8 @@ impl TextureObject {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is zero. The caller must satisfy the remaining handle validity and ownership requirements.
+    /// Returns `Error::NullHandle` if `handle` is zero.
+    /// The caller must satisfy the remaining handle validity and ownership requirements.
     pub unsafe fn from_raw(handle: sys::CUtexObject, resource: TextureResource) -> Result<Self> {
         if handle == 0 {
             return Err(Error::NullHandle);
@@ -472,8 +479,10 @@ impl Drop for TextureObject {
             // SAFETY: `cuTexObjectDestroy` receives live handles owned by the wrappers.
             .and_then(|()| unsafe { try_ffi!(sys::cuTexObjectDestroy(self.handle)) })
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy cuda texture object: {error}");
+            eprintln!(
+                "failed to destroy cuda texture object: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -493,15 +502,18 @@ unsafe impl Sync for SurfaceObject {}
 impl SurfaceObject {
     /// Creates a CUDA surface object retaining `allocation`.
     ///
-    /// The array must have been allocated with [`ArrayFlags::SURFACE_LOAD_STORE`]. Surface writes and reads still require caller-established ordering and access permissions.
+    /// The array must have been allocated with [`ArrayFlags::SURFACE_LOAD_STORE`].
+    /// Surface writes and reads still require caller-established ordering and access permissions.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the allocation lacks the surface-load/store flag. Also returns an error if the array context cannot be bound or CUDA rejects surface creation, or `Error::NullHandle` for a zero native surface handle.
+    /// Returns `Error::InvalidValue` if the allocation lacks the surface-load/store flag.
+    /// Also returns an error if the array context cannot be bound or CUDA rejects surface creation, or `Error::NullHandle` for a zero native surface handle.
     pub fn create(allocation: Arc<ArrayAllocation>) -> Result<Self> {
         if !allocation.flags().contains(ArrayFlags::SURFACE_LOAD_STORE) {
             return Err(Error::InvalidValue);
         }
+
         allocation.context().bind()?;
         let mut raw = sys::CUDA_RESOURCE_DESC {
             resType: sys::CUresourcetype::CU_RESOURCE_TYPE_ARRAY,
@@ -513,6 +525,7 @@ impl SurfaceObject {
         unsafe {
             try_ffi!(sys::cuSurfObjectCreate(&raw mut handle, &raw const raw))?;
         }
+
         if handle == 0 {
             return Err(Error::NullHandle);
         }
@@ -526,7 +539,8 @@ impl SurfaceObject {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is zero. The caller must satisfy the remaining handle validity and ownership requirements.
+    /// Returns `Error::NullHandle` if `handle` is zero.
+    /// The caller must satisfy the remaining handle validity and ownership requirements.
     pub unsafe fn from_raw(
         handle: sys::CUsurfObject,
         allocation: Arc<ArrayAllocation>,
@@ -589,8 +603,10 @@ impl Drop for SurfaceObject {
             // SAFETY: `cuSurfObjectDestroy` receives live handles owned by the wrappers.
             .and_then(|()| unsafe { try_ffi!(sys::cuSurfObjectDestroy(self.handle)) })
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy cuda surface object: {error}");
+            eprintln!(
+                "failed to destroy cuda surface object: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }

@@ -4,13 +4,11 @@ use std::fmt::{self, Debug, Display, Formatter};
 
 use crate::ast::Span;
 
-/// Displays an error followed by the first source line its span covers, with a marker
-/// under the span.
+/// Displays an error followed by the first source line its span covers, with a marker under the span.
 ///
 /// Columns count Unicode characters, while source spans retain byte offsets.
 /// Tabs are preserved in the marker's indentation.
-/// Errors without a source span, or spans invalid for the supplied source, retain
-/// their ordinary display without a source excerpt.
+/// Errors without a source span, or spans invalid for the supplied source, retain their ordinary display without a source excerpt.
 #[derive(Clone, Copy)]
 pub struct SourceDiagnostic<'a> {
     error: &'a (dyn Display + Send + Sync),
@@ -49,6 +47,7 @@ impl Display for SourceDiagnostic<'_> {
         if self.source.get(span.start..span.end).is_none() {
             return Ok(());
         }
+
         let prefix = &self.source[..span.start];
         let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
         let start = prefix.rfind('\n').map_or(0, |index| index + 1);
@@ -70,6 +69,7 @@ impl Display for SourceDiagnostic<'_> {
         for character in self.source[start..span.start].chars() {
             f.write_str(if character == '\t' { "\t" } else { " " })?;
         }
+
         for _ in 0..marker_len {
             f.write_str("^")?;
         }

@@ -1,0 +1,69 @@
+nvimagecodec_include_path := "$NVIMGCODEC_INCLUDE_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    num_enums=(
+        "nvimgcodecStructureType_t"
+        "nvimgcodecStatus_t"
+        "nvimgcodecSampleDataType_t"
+        "nvimgcodecChromaSubsampling_t"
+        "nvimgcodecSampleFormat_t"
+        "nvimgcodecColorSpec_t"
+        "nvimgcodecImageBufferKind_t"
+        "nvimgcodecJpegEncoding_t"
+        "nvimgcodecQualityType_t"
+        "nvimgcodecBackendKind_t"
+        "nvimgcodecLoadHintPolicy_t"
+        "nvimgcodecProcessingStatus"
+        "nvimgcodecJpeg2kProgOrder_t"
+        "nvimgcodecJpeg2kBitstreamType_t"
+        "nvimgcodecMetadataKind_t"
+        "nvimgcodecMetadataFormat_t"
+        "nvimgcodecMetadataValueType_t"
+        "nvimgcodecDebugMessageSeverity_t"
+        "nvimgcodecDebugMessageCategory_t"
+        "nvimgcodecOutOfBoundsPolicy_t"
+        "nvimgcodecPriority_t"
+    )
+    enum_args=$(for enum in "${num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{nvimagecodec_include_path}}/nvimgcodec.h \
+        $enum_args \
+        --allowlist-item "^nvimgcodec.*" \
+        --allowlist-item "^NVIMGCODEC.*" \
+        --blocklist-item "^CUstream_st$" \
+        --blocklist-item "^cuda(Stream|Stream_t)$" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{nvimagecodec_include_path}} \
+        > bindings.rs
+
+    NVIMGCODEC_MAJOR=$(grep "NVIMGCODEC_VER_MAJOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVIMGCODEC_MINOR=$(grep "NVIMGCODEC_VER_MINOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVIMGCODEC_PATCH=$(grep "NVIMGCODEC_VER_PATCH:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVIMGCODEC_VERSION=$((NVIMGCODEC_MAJOR * 10000 + NVIMGCODEC_MINOR * 100 + NVIMGCODEC_PATCH))
+    if [ -z "${NVIMGCODEC_VERSION}" ]; then
+        echo "NVIMGCODEC_VERSION is empty"
+        exit 1
+    fi
+
+    mv bindings.rs ./src/sys_${NVIMGCODEC_VERSION}.rs
+
+    # Each declared function loads its symbol at run time, through singe-loader.
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::LIBRARY;/' ./src/sys_*.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs

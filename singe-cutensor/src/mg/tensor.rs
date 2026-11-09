@@ -93,7 +93,8 @@ pub struct TensorDescriptor {
 impl TensorDescriptor {
     /// Creates a dense, unblocked tensor descriptor using the native type of `T`.
     ///
-    /// The supplied storage locations are retained in descriptor order. Per-mode device counts are left unspecified, selecting native non-distributed layout.
+    /// The supplied storage locations are retained in descriptor order.
+    /// Per-mode device counts are left unspecified, selecting native non-distributed layout.
     ///
     /// # Errors
     ///
@@ -211,13 +212,14 @@ impl TensorDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg tensor descriptor associated with
-    /// `context`. The metadata in `config` must describe the raw descriptor.
+    /// `handle` must be a valid cuTENSORMg tensor descriptor associated with `context`.
+    /// The metadata in `config` must describe the raw descriptor.
     /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
-    /// Returns an error if `handle` is null or an optional stride or block property is specified for only some modes. The caller must establish all remaining raw descriptor invariants.
+    /// Returns an error if `handle` is null or an optional stride or block property is specified for only some modes.
+    /// The caller must establish all remaining raw descriptor invariants.
     pub unsafe fn from_raw(
         handle: sys::cutensorMgTensorDescriptor_t,
         context: &Context,
@@ -258,7 +260,8 @@ impl TensorDescriptor {
     ///
     /// # Panics
     ///
-    /// Panics if the stored rank does not fit `u32`. Checked construction excludes this; unsafe adoption must preserve the native rank invariant.
+    /// Panics if the stored rank does not fit `u32`.
+    /// Checked construction excludes this; unsafe adoption must preserve the native rank invariant.
     #[must_use]
     pub fn rank(&self) -> u32 {
         u32::try_from(self.shape.len()).expect("tensor rank is validated on construction")
@@ -331,8 +334,10 @@ impl Drop for TensorDescriptor {
         // SAFETY: `cutensorMgDestroyTensorDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroyTensorDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg tensor descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg tensor descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -373,6 +378,7 @@ fn collect_optional_mode_values(
     if values.is_empty() {
         return Ok(None);
     }
+
     if values.len() != modes.len() {
         return Err(Error::LengthMismatch {
             name: name.to_owned().into(),

@@ -17,12 +17,12 @@ use crate::{
 /// Lazy owned CUDA work.
 ///
 /// # Safety
-/// Implementations must register all resources and accesses through [`Execution::enqueue`]
-/// before submitting native work, including on error and unwind paths.
+/// Implementations must register all resources and accesses through [`Execution::enqueue`] before submitting native work, including on error and unwind paths.
 /// Returned pending values must not permit safe initialized reads before successful completion.
 /// Keep capture-incompatible preparation outside implementations intended for graph recording.
 pub unsafe trait Operation: Sized {
-    /// Value produced by enqueue before successful CUDA completion. It must not permit safe reads of results that are still pending.
+    /// Value produced by enqueue before successful CUDA completion.
+    /// It must not permit safe reads of results that are still pending.
     type Pending;
 
     /// Host-visible result produced by resolution after successful completion.
@@ -32,7 +32,8 @@ pub unsafe trait Operation: Sized {
     ///
     /// # Errors
     ///
-    /// Returns operation-specific preparation or enqueue errors, including resource, context, dependency, and CUDA failures. Implementations must retain resources for any work already queued when an error occurs.
+    /// Returns operation-specific preparation or enqueue errors, including resource, context, dependency, and CUDA failures.
+    /// Implementations must retain resources for any work already queued when an error occurs.
     fn enqueue(self, execution: &mut Execution) -> Result<Self::Pending>;
 
     /// Resolves host results after successful native completion and resource retirement.
@@ -51,7 +52,8 @@ pub unsafe trait Operation: Sized {
     ///
     /// # Errors
     ///
-    /// Propagates execution setup, operation enqueue, and completion registration errors. An execution ledger drains already submitted work on failure before releasing its resources, or preserves the resources if completion cannot be established.
+    /// Propagates execution setup, operation enqueue, and completion registration errors.
+    /// An execution ledger drains already submitted work on failure before releasing its resources, or preserves the resources if completion cannot be established.
     fn submit_on(self, stream: &Stream) -> Result<Submission<Self::Output, Self::Pending>> {
         let mut execution = Execution::create(stream)?;
         let output = self.enqueue(&mut execution)?;
@@ -158,7 +160,8 @@ unsafe impl<A: Operation, B: Operation> Operation for Pair<A, B> {
 
 /// An operation whose successful host result is transformed by a callback on the waiting or polling thread.
 ///
-/// Construct with [`Operation::map`]. The callback is discarded if the submission is dropped before resolution.
+/// Construct with [`Operation::map`].
+/// The callback is discarded if the submission is dropped before resolution.
 #[derive(Debug)]
 pub struct Map<O, F> {
     operation: O,
@@ -196,7 +199,10 @@ enum SharedState<O: DeviceOperation> {
 
 /// Clones of one lazily submitted device operation, sharing its output and checked completion.
 ///
-/// The first consumer submits the producer. Later consumers order their streams after its completion event and retain the output. Producer submission errors are shared with consumers. Construct with [`Operation::shared`].
+/// The first consumer submits the producer.
+/// Later consumers order their streams after its completion event and retain the output.
+/// Producer submission errors are shared with consumers.
+/// Construct with [`Operation::shared`].
 pub struct Shared<O: DeviceOperation> {
     state: Arc<Mutex<SharedState<O>>>,
 }
@@ -270,7 +276,9 @@ impl StreamPool {
     ///
     /// # Errors
     ///
-    /// Returns `Error::ZeroValue` if `streams` is zero. Also propagates context binding or stream creation errors. Streams already created are dropped if a later creation fails.
+    /// Returns `Error::ZeroValue` if `streams` is zero.
+    /// Also propagates context binding or stream creation errors.
+    /// Streams already created are dropped if a later creation fails.
     pub fn create(context: &Arc<Context>, streams: usize) -> Result<Self> {
         if streams == 0 {
             return Err(Error::ZeroValue {
@@ -287,11 +295,13 @@ impl StreamPool {
 
     /// Submits `operation` on the next stream selected in round-robin order.
     ///
-    /// The selection advances even when submission fails. Separate operations can overlap unless their declared accesses or dependencies require ordering.
+    /// The selection advances even when submission fails.
+    /// Separate operations can overlap unless their declared accesses or dependencies require ordering.
     ///
     /// # Errors
     ///
-    /// Propagates errors from the operation's [`Operation::submit_on`] implementation. An error can occur after native work has been queued; its execution ledger retains resources through cleanup.
+    /// Propagates errors from the operation's [`Operation::submit_on`] implementation.
+    /// An error can occur after native work has been queued; its execution ledger retains resources through cleanup.
     pub fn submit<O: Operation>(&self, operation: O) -> Result<Submission<O::Output, O::Pending>> {
         let index = self.next.fetch_add(1, Ordering::Relaxed) % self.streams.len();
         operation.submit_on(&self.streams[index])

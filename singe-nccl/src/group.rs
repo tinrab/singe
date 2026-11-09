@@ -8,8 +8,7 @@ use crate::{
 
 /// Start a group call.
 ///
-/// Subsequent NCCL calls do not block on inter-CPU synchronization until
-/// [`end`].
+/// Subsequent NCCL calls do not block on inter-CPU synchronization until [`end`].
 ///
 /// # Errors
 ///
@@ -19,6 +18,7 @@ pub fn start() -> Result<()> {
     unsafe {
         try_ffi!(sys::ncclGroupStart())?;
     }
+
     track_start();
     Ok(())
 }
@@ -32,8 +32,7 @@ pub fn start() -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if any grouped NCCL operation fails or if NCCL rejects the
-/// group end.
+/// Returns an error if any grouped NCCL operation fails or if NCCL rejects the group end.
 pub fn end() -> Result<()> {
     // SAFETY: `ncclGroupEnd` takes no arguments.
     let result = unsafe { try_ffi!(sys::ncclGroupEnd()) };
@@ -115,7 +114,7 @@ pub fn with_group<R>(f: impl FnOnce() -> Result<R>) -> Result<R> {
         (Ok(value), Ok(())) => Ok(value),
         (Ok(_), Err(error)) | (Err(error), Ok(())) => Err(error),
         (Err(error), Err(end_error)) => {
-            #[cfg(debug_assertions)]
+            // no-slop-allow: no-log-and-return -- this logs the failure to end the group, which the returned error does not carry.
             eprintln!("failed to end nccl group after grouped operation error: {end_error}");
             Err(error)
         }
@@ -129,8 +128,10 @@ impl Drop for Group {
         }
 
         if let Err(error) = end() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to end nccl group: {error}");
+            eprintln!(
+                "failed to end nccl group: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -172,11 +173,13 @@ pub(crate) fn validate_collective(
         if config.depth == 0 {
             return Ok(());
         }
+
         if config.cluster_size.is_some_and(|old| old != cluster_size)
             || event && config.event_communicators.contains(&(comm as usize))
         {
             return Err(Error::out_of_range("group collective configuration"));
         }
+
         config.cluster_size = Some(cluster_size);
         if event {
             config.event_communicators.push(comm as usize);

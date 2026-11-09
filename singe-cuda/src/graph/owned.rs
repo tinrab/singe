@@ -26,7 +26,8 @@ pub unsafe trait Recordable: Sized {
     ///
     /// # Errors
     ///
-    /// Returns operation-specific capture or native recording errors. Implementations must preserve replay ownership for any nodes recorded before an error is returned.
+    /// Returns operation-specific capture or native recording errors.
+    /// Implementations must preserve replay ownership for any nodes recorded before an error is returned.
     fn record(self, recording: &mut Recording) -> Result<Self::Output>;
 }
 
@@ -53,7 +54,8 @@ impl Recording {
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` if a nonportable access belongs to another context. Otherwise propagates the result of `enqueue`; registered resources remain in the recording ledger even if that callback fails.
+    /// Returns `Error::MemoryContextMismatch` if a nonportable access belongs to another context.
+    /// Otherwise propagates the result of `enqueue`; registered resources remain in the recording ledger even if that callback fails.
     pub unsafe fn enqueue<T>(
         &mut self,
         resources: Resources,
@@ -62,6 +64,7 @@ impl Recording {
         for access in &resources.accesses {
             access.validate_context(self.stream.context())?;
         }
+
         self.resources.extend(resources);
         enqueue(&self.stream)
     }
@@ -71,7 +74,6 @@ impl Drop for Recording {
     fn drop(&mut self) {
         if !matches!(self.stream.capture_status(), Ok(StreamCaptureStatus::None)) {
             mem::forget(mem::take(&mut self.resources));
-            #[cfg(debug_assertions)]
             eprintln!("cuda capture did not end; retaining recorded resources");
         }
     }
@@ -104,7 +106,8 @@ impl<T> OwnedGraph<T> {
     ///
     /// # Errors
     ///
-    /// Propagates native graph-instantiation errors from [`Graph::instantiate`]. No executable or independent resource snapshot is returned if instantiation fails.
+    /// Propagates native graph-instantiation errors from [`Graph::instantiate`].
+    /// No executable or independent resource snapshot is returned if instantiation fails.
     pub fn instantiate(&self) -> Result<OwnedExecutable> {
         Ok(OwnedExecutable {
             executable: Arc::new(Mutex::new(self.graph.instantiate()?)),
@@ -141,7 +144,9 @@ impl OwnedExecutable {
     ///
     /// # Errors
     ///
-    /// Propagates execution setup, access-tracking, dependency-ordering, graph-launch, and completion registration errors. Returns `Error::ResourcePoisoned` if the executable lock is poisoned. A failure can occur after native work has been queued; the execution ledger retains resources through cleanup.
+    /// Propagates execution setup, access-tracking, dependency-ordering, graph-launch, and completion registration errors.
+    /// Returns `Error::ResourcePoisoned` if the executable lock is poisoned.
+    /// A failure can occur after native work has been queued; the execution ledger retains resources through cleanup.
     pub fn launch(&self, stream: &Stream) -> Result<Submission<()>> {
         self.clone().submit_on(stream)
     }
@@ -153,7 +158,8 @@ impl OwnedExecutable {
     ///
     /// # Errors
     ///
-    /// Returns `Error::ResourcePoisoned` if the executable lock is poisoned. Otherwise propagates errors returned by `access`.
+    /// Returns `Error::ResourcePoisoned` if the executable lock is poisoned.
+    /// Otherwise propagates errors returned by `access`.
     pub unsafe fn with_raw<T>(
         &self,
         access: impl FnOnce(&mut ExecutableGraph) -> Result<T>,
@@ -202,7 +208,8 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Propagates capture setup, operation recording, and capture finalization errors. Resources registered before failure remain retained until capture ends; if cleanup cannot establish that capture ended, the recording preserves those resources.
+    /// Propagates capture setup, operation recording, and capture finalization errors.
+    /// Resources registered before failure remain retained until capture ends; if cleanup cannot establish that capture ended, the recording preserves those resources.
     pub fn capture_owned<O: Recordable>(&self, operation: O) -> Result<OwnedGraph<O::Output>> {
         let mut recording = Recording {
             stream: self.clone(),

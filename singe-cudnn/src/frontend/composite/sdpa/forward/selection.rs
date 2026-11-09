@@ -93,8 +93,8 @@ impl Graph {
     /// An explicit graph target takes precedence over attached device properties and the supplied live context.
     /// Pass `None` for deviceless resolution with an explicit target or properties that retain their architecture.
     /// Leaves the graph recipe unchanged and does not construct native descriptors or query engine heuristics.
-    /// Includes every direct operand and declared output, including quantization scales,
-    /// addressing metadata and optional outputs. Score-subgraph bindings remain separate.
+    /// Includes every direct operand and declared output, including quantization scales, addressing metadata and optional outputs.
+    /// Score-subgraph bindings remain separate.
     /// Auxiliary presence follows the actual outputs, including caller-built or restored requests.
     ///
     /// # Errors
@@ -148,6 +148,7 @@ impl Graph {
                 }
             }
         }
+
         if self.sm_version().is_none_or(|sm| sm <= 0) {
             return Err(FrontendError::SdpaRequires {
                 requirement: SdpaRequirement::TargetArchitecture,
@@ -155,6 +156,7 @@ impl Graph {
             }
             .into());
         }
+
         require_baseline(version()?.raw())?;
         self.validate_attention_config(q, k, v, &config)?;
         let native_output = matches!(
@@ -233,6 +235,7 @@ impl Graph {
             }
             .into());
         }
+
         if config.block_mask().is_some() {
             return Err(FrontendError::SdpaRequires {
                 requirement: SdpaRequirement::UnifiedImplementation,
@@ -262,6 +265,7 @@ impl Graph {
                 value.shape.clone(),
             ));
         }
+
         for page_table in [page_table_k, page_table_v].into_iter().flatten() {
             self.validate_tensor_rank(page_table, 4, "attention page table")?;
         }
@@ -320,9 +324,11 @@ impl Graph {
         if let Some(cache) = paged.k() {
             direct = direct.with_key_page_table(cache.page_table());
         }
+
         if let Some(cache) = paged.v() {
             direct = direct.with_value_page_table(cache.page_table());
         }
+
         if let Some(length) = paged.max_sequence_length_key_value() {
             direct = direct.with_max_sequence_length_key_value(length);
         }
@@ -355,15 +361,19 @@ impl Graph {
         if let Some(cache) = paged.k() {
             direct_config = direct_config.with_key_page_table(cache.page_table());
         }
+
         if let Some(cache) = paged.v() {
             direct_config = direct_config.with_value_page_table(cache.page_table());
         }
+
         if let Some(length) = paged.max_sequence_length_key_value() {
             direct_config = direct_config.with_max_sequence_length_key_value(length);
         }
+
         if let Some(block_mask) = config.block_mask() {
             direct_config = direct_config.with_block_mask(block_mask);
         }
+
         let q_tensor = self.tensor_spec(q)?.clone();
         let kv_shapes = self.attention_kv_shapes(k, v, config)?;
         let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &kv_shapes.key)?;
@@ -379,17 +389,20 @@ impl Graph {
                 Shape::contiguous([1, 1, 1, 1])?,
             )));
         }
+
         if fused.aux_outputs().absolute_max_o() && quantization.absolute_max_output.is_none() {
             quantization.absolute_max_output = Some(self.tensor(TensorSpec::new(
                 DataType::F32,
                 Shape::contiguous([1, 1, 1, 1])?,
             )));
         }
+
         let absolute_max_probabilities = quantization.absolute_max_probabilities;
         let absolute_max_output = quantization.absolute_max_output;
         if quantization != SdpaForwardQuantization::default() {
             direct_config = direct_config.with_quantization(quantization);
         }
+
         let rng_dump = if config.dropout().is_some() && fused.aux_outputs().rng_dump() {
             Some(self.tensor(TensorSpec::new(DataType::F32, scores_shape)))
         } else {
@@ -400,13 +413,12 @@ impl Graph {
                 RandomNumberSeedSource::Device { tensor, offset } => (tensor, offset),
                 RandomNumberSeedSource::Host { value, offset } => {
                     let seed = self.tensor(
-                        TensorSpec::constant(value).with_shape(Shape::contiguous([1, 1, 1, 1])?),
+                        TensorSpec::scalar(value).with_shape(Shape::contiguous([1, 1, 1, 1])?),
                     );
                     let offset = match offset {
                         Some(offset) => offset,
                         None => self.tensor(
-                            TensorSpec::constant(0_i64)
-                                .with_shape(Shape::contiguous([1, 1, 1, 1])?),
+                            TensorSpec::scalar(0_i64).with_shape(Shape::contiguous([1, 1, 1, 1])?),
                         ),
                     };
                     (seed, offset)
@@ -416,8 +428,10 @@ impl Graph {
             if let Some(rng_dump) = rng_dump {
                 direct_dropout = direct_dropout.with_random_number_generator_dump(rng_dump);
             }
+
             direct_config = direct_config.with_dropout(direct_dropout);
         }
+
         self.sdpa_direct(
             inputs,
             outputs,
@@ -567,6 +581,7 @@ impl Graph {
             }
             .into());
         }
+
         self.validate_sdpa_direct_ragged_support(
             q,
             k,
@@ -596,9 +611,11 @@ impl Graph {
                 )?;
             }
         }
+
         if let Some(stats) = stats {
             self.validate_sdpa_tensor_data_type_match(stats, DataType::F32, SDPA_STATS_DATA_TYPE)?;
         }
+
         self.validate_direct_sdpa_dropout(direct_config, &scores_shape)?;
         let needs_softmax =
             stats.is_some() || logit_max.is_some() || score_sum_exp.is_some() || sink.is_some();

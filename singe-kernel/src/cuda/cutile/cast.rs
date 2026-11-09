@@ -22,7 +22,7 @@ use crate::cuda::cutile::kernel::f64::cast as kernel_f64;
     feature = "dtype_u64",
     feature = "dtype_i64",
 ))]
-use crate::cuda::cutile::{kernel::common as kernel_common, utility::VectorLaunch};
+use crate::cuda::cutile::{kernel::vector as vector_kernels, utility::VectorLaunch};
 use crate::{
     cuda::{
         autotune::KernelCompileConfig,
@@ -40,9 +40,11 @@ fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -140,7 +142,7 @@ macro_rules! raw_cast_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -325,22 +327,22 @@ bool_cast_fn!(f32_to_bool, f32, kernel_f32, cast_f32_bool);
 bool_cast_fn!(f64_to_bool, f64, kernel_f64, cast_f64_bool);
 
 #[cfg(feature = "dtype_u8")]
-bool_cast_fn!(u8_to_bool, u8, kernel_common, is_nonzero_bool_u8);
+bool_cast_fn!(u8_to_bool, u8, vector_kernels, is_nonzero_bool_u8);
 
 #[cfg(all(feature = "dtype_i8", feature = "dtype_u8"))]
-bool_cast_fn!(i8_to_bool, i8, kernel_common, is_nonzero_bool_i8);
+bool_cast_fn!(i8_to_bool, i8, vector_kernels, is_nonzero_bool_i8);
 
 #[cfg(all(feature = "dtype_u32", feature = "dtype_u8"))]
-bool_cast_fn!(u32_to_bool, u32, kernel_common, is_nonzero_bool_u32);
+bool_cast_fn!(u32_to_bool, u32, vector_kernels, is_nonzero_bool_u32);
 
 #[cfg(all(feature = "dtype_i32", feature = "dtype_u8"))]
-bool_cast_fn!(i32_to_bool, i32, kernel_common, is_nonzero_bool_i32);
+bool_cast_fn!(i32_to_bool, i32, vector_kernels, is_nonzero_bool_i32);
 
 #[cfg(all(feature = "dtype_u64", feature = "dtype_u8"))]
-bool_cast_fn!(u64_to_bool, u64, kernel_common, is_nonzero_bool_u64);
+bool_cast_fn!(u64_to_bool, u64, vector_kernels, is_nonzero_bool_u64);
 
 #[cfg(all(feature = "dtype_i64", feature = "dtype_u8"))]
-bool_cast_fn!(i64_to_bool, i64, kernel_common, is_nonzero_bool_i64);
+bool_cast_fn!(i64_to_bool, i64, vector_kernels, is_nonzero_bool_i64);
 
 #[cfg(feature = "dtype_u8")]
 raw_cast_fn!(u8_to_u8, u8, u8, cast_u8_u8);

@@ -12,9 +12,11 @@ pub fn validate_x_matrix(
     if rows == 0 || cols == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     if lda < rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     let elem_size = data_type.size_of();
     let required = lda
         .checked_mul(cols)

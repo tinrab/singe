@@ -46,7 +46,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unsupported bias-gradient or RNG-dump requests, unknown query, key or value identities, non-four-dimensional inputs, or unrepresentable inferred auxiliary-output layouts. Target and native support validation occurs during preparation.
+    /// Returns an error for unsupported bias-gradient or RNG-dump requests, unknown query, key or value identities, non-four-dimensional inputs, or unrepresentable inferred auxiliary-output layouts.
+    /// Target and native support validation occurs during preparation.
     pub fn sdpa_fp8_backward(
         &mut self,
         inputs: SdpaFp8BackwardInputs,
@@ -185,6 +186,7 @@ impl Graph {
                 compute_type,
             )?;
         }
+
         self.sdpa_add_backward_sink_token_gradient(
             d_sink_token,
             &modifiers,
@@ -218,6 +220,7 @@ impl Graph {
                 compute_type,
             )?;
         }
+
         let scaled_scores = self.sdpa_scores_with_modifiers(
             scores,
             None,
@@ -273,6 +276,7 @@ impl Graph {
                 compute_type,
             )?;
         }
+
         d_p = self.sdpa_optional_mul(
             d_p,
             modifiers.dropout_mask(),
@@ -307,6 +311,7 @@ impl Graph {
                 None,
             )?;
         }
+
         d_p = self.sdpa_binary(
             PointwiseMode::Mul,
             d_p,
@@ -364,7 +369,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// This recording step currently returns no errors. Graph preparation validates the deferred operands, layouts, and target-specific support.
+    /// This recording step currently returns no errors.
+    /// Graph preparation validates the deferred operands, layouts, and target-specific support.
     pub fn sdpa_fp8_backward_into(
         &mut self,
         inputs: SdpaFp8BackwardInputs,
@@ -427,6 +433,7 @@ impl Graph {
             }
             .into());
         }
+
         let query_key_width = q_tensor.shape.dimensions()[3];
         let d_v_hidden = v_tensor.shape.dimensions()[3];
         for output_type in [query_gradient_type, key_gradient_type, value_gradient_type] {
@@ -438,6 +445,7 @@ impl Graph {
                 config,
             )?;
         }
+
         self.validate_quantized_backward_head_dimensions(
             query_key_width,
             d_v_hidden,
@@ -453,6 +461,7 @@ impl Graph {
             }
             .into());
         }
+
         let compute_type = self.resolve_compute_data_type(config.softmax().compute_type());
         let attention_scale =
             self.sdpa_effective_scale(attention_scale, config.attention_scale(), compute_type)?;
@@ -482,12 +491,14 @@ impl Graph {
         ] {
             self.validate_sdpa_tensor_layout(tensor, name)?;
         }
+
         if d_sink_token.is_some() != config.aux_gradients().sink_token() {
             return Err(FrontendError::SdpaOptionalOutputMismatch {
                 output: "fp8 attention sink gradient",
             }
             .into());
         }
+
         let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &k_tensor.shape)?;
         let output_shape = infer_sdpa_output_shape(&scores_shape, &v_tensor.shape)?;
         let stats_shape = reduce_last_axis(&scores_shape)?;

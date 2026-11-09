@@ -1,13 +1,21 @@
 [package]
 name = "singe-onnx"
 description = "ONNX model utilities."
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "onnx", "model"]
-include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*", "proto/*.proto"]
+include = [
+    "src/**/*.rs",
+    "/build.rs",
+    "proto/*.proto",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE*",
+    "/dist/katex_header.html",
+]
 
 [dependencies]
 thiserror.workspace = true

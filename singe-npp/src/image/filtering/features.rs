@@ -43,7 +43,8 @@ pub fn filter_canny_border_buffer_size(roi: Size) -> Result<usize> {
 /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
 ///
 /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-/// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+/// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+/// `norm` selects the gradient-distance method.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
@@ -121,7 +122,8 @@ pub unsafe fn filter_canny_border_u8_c1(
 /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
 ///
 /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-/// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+/// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+/// `norm` selects the gradient-distance method.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
@@ -199,7 +201,8 @@ pub unsafe fn filter_canny_border_u8_c3_to_c1(
 /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
 ///
 /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-/// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+/// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+/// `norm` selects the gradient-distance method.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
@@ -265,15 +268,18 @@ pub fn filter_harris_corners_border_buffer_size(roi: Size) -> Result<usize> {
 
 /// Computes Harris corner responses into the destination image.
 ///
-/// `filter_type` selects the Sobel or Scharr differential filter. `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
-/// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response. The wrapper forwards these two values without validating them.
+/// `filter_type` selects the Sobel or Scharr differential filter.
+/// `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
+/// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response.
+/// The wrapper forwards these two values without validating them.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`. Only `BorderType::Replicate` is accepted.
+/// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+/// Only `BorderType::Replicate` is accepted.
 /// The source offset must address a source pixel, ROI endpoint calculations must not overflow, and the destination-sized ROI must fit within the full source image.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
 ///
@@ -347,7 +353,8 @@ pub unsafe fn filter_harris_corners_border_u8_to_f32_c1(
 /// # Errors
 ///
 /// Returns an error if NPP rejects the ROI or query parameters, or the returned size cannot be represented as `usize`.
-/// ROI dimensions and `max_line_count` must be positive. `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
+/// ROI dimensions and `max_line_count` must be positive.
+/// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
 pub fn filter_hough_line_buffer_size(
     roi: Size,
     delta: PointPolar,
@@ -372,12 +379,14 @@ pub fn filter_hough_line_buffer_size(
 ///
 /// `delta` supplies the native radial and angular discretization increments.
 /// `threshold` is the minimum number of points required to accept a line.
-/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count. Only that many entries of `lines` contain results.
+/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count.
+/// Only that many entries of `lines` contain results.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 ///
 /// # Errors
 ///
-/// Source dimensions and `threshold` must be positive. `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
+/// Source dimensions and `threshold` must be positive.
+/// `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
 /// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
 ///
@@ -438,13 +447,15 @@ pub unsafe fn filter_hough_line_u8_to_polar_c1(
 ///
 /// `delta` supplies the native radial and angular discretization increments.
 /// `threshold` is the minimum number of points required to accept a line.
-/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count. Only that many entries of `lines` contain results.
+/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count.
+/// Only that many entries of `lines` contain results.
 /// `destination_roi` contains the lower and upper polar bounds of the search region.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 ///
 /// # Errors
 ///
-/// Source dimensions and `threshold` must be positive. `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
+/// Source dimensions and `threshold` must be positive.
+/// `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
 /// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
 /// Each component of the first polar bound must not exceed the corresponding component of the second bound.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
@@ -524,7 +535,8 @@ pub unsafe trait FilterCannyBorderC1: DataTypeLike + Sized {
     /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
     ///
     /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-    /// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+    /// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+    /// `norm` selects the gradient-distance method.
     /// `source_offset` locates the destination-sized processing ROI within the full source image.
     /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
     /// Row padding remains unwritten.
@@ -603,7 +615,8 @@ pub fn filter_canny_border_typed_buffer_size<T: FilterCannyBorderC1>(roi: Size) 
 /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
 ///
 /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-/// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+/// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+/// `norm` selects the gradient-distance method.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
@@ -661,7 +674,8 @@ pub unsafe trait FilterCannyBorderC3ToC1: DataTypeLike + Sized {
     /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
     ///
     /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-    /// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+    /// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+    /// `norm` selects the gradient-distance method.
     /// `source_offset` locates the destination-sized processing ROI within the full source image.
     /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
     /// Row padding remains unwritten.
@@ -727,7 +741,8 @@ unsafe impl FilterCannyBorderC3ToC1 for u8 {
 /// Detects Canny edges and writes a black (`0x00`) and white (`0xff`) destination mask.
 ///
 /// `filter_type` selects the Sobel or Scharr differential filter, and `mask_size` selects its native mask.
-/// `low_threshold` and `high_threshold` are the hysteresis thresholds. `norm` selects the gradient-distance method.
+/// `low_threshold` and `high_threshold` are the hysteresis thresholds.
+/// `norm` selects the gradient-distance method.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
@@ -791,15 +806,18 @@ pub unsafe trait FilterHarrisCornersBorderToF32C1: DataTypeLike + Sized {
 
     /// Computes Harris corner responses into the destination image.
     ///
-    /// `filter_type` selects the Sobel or Scharr differential filter. `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
-    /// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response. The wrapper forwards these two values without validating them.
+    /// `filter_type` selects the Sobel or Scharr differential filter.
+    /// `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
+    /// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response.
+    /// The wrapper forwards these two values without validating them.
     /// `source_offset` locates the destination-sized processing ROI within the full source image.
     /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`. Only `BorderType::Replicate` is accepted.
+    /// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+    /// Only `BorderType::Replicate` is accepted.
     /// The source offset must address a source pixel, ROI endpoint calculations must not overflow, and the destination-sized ROI must fit within the full source image.
     /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
     ///
@@ -872,15 +890,18 @@ pub fn filter_harris_corners_border_to_f32_buffer_size<T: FilterHarrisCornersBor
 
 /// Computes Harris corner responses into the destination image.
 ///
-/// `filter_type` selects the Sobel or Scharr differential filter. `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
-/// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response. The wrapper forwards these two values without validating them.
+/// `filter_type` selects the Sobel or Scharr differential filter.
+/// `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
+/// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response.
+/// The wrapper forwards these two values without validating them.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`. Only `BorderType::Replicate` is accepted.
+/// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+/// Only `BorderType::Replicate` is accepted.
 /// The source offset must address a source pixel, ROI endpoint calculations must not overflow, and the destination-sized ROI must fit within the full source image.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
 ///
@@ -940,15 +961,18 @@ where
 
     /// Computes Harris corner responses into the destination image.
     ///
-    /// `filter_type` selects the Sobel or Scharr differential filter. `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
-    /// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response. The wrapper forwards these two values without validating them.
+    /// `filter_type` selects the Sobel or Scharr differential filter.
+    /// `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
+    /// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response.
+    /// The wrapper forwards these two values without validating them.
     /// `source_offset` locates the destination-sized processing ROI within the full source image.
     /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`. Only `BorderType::Replicate` is accepted.
+    /// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+    /// Only `BorderType::Replicate` is accepted.
     /// The source offset must address a source pixel, ROI endpoint calculations must not overflow, and the destination-sized ROI must fit within the full source image.
     /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
     ///
@@ -1026,15 +1050,18 @@ where
 
 /// Computes Harris corner responses into the destination image.
 ///
-/// `filter_type` selects the Sobel or Scharr differential filter. `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
-/// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response. The wrapper forwards these two values without validating them.
+/// `filter_type` selects the Sobel or Scharr differential filter.
+/// `mask_size` selects the differential mask, and `average_window_size` selects the averaging window.
+/// `k` is the Harris constant, commonly 0.04, and `scale` scales the output response.
+/// The wrapper forwards these two values without validating them.
 /// `source_offset` locates the destination-sized processing ROI within the full source image.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`. Only `BorderType::Replicate` is accepted.
+/// `mask_size` and `average_window_size` must each be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+/// Only `BorderType::Replicate` is accepted.
 /// The source offset must address a source pixel, ROI endpoint calculations must not overflow, and the destination-sized ROI must fit within the full source image.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
 ///
@@ -1090,12 +1117,14 @@ pub unsafe trait FilterHoughLineToPolarC1: DataTypeLike + Sized {
     ///
     /// `delta` supplies the native radial and angular discretization increments.
     /// `threshold` is the minimum number of points required to accept a line.
-    /// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count. Only that many entries of `lines` contain results.
+    /// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count.
+    /// Only that many entries of `lines` contain results.
     /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Source dimensions and `threshold` must be positive. `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
+    /// Source dimensions and `threshold` must be positive.
+    /// `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
     /// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
     /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
     ///
@@ -1120,13 +1149,15 @@ pub unsafe trait FilterHoughLineToPolarC1: DataTypeLike + Sized {
     ///
     /// `delta` supplies the native radial and angular discretization increments.
     /// `threshold` is the minimum number of points required to accept a line.
-    /// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count. Only that many entries of `lines` contain results.
+    /// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count.
+    /// Only that many entries of `lines` contain results.
     /// `destination_roi` contains the lower and upper polar bounds of the search region.
     /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Source dimensions and `threshold` must be positive. `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
+    /// Source dimensions and `threshold` must be positive.
+    /// `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
     /// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
     /// Each component of the first polar bound must not exceed the corresponding component of the second bound.
     /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
@@ -1200,12 +1231,14 @@ unsafe impl FilterHoughLineToPolarC1 for u8 {
 ///
 /// `delta` supplies the native radial and angular discretization increments.
 /// `threshold` is the minimum number of points required to accept a line.
-/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count. Only that many entries of `lines` contain results.
+/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count.
+/// Only that many entries of `lines` contain results.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 ///
 /// # Errors
 ///
-/// Source dimensions and `threshold` must be positive. `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
+/// Source dimensions and `threshold` must be positive.
+/// `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
 /// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.
 ///
@@ -1233,13 +1266,15 @@ pub unsafe fn filter_hough_line_to_polar<T: FilterHoughLineToPolarC1>(
 ///
 /// `delta` supplies the native radial and angular discretization increments.
 /// `threshold` is the minimum number of points required to accept a line.
-/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count. Only that many entries of `lines` contain results.
+/// `lines.len()` limits the number of returned lines; the single device element in `line_count` receives the count.
+/// Only that many entries of `lines` contain results.
 /// `destination_roi` contains the lower and upper polar bounds of the search region.
 /// The provided implementations allocate temporary device scratch, reject stream capture, and return after successful stream completion.
 ///
 /// # Errors
 ///
-/// Source dimensions and `threshold` must be positive. `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
+/// Source dimensions and `threshold` must be positive.
+/// `lines` must have a nonzero capacity representable as `i32`, and `line_count` must contain exactly one element.
 /// `delta.rho` must lie strictly between zero and three, and `delta.theta` strictly between 0.25 and three.
 /// Each component of the first polar bound must not exceed the corresponding component of the second bound.
 /// CUDA context binding, region-context validation, scratch-size queries, device allocation, NPP execution, capture checks, and stream synchronization can also fail.

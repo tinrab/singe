@@ -18,18 +18,16 @@ where
     Self: SumWindowFilterImage<T, L>,
 {
     /// Sums each channel over a vertical window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// The source window must retain the parent-image halo needed for the vertical window
-    /// and anchor. Source-window and destination dimensions must match.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// The source window must retain the parent-image halo needed for the vertical window and anchor.
+    /// Source-window and destination dimensions must match.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
     /// The source window must match the destination size and retain the required halo.
     pub fn sum_window_column_into(
@@ -49,18 +47,16 @@ where
     }
 
     /// Sums each channel over a horizontal window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// The source window must retain the parent-image halo needed for the horizontal window
-    /// and anchor. Source-window and destination dimensions must match.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// The source window must retain the parent-image halo needed for the horizontal window and anchor.
+    /// Source-window and destination dimensions must match.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
     /// The source window must match the destination size and retain the required halo.
     pub fn sum_window_row_into(
@@ -88,18 +84,16 @@ where
     Self: SumWindowFilterImage<T, L>,
 {
     /// Sums each channel over a vertical window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// Allocates a new owned image for the valid source window. Reduces height by
-    /// `mask_size - 1` and preserves width.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// Allocates a new owned image for the valid source window.
+    /// Reduces height by `mask_size - 1` and preserves width.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
     /// The source must contain the complete filter window and its valid output window.
     /// Image allocation or view construction can also fail.
@@ -117,18 +111,16 @@ where
     }
 
     /// Sums each channel over a horizontal window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// Allocates a new owned image for the valid source window. Reduces width by
-    /// `mask_size - 1` and preserves height.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// Allocates a new owned image for the valid source window.
+    /// Reduces width by `mask_size - 1` and preserves height.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
     /// The source must contain the complete filter window and its valid output window.
     /// Image allocation or view construction can also fail.

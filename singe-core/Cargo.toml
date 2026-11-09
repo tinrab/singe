@@ -1,7 +1,7 @@
 [package]
 name = "singe-core"
-description = "Shared utilities for Singe crates."
-version = "0.1.0-alpha.7"
+description = "Shared macros and FFI helpers for the Singe wrapper crates."
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true

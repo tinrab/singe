@@ -55,6 +55,7 @@ impl Graph {
         if let Some(momentum) = config.momentum() {
             self.validate_tensor_scalar_shape(momentum, "bn finalize momentum")?;
         }
+
         match (config.running(), outputs.running) {
             (Some(previous), Some(next)) => {
                 self.validate_tensors_dimensions(
@@ -104,7 +105,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, mismatched per-channel input or output dimensions, nonscalar accumulation count, epsilon or momentum, or incomplete running-statistic inputs and outputs. Inferred output strides must also be representable.
+    /// Returns an error for unknown tensor identities, mismatched per-channel input or output dimensions, nonscalar accumulation count, epsilon or momentum, or incomplete running-statistic inputs and outputs.
+    /// Inferred output strides must also be representable.
     pub fn batch_normalization_finalize(
         &mut self,
         inputs: BatchNormalizationFinalizeInputs,
@@ -114,6 +116,7 @@ impl Graph {
         if config.running().is_some() != outputs.running.is_some() {
             return Err(FrontendError::BatchNormRunningStatsIncomplete.into());
         }
+
         let shape = Shape::channels_last(self.shape(inputs.sum)?.dimensions().to_vec())?;
         let policy = self.config.data_type_policy;
         let statistics_specs =

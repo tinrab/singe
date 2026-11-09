@@ -17,17 +17,14 @@ where
     Self: MaskedNormDiffImage<T, L>,
 {
     /// Computes the native L2 norm of image differences over masked pixels.
-    /// The provided implementation processes C1 and produces one `f64` result. Only
-    /// pixels whose mask value is nonzero participate.
+    /// The provided implementation processes C1 and produces one `f64` result.
+    /// Only pixels whose mask value is nonzero participate.
     /// The supplied output view must contain exactly one element.
-    /// Prepares both source images, the mask, and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images, the mask, and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions and mask dimensions must match.
     /// The output view must have the exact result count described above.
     pub fn norm_diff_l2_masked_into(
@@ -47,17 +44,14 @@ where
     }
 
     /// Computes the native L2 norm of image differences over masked pixels.
-    /// The provided implementation processes C1 and produces one `f64` result. Only
-    /// pixels whose mask value is nonzero participate.
+    /// The provided implementation processes C1 and produces one `f64` result.
+    /// Only pixels whose mask value is nonzero participate.
     /// Allocates owned device storage for the single result.
-    /// Prepares both source images, the mask, and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images, the mask, and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions and mask dimensions must match.
     /// Result allocation or source view construction can also fail.
     pub fn norm_diff_l2_masked(

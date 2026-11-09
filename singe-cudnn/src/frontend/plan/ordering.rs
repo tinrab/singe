@@ -13,6 +13,7 @@ pub fn plan_positions<'a>(
     if requested.is_empty() {
         return Err(FrontendError::PlanOrderEmpty.into());
     }
+
     let available = available
         .into_iter()
         .enumerate()
@@ -27,6 +28,7 @@ pub fn plan_positions<'a>(
         if seen[position] {
             return Err(FrontendError::PlanOrderDuplicate { plan: plan.clone() }.into());
         }
+
         seen[position] = true;
         positions.push(position);
     }

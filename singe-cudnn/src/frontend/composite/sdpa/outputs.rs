@@ -36,6 +36,7 @@ impl Graph {
                 }
             }
         }
+
         for (computed, declared, name) in [
             (computed.stats, declared.stats, "attention statistics"),
             (computed.rng_dump, declared.rng_dump, "attention rng dump"),
@@ -108,6 +109,7 @@ impl Graph {
         if source == target {
             return Ok(());
         }
+
         let constraints = self
             .runtime_shape_constraints
             .get(&source)
@@ -150,17 +152,21 @@ impl Graph {
         for tensor in self.tensors.values_mut() {
             optional(&mut tensor.ragged_offset);
         }
+
         for alias in &mut self.storage_views {
             remap(&mut alias.source);
             remap(&mut alias.target);
         }
+
         if let Some(constraints) = constraints {
             self.runtime_shape_constraints.insert(target, constraints);
         }
+
         self.runtime_shape_constraints.remove(&source);
         if self.vector_aligned_tensors.remove(&source) {
             self.vector_aligned_tensors.insert(target);
         }
+
         self.tensors.remove(&source);
         Ok(())
     }

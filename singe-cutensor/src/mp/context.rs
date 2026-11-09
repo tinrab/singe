@@ -2,7 +2,7 @@ use std::{
     marker::PhantomData,
     mem::ManuallyDrop,
     ptr,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use singe_cuda::{context::Context as CudaContext, stream::Stream};
@@ -50,7 +50,8 @@ unsafe impl Send for ContextRef<'_> {}
 impl<'comm> Context<'comm> {
     /// Synchronizes this CUDA context and clears communication resources cached by the handle.
     ///
-    /// Call before freeing or reallocating externally managed workspace regions registered by communication operations. The wrapper serializes this operation with execution through the shared context lock.
+    /// Call before freeing or reallocating externally managed workspace regions registered by communication operations.
+    /// The wrapper serializes this operation with execution through the shared context lock.
     ///
     /// # Errors
     ///
@@ -73,6 +74,7 @@ impl<'comm> Context<'comm> {
         if stream.is_some_and(|stream| communicator.cuda_context() != stream.context()) {
             return Err(Error::StreamContextMismatch);
         }
+
         communicator.bind()?;
 
         let mut handle = ptr::null_mut();
@@ -106,9 +108,8 @@ impl<'comm> Context<'comm> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMp handle associated with `cuda_context`,
-    /// `local_device_id`, and `stream`. The returned context takes ownership
-    /// of `handle` and destroys it when the last clone is dropped.
+    /// `handle` must be a valid cuTENSORMp handle associated with `cuda_context`, `local_device_id`, and `stream`.
+    /// The returned context takes ownership of `handle` and destroys it when the last clone is dropped.
     ///
     /// # Errors
     ///
@@ -178,8 +179,7 @@ impl<'comm> Context<'comm> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::OwnershipShared`] if cloned contexts or context references
-    /// still point at the same handle.
+    /// Returns [`Error::OwnershipShared`] if cloned contexts or context references still point at the same handle.
     pub fn into_raw(self) -> Result<sys::cutensorMpHandle_t> {
         let handle = Arc::try_unwrap(self.handle).map_err(|_| Error::OwnershipShared)?;
         let handle = ManuallyDrop::new(handle);
@@ -188,15 +188,17 @@ impl<'comm> Context<'comm> {
 }
 
 impl ContextRef<'_> {
-    pub(crate) fn lock_execution(&self) -> MutexGuard<'_, ()> {
+    pub(crate) fn lock_execution(&self) -> Result<MutexGuard<'_, ()>> {
         self.handle
             .execution_lock
             .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .map_err(|_| Error::LockPoisoned {
+                name: "cutensor execution",
+            })
     }
 
     pub(crate) fn clear_operation_cache(&self) -> Result<()> {
-        let _lock = self.lock_execution();
+        let _lock = self.lock_execution()?;
         self.bind()?;
         self.cuda_context().synchronize()?;
         // SAFETY: `cutensorMpClearOperationCache` receives live handles owned by the wrappers.
@@ -226,15 +228,19 @@ impl ContextRef<'_> {
 impl Drop for Handle<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cutensormp handle: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying cutensormp handle: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cutensorMpDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormp context: {error}");
+                eprintln!(
+                    "failed to destroy cutensormp context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

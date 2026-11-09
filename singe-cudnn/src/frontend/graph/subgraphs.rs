@@ -105,10 +105,12 @@ impl Graph {
                 if source != captured {
                     continue;
                 }
+
                 let record = subgraph.graph.layout.tensor_record(captured)?;
                 if record.access.is_none() {
                     continue;
                 }
+
                 let tensor = self.tensor_spec(source)?.clone();
                 let child = &record.tensor;
                 if !tensor.storage_metadata_matches(child)? {
@@ -117,6 +119,7 @@ impl Graph {
                     ))
                     .into());
                 }
+
                 if Self::attention_index_layout_is_promotion(&tensor, child)? {
                     self.promote_index_tensors([source])?;
                     changed = true;
@@ -131,11 +134,13 @@ impl Graph {
                     ))
                     .into());
                 }
+
                 let alignment = tensor.byte_alignment.max(child.byte_alignment);
                 if alignment != tensor.byte_alignment {
                     self.tensor_spec_mut(source)?.byte_alignment = alignment;
                     changed = true;
                 }
+
                 if record.requires_vector_alignment && self.vector_aligned_tensors.insert(source) {
                     changed = true;
                 }

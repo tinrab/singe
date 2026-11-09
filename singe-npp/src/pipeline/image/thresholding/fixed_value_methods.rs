@@ -13,13 +13,12 @@ where
     /// Samples equal to the threshold or on its other side retain their source value.
     /// Uses scalar parameters for C1 images.
     /// Reuses owned backing; borrowed input produces a new owned image.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// Image allocation, view construction can also fail.
     pub fn threshold_greater_value(mut self, threshold: T, value: T) -> Result<Self> {
         self.ensure_eager()?;
@@ -59,13 +58,12 @@ where
     /// Samples equal to the threshold or on its other side retain their source value.
     /// Uses scalar parameters for C1 images.
     /// Reuses owned backing; borrowed input produces a new owned image.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// Image allocation, view construction can also fail.
     pub fn threshold_less_value(mut self, threshold: T, value: T) -> Result<Self> {
         self.ensure_eager()?;

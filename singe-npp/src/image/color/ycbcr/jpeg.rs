@@ -217,13 +217,12 @@ macro_rules! impl_color_convert_planar_to_planar_different_planes_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must preserve the native element and plane-layout ABI, color semantics,
-        /// and the method's geometry validation, memory-access rules, and queued lifetimes.
+        /// Implementations must preserve the native element and plane-layout ABI, color semantics, and the method's geometry validation, memory-access rules, and queued lifetimes.
         pub unsafe trait $trait: DataTypeLike {
             /// Converts four JPEG CMYK or YCCK source planes to three RGB or BGR output planes.
             ///
-            /// The function name selects RGB or BGR component order. This operation does not perform
-            /// color-profile conversion.
+            /// The function name selects RGB or BGR component order.
+            /// This operation does not perform color-profile conversion.
             ///
             /// Enqueues work on the selected stream.
             /// Plane order follows the named color components.
@@ -252,8 +251,8 @@ macro_rules! impl_color_convert_planar_to_planar_different_planes_dispatch {
 
         /// Converts four JPEG CMYK or YCCK source planes to three RGB or BGR output planes.
         ///
-        /// The function name selects RGB or BGR component order. This operation does not perform
-        /// color-profile conversion.
+        /// The function name selects RGB or BGR component order.
+        /// This operation does not perform color-profile conversion.
         ///
         /// Enqueues work on the selected stream.
         /// Plane order follows the named color components.

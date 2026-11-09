@@ -64,6 +64,7 @@ impl Graph {
             }
             .into());
         }
+
         let shape = tensor.shape_with_scalar_rank(4)?;
         if shape.dimensions() != [1, 1, 1, 1] {
             return Err(FrontendError::TensorDimensionsMismatch {
@@ -150,6 +151,7 @@ impl Graph {
             }
             .into());
         }
+
         let actual = tensor_spec.shape.strides()[3];
         if actual != 1 {
             return Err(FrontendError::TensorLastStrideMismatch {
@@ -186,6 +188,7 @@ impl Graph {
             }
             .into());
         }
+
         if tensor_spec.shape.strides()[2] != 1 && tensor_spec.shape.strides()[3] != 1 {
             return Err(FrontendError::TensorLayoutMismatch {
                 tensor_id: tensor,
@@ -279,9 +282,11 @@ impl Graph {
         {
             return Err(sdpa_causal_bottom_right_modifier_conflict(modifiers));
         }
+
         if let Some(left_window) = modifiers.left_window() {
             check_range!("left_window", left_window >= 0)?;
         }
+
         if let Some(right_window) = modifiers.right_window() {
             check_range!("right_window", right_window >= 0)?;
         }
@@ -379,6 +384,7 @@ impl Graph {
                 SDPA_ALIBI_SHAPE,
             )?;
         }
+
         let has_alibi_right_bound = modifiers.right_window() == Some(0);
         if !has_alibi_right_bound {
             return Err(FrontendError::SdpaUnsupported {
@@ -411,6 +417,7 @@ impl Graph {
             }
             .into());
         }
+
         let expected_sink_shape = [1, attention_heads, 1, 1];
         self.validate_sdpa_tensor_dimensions_match(
             sink_token,
@@ -439,12 +446,14 @@ impl Graph {
             if modifiers.has_custom_dropout() {
                 return Err(FrontendError::SdpaDropoutModeConflict.into());
             }
+
             if modifiers.causal_bottom_right() {
                 return Err(FrontendError::SdpaCausalBottomRightModifierConflict {
                     modifier: "dropout",
                 }
                 .into());
             }
+
             if let Some(offset) = dropout.offset() {
                 self.validate_attention_rng_offset(offset)?;
             }
@@ -509,6 +518,7 @@ impl Graph {
             }
             .into());
         }
+
         self.validate_sdpa_score_modifiers(q, k, v, config.modifiers())?;
         self.validate_attention_support_surface_for_version(version()?.raw(), q, k, v, config)?;
         if let Some(score_subgraph) = config.score_subgraph() {
@@ -517,6 +527,7 @@ impl Graph {
             let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &kv_shapes.key)?;
             self.validate_score_subgraph(score_subgraph, &scores_shape, SDPA_SCORE_SUBGRAPH)?;
         }
+
         self.validate_attention_block_mask_config(q, k, v, config)?;
         self.validate_attention_paged_config(q, config.paged(), config.modifiers())?;
         self.validate_attention_dropout_config(config.dropout(), config.modifiers())?;
@@ -558,6 +569,7 @@ impl Graph {
             }
             .into());
         }
+
         let last_stride = block_mask_tensor.shape.strides()[3];
         if last_stride != 1 {
             return Err(FrontendError::TensorLastStrideMismatch {
@@ -585,6 +597,7 @@ impl Graph {
             }
             .into());
         }
+
         if let Some(max_sequence_length_key_value) = paged.max_sequence_length_key_value() {
             check_range!(
                 SDPA_MAX_SEQUENCE_LENGTH_KEY_VALUE,
@@ -614,6 +627,7 @@ impl Graph {
                 }
             }
         }
+
         if let Some(cache) = paged.k() {
             self.validate_sdpa_tensor_data_type_match(
                 cache.page_table(),
@@ -621,6 +635,7 @@ impl Graph {
                 SDPA_PAGED_K_PAGE_TABLE_DATA_TYPE,
             )?;
         }
+
         if let Some(cache) = paged.v() {
             self.validate_sdpa_tensor_data_type_match(
                 cache.page_table(),
@@ -777,6 +792,7 @@ impl Graph {
             }
             .into());
         }
+
         Self::validate_attention_support_modifier_compatibility(
             config.modifiers(),
             has_custom_score_subgraph,
@@ -818,12 +834,14 @@ impl Graph {
             }
             .into());
         }
+
         if config.softmax().stats_base() != SoftmaxStatsBase::NaturalLog {
             return Err(FrontendError::SdpaBackwardStatsBaseUnsupported {
                 actual: config.softmax().stats_base(),
             }
             .into());
         }
+
         self.validate_sdpa_score_modifiers(q, k, v, config.modifiers())?;
         if config.score_subgraph_bprop().is_some() && config.score_subgraph().is_none() {
             return Err(FrontendError::SdpaRequires {
@@ -832,6 +850,7 @@ impl Graph {
             }
             .into());
         }
+
         let q_tensor = self.tensor_spec(q)?;
         let k_tensor = self.tensor_spec(k)?;
         let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &k_tensor.shape)?;
@@ -842,6 +861,7 @@ impl Graph {
                 SDPA_BACKWARD_SCORE_SUBGRAPH,
             )?;
         }
+
         if let Some(score_subgraph_bprop) = config.score_subgraph_bprop() {
             self.validate_score_subgraph(
                 score_subgraph_bprop,
@@ -849,6 +869,7 @@ impl Graph {
                 SDPA_BACKWARD_SCORE_SUBGRAPH_BPROP,
             )?;
         }
+
         self.validate_attention_dropout_config(config.dropout(), config.modifiers())?;
         if let Some(inverse) = config.dropout_scale_inverse() {
             self.validate_tensor_scalar_shape(inverse, "attention inverse dropout scale")?;
@@ -858,6 +879,7 @@ impl Graph {
                 "attention inverse dropout scale",
             )?;
         }
+
         let aux_gradients = config.aux_gradients();
         if aux_gradients.random_number_generator_dump() && config.dropout().is_none() {
             return Err(FrontendError::SdpaRequires {
@@ -918,6 +940,7 @@ impl Graph {
             }
             .into());
         }
+
         self.validate_tensor_scalar_shape(scale, SDPA_BACKWARD_SCALE)?;
         self.validate_sdpa_tensor_dimensions_match(
             d_o,
@@ -939,6 +962,7 @@ impl Graph {
             }
             .into());
         }
+
         if q_dims[3] != k_dims[3] {
             return Err(FrontendError::SdpaQueryKeyShapeMismatch {
                 query: q_dims.to_vec(),
@@ -946,6 +970,7 @@ impl Graph {
             }
             .into());
         }
+
         let scores_shape = infer_sdpa_scores_shape(&q_tensor.shape, &k_tensor.shape)?;
         let expected_stats_shape = reduce_last_axis(&scores_shape)?;
 
@@ -979,6 +1004,7 @@ impl Graph {
                 .into());
             }
         }
+
         if let Some(gradient) = gradients.sink_token_gradient {
             self.validate_sdpa_tensor_dimensions_match(
                 gradient,
@@ -986,6 +1012,7 @@ impl Graph {
                 SDPA_BACKWARD_D_SINK_TOKEN_SHAPE,
             )?;
         }
+
         if gradients.rng_dump.is_some() && config.dropout().is_none() {
             return Err(FrontendError::SdpaRequires {
                 requirement: SdpaRequirement::Dropout,

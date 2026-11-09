@@ -68,6 +68,7 @@ impl<'a> AutotuneState<'a> {
             if let Some(access) = bindings.binding_access(binding.id, AccessMode::Read) {
                 accesses.push(access);
             }
+
             let pointer = bindings
                 .ptr(binding.id)
                 .ok_or(FrontendError::TensorNotFound(binding.id))?;
@@ -85,6 +86,7 @@ impl<'a> AutotuneState<'a> {
                 if let Some(shape) = pack.override_for(record.id.into()) {
                     spec.shape = shape.clone();
                 }
+
                 let offset = to_usize(native.byte_offset, "autotune alias byte offset")?;
                 let capacity = bindings
                     .byte_capacity(binding.id)
@@ -108,6 +110,7 @@ impl<'a> AutotuneState<'a> {
                     }
                     .into());
                 }
+
                 let span = spec.storage_byte_len(capacity)?;
                 bytes = bytes.max(
                     offset
@@ -129,6 +132,7 @@ impl<'a> AutotuneState<'a> {
                 });
             }
         }
+
         ranges.sort_unstable_by_key(|range| range.start);
         let mut groups = Vec::<AliasGroup>::new();
         for range in ranges {
@@ -179,6 +183,7 @@ impl<'a> AutotuneState<'a> {
                     )?;
                 }
             }
+
             let baseline = group
                 .reads
                 .then(|| DeviceMemory::<u8>::create_uninit(context.cuda_context(), bytes))

@@ -2,20 +2,14 @@
 //!
 //! Kernels that expose tunable launch parameters use three related APIs:
 //!
-//! * `*_config.tune(options)` runs autotuning on first use and stores the best
-//!   tuning in the process-local [`MemoryTuneCache`].
-//! * `*_config.cached_tuning()` requires a cache hit for the generated
-//!   [`TuneKey`]. This is useful after a warmup pass and is safe for CUDA graph
-//!   capture when the entry is already present.
-//! * `*_config.explicit_tuning(tuning)` bypasses the cache and launches with a
-//!   caller-provided tuning value.
+//! * `*_config.tune(options)` runs autotuning on first use and stores the best tuning in the process-local [`MemoryTuneCache`].
+//! * `*_config.cached_tuning()` requires a cache hit for the generated [`TuneKey`].
+//!   This is useful after a warmup pass and is safe for CUDA graph capture when the entry is already present.
+//! * `*_config.explicit_tuning(tuning)` bypasses the cache and launches with a caller-provided tuning value.
 //!
-//! The cache is intentionally in-memory only. With the `serde` feature enabled,
-//! users can serialize [`TuneReport`], [`TuneKey`], and the operation-specific
-//! tuning values returned in `TuneReport::best`. A typical persistence flow is:
-//! tune once, write `(report.key, report.best)` to an application cache, then
-//! later validate that the loaded key matches the current problem/device and use
-//! `explicit_tuning(report.best)` for the actual launch.
+//! The cache is intentionally in-memory only.
+//! With the `serde` feature enabled, users can serialize [`TuneReport`], [`TuneKey`], and the operation-specific tuning values returned in `TuneReport::best`.
+//! A typical persistence flow is: tune once, write `(report.key, report.best)` to an application cache, then later validate that the loaded key matches the current problem/device and use `explicit_tuning(report.best)` for the actual launch.
 
 use std::{
     any::Any,
@@ -40,7 +34,8 @@ const TUNE_KEY_SCHEMA: u32 = 2;
 pub struct TuneOptions {
     /// Candidate warmup launches before timing starts.
     pub warmup: usize,
-    /// Timed launches per candidate. This is normalized to at least one.
+    /// Timed launches per candidate.
+    /// This is normalized to at least one.
     pub repeats: usize,
     /// Maximum number of candidates to evaluate.
     pub max_candidates: usize,
@@ -154,10 +149,8 @@ impl Tile2d {
 
 /// Result of an autotune run.
 ///
-/// `best` is the tuning value to persist or pass back through
-/// `explicit_tuning`. `key` identifies the exact device/problem shape the
-/// tuning was measured for, and `candidates` records timing or failure details
-/// for diagnostics.
+/// `best` is the tuning value to persist or pass back through `explicit_tuning`.
+/// `key` identifies the exact device/problem shape the tuning was measured for, and `candidates` records timing or failure details for diagnostics.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TuneReport<C> {
@@ -239,9 +232,8 @@ impl DeviceFingerprint {
 
 /// Complete key for a measured tuning value.
 ///
-/// Persisted tuning values should be reused only when this key matches the
-/// current launch. The schema field exists so future incompatible key layouts
-/// can invalidate old persisted records.
+/// Persisted tuning values should be reused only when this key matches the current launch.
+/// The schema field exists so future incompatible key layouts can invalidate old persisted records.
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TuneKey {
@@ -474,16 +466,12 @@ impl MemoryTuneCache {
     ///
     /// # Errors
     ///
-    /// Returns an error if the stored tuning has a different Rust type than `T`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the tuning-cache mutex is poisoned.
+    /// Returns an error if the tuning-cache mutex is poisoned.
     pub fn get<T>(&self, key: &TuneKey) -> Result<Option<T>>
     where
         T: Clone + Send + Sync + 'static,
     {
-        let entries = self.entries.lock().expect("tune cache poisoned");
+        let entries = self.entries.lock().map_err(|_| Error::TuneCachePoisoned)?;
         let Some(value) = entries.get(key) else {
             return Ok(None);
         };
@@ -496,55 +484,57 @@ impl MemoryTuneCache {
 
     /// Stores a typed tuning value, replacing any previous entry for the key.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the tuning-cache mutex is poisoned.
-    pub fn insert<T>(&self, key: TuneKey, value: T)
+    /// Returns an error if the tuning-cache mutex is poisoned.
+    pub fn insert<T>(&self, key: TuneKey, value: T) -> Result<()>
     where
         T: Clone + Send + Sync + 'static,
     {
-        let mut entries = self.entries.lock().expect("tune cache poisoned");
+        let mut entries = self.entries.lock().map_err(|_| Error::TuneCachePoisoned)?;
         entries.insert(key, Box::new(value));
+        Ok(())
     }
 
     /// Removes a key and returns whether an entry was present.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the tuning-cache mutex is poisoned.
-    pub fn remove(&self, key: &TuneKey) -> bool {
-        let mut entries = self.entries.lock().expect("tune cache poisoned");
-        entries.remove(key).is_some()
+    /// Returns an error if the tuning-cache mutex is poisoned.
+    pub fn remove(&self, key: &TuneKey) -> Result<bool> {
+        let mut entries = self.entries.lock().map_err(|_| Error::TuneCachePoisoned)?;
+        Ok(entries.remove(key).is_some())
     }
 
     /// Removes every cached tuning value.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the tuning-cache mutex is poisoned.
-    pub fn clear(&self) {
-        let mut entries = self.entries.lock().expect("tune cache poisoned");
+    /// Returns an error if the tuning-cache mutex is poisoned.
+    pub fn clear(&self) -> Result<()> {
+        let mut entries = self.entries.lock().map_err(|_| Error::TuneCachePoisoned)?;
         entries.clear();
+        Ok(())
     }
 
     /// Returns the number of cached device/problem keys.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the tuning-cache mutex is poisoned.
-    pub fn len(&self) -> usize {
-        let entries = self.entries.lock().expect("tune cache poisoned");
-        entries.len()
+    /// Returns an error if the tuning-cache mutex is poisoned.
+    pub fn len(&self) -> Result<usize> {
+        let entries = self.entries.lock().map_err(|_| Error::TuneCachePoisoned)?;
+        Ok(entries.len())
     }
 
     /// Returns whether no tuning values are cached.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the tuning-cache mutex is poisoned.
-    pub fn is_empty(&self) -> bool {
-        let entries = self.entries.lock().expect("tune cache poisoned");
-        entries.is_empty()
+    /// Returns an error if the tuning-cache mutex is poisoned.
+    pub fn is_empty(&self) -> Result<bool> {
+        let entries = self.entries.lock().map_err(|_| Error::TuneCachePoisoned)?;
+        Ok(entries.is_empty())
     }
 }
 
@@ -552,48 +542,43 @@ static TUNE_CACHE: OnceLock<MemoryTuneCache> = OnceLock::new();
 
 /// Returns the process-local tune cache.
 ///
-/// This cache is not persisted by the crate. Applications that want reuse
-/// across process runs should serialize a [`TuneReport`] or a `(TuneKey, best)`
-/// pair with the `serde` feature enabled, then launch later with
-/// `explicit_tuning(best)` after checking the stored key.
+/// This cache is not persisted by the crate.
+/// Applications that want reuse across process runs should serialize a [`TuneReport`] or a `(TuneKey, best)` pair with the `serde` feature enabled, then launch later with `explicit_tuning(best)` after checking the stored key.
 pub fn cache() -> &'static MemoryTuneCache {
     TUNE_CACHE.get_or_init(MemoryTuneCache::create)
 }
 
 /// Clears the process-local tune cache.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the tuning-cache mutex is poisoned.
-pub fn clear_cache() {
-    cache().clear();
+/// Returns an error if the tuning-cache mutex is poisoned.
+pub fn clear_cache() -> Result<()> {
+    cache().clear()
 }
 
 /// Removes one process-local cache entry.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the tuning-cache mutex is poisoned.
-#[must_use]
-pub fn remove_cache_entry(key: &TuneKey) -> bool {
+/// Returns an error if the tuning-cache mutex is poisoned.
+pub fn remove_cache_entry(key: &TuneKey) -> Result<bool> {
     cache().remove(key)
 }
 
 /// Returns the number of entries in the process-local tune cache.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the tuning-cache mutex is poisoned.
-#[must_use]
-pub fn cache_len() -> usize {
+/// Returns an error if the tuning-cache mutex is poisoned.
+pub fn cache_len() -> Result<usize> {
     cache().len()
 }
 
 /// Returns an error if the stream is currently being captured.
 ///
-/// Tuning launches multiple candidate kernels and records events, so it cannot
-/// run inside CUDA graph capture. Use [`TuningChoice::Explicit`] or a populated
-/// [`TuningChoice::Cached`] entry when building captured graphs.
+/// Tuning launches multiple candidate kernels and records events, so it cannot run inside CUDA graph capture.
+/// Use [`TuningChoice::Explicit`] or a populated [`TuningChoice::Cached`] entry when building captured graphs.
 ///
 /// # Errors
 ///
@@ -618,15 +603,14 @@ pub fn cache_miss_error(op: &'static str, capture_status: StreamCaptureStatus) -
 
 /// Measures candidate tunings and returns a report containing the best value.
 ///
-/// The `launch` callback is called for warmup and timed iterations. Failed
-/// candidates are recorded in the report and ignored for winner selection. This
-/// function does not insert into [`cache`]; kernel-specific wrappers insert and
-/// typically relaunch the winning candidate so output buffers contain the
-/// selected result.
+/// The `launch` callback is called for warmup and timed iterations.
+/// Failed candidates are recorded in the report and ignored for winner selection.
+/// This function does not insert into [`cache`]; kernel-specific wrappers insert and typically relaunch the winning candidate so output buffers contain the selected result.
 ///
 /// # Errors
 ///
-/// Returns an error if tuning is attempted during capture, stream capture status cannot be queried, no candidates remain after applying the limit, timing events cannot be created, or no candidate completes all measurements successfully. Individual candidate launch and timing failures are retained in the report when another candidate succeeds.
+/// Returns an error if tuning is attempted during capture, stream capture status cannot be queried, no candidates remain after applying the limit, timing events cannot be created, or no candidate completes all measurements successfully.
+/// Individual candidate launch and timing failures are retained in the report when another candidate succeeds.
 #[expect(
     clippy::cast_precision_loss,
     reason = "the f32 algorithm converts integer dimensions and accumulators to its floating-point working precision"
@@ -666,6 +650,7 @@ where
                 break;
             }
         }
+
         if let Some(error) = failed {
             measurements.push(CandidateMeasurement {
                 config: candidate,
@@ -684,14 +669,17 @@ where
                 failed = Some(error.to_string());
                 break;
             }
+
             if let Err(error) = launch(&candidate) {
                 failed = Some(error.to_string());
                 break;
             }
+
             if let Err(error) = stop.record(stream, EventRecordFlags::DEFAULT) {
                 failed = Some(error.to_string());
                 break;
             }
+
             if let Err(error) = stop.synchronize() {
                 failed = Some(error.to_string());
                 break;
@@ -754,7 +742,37 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
+
     use super::*;
+
+    #[test]
+    fn test_poisoned_tune_cache_reports_every_operation() {
+        let cache = MemoryTuneCache::create();
+        let key = test_key("poisoned", 16);
+        let panicked = thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let _guard = cache.entries.lock().unwrap();
+                    panic!("poison the lock");
+                })
+                .join()
+                .is_err()
+        });
+        assert!(panicked);
+        assert!(matches!(
+            cache.get::<u32>(&key),
+            Err(Error::TuneCachePoisoned)
+        ));
+        assert!(matches!(
+            cache.insert(key.clone(), 1u32),
+            Err(Error::TuneCachePoisoned)
+        ));
+        assert!(matches!(cache.remove(&key), Err(Error::TuneCachePoisoned)));
+        assert!(matches!(cache.clear(), Err(Error::TuneCachePoisoned)));
+        assert!(matches!(cache.len(), Err(Error::TuneCachePoisoned)));
+        assert!(matches!(cache.is_empty(), Err(Error::TuneCachePoisoned)));
+    }
 
     fn test_key(op: &'static str, columns: usize) -> TuneKey {
         TuneKey::create(
@@ -781,14 +799,14 @@ mod tests {
         let cache = MemoryTuneCache::create();
         let key = test_key("cache_hit", 16);
 
-        assert!(cache.is_empty());
-        assert_eq!(cache.len(), 0);
+        assert!(cache.is_empty().unwrap());
+        assert_eq!(cache.len().unwrap(), 0);
         assert_eq!(cache.get::<u32>(&key).unwrap(), None);
 
-        cache.insert(key.clone(), 42u32);
+        cache.insert(key.clone(), 42u32).unwrap();
 
-        assert!(!cache.is_empty());
-        assert_eq!(cache.len(), 1);
+        assert!(!cache.is_empty().unwrap());
+        assert_eq!(cache.len().unwrap(), 1);
         assert_eq!(cache.get::<u32>(&key).unwrap(), Some(42));
     }
 
@@ -797,10 +815,10 @@ mod tests {
         let cache = MemoryTuneCache::create();
         let key = test_key("cache_replace", 32);
 
-        cache.insert(key.clone(), 1u32);
-        cache.insert(key.clone(), 7u32);
+        cache.insert(key.clone(), 1u32).unwrap();
+        cache.insert(key.clone(), 7u32).unwrap();
 
-        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.len().unwrap(), 1);
         assert_eq!(cache.get::<u32>(&key).unwrap(), Some(7));
     }
 
@@ -810,17 +828,17 @@ mod tests {
         let first = test_key("cache_remove_first", 64);
         let second = test_key("cache_remove_second", 128);
 
-        cache.insert(first.clone(), 1u32);
-        cache.insert(second.clone(), 2u32);
+        cache.insert(first.clone(), 1u32).unwrap();
+        cache.insert(second.clone(), 2u32).unwrap();
 
-        assert!(cache.remove(&first));
-        assert!(!cache.remove(&first));
+        assert!(cache.remove(&first).unwrap());
+        assert!(!cache.remove(&first).unwrap());
         assert_eq!(cache.get::<u32>(&first).unwrap(), None);
         assert_eq!(cache.get::<u32>(&second).unwrap(), Some(2));
 
-        cache.clear();
+        cache.clear().unwrap();
 
-        assert!(cache.is_empty());
+        assert!(cache.is_empty().unwrap());
         assert_eq!(cache.get::<u32>(&second).unwrap(), None);
     }
 
@@ -829,7 +847,7 @@ mod tests {
         let cache = MemoryTuneCache::create();
         let key = test_key("cache_type_mismatch", 256);
 
-        cache.insert(key.clone(), 5u32);
+        cache.insert(key.clone(), 5u32).unwrap();
 
         let error = cache.get::<u64>(&key).unwrap_err();
         assert!(matches!(

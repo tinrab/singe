@@ -103,6 +103,7 @@ impl Engine {
                     };
                     value |= bits << (16 * index);
                 }
+
                 self.write(lane, *destination, value, *to);
             }
             DataOperation::Compare {

@@ -1,0 +1,36 @@
+[package]
+name = "singe-nvjpeg"
+description = "Safe Rust wrappers for the NVIDIA nvJPEG and nvJPEG 2000 libraries."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+readme = "README.md"
+keywords = ["cuda", "nvidia", "nvjpeg", "jpeg", "image"]
+include.workspace = true
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = ["nvjpeg_13_2"]
+
+nvjpeg_13_2 = ["singe-cuda/runtime_13_4", "singe-nvjpeg-sys/nvjpeg_13_2"]
+k2 = ["nvjpeg_13_2", "singe-nvjpeg-sys/k2"]
+testing = ["singe-cuda/testing"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda.workspace = true
+singe-nvjpeg-sys.workspace = true
+thiserror.workspace = true
+bitflags.workspace = true
+num_enum.workspace = true
+
+[[example]]
+name = "jpeg2k_encode"
+required-features = ["k2"]
+
+[[example]]
+name = "jpeg2k_decode"
+required-features = ["k2"]

@@ -19,20 +19,21 @@ where
 {
     /// Maps three source channels through device palettes into the native C4 palette-swap layout.
     /// Uses the least significant `bit_size` bits of each source sample as a palette index.
-    /// Each of the three tables supplies one color channel. `alpha` controls the native
-    /// destination alpha slot.
-    /// If `alpha` lies outside the unsigned sample range, NPP leaves destination alpha
-    /// untouched. Such a call does not establish that the entire output is initialized.
+    /// Each of the three tables supplies one color channel.
+    /// `alpha` controls the native destination alpha slot.
+    /// If `alpha` lies outside the unsigned sample range, NPP leaves destination alpha untouched.
+    /// Such a call does not establish that the entire output is initialized.
     /// Prepares image and table regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
-    /// `bit_size` must be between one and the source element width in bits. Each table must
-    /// contain at least `2^bit_size` values. Required-length arithmetic is checked.
+    /// `bit_size` must be between one and the source element width in bits.
+    /// Each table must contain at least `2^bit_size` values.
+    /// Required-length arithmetic is checked.
     pub fn lookup_table_palette_swap_to_c4_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C3>,
@@ -59,20 +60,20 @@ where
 {
     /// Maps three source channels through device palettes into the native C4 palette-swap layout.
     /// Uses the least significant `bit_size` bits of each source sample as a palette index.
-    /// Each of the three tables supplies one color channel. `alpha` controls the native
-    /// destination alpha slot.
-    /// Rejects `alpha` outside the destination sample range so every output channel is
-    /// initialized by the native conversion.
+    /// Each of the three tables supplies one color channel.
+    /// `alpha` controls the native destination alpha slot.
+    /// Rejects `alpha` outside the destination sample range so every output channel is initialized by the native conversion.
     /// Always allocates a new owned image with the source pixel dimensions.
     /// Prepares image and table regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// `bit_size` must be between one and the source element width in bits. Each table must
-    /// contain at least `2^bit_size` values. Required-length arithmetic is checked.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// `bit_size` must be between one and the source element width in bits.
+    /// Each table must contain at least `2^bit_size` values.
+    /// Required-length arithmetic is checked.
     /// `alpha` must fit the unsigned destination sample type.
     /// Image allocation or view construction can also fail.
     pub fn lookup_table_palette_swap_to_c4(

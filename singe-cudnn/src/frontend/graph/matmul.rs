@@ -111,12 +111,10 @@ pub struct BlockScaleMatmulInputs {
 impl Graph {
     /// Adds a matmul operation with an explicit output tensor.
     ///
-    /// The last two dimensions of `a` and `b` are interpreted as matrix
-    /// dimensions and earlier dimensions as batch dimensions.
+    /// The last two dimensions of `a` and `b` are interpreted as matrix dimensions and earlier dimensions as batch dimensions.
     ///
     /// # Errors
-    /// Returns an error for unknown operands or dimension-override tensors,
-    /// incompatible ranks or a result shape inconsistent with the requested overrides.
+    /// Returns an error for unknown operands or dimension-override tensors, incompatible ranks or a result shape inconsistent with the requested overrides.
     pub fn matmul_into(
         &mut self,
         a: TensorId,
@@ -161,8 +159,7 @@ impl Graph {
 
     /// Adds an FP8 matmul followed by descale pointwise operations.
     ///
-    /// FP8 matmul support in cuDNN frontend uses explicit scale/descale tensors
-    /// in supported fusion patterns.
+    /// FP8 matmul support in cuDNN frontend uses explicit scale/descale tensors in supported fusion patterns.
     /// Intermediate storage and pointwise precision follow their graph policies.
     /// Epilogue math inherits the current graph compute policy during preparation, with an `F32` fallback.
     /// The matmul configuration's compute override applies to the native multiplication.
@@ -199,6 +196,7 @@ impl Graph {
         if product_dimensions.len() == 4 {
             product_dimensions[1] = inferred_product.dimensions()[1];
         }
+
         let product_shape = Shape::contiguous(product_dimensions)?;
         let checkpoint = self.mutation_checkpoint();
         let result = (|| {
@@ -288,7 +286,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition. Also returns an error if output scaling cannot broadcast or the absolute-maximum destination has invalid reduction geometry.
+    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition.
+    /// Also returns an error if output scaling cannot broadcast or the absolute-maximum destination has invalid reduction geometry.
     pub fn matmul_fp8_quantize_into(
         &mut self,
         tensors: MatmulFp8QuantizeTensors,
@@ -368,7 +367,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition. Also returns an error if output scaling cannot broadcast or the absolute-maximum destination has invalid reduction geometry.
+    /// Returns an error for unknown operands or scales, incompatible matrix or result geometry, unrepresentable inferred strides, or invalid pointwise broadcast or reduction shapes in the dequantization composition.
+    /// Also returns an error if output scaling cannot broadcast or the absolute-maximum destination has invalid reduction geometry.
     pub fn matmul_fp8_quantize(
         &mut self,
         inputs: MatmulFp8Inputs,
@@ -519,6 +519,7 @@ impl Graph {
                     dimensions[1] = output_heads;
                 }
             }
+
             let matrix_axis = dimensions.len() - 2;
             if config.m_override().is_some() {
                 dimensions[matrix_axis] = actual.dimensions()[matrix_axis];
@@ -527,6 +528,7 @@ impl Graph {
                 dimensions[matrix_axis + 1] = actual.dimensions()[matrix_axis + 1];
             }
         }
+
         self.validate_tensor_dimensions(output, &dimensions, error_name)?;
         Ok(actual)
     }
@@ -575,6 +577,7 @@ impl Graph {
                 rank = rank.max(tensor.shape.rank());
             }
         }
+
         let a_shape = a_tensor.shape_with_scalar_rank(rank)?;
         let b_shape = b_tensor.shape_with_scalar_rank(rank)?;
         let a_dims = a_shape.dimensions();
@@ -592,6 +595,7 @@ impl Graph {
         if a_dims.len() < 2 || a_dims.len() != b_dims.len() {
             return Err(shape_mismatch());
         }
+
         // Match C++ inference; native engine support decides which batch ratios can execute.
         let matrix_axis = a_dims.len() - 2;
         let mut dimensions = a_dims[..matrix_axis]

@@ -404,146 +404,6 @@ pub struct CUstream_st {
     _unused: [u8; 0],
 }
 pub use self::cudaDataType_t as cutensorDataType_t;
-unsafe extern "C" {
-    ///< real as a half
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_16F"]
-    pub static CUTENSOR_R_16F: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of half numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_16F"]
-    pub static CUTENSOR_C_16F: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a nv_bfloat16
-    #[link_name = "\u{1}_ZL15CUTENSOR_R_16BF"]
-    pub static CUTENSOR_R_16BF: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of nv_bfloat16 numbers
-    #[link_name = "\u{1}_ZL15CUTENSOR_C_16BF"]
-    pub static CUTENSOR_C_16BF: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a float
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_32F"]
-    pub static CUTENSOR_R_32F: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of float numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_32F"]
-    pub static CUTENSOR_C_32F: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a double
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_64F"]
-    pub static CUTENSOR_R_64F: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of double numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_64F"]
-    pub static CUTENSOR_C_64F: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a signed 4-bit int
-    #[link_name = "\u{1}_ZL13CUTENSOR_R_4I"]
-    pub static CUTENSOR_R_4I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of signed 4-bit int numbers
-    #[link_name = "\u{1}_ZL13CUTENSOR_C_4I"]
-    pub static CUTENSOR_C_4I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a unsigned 4-bit int
-    #[link_name = "\u{1}_ZL13CUTENSOR_R_4U"]
-    pub static CUTENSOR_R_4U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of unsigned 4-bit int numbers
-    #[link_name = "\u{1}_ZL13CUTENSOR_C_4U"]
-    pub static CUTENSOR_C_4U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a signed 8-bit int
-    #[link_name = "\u{1}_ZL13CUTENSOR_R_8I"]
-    pub static CUTENSOR_R_8I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of signed 8-bit int numbers
-    #[link_name = "\u{1}_ZL13CUTENSOR_C_8I"]
-    pub static CUTENSOR_C_8I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a unsigned 8-bit int
-    #[link_name = "\u{1}_ZL13CUTENSOR_R_8U"]
-    pub static CUTENSOR_R_8U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of unsigned 8-bit int numbers
-    #[link_name = "\u{1}_ZL13CUTENSOR_C_8U"]
-    pub static CUTENSOR_C_8U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a signed 16-bit int
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_16I"]
-    pub static CUTENSOR_R_16I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of signed 16-bit int numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_16I"]
-    pub static CUTENSOR_C_16I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a unsigned 16-bit int
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_16U"]
-    pub static CUTENSOR_R_16U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of unsigned 16-bit int numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_16U"]
-    pub static CUTENSOR_C_16U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a signed 32-bit int
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_32I"]
-    pub static CUTENSOR_R_32I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of signed 32-bit int numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_32I"]
-    pub static CUTENSOR_C_32I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a unsigned 32-bit int
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_32U"]
-    pub static CUTENSOR_R_32U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of unsigned 32-bit int numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_32U"]
-    pub static CUTENSOR_C_32U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a signed 64-bit int
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_64I"]
-    pub static CUTENSOR_R_64I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of signed 64-bit int numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_64I"]
-    pub static CUTENSOR_C_64I: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< real as a unsigned 64-bit int
-    #[link_name = "\u{1}_ZL14CUTENSOR_R_64U"]
-    pub static CUTENSOR_R_64U: cutensorDataType_t;
-}
-unsafe extern "C" {
-    ///< complex as a pair of unsigned 64-bit int numbers
-    #[link_name = "\u{1}_ZL14CUTENSOR_C_64U"]
-    pub static CUTENSOR_C_64U: cutensorDataType_t;
-}
 /// This enum captures all unary and binary element-wise operations supported by the cuTENSOR library.
 #[repr(u32)]
 #[derive(
@@ -732,39 +592,39 @@ pub struct cutensorComputeDescriptor {
 }
 /// Opaque structure representing a compute descriptor.
 pub type cutensorComputeDescriptor_t = *mut cutensorComputeDescriptor;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point: 5-bit exponent and 10-bit mantissa (aka half)
     pub static CUTENSOR_COMPUTE_DESC_16F: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point: 8-bit exponent and 7-bit mantissa (aka bfloat)
     pub static CUTENSOR_COMPUTE_DESC_16BF: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point: 8-bit exponent and 10-bit mantissa (aka tensor-float-32)
     pub static CUTENSOR_COMPUTE_DESC_TF32: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point: More precise than TF32, but less precise than float
     pub static CUTENSOR_COMPUTE_DESC_3XTF32: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point: 8-bit exponent and 23-bit mantissa (aka float)
     pub static CUTENSOR_COMPUTE_DESC_32F: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point: 11-bit exponent and 52-bit mantissa (aka double)
     pub static CUTENSOR_COMPUTE_DESC_64F: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point composed of 3 bf16 values for a total of 23 mantissa bits.
     pub static CUTENSOR_COMPUTE_DESC_9X16BF: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point based on multiple int8_t values. The number of retained mantissa bits is computed at runtime to ensure the same or better accuracy than the native floating point representation.
     pub static CUTENSOR_COMPUTE_DESC_8XINT8: cutensorComputeDescriptor_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     ///< floating-point composed of 2x16f for a total of 23 mantissa bits.
     pub static CUTENSOR_COMPUTE_DESC_4X16F: cutensorComputeDescriptor_t;
 }
@@ -964,7 +824,7 @@ pub type cutensorLoggerCallback_t = ::core::option::Option<
         message: *const ::core::ffi::c_char,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initializes the cuTENSOR library and allocates the memory for the library context.
     ///
     /// The device associated with a particular cuTENSOR handle is assumed to remain unchanged after the [`cutensorCreate`] call. In order for the cuTENSOR library to use a different device, the application must set the new device to be used by calling cudaSetDevice and then create another cuTENSOR handle, which will be associated with the new device, by calling [`cutensorCreate`].
@@ -982,7 +842,7 @@ unsafe extern "C" {
     /// - `handle`: Pointer to cutensorHandle_t
     pub fn cutensorCreate(handle: *mut cutensorHandle_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all resources related to the provided library handle.
     ///
     /// Remark
@@ -994,7 +854,7 @@ unsafe extern "C" {
     /// - `handle`: Pointer to cutensorHandle_t
     pub fn cutensorDestroy(handle: cutensorHandle_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Resizes the plan cache.
     ///
     /// This function changes the number of plans that can be stored in the plan cache of the handle.
@@ -1022,7 +882,7 @@ unsafe extern "C" {
         numEntries: u32,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the Plan-Cache (that belongs to the provided handle) to file.
     ///
     /// Remark
@@ -1045,7 +905,7 @@ unsafe extern "C" {
         filename: *const ::core::ffi::c_char,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads a Plan-Cache from file and overwrites the cachelines of the provided handle.
     ///
     /// A cache is only valid for the same cuTENSOR version and CUDA version; moreover, the GPU architecture (incl. multiprocessor count) must match, otherwise [`cutensorStatus_t::CUTENSOR_STATUS_INVALID_VALUE`] will be returned.
@@ -1073,7 +933,7 @@ unsafe extern "C" {
         numCachelinesRead: *mut u32,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the —per library— kernel cache to file.
     ///
     /// Writes the just-in-time compiled kernels to the provided file (those kernels belong to the library—not to the handle).
@@ -1098,7 +958,7 @@ unsafe extern "C" {
         filename: *const ::core::ffi::c_char,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads a kernel cache from file and adds all non-existing JIT compiled kernels to the kernel cache.
     ///
     /// A cache is only valid for the same cuTENSOR version and CUDA version; moreover, the GPU architecture (incl. multiprocessor count) must match, otherwise [`cutensorStatus_t::CUTENSOR_STATUS_INVALID_VALUE`] will be returned.
@@ -1124,7 +984,7 @@ unsafe extern "C" {
         filename: *const ::core::ffi::c_char,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a tensor descriptor.
     ///
     /// This allocates a small amount of host-memory.
@@ -1161,7 +1021,7 @@ unsafe extern "C" {
         alignmentRequirement: u32,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all resources related to the provided tensor descriptor.
     ///
     /// Remark
@@ -1175,7 +1035,7 @@ unsafe extern "C" {
         desc: cutensorTensorDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates an operation descriptor that encodes an elementwise trinary operation.
     ///
     /// Said trinary operation has the following general form:
@@ -1274,7 +1134,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Performs an element-wise tensor operation for three input tensors (see [`cutensorCreateElementwiseTrinary`])
     ///
     /// This function performs a element-wise tensor operation of the form:
@@ -1320,7 +1180,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates an operation descriptor for an elementwise binary operation.
     ///
     /// The binary operation has the following general form:
@@ -1386,7 +1246,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Performs an element-wise tensor operation for two input tensors (see [`cutensorCreateElementwiseBinary`])
     ///
     /// This function performs a element-wise tensor operation of the form:
@@ -1428,7 +1288,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates an operation descriptor for a tensor permutation.
     ///
     /// The tensor permutation has the following general form:
@@ -1502,7 +1362,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Performs the tensor permutation that is encoded by `plan` (see [`cutensorCreatePermutation`]).
     ///
     /// This function performs an elementwise tensor operation of the form:
@@ -1546,7 +1406,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allocates a cutensorOperationDescriptor_t object that encodes a tensor contraction of the form $D = \alpha \mathcal{A} \mathcal{B} + \beta \mathcal{C}$.
     ///
     /// Allocates data for `desc` to be used to perform a tensor contraction of the form:
@@ -1625,7 +1485,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all resources related to the provided descriptor.
     ///
     /// Remark
@@ -1639,7 +1499,7 @@ unsafe extern "C" {
         desc: cutensorOperationDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set attribute of a cutensorOperationDescriptor_t object.
     ///
     /// Block-sparse contraction descriptors only support the attribute [`cutensorOperationDescriptorAttribute_t::CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE`].
@@ -1665,7 +1525,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves an attribute of the provided cutensorOperationDescriptor_t object (see [`cutensorOperationDescriptorAttribute_t`]).
     ///
     /// Block-sparse contraction descriptors only support the attributes [`cutensorOperationDescriptorAttribute_t::CUTENSOR_OPERATION_DESCRIPTOR_SCALAR_TYPE`], [`cutensorOperationDescriptorAttribute_t::CUTENSOR_OPERATION_DESCRIPTOR_MOVED_BYTES`], and [`cutensorOperationDescriptorAttribute_t::CUTENSOR_OPERATION_DESCRIPTOR_BLOCKSPARSE_REPRODUCIBLE`].
@@ -1691,7 +1551,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Allocates the cutensorPlanPreference_t, enabling users to limit the applicable kernels for a given plan/operation.
     ///
     /// # Parameters
@@ -1707,7 +1567,7 @@ unsafe extern "C" {
         jitMode: cutensorJitMode_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all resources related to the provided preference.
     ///
     /// Remark
@@ -1721,7 +1581,7 @@ unsafe extern "C" {
         pref: cutensorPlanPreference_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get attribute of a cutensorPlanPreference_t object.
     ///
     /// # Parameters
@@ -1745,7 +1605,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set attribute of a cutensorPlanPreference_t object.
     ///
     /// # Parameters
@@ -1769,7 +1629,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Retrieves information about an already-created plan (see [`cutensorPlanAttribute_t`])
     ///
     /// Block-sparse contraction plans only support [`cutensorPlanAttribute_t::CUTENSOR_PLAN_REQUIRED_WORKSPACE`].
@@ -1793,7 +1653,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Determines the required workspaceSize for the given operation encoded by `desc`.
     ///
     /// # Parameters
@@ -1817,7 +1677,7 @@ unsafe extern "C" {
         workspaceSizeEstimate: *mut u64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allocates a cutensorPlan_t object, selects an appropriate kernel for a given operation (encoded by `desc`) and prepares a plan that encodes the execution.
     ///
     /// This function applies cuTENSOR’s heuristic to select a candidate/kernel for a given operation (created by either [`cutensorCreateContraction`], [`cutensorCreateReduction`], [`cutensorCreatePermutation`], [`cutensorCreateElementwiseBinary`], [`cutensorCreateElementwiseTrinary`], [`cutensorCreateContractionTrinary`], or [`cutensorCreateBlockSparseContraction`]). The created plan can then be passed to either [`cutensorContract`], [`cutensorReduce`], [`cutensorPermute`], [`cutensorElementwiseBinaryExecute`], [`cutensorElementwiseTrinaryExecute`], or [`cutensorContractTrinary`] to perform the actual operation.
@@ -1849,7 +1709,7 @@ unsafe extern "C" {
         workspaceSizeLimit: u64,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all resources related to the provided plan.
     ///
     /// Remark
@@ -1861,7 +1721,7 @@ unsafe extern "C" {
     /// - `plan`: The cutensorPlan_t object that will be deallocated.
     pub fn cutensorDestroyPlan(plan: cutensorPlan_t) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the tensor contraction $D = alpha \\* A \\* B + beta \\* C$.
     /// $$
     /// \mathcal{D}_{{modes}_\mathcal{D}} \gets \alpha \\* \mathcal{A}_{{modes}_\mathcal{A}} B_{{modes}_\mathcal{B}} + \beta \mathcal{C}_{{modes}_\mathcal{C}}
@@ -1909,7 +1769,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a cutensorOperatorDescriptor_t object that encodes a tensor reduction of the form $D = alpha \\* opReduce(opA(A)) + beta \\* opC(C)$.
     ///
     /// For example this function enables users to reduce an entire tensor to a scalar: C[] = alpha \* A\[i,j,k\];
@@ -1966,7 +1826,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Performs the tensor reduction that is encoded by `plan` (see [`cutensorCreateReduction`]).
     ///
     /// # Parameters
@@ -1994,7 +1854,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allocates a cutensorOperationDescriptor_t object that encodes a tensor contraction of the form $\mathcal{E} = \alpha \mathcal{A} \mathcal{B} \mathcal{C} + \beta \mathcal{D}$.
     ///
     /// Allocates data for `desc` to be used to perform a tensor contraction of the form:
@@ -2079,7 +1939,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the tensor contraction $E = alpha \\* A \\* B \\* C + beta \\* D$.
     /// $$
     /// \mathcal{E}_{{modes}_\mathcal{E}} \gets \alpha \\* \mathcal{A}_{{modes}_\mathcal{A}} \mathcal{B}_{{modes}_\mathcal{B}} \mathcal{C}_{{modes}_\mathcal{C}} + \beta \mathcal{D}_{{modes}_\mathcal{D}}
@@ -2129,7 +1989,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Create a block-sparse tensor descriptor.
     ///
     /// A block-sparse tensor descriptor fully specifies the data layout of a block-sparse tensor (currently limited to up to 32 modes).
@@ -2183,7 +2043,7 @@ unsafe extern "C" {
         dataType: cudaDataType_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Frees all resources related to the provided block-sparse tensor descriptor.
     ///
     /// Remark
@@ -2197,7 +2057,7 @@ unsafe extern "C" {
         desc: cutensorBlockSparseTensorDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allocates a cutensorOperationDescriptor_t object that encodes a block-sparse tensor contraction of the form $D = \alpha \mathcal{A} \mathcal{B} + \beta \mathcal{C}$.
     ///
     /// Allocates data for `desc` to be used to perform a block-sparse tensor contraction of the form:
@@ -2271,7 +2131,7 @@ unsafe extern "C" {
         descCompute: cutensorComputeDescriptor_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the block-sparse tensor contraction $D = alpha \\* A \\* B + beta \\* C$.
     /// $$
     /// \mathcal{D}_{{modes}_\mathcal{D}} \gets \alpha \\* \mathcal{A}_{{modes}_\mathcal{A}} B_{{modes}_\mathcal{B}} + \beta \mathcal{C}_{{modes}_\mathcal{C}}
@@ -2318,7 +2178,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the description string for an error code.
     ///
     /// Remark
@@ -2330,17 +2190,17 @@ unsafe extern "C" {
     /// - `error`: Error code to convert to string.
     pub fn cutensorGetErrorString(error: cutensorStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns Version number of the CUTENSOR library.
     pub fn cutensorGetVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns version number of the CUDA runtime that cuTENSOR was compiled against.
     ///
     /// Can be compared against the CUDA runtime version from cudaRuntimeGetVersion().
     pub fn cutensorGetCudartVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the logging callback routine.
     ///
     /// # Parameters
@@ -2350,7 +2210,7 @@ unsafe extern "C" {
         callback: cutensorLoggerCallback_t,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the logging output file.
     ///
     /// # Parameters
@@ -2358,7 +2218,7 @@ unsafe extern "C" {
     /// - `file`: An open file with write permission.
     pub fn cutensorLoggerSetFile(file: *mut FILE) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function opens a logging output file in the given path.
     ///
     /// # Parameters
@@ -2368,7 +2228,7 @@ unsafe extern "C" {
         logFile: *const ::core::ffi::c_char,
     ) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value of the logging level.
     ///
     /// # Parameters
@@ -2376,7 +2236,7 @@ unsafe extern "C" {
     /// - `level`: Log level, should be one of the following: &lt;ul> &lt;li>0.  Off&lt;/li> &lt;li>1.  Errors&lt;/li> &lt;li>2.  Performance Trace&lt;/li> &lt;li>3.  Performance Hints&lt;/li> &lt;li>4.  Heuristics Trace&lt;/li> &lt;li>5.  API Trace&lt;/li> &lt;/ul>
     pub fn cutensorLoggerSetLevel(level: i32) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the value of the log mask.
     ///
     /// # Parameters
@@ -2384,7 +2244,7 @@ unsafe extern "C" {
     /// - `mask`: Log mask, the bitwise OR of the following: &lt;ul> &lt;li>0.  Off&lt;/li> &lt;li>1.  Errors&lt;/li> &lt;li>2.  Performance Trace&lt;/li> &lt;li>4.  Performance Hints&lt;/li> &lt;li>8.  Heuristics Trace&lt;/li> &lt;li>16. API Trace&lt;/li> &lt;/ul>
     pub fn cutensorLoggerSetMask(mask: i32) -> cutensorStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function disables logging for the entire run.
     pub fn cutensorLoggerForceDisable() -> cutensorStatus_t;
 }

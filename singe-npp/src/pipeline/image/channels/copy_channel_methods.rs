@@ -18,17 +18,16 @@ where
     Self: CopyChannelImage<T, L>,
 {
     /// Copies the zero-based `source_channel` into `destination_channel` for every pixel.
-    /// Writes the supplied output image. All participating images must have matching
-    /// pixel dimensions.
-    /// Only the selected destination channel is written. Other channels retain their previous
-    /// initialization state; this operation does not initialize them.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Writes the supplied output image.
+    /// All participating images must have matching pixel dimensions.
+    /// Only the selected destination channel is written.
+    /// Other channels retain their previous initialization state; this operation does not initialize them.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Each channel index must be within its corresponding native packed layout.
     /// Participating image pixel dimensions must match.
     pub fn copy_channel_into(
@@ -55,15 +54,14 @@ where
     Self: CopyImage<T, L> + CopyChannelImage<T, L>,
 {
     /// Copies the zero-based `source_channel` into `destination_channel` for every pixel.
-    /// Allocates and copies the current image, then replaces the selected destination channel
-    /// from the original source channel. All other channels retain their source values.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Allocates and copies the current image, then replaces the selected destination channel from the original source channel.
+    /// All other channels retain their source values.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Each channel index must be within its corresponding native packed layout.
     /// Participating image pixel dimensions must match.
     /// Output allocation, image-view construction, or copying existing pixels can also fail.

@@ -20,7 +20,7 @@ use crate::cuda::cutile::kernel::f64::elementwise as kernel_f64;
     feature = "dtype_u64",
     feature = "dtype_i64"
 ))]
-use crate::cuda::cutile::{kernel::common as kernel_common, utility::VectorLaunch};
+use crate::cuda::cutile::{kernel::vector as vector_kernels, utility::VectorLaunch};
 use crate::{
     cuda::{
         autotune::KernelCompileConfig,
@@ -38,9 +38,11 @@ fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -446,7 +448,7 @@ macro_rules! binary_bool_common_fn {
             checked_device_pointer(&rhs)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, lhs, rhs, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, lhs, rhs, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -590,7 +592,7 @@ macro_rules! binary_common_fn {
             checked_device_pointer(&rhs)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, lhs, rhs, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, lhs, rhs, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -898,7 +900,7 @@ macro_rules! clamp_common_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, min, max, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, min, max, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -1038,7 +1040,7 @@ macro_rules! where_bool_common_fn {
             checked_device_pointer(&y)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, condition, x, y, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, condition, x, y, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -1134,7 +1136,7 @@ macro_rules! masked_fill_common_fn {
             checked_device_pointer(&mask)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, mask, value, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, mask, value, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())

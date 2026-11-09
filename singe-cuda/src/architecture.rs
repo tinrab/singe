@@ -9,8 +9,7 @@ macro_rules! architectures {
     ($($variant:ident => $target:literal),* $(,)?) => {
         /// CUDA compilation target names accepted by Singe's compiler wrappers.
         ///
-        /// `compute_` targets are virtual architectures for intermediate code;
-        /// `sm_` targets select real GPU architectures for native device code.
+        /// `compute_` targets are virtual architectures for intermediate code; `sm_` targets select real GPU architectures for native device code.
         /// Display and string parsing use the exact CUDA target spelling.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         #[non_exhaustive]
@@ -25,6 +24,20 @@ macro_rules! architectures {
                 match self {
                     $(Self::$variant => { let target: &str = $target; target.as_bytes()[0] == b'c' },)*
                 }
+            }
+
+            // The compute capability the target names, such as 12.0 for `sm_120a`.
+            pub fn compute_capability(self) -> (u32, u32) {
+                let name = self.to_string();
+                let digits = name
+                    .split_once('_')
+                    .map_or(name.as_str(), |(_, version)| version)
+                    .trim_end_matches(|character: char| character.is_ascii_alphabetic());
+                let (major, minor) = digits.split_at(digits.len() - 1);
+                (
+                    major.parse().expect("every target names a major version"),
+                    minor.parse().expect("every target names a minor version"),
+                )
             }
         }
 

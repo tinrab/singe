@@ -163,8 +163,7 @@ pub fn zungqr_buffer_size(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Generates the first `n` columns of the orthogonal matrix `Q` from the
-/// elementary reflectors returned by `geqrf` and stores them in `A`.
+/// Generates the first `n` columns of the orthogonal matrix `Q` from the elementary reflectors returned by `geqrf` and stores them in `A`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -176,10 +175,7 @@ pub fn zungqr_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, reflector count, or leading dimension are invalid, if
-/// the current GPU architecture is unsupported, or if cuSOLVER reports an
-/// internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, reflector count, or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -228,8 +224,7 @@ pub unsafe fn sorgqr(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Generates the first `n` columns of the orthogonal matrix `Q` from the
-/// elementary reflectors returned by `geqrf` and stores them in `A`.
+/// Generates the first `n` columns of the orthogonal matrix `Q` from the elementary reflectors returned by `geqrf` and stores them in `A`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -241,10 +236,7 @@ pub unsafe fn sorgqr(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, reflector count, or leading dimension are invalid, if
-/// the current GPU architecture is unsupported, or if cuSOLVER reports an
-/// internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, reflector count, or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -549,8 +541,7 @@ pub fn zunmqr_buffer_size(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors
-/// returned by `geqrf`, to `C` and stores the result in `C`.
+/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors returned by `geqrf`, to `C` and stores the result in `C`.
 ///
 /// `operation` selects whether `Q` is transposed.
 ///
@@ -566,10 +557,7 @@ pub fn zunmqr_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, reflector count, side/operation mode, or leading
-/// dimensions are invalid, if the current GPU architecture is unsupported, or
-/// if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, reflector count, side/operation mode, or leading dimensions are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -628,8 +616,7 @@ pub unsafe fn sormqr(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors
-/// returned by `geqrf`, to `C` and stores the result in `C`.
+/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors returned by `geqrf`, to `C` and stores the result in `C`.
 ///
 /// `operation` selects whether `Q` is transposed.
 ///
@@ -645,10 +632,7 @@ pub unsafe fn sormqr(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, reflector count, side/operation mode, or leading
-/// dimensions are invalid, if the current GPU architecture is unsupported, or
-/// if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, reflector count, side/operation mode, or leading dimensions are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -857,26 +841,21 @@ pub fn xgeqrf_buffer_size<TA: DataTypeLike, TTau: DataTypeLike>(
     ))
 }
 
-/// Use [`xgeqrf_buffer_size`] to calculate the sizes needed for pre-allocated
-/// workspace.
+/// Use [`xgeqrf_buffer_size`] to calculate the sizes needed for pre-allocated workspace.
 ///
 /// Computes the QR factorization of an $m \times n$ matrix.
 ///
-/// Here `A` is an $m \times n$ matrix, `Q` is an $m \times n$ matrix, and
-/// `R` is an $n \times n$ upper triangular matrix.
+/// Here `A` is an $m \times n$ matrix, `Q` is an $m \times n$ matrix, and `R` is an $n \times n$ upper triangular matrix.
 ///
 /// Provide device and host workspace through `workspace`.
-/// Use [`xgeqrf_buffer_size`] to determine the required sizes for
-/// `workspace.device` and `workspace.host`.
+/// Use [`xgeqrf_buffer_size`] to determine the required sizes for `workspace.device` and `workspace.host`.
 ///
-/// The matrix `R` overwrites the upper triangular part of `A`, including the
-/// diagonal elements.
+/// The matrix `R` overwrites the upper triangular part of `A`, including the diagonal elements.
 ///
-/// The matrix `Q` is not formed explicitly. Instead, a sequence of Householder
-/// vectors is stored in the lower triangular part of `A`.
+/// The matrix `Q` is not formed explicitly.
+/// Instead, a sequence of Householder vectors is stored in the lower triangular part of `A`.
 /// The leading nonzero element of the Householder vector is assumed to be 1, so `tau` contains the scaling factor `τ`.
-/// If `v` is the original Householder vector, `q` is the new Householder vector
-/// corresponding to `τ`.
+/// If `v` is the original Householder vector, `q` is the new Householder vector corresponding to `τ`.
 ///
 /// If the reported `info` value is `-i`, the `i`th parameter is invalid.
 ///
@@ -890,9 +869,7 @@ pub fn xgeqrf_buffer_size<TA: DataTypeLike, TTau: DataTypeLike>(
 ///
 /// List of input arguments for [`xgeqrf_buffer_size`] and [`xgeqrf`]:
 ///
-/// The generic cuSOLVER routine separates matrix, tau-vector, and compute data types:
-/// `data_type_a` is the data type of matrix `A`, `data_type_tau` is the data
-/// type of `tau`, and `compute_type` is the operation's compute type.
+/// The generic cuSOLVER routine separates matrix, tau-vector, and compute data types: `data_type_a` is the data type of matrix `A`, `data_type_tau` is the data type of `tau`, and `compute_type` is the operation's compute type.
 /// [`xgeqrf`] only supports the following four combinations.
 ///
 /// **Valid combination of data type and compute type**
@@ -906,9 +883,7 @@ pub fn xgeqrf_buffer_size<TA: DataTypeLike, TTau: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, or if cuSOLVER reports
-/// an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).

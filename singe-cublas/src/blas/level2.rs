@@ -26,8 +26,7 @@ use crate::{
 ///
 /// $$ \text{ op}(A) = \begin{cases} A & \text{ if } \texttt{trans = `Operation::NonTranspose`} \\\\ A^{T} & \text{ if } \texttt{trans = `Operation::Transpose`} \\\\ A^{H} & \text{ if } \texttt{trans = `Operation::ConjugateTranspose`} \\\\ \end{cases} $$
 ///
-/// The banded matrix $A$ is stored column by column, with the main diagonal stored in row $ku + 1$ (starting in first position), the first superdiagonal stored in row $ku$ (starting in second position), the first subdiagonal stored in row $ku + 2$ (starting in first position), etc.
-/// In general, the element $A\left( {i,j} \right)$ is stored in the memory location `A(ku+1+i-j,j)` for $j = 1,\ldots,n$ and $i \in \left\lbrack {\max\left( {1,j - ku} \right),\min\left( {m,j + kl} \right)} \right\rbrack$.
+/// The banded matrix $A$ is stored column by column, with the main diagonal stored in row $ku + 1$ (starting in first position), the first superdiagonal stored in row $ku$ (starting in second position), the first subdiagonal stored in row $ku + 2$ (starting in first position), etc. In general, the element $A\left( {i,j} \right)$ is stored in the memory location `A(ku+1+i-j,j)` for $j = 1,\ldots,n$ and $i \in \left\lbrack {\max\left( {1,j - ku} \right),\min\left( {m,j + kl} \right)} \right\rbrack$.
 /// Elements in the array $A$ that do not conceptually correspond to the banded matrix (the top left $ku \times ku$ and bottom right $kl \times kl$ triangles) are not referenced.
 ///
 /// See NETLIB documentation:
@@ -36,11 +35,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `lda` is smaller than `kl + ku + 1`, either vector increment is zero or too
-/// large for cuBLAS, `a`, `x`, or `y` is too small for the requested banded
-/// matrix-vector operation, a dimension is too large for cuBLAS, or cuBLAS
-/// rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode, `lda` is smaller than `kl + ku + 1`, either vector increment is zero or too large for cuBLAS, `a`, `x`, or `y` is too small for the requested banded matrix-vector operation, a dimension is too large for cuBLAS, or cuBLAS rejects the operation.
 #[allow(
     clippy::doc_markdown,
     reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
@@ -67,9 +62,11 @@ pub fn sgbmv(
     if lda < kl + ku + 1 {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if a.len() < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -125,8 +122,7 @@ pub fn sgbmv(
 ///
 /// $$ \text{ op}(A) = \begin{cases} A & \text{ if } \texttt{trans = `Operation::NonTranspose`} \\\\ A^{T} & \text{ if } \texttt{trans = `Operation::Transpose`} \\\\ A^{H} & \text{ if } \texttt{trans = `Operation::ConjugateTranspose`} \\\\ \end{cases} $$
 ///
-/// The banded matrix $A$ is stored column by column, with the main diagonal stored in row $ku + 1$ (starting in first position), the first superdiagonal stored in row $ku$ (starting in second position), the first subdiagonal stored in row $ku + 2$ (starting in first position), etc.
-/// In general, the element $A\left( {i,j} \right)$ is stored in the memory location `A(ku+1+i-j,j)` for $j = 1,\ldots,n$ and $i \in \left\lbrack {\max\left( {1,j - ku} \right),\min\left( {m,j + kl} \right)} \right\rbrack$.
+/// The banded matrix $A$ is stored column by column, with the main diagonal stored in row $ku + 1$ (starting in first position), the first superdiagonal stored in row $ku$ (starting in second position), the first subdiagonal stored in row $ku + 2$ (starting in first position), etc. In general, the element $A\left( {i,j} \right)$ is stored in the memory location `A(ku+1+i-j,j)` for $j = 1,\ldots,n$ and $i \in \left\lbrack {\max\left( {1,j - ku} \right),\min\left( {m,j + kl} \right)} \right\rbrack$.
 /// Elements in the array $A$ that do not conceptually correspond to the banded matrix (the top left $ku \times ku$ and bottom right $kl \times kl$ triangles) are not referenced.
 ///
 /// See NETLIB documentation:
@@ -135,11 +131,7 @@ pub fn sgbmv(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `lda` is smaller than `kl + ku + 1`, either vector increment is zero or too
-/// large for cuBLAS, `a`, `x`, or `y` is too small for the requested banded
-/// matrix-vector operation, a dimension is too large for cuBLAS, or cuBLAS
-/// rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode, `lda` is smaller than `kl + ku + 1`, either vector increment is zero or too large for cuBLAS, `a`, `x`, or `y` is too small for the requested banded matrix-vector operation, a dimension is too large for cuBLAS, or cuBLAS rejects the operation.
 #[allow(
     clippy::doc_markdown,
     reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
@@ -166,9 +158,11 @@ pub fn dgbmv(
     if lda < kl + ku + 1 {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if a.len() < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -1301,9 +1295,11 @@ fn validate_general_matrix_vector(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < m.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -1332,12 +1328,15 @@ fn validate_rank1_update(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < m.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, m, incx)? || !vector_fits(y_len, n, incy)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1356,12 +1355,15 @@ fn validate_square_matrix_vector(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < n.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? || !vector_fits(y_len, n, incy)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1381,12 +1383,15 @@ fn validate_symmetric_banded_matrix_vector(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < k + 1 {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? || !vector_fits(y_len, n, incy)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1404,9 +1409,11 @@ fn validate_packed_matrix_vector(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if ap_len < required_packed_matrix_len(n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? || !vector_fits(y_len, n, incy)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1423,12 +1430,15 @@ fn validate_square_rank1_update(
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < n.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1439,9 +1449,11 @@ fn validate_packed_rank1_update(n: usize, x_len: usize, incx: usize, ap_len: usi
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if ap_len < required_packed_matrix_len(n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1460,12 +1472,15 @@ fn validate_square_rank2_update(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < n.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? || !vector_fits(y_len, n, incy)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1483,9 +1498,11 @@ fn validate_packed_rank2_update(
     if incx == 0 || incy == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if ap_len < required_packed_matrix_len(n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? || !vector_fits(y_len, n, incy)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1502,12 +1519,15 @@ fn validate_triangular_matrix_vector(
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < n.max(1) {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1525,12 +1545,15 @@ fn validate_triangular_banded_matrix_vector(
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if lda < k + 1 {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? {
         return Err(Error::InvalidVectorShape);
     }
@@ -1546,9 +1569,11 @@ fn validate_packed_triangular_matrix_vector(
     if incx == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     if ap_len < required_packed_matrix_len(n)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if !vector_fits(x_len, n, incx)? {
         return Err(Error::InvalidVectorShape);
     }

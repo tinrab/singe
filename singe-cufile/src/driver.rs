@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use singe_cufile_sys as sys;
 
@@ -57,14 +57,10 @@ impl Driver {
     /// # Errors
     ///
     /// Returns an error if the session count overflows or cuFile cannot open the driver.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the driver lifecycle mutex is poisoned.
     pub fn create() -> Result<Arc<Self>> {
-        let mut sessions = DRIVER_SESSIONS
-            .lock()
-            .expect("cufile driver lifecycle mutex poisoned");
+        let mut sessions = DRIVER_SESSIONS.lock().map_err(|_| Error::LockPoisoned {
+            name: "cufile driver sessions",
+        })?;
         let next = sessions
             .checked_add(1)
             .ok_or_else(|| Error::out_of_range("driver session count"))?;
@@ -74,6 +70,7 @@ impl Driver {
                 try_ffi!(sys::cuFileDriverOpen())?;
             }
         }
+
         *sessions = next;
         drop(sessions);
         Ok(Arc::new(Self { _private: () }))
@@ -262,16 +259,19 @@ impl Driver {
 
 impl Drop for Driver {
     fn drop(&mut self) {
+        // The last session must close the driver whatever a panic left here.
         let mut sessions = DRIVER_SESSIONS
             .lock()
-            .expect("cufile driver lifecycle mutex poisoned");
+            .unwrap_or_else(PoisonError::into_inner);
         *sessions -= 1;
         if *sessions == 0 {
             // SAFETY: `cuFileDriverClose` takes no arguments.
             unsafe {
                 if let Err(error) = try_ffi!(sys::cuFileDriverClose()) {
-                    #[cfg(debug_assertions)]
-                    eprintln!("failed to close cufile driver: {error}");
+                    eprintln!(
+                        "failed to close cufile driver: {}",
+                        singe_core::ErrorChain(&error)
+                    );
                 }
             }
         }

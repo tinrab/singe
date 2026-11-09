@@ -17,8 +17,7 @@ use crate::{
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -64,8 +63,7 @@ pub unsafe fn spmv_buffer_size<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -190,8 +188,7 @@ pub unsafe fn spmv_preprocess<Compute: DataTypeLike>(
 ///
 /// Calling [`spmv_preprocess`] is optional.
 /// It may accelerate subsequent calls to [`spmv`].
-/// Useful when [`spmv`] is called multiple times with the same sparsity
-/// pattern (`matrix`).
+/// Useful when [`spmv`] is called multiple times with the same sparsity pattern (`matrix`).
 ///
 /// Calling [`spmv_preprocess`] with `buffer` makes that buffer active for `matrix` `SpMV` calls.
 /// Subsequent calls to [`spmv`] with `matrix` and the active buffer must use the same values for all parameters as the call to [`spmv_preprocess`].
@@ -199,8 +196,7 @@ pub unsafe fn spmv_preprocess<Compute: DataTypeLike>(
 /// Importantly, the buffer contents must be unmodified since the call to [`spmv_preprocess`].
 /// When [`spmv`] is called with `matrix` and its active buffer, it may read acceleration data from the buffer.
 ///
-/// Calling [`spmv_preprocess`] again with `matrix` and a new buffer makes the new
-/// buffer active and makes the previously active buffer inactive.
+/// Calling [`spmv_preprocess`] again with `matrix` and a new buffer makes the new buffer active and makes the previously active buffer inactive.
 /// For [`spmv`], there can only be one active buffer per sparse matrix at a time.
 /// To get the effect of multiple active buffers for a single sparse matrix, create multiple matrix handles that all point to the same index and value buffers, and call [`spmv_preprocess`] once per handle with different workspace buffers.
 ///
@@ -214,8 +210,7 @@ pub unsafe fn spmv_preprocess<Compute: DataTypeLike>(
 /// * [`SpMvAlgorithm::Coo1`] and [`SpMvAlgorithm::Csr1`] provide higher performance than [`SpMvAlgorithm::Coo2`] and [`SpMvAlgorithm::Csr2`].
 /// * In general, [`Operation::NonTranspose`] is 3x faster than transpose or conjugate-transpose operations.
 /// * Using [`spmv_preprocess`] helps improve performance of [`spmv`] in CSR.
-///   It is beneficial when [`spmv`] runs multiple times with the same matrix
-///   ([`spmv_preprocess`] is executed only once).
+///   It is beneficial when [`spmv`] runs multiple times with the same matrix ([`spmv_preprocess`] is executed only once).
 ///
 /// [`spmv`] has the following properties:
 ///
@@ -232,8 +227,7 @@ pub unsafe fn spmv_preprocess<Compute: DataTypeLike>(
 /// * Hardware Memory Compression.
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///

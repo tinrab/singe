@@ -123,9 +123,8 @@ impl_filter_wiener_border!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve native element and layout representations, filter
-/// semantics, and parameter interpretation. Uphold the method's geometry validation,
-/// coefficient and host-parameter requirements, memory-access rules, and execution lifetimes.
+/// Implementations must preserve native element and layout representations, filter semantics, and parameter interpretation.
+/// Uphold the method's geometry validation, coefficient and host-parameter requirements, memory-access rules, and execution lifetimes.
 pub unsafe trait FilterWienerBorder<L: ChannelLayout, const N: usize>: DataTypeLike {
     /// Applies Wiener filtering with border control.
     ///

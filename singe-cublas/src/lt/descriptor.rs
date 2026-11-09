@@ -27,13 +27,11 @@ use crate::{
     utility::{ensure_exact_size, to_i32},
 };
 
-/// Associates a matrix layout dimension type with its integer width for
-/// grouped matrix descriptors.
+/// Associates a matrix layout dimension type with its integer width for grouped matrix descriptors.
 ///
 /// # Safety
 ///
-/// Values must use the native integer size and alignment selected by
-/// `INTEGER_WIDTH`, without padding or restricted integer bit patterns.
+/// Values must use the native integer size and alignment selected by `INTEGER_WIDTH`, without padding or restricted integer bit patterns.
 pub unsafe trait GroupedMatrixLayoutValue: NoUninitDeviceRepr {
     /// The native integer width used for arrays of this element type.
     const INTEGER_WIDTH: IntegerWidth;
@@ -70,8 +68,7 @@ impl MatrixLayout {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return
-    /// a valid handle.
+    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return a valid handle.
     pub fn create(data_type: DataType, rows: u64, cols: u64, ld: i64) -> Result<Self> {
         let mut raw = ptr::null_mut();
         // SAFETY: `cublasLtMatrixLayoutCreate` receives valid output locations.
@@ -94,13 +91,11 @@ impl MatrixLayout {
 
     /// Experimental: creates a grouped matrix layout descriptor.
     ///
-    /// All device arrays must have the same length and remain valid while the
-    /// grouped layout descriptor is used.
+    /// All device arrays must have the same length and remain valid while the grouped layout descriptor is used.
     ///
     /// # Errors
     ///
-    /// Returns an error if the grouped dimension slices have mismatched lengths, if cuBLASLt
-    /// cannot allocate the descriptor, or if it does not return a valid handle.
+    /// Returns an error if the grouped dimension slices have mismatched lengths, if cuBLASLt cannot allocate the descriptor, or if it does not return a valid handle.
     pub fn create_grouped<T: GroupedMatrixLayoutValue>(
         data_type: DataType,
         rows: &DeviceMemory<T>,
@@ -154,13 +149,12 @@ impl MatrixLayout {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_attribute<T>(
         &mut self,
         attr: MatrixLayoutAttribute,
@@ -180,13 +174,12 @@ impl MatrixLayout {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the slice size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the slice size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_attribute_slice<T>(
         &mut self,
         attr: MatrixLayoutAttribute,
@@ -208,8 +201,7 @@ impl MatrixLayout {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn attribute<T: AnyBitPatternDeviceRepr>(&self, attr: MatrixLayoutAttribute) -> Result<T> {
         let () = T::LAYOUT;
         let mut value = MaybeUninit::<T>::uninit();
@@ -319,8 +311,7 @@ impl MatrixLayout {
     ///
     /// # Errors
     ///
-    /// Returns an error if `batch_count` cannot fit in cuBLASLt's 32-bit batch
-    /// count field, or if cuBLASLt rejects one of the batch attributes.
+    /// Returns an error if `batch_count` cannot fit in cuBLASLt's 32-bit batch count field, or if cuBLASLt rejects one of the batch attributes.
     pub fn set_strided_batch(&mut self, batch_count: usize, stride: i64) -> Result<()> {
         let batch_count = to_i32(batch_count, "matrix layout batch count")?;
         self.set_batch_mode(BatchMode::Strided)?;
@@ -340,8 +331,7 @@ impl MatrixLayout {
 
     /// Returns the raw cuBLASLt matrix layout handle.
     ///
-    /// The returned handle is borrowed and remains valid only while the layout
-    /// is alive.
+    /// The returned handle is borrowed and remains valid only while the layout is alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtMatrixLayout_t {
         self.raw
@@ -352,8 +342,7 @@ impl MatrixLayout {
     /// # Safety
     ///
     /// `raw` must be a valid `cublasLtMatrixLayout_t` handle created by cuBLASLt.
-    /// The returned wrapper takes ownership and will destroy it with
-    /// `cublasLtMatrixLayoutDestroy`; no other owner may destroy or keep using it.
+    /// The returned wrapper takes ownership and will destroy it with `cublasLtMatrixLayoutDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -382,8 +371,10 @@ impl Drop for MatrixLayout {
         // SAFETY: `cublasLtMatrixLayoutDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasLtMatrixLayoutDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublaslt matrix layout: {error}");
+                eprintln!(
+                    "failed to destroy cublaslt matrix layout: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -402,8 +393,7 @@ impl MatrixTransformDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return
-    /// a valid handle.
+    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return a valid handle.
     pub fn create(scale_type: DataType) -> Result<Self> {
         let mut raw = ptr::null_mut();
         // SAFETY: `cublasLtMatrixTransformDescCreate` receives valid output locations.
@@ -425,13 +415,12 @@ impl MatrixTransformDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_attribute<T>(
         &mut self,
         attr: MatrixTransformDescAttribute,
@@ -453,8 +442,7 @@ impl MatrixTransformDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn attribute<T: AnyBitPatternDeviceRepr>(
         &self,
         attr: MatrixTransformDescAttribute,
@@ -528,8 +516,7 @@ impl MatrixTransformDescriptor {
 
     /// Returns the raw cuBLASLt matrix transform descriptor handle.
     ///
-    /// The returned handle is borrowed and remains valid only while the
-    /// descriptor is alive.
+    /// The returned handle is borrowed and remains valid only while the descriptor is alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtMatrixTransformDesc_t {
         self.raw
@@ -539,10 +526,8 @@ impl MatrixTransformDescriptor {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid `cublasLtMatrixTransformDesc_t` handle created by
-    /// cuBLASLt. The returned wrapper takes ownership and will destroy it with
-    /// `cublasLtMatrixTransformDescDestroy`; no other owner may destroy or keep
-    /// using it.
+    /// `raw` must be a valid `cublasLtMatrixTransformDesc_t` handle created by cuBLASLt.
+    /// The returned wrapper takes ownership and will destroy it with `cublasLtMatrixTransformDescDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -571,27 +556,12 @@ impl Drop for MatrixTransformDescriptor {
         // SAFETY: `cublasLtMatrixTransformDescDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasLtMatrixTransformDescDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublaslt matrix transform descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cublaslt matrix transform descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
-    }
-}
-
-#[cfg(all(test, feature = "testing"))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_matrix_layout_sets_strided_batch_attributes() -> Result<()> {
-        let mut layout = MatrixLayout::create(DataType::F32, 2, 3, 3)?;
-
-        layout.set_strided_batch(4, 6)?;
-
-        assert_eq!(layout.batch_mode()?, BatchMode::Strided);
-        assert_eq!(layout.batch_count()?, 4);
-        assert_eq!(layout.strided_batch_offset()?, 6);
-        Ok(())
     }
 }
 
@@ -608,8 +578,7 @@ impl EmulationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return
-    /// a valid handle.
+    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut raw = ptr::null_mut();
         // SAFETY: `cublasLtEmulationDescCreate` receives valid output locations.
@@ -628,13 +597,12 @@ impl EmulationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_attribute<T>(
         &mut self,
         attr: EmulationDescAttribute,
@@ -656,8 +624,7 @@ impl EmulationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn attribute<T: AnyBitPatternDeviceRepr>(&self, attr: EmulationDescAttribute) -> Result<T> {
         let () = T::LAYOUT;
         let mut value = MaybeUninit::<T>::uninit();
@@ -746,8 +713,7 @@ impl EmulationDescriptor {
 
     /// Returns the raw cuBLASLt emulation descriptor handle.
     ///
-    /// The returned handle is borrowed and remains valid only while the
-    /// descriptor is alive.
+    /// The returned handle is borrowed and remains valid only while the descriptor is alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtEmulationDesc_t {
         self.raw
@@ -757,9 +723,8 @@ impl EmulationDescriptor {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid `cublasLtEmulationDesc_t` handle created by
-    /// cuBLASLt. The returned wrapper takes ownership and will destroy it with
-    /// `cublasLtEmulationDescDestroy`; no other owner may destroy or keep using it.
+    /// `raw` must be a valid `cublasLtEmulationDesc_t` handle created by cuBLASLt.
+    /// The returned wrapper takes ownership and will destroy it with `cublasLtEmulationDescDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -788,9 +753,28 @@ impl Drop for EmulationDescriptor {
         // SAFETY: `cublasLtEmulationDescDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasLtEmulationDescDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublaslt emulation descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cublaslt emulation descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "testing"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_matrix_layout_sets_strided_batch_attributes() -> Result<()> {
+        let mut layout = MatrixLayout::create(DataType::F32, 2, 3, 3)?;
+
+        layout.set_strided_batch(4, 6)?;
+
+        assert_eq!(layout.batch_mode()?, BatchMode::Strided);
+        assert_eq!(layout.batch_count()?, 4);
+        assert_eq!(layout.strided_batch_offset()?, 6);
+        Ok(())
     }
 }

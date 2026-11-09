@@ -24,7 +24,9 @@ status_enum! {
     pub enum Status: u32 => sys::cudnnStatus_t, unknown = "UNKNOWN_CUDNN_STATUS" {
         /// The operation was completed successfully.
         Success = CUDNN_STATUS_SUCCESS,
-        /// The cuDNN library was not initialized properly. This error is usually returned when a call to `cudnnCreate` fails or when `cudnnCreate` has not been called prior to calling another cuDNN routine. In the former case, it is usually due to an error in the CUDA Runtime API called by `cudnnCreate` or by an error in the hardware setup.
+        /// The cuDNN library was not initialized properly.
+        /// This error is usually returned when a call to `cudnnCreate` fails or when `cudnnCreate` has not been called prior to calling another cuDNN routine.
+        /// In the former case, it is usually due to an error in the CUDA Runtime API called by `cudnnCreate` or by an error in the hardware setup.
         NotInitialized = CUDNN_STATUS_NOT_INITIALIZED,
         /// Some cuDNN sub libraries have different versions, indicative of an installation issue.
         SublibraryVersionMismatch = CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH,
@@ -32,7 +34,8 @@ status_enum! {
         SerializationVersionMismatch = CUDNN_STATUS_SERIALIZATION_VERSION_MISMATCH,
         /// This error code may be reported in the warning logging level as a reminder that some functionality is under deprecation and will be removed in the next major version update.
         Deprecated = CUDNN_STATUS_DEPRECATED,
-        /// This is an error category code. An incorrect value or parameter was passed to the function.
+        /// This is an error category code.
+        /// An incorrect value or parameter was passed to the function.
         BadParam = CUDNN_STATUS_BAD_PARAM,
         /// The cuDNN API has unexpectedly received a null pointer from the user.
         BadParamNullPointer = CUDNN_STATUS_BAD_PARAM_NULL_POINTER,
@@ -56,7 +59,8 @@ status_enum! {
         BadParamCudaGraphMismatch = CUDNN_STATUS_BAD_PARAM_CUDA_GRAPH_MISMATCH,
         ///< Wrong descriptor type. @since cuDNN 9.6.0
         BadParamDescriptorType = CUDNN_STATUS_BAD_PARAM_DESCRIPTOR_TYPE,
-        /// This is an error category code. An internal cuDNN operation failed.
+        /// This is an error category code.
+        /// An internal cuDNN operation failed.
         InternalError = CUDNN_STATUS_INTERNAL_ERROR,
         /// A runtime kernel has failed to be compiled.
         InternalErrorCompilationFailed = CUDNN_STATUS_INTERNAL_ERROR_COMPILATION_FAILED,
@@ -68,11 +72,15 @@ status_enum! {
         InternalErrorDeviceAllocationFailed = CUDNN_STATUS_INTERNAL_ERROR_DEVICE_ALLOCATION_FAILED,
         /// Invalid kernel launch parameters are unexpectedly detected.
         InternalErrorBadLaunchParam = CUDNN_STATUS_INTERNAL_ERROR_BAD_LAUNCH_PARAM,
-        /// Access to GPU memory space failed, which is usually caused by a failure to bind a texture. To correct, prior to the function call, unbind any previously bound textures. Otherwise, this may indicate an internal error/bug in the library.
+        /// Access to GPU memory space failed, which is usually caused by a failure to bind a texture.
+        /// To correct, prior to the function call, unbind any previously bound textures.
+        /// Otherwise, this may indicate an internal error/bug in the library.
         InternalErrorTextureCreationFailed = CUDNN_STATUS_INTERNAL_ERROR_TEXTURE_CREATION_FAILED,
         /// please transition to CUDNN_STATUS_BAD_PARAM instead
         InvalidValue = CUDNN_STATUS_INVALID_VALUE,
-        /// This is an error category code. The GPU program failed to execute. This is usually caused by a failure to launch a kernel on the GPU, which can be caused by another library that cuDNN depends on.
+        /// This is an error category code.
+        /// The GPU program failed to execute.
+        /// This is usually caused by a failure to launch a kernel on the GPU, which can be caused by another library that cuDNN depends on.
         ExecutionFailed = CUDNN_STATUS_EXECUTION_FAILED,
         /// The GPU program failed to execute due to an error reported by the CUDA driver.
         ExecutionFailedCudaDriver = CUDNN_STATUS_EXECUTION_FAILED_CUDA_DRIVER,
@@ -82,7 +90,8 @@ status_enum! {
         ExecutionFailedCudart = CUDNN_STATUS_EXECUTION_FAILED_CUDART,
         /// The GPU program failed to execute due to an error reported by cuRAND.
         ExecutionFailedCurand = CUDNN_STATUS_EXECUTION_FAILED_CURAND,
-        /// This is an error category code. The functionality requested is not currently supported by cuDNN.
+        /// This is an error category code.
+        /// The functionality requested is not currently supported by cuDNN.
         NotSupported = CUDNN_STATUS_NOT_SUPPORTED,
         /// cuDNN does not currently support such an operation graph pattern.
         NotSupportedGraphPattern = CUDNN_STATUS_NOT_SUPPORTED_GRAPH_PATTERN,
@@ -98,9 +107,11 @@ status_enum! {
         NotSupportedIncompatibleCudart = CUDNN_STATUS_NOT_SUPPORTED_INCOMPATIBLE_CUDART,
         /// The function requires a feature absent from the current GPU device.
         NotSupportedArchitectureMismatch = CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH,
-        /// A runtime library required by cuDNN cannot be found in the predefined search paths. These libraries are `libcuda.so` (`nvcuda.dll`) and `libnvrtc.so` (`nvrtc64_&lt;Major Release Version>&lt;Minor Release Version>_0.dll` and `nvrtc-builtins64_&lt;Major Release Version>&lt;Minor Release Version>.dll`).
+        /// A runtime library required by cuDNN cannot be found in the predefined search paths.
+        /// These libraries are `libcuda.so` (`nvcuda.dll`) and `libnvrtc.so` (`nvrtc64_&lt;Major Release Version>&lt;Minor Release Version>_0.dll` and `nvrtc-builtins64_&lt;Major Release Version>&lt;Minor Release Version>.dll`).
         NotSupportedRuntimePrerequisiteMissing = CUDNN_STATUS_NOT_SUPPORTED_RUNTIME_PREREQUISITE_MISSING,
-        /// The functionality requested requires some license and an error was detected when trying to check the current licensing. This error can happen if the license is not present or is expired or if the environment variable `NVIDIA_LICENSE_FILE` is not set properly.
+        /// The functionality requested requires some license and an error was detected when trying to check the current licensing.
+        /// This error can happen if the license is not present or is expired or if the environment variable `NVIDIA_LICENSE_FILE` is not set properly.
         LicenseError = CUDNN_STATUS_LICENSE_ERROR,
         /// The requested functionality is not available due to missing a sublibrary.
         NotSupportedSublibraryUnavailable = CUDNN_STATUS_NOT_SUPPORTED_SUBLIBRARY_UNAVAILABLE,
@@ -146,12 +157,16 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cudnn_sys::LoadError),
+
     /// Frontend graph construction, preparation, planning, or execution failed.
     #[error(transparent)]
     Frontend(#[from] FrontendError),
 
     /// An indexed errata rule failed validation.
-    #[error("invalid errata rule {index}: {source}")]
+    #[error("invalid errata rule {index}")]
     ErrataInvalidRule {
         /// Index of the invalid errata rule.
         index: usize,
@@ -174,7 +189,7 @@ pub enum Error {
     },
 
     /// An integer in an errata knob choice could not be parsed.
-    #[error("invalid knob number in `{choice}`: {source}")]
+    #[error("invalid knob number in `{choice}`")]
     ErrataKnobNumber {
         /// Knob-choice text containing the invalid integer.
         choice: String,
@@ -183,7 +198,7 @@ pub enum Error {
     },
 
     /// A tensor identifier could not be parsed as an integer.
-    #[error("invalid tensor id integer: {0}")]
+    #[error("invalid tensor id integer")]
     TensorIdParse(#[from] ParseIntError),
 
     /// An errata rule has an empty operation name.
@@ -216,7 +231,7 @@ pub enum Error {
     },
 
     /// Reading an errata file failed.
-    #[error("failed to read errata file `{}`: {source}", path.display())]
+    #[error("failed to read errata file `{}`", path.display())]
     ErrataFileRead {
         /// Path of the errata file that could not be read.
         path: PathBuf,
@@ -229,7 +244,7 @@ pub enum Error {
     SdpaSequenceLengthsIncomplete,
 
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// Native status, its description and any captured current-thread cuDNN diagnostic.
@@ -242,7 +257,7 @@ pub enum Error {
     },
 
     /// JSON serialization or deserialization failed.
-    #[error("serde error: {0}")]
+    #[error(transparent)]
     Serde(#[from] JsonError),
 
     /// A native resource handle is unexpectedly null.
@@ -257,7 +272,7 @@ pub enum Error {
     },
 
     /// Host allocation for scalar storage failed.
-    #[error("unable to allocate {bytes} bytes for scalar storage: {source}")]
+    #[error("unable to allocate {bytes} bytes for scalar storage")]
     ScalarStorageAllocation {
         /// Requested host scalar-storage capacity in bytes.
         bytes: usize,
@@ -488,6 +503,12 @@ impl Error {
 /// Consumes that diagnostic, unlike conversion from a plain [`Status`].
 impl From<sys::cudnnStatus_t> for Error {
     fn from(status: sys::cudnnStatus_t) -> Self {
+        if status == sys::cudnnStatus_t::CUDNN_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cudnn_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let diagnostic = last_error_string();
         let code = Status::from(status);
         let mut message = code.description().to_owned();

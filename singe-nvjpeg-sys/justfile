@@ -1,0 +1,105 @@
+nvjpeg_include_path := "$NVJPEG_INCLUDE_PATH"
+nvjpeg2k_include_path := "$NVJPEG2K_INCLUDE_PATH"
+cuda_path := "$CUDA_PATH"
+
+generate:
+    #!/usr/bin/env bash
+    set -euxo pipefail
+
+    nvjpeg_num_enums=(
+        "nvjpegStatus_t"
+        "nvjpegExifOrientation_t"
+        "nvjpegChromaSubsampling_t"
+        "nvjpegOutputFormat_t"
+        "nvjpegInputFormat_t"
+        "nvjpegBackend_t"
+        "nvjpegEncBackend_t"
+        "nvjpegJpegEncoding_t"
+        "nvjpegScaleFactor_t"
+    )
+    nvjpeg_enum_args=$(for enum in "${nvjpeg_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{nvjpeg_include_path}}/nvjpeg.h \
+        $nvjpeg_enum_args \
+        --allowlist-item "^nvjpeg.*" \
+        --allowlist-item "^NVJPEG.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^CUstream_st$" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{nvjpeg_include_path}} \
+            -I {{cuda_path}}/include \
+        > bindings.rs
+
+    NVJPEG_MAJOR=$(grep "NVJPEG_VER_MAJOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVJPEG_MINOR=$(grep "NVJPEG_VER_MINOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVJPEG_PATCH=$(grep "NVJPEG_VER_PATCH:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVJPEG_VERSION=$((NVJPEG_MAJOR * 10000 + NVJPEG_MINOR * 100 + NVJPEG_PATCH))
+    if [ -z "${NVJPEG_VERSION}" ]; then
+        echo "NVJPEG_VERSION is empty"
+        exit 1
+    fi
+    mv bindings.rs ./src/sys_${NVJPEG_VERSION}.rs
+
+    nvjpeg2k_num_enums=(
+        "nvjpeg2kStatus_t"
+        "nvjpeg2kBackend_t"
+        "nvjpeg2kColorSpace_t"
+        "nvjpeg2kImageType_t"
+        "nvjpeg2kImageFormat_t"
+        "nvjpeg2kProgOrder_t"
+        "nvjpeg2kBitstreamType_t"
+        "nvjpeg2kQualityType_t"
+    )
+    nvjpeg2k_enum_args=$(for enum in "${nvjpeg2k_num_enums[@]}"; do echo -n "--with-derive-custom $enum=TryFromPrimitive,IntoPrimitive "; done)
+
+    bindgen {{nvjpeg2k_include_path}}/nvjpeg2k.h \
+        $nvjpeg2k_enum_args \
+        --allowlist-item "^nvjpeg2k.*" \
+        --allowlist-item "^NVJPEG2K.*" \
+        --blocklist-item "^cuda.*" \
+        --blocklist-item "^CUDA.*" \
+        --blocklist-item "^CUstream_st$" \
+        --blocklist-item "^libraryPropertyType.*" \
+        --no-doc-comments \
+        --no-size_t-is-usize \
+        --no-layout-tests \
+        --with-derive-default \
+        --with-derive-eq \
+        --with-derive-hash \
+        --with-derive-ord \
+        --use-core \
+        --default-enum-style=rust \
+        -- \
+            -I {{nvjpeg2k_include_path}} \
+            -I {{cuda_path}}/include \
+        > bindings.rs
+
+    NVJPEG2K_MAJOR=$(grep "NVJPEG2K_VER_MAJOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVJPEG2K_MINOR=$(grep "NVJPEG2K_VER_MINOR:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVJPEG2K_PATCH=$(grep "NVJPEG2K_VER_PATCH:" bindings.rs | awk '{ print $6 }' | sed 's/.$//')
+    NVJPEG2K_VERSION=$((NVJPEG2K_MAJOR * 10000 + NVJPEG2K_MINOR * 100 + NVJPEG2K_PATCH))
+    if [ -z "${NVJPEG2K_VERSION}" ]; then
+        echo "NVJPEG2K_VERSION is empty"
+        exit 1
+    fi
+    mv bindings.rs ./src/k2_sys_${NVJPEG2K_VERSION}.rs
+
+    # Each declared function loads its symbol at run time, through singe-loader.
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::LIBRARY;/' ./src/sys_*.rs
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::K2;/' ./src/k2_sys_*.rs
+
+clean:
+    rm -rf ./dist
+    rm -f ./src/sys_*.rs
+    rm -f ./src/k2_sys_*.rs

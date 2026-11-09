@@ -59,9 +59,10 @@ pub fn bind_context(context: Option<&Arc<CudaContext>>) -> Result<()> {
 }
 
 pub fn bind_for_drop(context: Option<&Arc<CudaContext>>, resource: &str) {
-    if let Err(error) = bind_context(context)
-        && cfg!(debug_assertions)
-    {
-        eprintln!("failed to bind cuda context before destroying {resource}: {error}");
+    if let Err(error) = bind_context(context) {
+        eprintln!(
+            "failed to bind cuda context before destroying {resource}: {}",
+            singe_core::ErrorChain(&error)
+        );
     }
 }

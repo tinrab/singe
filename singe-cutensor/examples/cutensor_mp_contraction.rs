@@ -1,6 +1,5 @@
 use std::{
     env,
-    error::Error,
     fmt::Display,
     fs,
     io::ErrorKind,
@@ -13,6 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::{Result, anyhow};
 use singe_cuda::{
     context::Context as CudaContext, data_type::DataType, device::Device, memory::DeviceMemory,
     types::Complex32,
@@ -51,7 +51,7 @@ struct Config {
 }
 
 impl Config {
-    fn from_environment() -> Result<Self, Box<dyn Error>> {
+    fn from_environment() -> Result<Self> {
         Ok(Self {
             equation: DEFAULT_EQUATION.into(),
             dist_a: String::new(),
@@ -69,7 +69,7 @@ impl Config {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let config = parse_args()?;
     validate_config(&config)?;
 
@@ -128,6 +128,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         print_values("localExtentB", &local_extent_b);
         print_values("localExtentC", &local_extent_c);
     }
+
     let tensor_modes_a = extent_a
         .iter()
         .copied()
@@ -215,6 +216,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             workspace.host_size()
         );
     }
+
     let mut workspace_memory = plan.create_workspace_memory()?;
 
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
@@ -238,6 +240,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             &stream,
         )?;
     }
+
     stream.synchronize()?;
 
     let alpha = Complex32::new(1.0, 0.0);
@@ -249,6 +252,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         unsafe {
             c.set_value_async_unchecked(0, &stream)?;
         }
+
         stream.synchronize()?;
 
         let start = Instant::now();
@@ -285,7 +289,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn parse_args() -> Result<Config, Box<dyn Error>> {
+fn parse_args() -> Result<Config> {
     let mut config = Config::from_environment()?;
     let mut args = env::args().skip(1).peekable();
 
@@ -316,7 +320,7 @@ fn parse_args() -> Result<Config, Box<dyn Error>> {
                 print_usage();
                 process::exit(0);
             }
-            other => return Err(format!("unknown argument `{other}`").into()),
+            other => return Err(anyhow!("unknown argument `{other}`")),
         }
     }
 
@@ -327,12 +331,12 @@ fn next_value(
     inline: Option<String>,
     args: &mut Peekable<impl Iterator<Item = String>>,
     name: &str,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<String> {
     if let Some(value) = inline {
         return Ok(value);
     }
     args.next()
-        .ok_or_else(|| format!("missing value for `{name}`").into())
+        .ok_or_else(|| anyhow!("missing value for `{name}`"))
 }
 
 fn print_usage() {
@@ -352,26 +356,26 @@ fn print_usage() {
     );
 }
 
-fn validate_config(config: &Config) -> Result<(), Box<dyn Error>> {
+fn validate_config(config: &Config) -> Result<()> {
     if config.rank_count <= 0 {
-        return Err("rank count must be positive".into());
+        return Err(anyhow!("rank count must be positive"));
     }
+
     if config.rank < 0 || config.rank >= config.rank_count {
-        return Err("rank must be in [0, rank_count)".into());
+        return Err(anyhow!("rank must be in [0, rank_count)"));
     }
+
     if config.extent == 0 {
-        return Err("extent must be positive".into());
+        return Err(anyhow!("extent must be positive"));
     }
+
     if config.repetitions == 0 {
-        return Err("repetitions must be positive".into());
+        return Err(anyhow!("repetitions must be positive"));
     }
     Ok(())
 }
 
-fn create_communicator(
-    cuda_context: &Arc<CudaContext>,
-    config: &Config,
-) -> Result<Communicator, Box<dyn Error>> {
+fn create_communicator(cuda_context: &Arc<CudaContext>, config: &Config) -> Result<Communicator> {
     let id = if config.rank_count == 1 {
         unique_id()?
     } else {
@@ -385,7 +389,7 @@ fn create_communicator(
     )?)
 }
 
-fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn Error>> {
+fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId> {
     if rank == 0 {
         let id = unique_id()?;
         fs::write(path, id.as_bytes())?;
@@ -400,7 +404,7 @@ fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn Error
                     return Ok(UniqueId::from_bytes(array));
                 }
                 Ok(_) => {
-                    return Err("invalid nccl unique id file length".into());
+                    return Err(anyhow!("invalid nccl unique id file length"));
                 }
                 Err(error) if error.kind() == ErrorKind::NotFound && Instant::now() < deadline => {
                     thread::sleep(Duration::from_millis(50));
@@ -411,17 +415,17 @@ fn unique_id_from_file(rank: i32, path: &Path) -> Result<UniqueId, Box<dyn Error
     }
 }
 
-fn split_equation(eq: &str) -> Result<[Vec<char>; 3], Box<dyn Error>> {
+fn split_equation(eq: &str) -> Result<[Vec<char>; 3]> {
     let compact = eq
         .chars()
         .filter(|c| !c.is_whitespace())
         .collect::<String>();
     let Some((lhs, rhs)) = compact.split_once("->") else {
-        return Err("equation must contain `->`".into());
+        return Err(anyhow!("equation must contain `->`"));
     };
     let inputs = lhs.split(',').collect::<Vec<_>>();
     if inputs.len() != 2 || rhs.is_empty() || inputs.iter().any(|input| input.is_empty()) {
-        return Err("equation must have form `a,b->c`".into());
+        return Err(anyhow!("equation must have form `a,b->c`"));
     }
     Ok([
         inputs[0].chars().collect(),
@@ -479,12 +483,12 @@ fn ceil_div(lhs: u64, rhs: u64) -> u64 {
     lhs.div_ceil(rhs)
 }
 
-fn product_usize(values: &[u64]) -> Result<usize, Box<dyn Error>> {
+fn product_usize(values: &[u64]) -> Result<usize> {
     values.iter().try_fold(1_usize, |product, &value| {
         let value = usize::try_from(value)?;
         product
             .checked_mul(value)
-            .ok_or_else(|| "element count overflow".into())
+            .ok_or_else(|| anyhow!("element count overflow"))
     })
 }
 
@@ -537,7 +541,7 @@ fn print_performance_metrics(
     );
 }
 
-fn env_parse<T>(name: &str) -> Result<Option<T>, Box<dyn Error>>
+fn env_parse<T>(name: &str) -> Result<Option<T>>
 where
     T: FromStr,
 {
@@ -545,7 +549,7 @@ where
         Ok(value) => value
             .parse()
             .map(Some)
-            .map_err(|_| format!("invalid {name}: {value}").into()),
+            .map_err(|_| anyhow!("invalid {name}: {value}")),
         Err(env::VarError::NotPresent) => Ok(None),
         Err(error) => Err(error.into()),
     }

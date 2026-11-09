@@ -141,6 +141,7 @@ impl Graph {
             (None, None) => {}
             _ => return Err(FrontendError::BatchNormRunningStatsIncomplete.into()),
         }
+
         for peer_stat in config.peer_stats() {
             self.tensor_spec(*peer_stat)?;
         }
@@ -176,7 +177,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, mismatched output, affine, saved-statistic or running-statistic dimensions, nonscalar epsilon or momentum, or incomplete running-statistic inputs and outputs. Inferred per-channel strides must also be representable.
+    /// Returns an error for unknown tensor identities, input rank below two, mismatched output, affine, saved-statistic or running-statistic dimensions, nonscalar epsilon or momentum, or incomplete running-statistic inputs and outputs.
+    /// Inferred per-channel strides must also be representable.
     pub fn batch_normalization(
         &mut self,
         inputs: BatchNormalizationInputs,
@@ -186,6 +188,7 @@ impl Graph {
         if config.running().is_some() != outputs.running.is_some() {
             return Err(FrontendError::BatchNormRunningStatsIncomplete.into());
         }
+
         let input = self.tensor_spec(inputs.input)?;
         let channel_shape =
             Shape::channels_last(infer_normalization_channel_dimensions(&input.shape)?)?;

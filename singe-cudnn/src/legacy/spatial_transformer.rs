@@ -17,8 +17,7 @@ use crate::{
     utility::{check_range, to_i32, to_i32_vec},
 };
 
-/// [`SamplerType`] selects the sampler type used by [`SpatialTransformerDescriptor`],
-/// [`spatial_tf_sampler_forward`], and [`spatial_tf_sampler_backward`].
+/// [`SamplerType`] selects the sampler type used by [`SpatialTransformerDescriptor`], [`spatial_tf_sampler_forward`], and [`spatial_tf_sampler_backward`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -70,9 +69,11 @@ impl SpatialTransformerDescriptor {
                 &raw mut handle
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let descriptor = Self {
             handle,
             config,
@@ -114,11 +115,9 @@ impl SpatialTransformerDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cudnnSpatialTransformerDescriptor_t` created by
-    /// cuDNN. The returned wrapper takes ownership and will destroy it with
-    /// `cudnnDestroySpatialTransformerDescriptor`; no other owner may destroy
-    /// or keep using it. `config` and `shape` must accurately describe the
-    /// descriptor.
+    /// `handle` must be a valid `cudnnSpatialTransformerDescriptor_t` created by cuDNN.
+    /// The returned wrapper takes ownership and will destroy it with `cudnnDestroySpatialTransformerDescriptor`; no other owner may destroy or keep using it.
+    /// `config` and `shape` must accurately describe the descriptor.
     ///
     /// # Errors
     ///
@@ -157,8 +156,10 @@ impl Drop for SpatialTransformerDescriptor {
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroySpatialTransformerDescriptor(self.handle))
             {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudnn spatial transformer descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cudnn spatial transformer descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -170,19 +171,14 @@ impl Drop for SpatialTransformerDescriptor {
 ///
 /// # Errors
 ///
-/// Returns an error if `descriptor`, `theta`, or `grid` is invalid, if the
-/// operation fails to launch on the GPU, or if cuDNN does not support the
-/// provided configuration, such as a transformed tensor dimension greater than
-/// 4.
+/// Returns an error if `descriptor`, `theta`, or `grid` is invalid, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn spatial_tf_grid_generator_forward<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
@@ -196,6 +192,7 @@ pub unsafe fn spatial_tf_grid_generator_forward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "spatial transformer data type",
         descriptor.config().data_type == T::data_type()
@@ -235,19 +232,14 @@ pub unsafe fn spatial_tf_grid_generator_forward<T: FloatingElement>(
 ///
 /// # Errors
 ///
-/// Returns an error if `descriptor`, `dgrid`, or `dtheta` is invalid, if the
-/// operation fails to launch on the GPU, or if cuDNN does not support the
-/// provided configuration, such as a transformed tensor dimension greater than
-/// 4.
+/// Returns an error if `descriptor`, `dgrid`, or `dtheta` is invalid, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn spatial_tf_grid_generator_backward<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
@@ -261,6 +253,7 @@ pub unsafe fn spatial_tf_grid_generator_backward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "spatial transformer data type",
         descriptor.config().data_type == T::data_type()
@@ -300,19 +293,14 @@ pub unsafe fn spatial_tf_grid_generator_backward<T: FloatingElement>(
 ///
 /// # Errors
 ///
-/// Returns an error if `y_desc` dimensions differ from those specified in
-/// `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does
-/// not support the provided configuration, such as a transformed tensor
-/// dimension greater than 4.
+/// Returns an error if `y_desc` dimensions differ from those specified in `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn spatial_tf_sampler_forward<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
@@ -331,6 +319,7 @@ pub unsafe fn spatial_tf_sampler_forward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?
@@ -376,19 +365,14 @@ pub unsafe fn spatial_tf_sampler_forward<T: FloatingElement>(
 ///
 /// # Errors
 ///
-/// Returns an error if `output_gradient_desc` dimensions differ from those
-/// specified in `descriptor`, if the operation fails to launch on the GPU, or if
-/// cuDNN does not support the provided configuration, such as a transformed
-/// tensor dimension greater than 4.
+/// Returns an error if `output_gradient_desc` dimensions differ from those specified in `descriptor`, if the operation fails to launch on the GPU, or if cuDNN does not support the provided configuration, such as a transformed tensor dimension greater than 4.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn spatial_tf_sampler_backward<T: FloatingElement>(
     context: &Context,
     descriptor: &SpatialTransformerDescriptor,
@@ -418,6 +402,7 @@ pub unsafe fn spatial_tf_sampler_backward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?

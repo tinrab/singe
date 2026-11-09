@@ -273,9 +273,8 @@ impl_filter_advanced_border!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve native element and layout representations, filter
-/// semantics, and parameter interpretation. Uphold the method's geometry validation,
-/// coefficient and host-parameter requirements, memory-access rules, and execution lifetimes.
+/// Implementations must preserve native element and layout representations, filter semantics, and parameter interpretation.
+/// Uphold the method's geometry validation, coefficient and host-parameter requirements, memory-access rules, and execution lifetimes.
 pub unsafe trait FilterGaussAdvanced<L: ChannelLayout>: DataTypeLike {
     /// Applies Gaussian filtering with caller-supplied coefficients.
     ///
@@ -391,9 +390,8 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve native element and layout representations, filter
-/// semantics, and parameter interpretation. Uphold the method's geometry validation,
-/// coefficient and host-parameter requirements, memory-access rules, and execution lifetimes.
+/// Implementations must preserve native element and layout representations, filter semantics, and parameter interpretation.
+/// Uphold the method's geometry validation, coefficient and host-parameter requirements, memory-access rules, and execution lifetimes.
 pub unsafe trait FilterGaussAdvancedBorder<L: ChannelLayout>: DataTypeLike {
     /// Applies Gaussian filtering with caller-supplied coefficients with border control.
     ///

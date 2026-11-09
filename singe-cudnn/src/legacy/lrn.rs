@@ -37,16 +37,12 @@ impl_enum_display!(LrnMode, {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum DivisiveNormalizationMode {
-    /// The means tensor is expected to contain precomputed means or other kernel
-    /// convolution values.
+    /// The means tensor is expected to contain precomputed means or other kernel convolution values.
     /// cuDNN treats an omitted means buffer as zero-filled.
     /// Equivalent to spatial LRN.
     ///
     /// In the backward pass, means are independent inputs with independent gradients.
-    /// In this mode, to yield a net gradient over the entire LCN computational graph,
-    /// backpropagate `means_gradient` through the means layer (which can be implemented
-    /// using average pooling) and add it to the `data_gradient` tensor produced by
-    /// [`divisive_normalization_backward`].
+    /// In this mode, to yield a net gradient over the entire LCN computational graph, backpropagate `means_gradient` through the means layer (which can be implemented using average pooling) and add it to the `data_gradient` tensor produced by [`divisive_normalization_backward`].
     PrecomputedMeans = sys::cudnnDivNormMode_t::CUDNN_DIVNORM_PRECOMPUTED_MEANS as _,
 }
 
@@ -95,9 +91,11 @@ impl LrnDescriptor {
         unsafe {
             try_ffi!(sys::cudnnCreateLRNDescriptor(&raw mut handle))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let descriptor = Self { handle, config };
         // SAFETY: `cudnnSetLRNDescriptor` receives only plain values.
         unsafe {
@@ -129,9 +127,8 @@ impl LrnDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cudnnLRNDescriptor_t` created by cuDNN. The
-    /// returned wrapper takes ownership and will destroy it with
-    /// `cudnnDestroyLRNDescriptor`; no other owner may destroy or keep using it.
+    /// `handle` must be a valid `cudnnLRNDescriptor_t` created by cuDNN.
+    /// The returned wrapper takes ownership and will destroy it with `cudnnDestroyLRNDescriptor`; no other owner may destroy or keep using it.
     /// `config` must accurately describe the descriptor.
     ///
     /// # Errors
@@ -162,8 +159,10 @@ impl Drop for LrnDescriptor {
         // SAFETY: `cudnnDestroyLRNDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroyLRNDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudnn lrn descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cudnn lrn descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -177,19 +176,14 @@ impl Drop for LrnDescriptor {
 ///
 /// # Errors
 ///
-/// Returns an error if the input and output descriptors are incompatible, if the
-/// LRN descriptor parameters are outside their valid ranges, if a 5D tensor is
-/// not in NCDHW DHW-packed format, or if cuDNN does not support the provided
-/// tensor types, dimensions, or strides.
+/// Returns an error if the input and output descriptors are incompatible, if the LRN descriptor parameters are outside their valid ranges, if a 5D tensor is not in NCDHW DHW-packed format, or if cuDNN does not support the provided tensor types, dimensions, or strides.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn lrn_cross_channel_forward<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
@@ -208,6 +202,7 @@ pub unsafe fn lrn_cross_channel_forward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?
@@ -245,19 +240,14 @@ pub unsafe fn lrn_cross_channel_forward<T: FloatingElement>(
 ///
 /// # Errors
 ///
-/// Returns an error if the data and gradient descriptors are incompatible, if
-/// the LRN descriptor parameters are outside their valid ranges, if a 5D tensor
-/// is not in NCDHW DHW-packed format, or if cuDNN does not support the provided
-/// tensor types, dimensions, or strides.
+/// Returns an error if the data and gradient descriptors are incompatible, if the LRN descriptor parameters are outside their valid ranges, if a 5D tensor is not in NCDHW DHW-packed format, or if cuDNN does not support the provided tensor types, dimensions, or strides.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn lrn_cross_channel_backward<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
@@ -285,6 +275,7 @@ pub unsafe fn lrn_cross_channel_backward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "y storage span",
         y.region().byte_len() >= y_desc.byte_len()?
@@ -337,26 +328,21 @@ pub unsafe fn lrn_cross_channel_backward<T: FloatingElement>(
 ///
 /// The full LCN (Local Contrastive Normalization) computation can be implemented as a two-step process:
 ///
-/// The `x - mean(x)` portion, often called subtractive normalization, can be implemented using a
-/// cuDNN average pooling layer followed by a tensor add operation.
+/// The `x - mean(x)` portion, often called subtractive normalization, can be implemented using a cuDNN average pooling layer followed by a tensor add operation.
 ///
 /// Supported tensor formats are NCHW for 4D and NCDHW for 5D with any non-overlapping non-negative strides.
 /// Only 4D and 5D tensors are supported.
 ///
 /// # Errors
 ///
-/// Returns an error if the input and output tensor descriptors are not 4D or 5D, if their dimensions are incompatible, if an in-place call uses
-/// mismatched strides, if the LRN descriptor parameters are outside their valid
-/// ranges, or if cuDNN does not support the provided strides or configuration.
+/// Returns an error if the input and output tensor descriptors are not 4D or 5D, if their dimensions are incompatible, if an in-place call uses mismatched strides, if the LRN descriptor parameters are outside their valid ranges, or if cuDNN does not support the provided strides or configuration.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
@@ -384,6 +370,7 @@ pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?
@@ -438,18 +425,14 @@ pub unsafe fn divisive_normalization_forward<T: FloatingElement>(
 ///
 /// # Errors
 ///
-/// Returns an error if the input or output tensor descriptors are not 4D or 5D, if `x_desc` and `dxdmeans_desc` dimensions are incompatible, if
-/// the LRN descriptor parameters are outside their valid ranges, or if cuDNN
-/// does not support the provided strides or configuration.
+/// Returns an error if the input or output tensor descriptors are not 4D or 5D, if `x_desc` and `dxdmeans_desc` dimensions are incompatible, if the LRN descriptor parameters are outside their valid ranges, or if cuDNN does not support the provided strides or configuration.
 ///
 /// # Safety
-/// Retain the context or stream, descriptors and all buffer ranges through
-/// completion, submission failure and replay. Order allocation readiness and
-/// input producers before use; values must be valid when read and writes must
-/// stay exclusive. Only the specified tensor elements are produced; padding and
-/// tails remain unchanged.
-/// Nonzero beta requires initialized destination elements. Backward scratch
-/// must contain the state required by the matching forward operation.
+/// Retain the context or stream, descriptors and all buffer ranges through completion, submission failure and replay.
+/// Order allocation readiness and input producers before use; values must be valid when read and writes must stay exclusive.
+/// Only the specified tensor elements are produced; padding and tails remain unchanged.
+/// Nonzero beta requires initialized destination elements.
+/// Backward scratch must contain the state required by the matching forward operation.
 pub unsafe fn divisive_normalization_backward<T: FloatingElement>(
     context: &Context,
     descriptor: &LrnDescriptor,
@@ -481,6 +464,7 @@ pub unsafe fn divisive_normalization_backward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "x storage span",
         x.region().byte_len() >= x_desc.byte_len()?

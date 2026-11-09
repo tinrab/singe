@@ -8,7 +8,6 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -25,6 +24,22 @@ use singe_cuda_sys::runtime::cudaStream_t;
 
 #[cfg(feature = "npp_13_2")]
 include!("sys_13200.rs");
+
+pub use singe_loader::LoadError;
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::npp();
+
+// Loads NPP, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "npp_13_2")]
+singe_loader::missing_status!(
+    NppStatus,
+    library: NppStatus::NPP_NOT_IMPLEMENTED_ERROR,
+    symbol: NppStatus::NPP_NOT_SUPPORTED_MODE_ERROR,
+);
 
 #[cfg(test)]
 mod tests {

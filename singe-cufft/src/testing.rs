@@ -24,8 +24,7 @@ impl Deref for TestContext {
 ///
 /// # Errors
 ///
-/// Returns an error if device locking, CUDA initialization, context creation,
-/// or native plan creation fails.
+/// Returns an error if device locking, CUDA initialization, context creation, or native plan creation fails.
 pub fn setup_context() -> Result<TestContext> {
     let device_id: i32 = 0;
     let (lock, cuda_context) = bootstrap_for_device(device_id)?;

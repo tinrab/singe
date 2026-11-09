@@ -88,17 +88,17 @@ pub struct cudnnContext {
 }
 /// [`cudnnHandle_t`] is a pointer to an opaque structure holding the cuDNN library context. The cuDNN library context must be created using [`cudnnCreate`] and the returned handle must be passed to all subsequent library function calls. The context should be destroyed at the end using [`cudnnDestroy`]. The context is associated with only one GPU device, the current device at the time of the call to [`cudnnCreate`]. However, multiple contexts can be created on the same GPU device.
 pub type cudnnHandle_t = *mut cudnnContext;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the version number of the cuDNN library. It returns the [`CUDNN_VERSION`] defined present in the `cudnn.h` header file. Starting with release R2, the routine can be used to identify dynamically the current cuDNN library used by the application. The defined [`CUDNN_VERSION`] can be used to have the same application linked against different cuDNN versions using conditional compilation statements.
     pub fn cudnnGetVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the maximum SM version that the cuDNN library is aware of and supports natively. Any SM version higher than this would be supported in forward compatibility mode. For more information about forward compatibility, refer to [Hardware Forward Compatibility](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/forward-compatibility.html#forward-compat-native-mode "(in NVIDIA cuDNN)") in the *Frontend Developer Guide*.
     ///
     /// A `size_t` type value indicating the latest known SM number for the current version of the library. For example, if NVIDIA Hopper (GH100) is the latest known SM that the library is aware of, the value returned would be `900`.
     pub fn cudnnGetMaxDeviceVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The same version of a given cuDNN library can be compiled against different CUDA toolkit versions. This routine returns the CUDA toolkit version that the currently used cuDNN library has been compiled against.
     pub fn cudnnGetCudartVersion() -> size_t;
 }
@@ -252,7 +252,7 @@ pub enum cudnnStatus_t {
     /// please transition to CUDNN_STATUS_BAD_PARAM instead
     CUDNN_STATUS_INVALID_VALUE = 2001,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts the cuDNN status code to a `NULL` terminated (ASCIIZ) static string. For example, when the input argument is [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`], the returned string is [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]. When an invalid status value is passed to the function, the returned string is `CUDNN_UNKNOWN_STATUS`.
     ///
     /// Pointer to a static, NULL terminated string with the status name.
@@ -262,7 +262,7 @@ unsafe extern "C" {
     /// - `status`: Input. cuDNN enumerant status code.
     pub fn cudnnGetErrorString(status: cudnnStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves the last encountered cuDNN error message in the current thread to a `NULL` terminated (ASCIIZ) string. Inside the cuDNN library, the messages are stored in thread local buffers. The error is cleared after the user calls this API to retrieve it.
     ///
     /// # Parameters
@@ -299,7 +299,7 @@ pub enum cudnnErrQueryMode_t {
     /// Wait for all tasks to complete in the user stream before reporting the remote kernel error code.
     CUDNN_ERRQUERY_BLOCKING = 2,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cuDNN library functions perform extensive input argument checking before launching GPU kernels. The last step is to verify that the GPU kernel actually started. When a kernel fails to start, [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`] is returned by the corresponding API call. Typically, after a GPU kernel starts, no runtime checks are performed by the kernel itself - numerical results are simply written to output buffers.
     ///
     /// When the [`cudnnBatchNormMode_t::CUDNN_BATCHNORM_SPATIAL_PERSISTENT`] mode is selected in [`cudnnBatchNormalizationForwardTraining`] or [`cudnnBatchNormalizationBackward`], the algorithm may encounter numerical overflows where [`cudnnBatchNormMode_t::CUDNN_BATCHNORM_SPATIAL`] performs just fine albeit at a slower speed. The user can invoke [`cudnnQueryRuntimeError`] to make sure numerical overflows did not occur during the kernel execution. Those issues are reported by the kernel that performs computations.
@@ -338,7 +338,7 @@ unsafe extern "C" {
         tag: *mut cudnnRuntimeTag_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function writes a specific part of the cuDNN library version number into the provided host storage.
     ///
     /// # Parameters
@@ -355,7 +355,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the cuDNN library and creates a handle to an opaque structure holding the cuDNN library context. It allocates hardware resources on the host and device and must be called prior to making any other cuDNN library calls.
     ///
     /// The cuDNN library handle is tied to the current CUDA device (context). To use the library on multiple devices, one cuDNN handle needs to be created for each device.
@@ -379,7 +379,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: cuDNN handle was created successfully.
     pub fn cudnnCreate(handle: *mut cudnnHandle_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases the resources used by the cuDNN handle. This function is usually the last call made to cuDNN with a particular handle. Because [`cudnnCreate`] allocates internal resources, the release of those resources by calling [`cudnnDestroy`] will implicitly call [cudaDeviceSynchronize](https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__DEVICE.html#group__CUDART__DEVICE_1g10e20b05a95f638a4071a655503df25d); therefore, the recommended best practice is to call [`cudnnCreate`] or [`cudnnDestroy`] outside of performance-critical code paths.
     ///
     /// # Parameters
@@ -391,7 +391,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The cuDNN context destruction was successful.
     pub fn cudnnDestroy(handle: cudnnHandle_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the user’s CUDA stream in the cuDNN handle. The new stream will be used to launch cuDNN GPU kernels or to synchronize to this stream when cuDNN kernels are launched in the internal streams. If the cuDNN library stream is not set, all kernels use the default (`NULL`) stream. Setting the user stream in the cuDNN handle guarantees the issue-order execution of cuDNN calls and other GPU kernels launched in the same stream.
     ///
     /// With CUDA 11.x or later, internal streams have the same priority as the stream set by the last call to this function. In CUDA graph capture mode, CUDA 11.8 or later is required in order for the stream priorities to match.
@@ -413,7 +413,7 @@ unsafe extern "C" {
         streamId: cudaStream_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves the user CUDA stream programmed in the cuDNN handle. When the user’s CUDA stream is not set in the cuDNN handle, this function reports the null-stream.
     ///
     /// # Parameters
@@ -779,7 +779,7 @@ pub type cudnnCallback_t = ::core::option::Option<
         msg: *const ::core::ffi::c_char,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the internal states of cuDNN error reporting functionality.
     ///
     /// # Parameters
@@ -817,7 +817,7 @@ unsafe extern "C" {
         fptr: cudnnCallback_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the internal states of cuDNN error reporting functionality.
     ///
     /// # Parameters
@@ -836,7 +836,7 @@ unsafe extern "C" {
         fptr: *mut cudnnCallback_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Cross-library version checker. Each sub-library has a version checker that checks whether its own version matches that of its dependencies.
     ///
     /// # Return value
@@ -3919,7 +3919,7 @@ pub enum cudnnBackendOperationGraphMode_t {
     /// Selects native operation-graph handling for gradient computation for the unified scaled dot-product attention operation.
     CUDNN_OPERATIONGRAPH_MODE_UNIFIED_SDPA_BWD = 31,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allocates memory in the `descriptor` for a given `descriptor` type and at the location pointed by the `descriptor`.
     ///
     /// # Parameters
@@ -3937,7 +3937,7 @@ unsafe extern "C" {
         descriptor: *mut cudnnBackendDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys instances of [`cudnnBackendDescriptor_t`] that were previously created using [`cudnnBackendCreateDescriptor`].
     ///
     /// # Parameters
@@ -3954,7 +3954,7 @@ unsafe extern "C" {
         descriptor: cudnnBackendDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function repurposes a pre-allocated memory pointed to by a `descriptor` of size `sizeInByte` to a backend `descriptor` of type `descriptorType`. The finalized state of the `descriptor` is set to `false`.
     ///
     /// # Parameters
@@ -3971,7 +3971,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cudnnBackendInitialize(descriptor: cudnnBackendDescriptor_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function finalizes the memory pointed to by the `descriptor`. The type of finalization is done depending on the `descriptorType` argument with which the `descriptor` was created using [`cudnnBackendCreateDescriptor`] or initialized using [`cudnnBackendInitialize`].
     ///
     /// [`cudnnBackendFinalize`] also checks all the attributes set between the create/initialization and finalize phase. If successful, [`cudnnBackendFinalize`] returns [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`] and the finalized state of the `descriptor` is set to `true`. In this state, setting attributes using [`cudnnBackendSetAttribute`] is not allowed. Getting attributes using [`cudnnBackendGetAttribute`] is only allowed when the finalized state of the `descriptor` is `true`.
@@ -3988,7 +3988,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The `descriptor` was finalized successfully.
     pub fn cudnnBackendFinalize(descriptor: cudnnBackendDescriptor_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets an attribute of a `descriptor` to values provided as a pointer. `descriptor` is the `descriptor` to be set. `attributeName` is the name of the attribute to be set. `attributeType` is the type of attribute. The value to which the attribute is set, is pointed by the `arrayOfElements`. The number of elements is given by `elementCount`. This function will return `CUDNN_STATUS_NOT_INTIALIZED` if the `descriptor` is already successfully finalized using [`cudnnBackendFinalize`].
     ///
     /// # Parameters
@@ -4018,7 +4018,7 @@ unsafe extern "C" {
         arrayOfElements: *const ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves the values of an attribute of a `descriptor`. `attributeName` is the name of the attribute whose value is requested. `attributeType` is the type of attribute. `requestsedElementCount` is the number of elements to be potentially retrieved. The number of elements for the requested attribute is stored in `elementCount`. The retrieved values are stored in `arrayOfElements`. When the attribute is expected to have a single value, `arrayOfElements` can be pointer to the output value. This function will return `CUDNN_STATUS_NOT_INTIALIZED` if the `descriptor` has not been successfully finalized using [`cudnnBackendFinalize`].
     ///
     /// # Parameters
@@ -4047,7 +4047,7 @@ unsafe extern "C" {
         arrayOfElements: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries runtime workspace size for an execution plan using a variant pack.
     ///
     /// since: cuDNN 9.23.0
@@ -4065,7 +4065,7 @@ unsafe extern "C" {
         workspaceSizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function executes the given `Engine Configuration Plan` on the `VariantPack` and the finalized `ExecutionPlan` on the data. The data and the working space are encapsulated in the `VariantPack`.
     ///
     /// # Parameters
@@ -4089,7 +4089,7 @@ unsafe extern "C" {
         variantPack: cudnnBackendDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This method, part of the new [Native CUDA Graph API](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/misc.html#native-cuda-graph-api "(in NVIDIA cuDNN)"), directly builds a CUDA graph (not to be confused with a cuDNN graph) representing the given engine. When the caller instantiates and executes this CUDA graph, the graph will execute the engine configuration plan on the `VariantPack` and the finalized `ExecutionPlan` on the data.
     ///
     /// The resulting CUDA graph captures the pointers (data and working space) in the `VariantPack` at the time this API is called, but it can be run arbitrarily many times with different data at the same pointers. The graph can also later be modified in place with different `VariantPack` pointers by using [`cudnnBackendUpdateCudaGraph`].
@@ -4123,7 +4123,7 @@ unsafe extern "C" {
         graph: cudaGraph_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This method, part of the new [Native CUDA Graph API](https://docs.nvidia.com/deeplearning/cudnn/latest/developer/misc.html#native-cuda-graph-api "(in NVIDIA cuDNN)"), updates an existing CUDA graph previously populated by [`cudnnBackendPopulateCudaGraph`] (or a clone thereof) with a new `variantPack`.
     ///
     /// Only a limited number of engines currently support this API (with more to be added in future releases of cuDNN). Those supporting it have the behavior note [`cudnnBackendBehaviorNote_t::CUDNN_BEHAVIOR_NOTE_SUPPORTS_CUDA_GRAPH_NATIVE_API`].
@@ -4260,7 +4260,7 @@ pub enum cudnnDeterminism_t {
     /// Results are guaranteed to be reproducible.
     CUDNN_DETERMINISTIC = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a generic tensor descriptor object by allocating the memory needed to hold its opaque structure. The data is initialized to all zeros.
     ///
     /// # Parameters
@@ -4276,7 +4276,7 @@ unsafe extern "C" {
         tensorDesc: *mut cudnnTensorDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic tensor descriptor object into a 4D tensor. The strides of the four dimensions are inferred from the format parameter and set in such a way that the data is contiguous in memory with no padding between dimensions.
     ///
     /// The total size of a tensor including the potential padding between dimensions is limited to 2 Giga-elements of type `datatype`.
@@ -4306,7 +4306,7 @@ unsafe extern "C" {
         w: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic tensor descriptor object into a 4D tensor, similarly to [`cudnnSetTensor4dDescriptor`] but with the strides explicitly passed as parameters. This can be used to lay out the 4D tensor in any order or simply to define gaps between dimensions.
     ///
     /// At present, some cuDNN routines have limited support for strides. Those routines will return [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`] if a 4D tensor object with an unsupported stride is used. [`cudnnTransformTensor`] can be used to convert the data to a supported layout.
@@ -4344,7 +4344,7 @@ unsafe extern "C" {
         wStride: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the parameters of the previously initialized `Tensor4d` descriptor object.
     ///
     /// # Parameters
@@ -4376,7 +4376,7 @@ unsafe extern "C" {
         wStride: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic tensor descriptor object.
     ///
     /// The total size of a tensor including the potential padding between dimensions is limited to 2 Giga-elements of type `datatype`. Tensors are restricted to having at least 4 dimensions, and at most [`CUDNN_DIM_MAX`] dimensions (defined in `cudnn.h`). When working with lower dimensional data, it is recommended that the user create a 4D tensor, and set the size along unused dimensions to 1.
@@ -4404,7 +4404,7 @@ unsafe extern "C" {
         strideA: *const ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes an `Nd` tensor descriptor.
     ///
     /// # Parameters
@@ -4430,7 +4430,7 @@ unsafe extern "C" {
         dimA: *const ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves values stored in a previously initialized `TensorNd` descriptor object.
     ///
     /// # Parameters
@@ -4455,7 +4455,7 @@ unsafe extern "C" {
         strideA: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the tensor in memory in respect to the given descriptor. This function can be used to know the amount of GPU memory to be allocated to hold that tensor.
     ///
     /// # Parameters
@@ -4471,7 +4471,7 @@ unsafe extern "C" {
         size: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created tensor descriptor object. When the input pointer is `NULL`, this function performs no destroy operation.
     ///
     /// # Parameters
@@ -4511,7 +4511,7 @@ pub enum cudnnFoldingDirection_t {
     /// since: cuDNN 9.0.0
     CUDNN_TRANSFORM_UNFOLD = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes and returns a destination tensor descriptor `destDesc` for tensor transform operations. The initialization is done with the desired parameters described in the transform descriptor [`cudnnTensorDescriptor_t`].
     ///
     /// The returned Tensor descriptor will be packed.
@@ -4537,7 +4537,7 @@ unsafe extern "C" {
         destSizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a tensor transform descriptor object by allocating the memory needed to hold its opaque structure. The tensor data is initialized to all zeros. Use the [`cudnnSetTensorTransformDescriptor`] function to initialize the descriptor created by this function.
     ///
     /// # Parameters
@@ -4554,7 +4554,7 @@ unsafe extern "C" {
         transformDesc: *mut cudnnTensorTransformDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a tensor transform descriptor that was previously created using the [`cudnnCreateTensorTransformDescriptor`] function.
     ///
     /// # Parameters
@@ -4583,7 +4583,7 @@ unsafe extern "C" {
         direction: cudnnFoldingDirection_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the values stored in a previously initialized tensor transform descriptor.
     ///
     /// # Parameters
@@ -4611,7 +4611,7 @@ unsafe extern "C" {
         direction: *mut cudnnFoldingDirection_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroys a previously created tensor transform descriptor.
     ///
     /// # Parameters
@@ -4626,7 +4626,7 @@ unsafe extern "C" {
         transformDesc: cudnnTensorTransformDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function copies the scaled data from one tensor to another tensor with a different layout. Those descriptors need to have the same dimensions but not necessarily the same strides. The input and output tensors must not overlap in any way (meaning, tensors cannot be transformed in place). This function can be used to convert a tensor with an unsupported format to a supported one.
     ///
     /// # Parameters
@@ -4656,7 +4656,7 @@ unsafe extern "C" {
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts the tensor layouts between different formats. It can be used to convert a tensor with an unsupported layout format to a tensor with a supported layout format.
     ///
     /// This function copies the scaled data from the input tensor `srcDesc` to the output tensor `destDesc` with a different layout. The tensor descriptors of `srcDesc` and `destDesc` should have the same dimensions but need not have the same strides.
@@ -4694,7 +4694,7 @@ unsafe extern "C" {
         destData: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function adds the scaled values of a bias tensor to another tensor. Each dimension of the bias tensor `A` must match the corresponding dimension of the destination tensor `C` or must be equal to `1`. In the latter case, the same value from the bias tensor for those dimensions will be used to blend into the `C` tensor.
     ///
     /// Only 4D and 5D tensors are supported. Beyond these dimensions, this routine is not supported.
@@ -4754,7 +4754,7 @@ pub enum cudnnOpTensorOp_t {
     /// The operation to be performed is negation, performed on only the `A` tensor.
     CUDNN_OP_TENSOR_NOT = 5,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a tensor pointwise math descriptor. For more information, refer to [`cudnnOpTensorDescriptor_t`].
     ///
     /// # Parameters
@@ -4770,7 +4770,7 @@ unsafe extern "C" {
         opTensorDesc: *mut cudnnOpTensorDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a tensor pointwise math descriptor.
     ///
     /// # Parameters
@@ -4791,7 +4791,7 @@ unsafe extern "C" {
         opTensorNanOpt: cudnnNanPropagation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the configuration of the passed tensor pointwise math descriptor.
     ///
     /// # Parameters
@@ -4812,7 +4812,7 @@ unsafe extern "C" {
         opTensorNanOpt: *mut cudnnNanPropagation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function deletes a tensor pointwise math descriptor object.
     ///
     /// # Parameters
@@ -4826,7 +4826,7 @@ unsafe extern "C" {
         opTensorDesc: cudnnOpTensorDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function implements the equation `C = op(alpha1\[0\] * A`, `alpha2\[0\] * B) + beta\[0\] * C`, given the tensors A, B, and C and the scaling factors `alpha1`, `alpha2`, and `beta`. The op to use is indicated by the descriptor [`cudnnOpTensorDescriptor_t`], meaning, the type of `opTensorDesc`. Currently-supported ops are listed by the [`cudnnOpTensorOp_t`] enum.
     ///
     /// The following restrictions on the input and destination tensors apply:
@@ -4923,7 +4923,7 @@ pub enum cudnnIndicesType_t {
     #[deprecated]
     CUDNN_8BIT_INDICES = 3,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a reduced tensor descriptor object by allocating the memory needed to hold its opaque structure.
     ///
     /// # Parameters
@@ -4939,7 +4939,7 @@ unsafe extern "C" {
         reduceTensorDesc: *mut cudnnReduceTensorDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created reduce tensor descriptor object.
     ///
     /// # Parameters
@@ -4964,7 +4964,7 @@ unsafe extern "C" {
         reduceTensorIndicesType: cudnnIndicesType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously initialized reduce tensor descriptor object.
     ///
     /// # Parameters
@@ -4989,7 +4989,7 @@ unsafe extern "C" {
         reduceTensorIndicesType: *mut cudnnIndicesType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created reduce tensor descriptor object. When the input pointer is `NULL`, this function performs no destroy operation.
     ///
     /// # Parameters
@@ -5003,7 +5003,7 @@ unsafe extern "C" {
         reduceTensorDesc: cudnnReduceTensorDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This is a helper function to return the minimum size of the index space to be passed to the reduction given the input and output tensors.
     ///
     /// # Parameters
@@ -5025,7 +5025,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This is a helper function to return the minimum size of the workspace to be passed to the reduction given the input and output tensors.
     ///
     /// # Parameters
@@ -5047,7 +5047,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reduces tensor A by implementing the equation `C = alpha * reduce op ( A ) + beta * C`, given tensors A and C and scaling factors `alpha` and `beta`. The reduction op to use is indicated by the descriptor `reduceTensorDesc`. Currently-supported ops are listed by the [`cudnnReduceTensorOp_t`] enum.
     ///
     /// Each dimension of the output tensor C must match the corresponding dimension of the input tensor A or must be equal to `1`. The dimensions equal to `1` indicate the dimensions of A to be reduced.
@@ -5103,7 +5103,7 @@ unsafe extern "C" {
         C: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets all the elements of a tensor to a given value.
     ///
     /// # Parameters
@@ -5126,7 +5126,7 @@ unsafe extern "C" {
         valuePtr: *const ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function scales all the elements of a tensor by a given factor.
     ///
     /// # Parameters
@@ -5150,7 +5150,7 @@ unsafe extern "C" {
         alpha: *const ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a filter descriptor object by allocating the memory needed to hold its opaque structure. For more information, refer to [`cudnnFilterDescriptor_t`].
     ///
     /// # Parameters
@@ -5166,7 +5166,7 @@ unsafe extern "C" {
         filterDesc: *mut cudnnFilterDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created filter descriptor object into a 4D filter. The layout of the filters must be contiguous in memory.
     ///
     /// Tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NHWC`] has limited support in [`cudnnConvolutionForward`], [`cudnnConvolutionBackwardData`], and [`cudnnConvolutionBackwardFilter`].
@@ -5203,7 +5203,7 @@ unsafe extern "C" {
         w: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the parameters of the previously initialized `Filter4d` descriptor object.
     ///
     /// # Parameters
@@ -5230,7 +5230,7 @@ unsafe extern "C" {
         w: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created filter descriptor object. The layout of the filters must be contiguous in memory.
     ///
     /// The tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NHWC`] has limited support in [`cudnnConvolutionForward`], [`cudnnConvolutionBackwardData`], and [`cudnnConvolutionBackwardFilter`].
@@ -5273,7 +5273,7 @@ unsafe extern "C" {
         filterDimA: *const ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously initialized `FilterNd` descriptor object.
     ///
     /// # Parameters
@@ -5299,7 +5299,7 @@ unsafe extern "C" {
         filterDimA: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the filter tensor in memory with respect to the given descriptor. It can be used to know the amount of GPU memory to be allocated to hold that filter tensor.
     ///
     /// # Parameters
@@ -5317,7 +5317,7 @@ unsafe extern "C" {
         size: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts the filter between different formats, data types, or dimensions based on the described transformation. It can be used to convert a filter with an unsupported layout format to a filter with a supported layout format.
     ///
     /// This function copies the scaled data from the input filter `srcDesc` to the output tensor `destDesc` with a different layout. If the filter descriptors of `srcDesc` and `destDesc` have different dimensions, they must be consistent with folding and padding amount and order specified in `transDesc`.
@@ -5355,7 +5355,7 @@ unsafe extern "C" {
         destData: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a filter object.
     ///
     /// # Parameters
@@ -5422,7 +5422,7 @@ pub enum cudnnSoftmaxMode_t {
     /// since: cuDNN 9.0.0
     CUDNN_SOFTMAX_MODE_CHANNEL = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the softmax function.
     ///
     /// In-place operation is allowed for this routine; meaning, `x` and `y` pointers may be equal. However, this requires `xDesc` and `yDesc` descriptors to be identical (particularly, the strides of the input and output must match for in-place operation to be allowed).
@@ -5494,7 +5494,7 @@ pub enum cudnnPoolingMode_t {
     #[deprecated]
     CUDNN_POOLING_MAX_DETERMINISTIC = 3,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a pooling descriptor object by allocating the memory needed to hold its opaque structure.
     ///
     /// # Parameters
@@ -5509,7 +5509,7 @@ unsafe extern "C" {
         poolingDesc: *mut cudnnPoolingDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic pooling descriptor object into a 2D description.
     ///
     /// # Parameters
@@ -5540,7 +5540,7 @@ unsafe extern "C" {
         horizontalStride: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously created `Pooling2d` descriptor object.
     ///
     /// # Parameters
@@ -5570,7 +5570,7 @@ unsafe extern "C" {
         horizontalStride: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic pooling descriptor object.
     ///
     /// # Parameters
@@ -5598,7 +5598,7 @@ unsafe extern "C" {
         strideA: *const ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously initialized generic `PoolingNd` descriptor object.
     ///
     /// # Parameters
@@ -5627,7 +5627,7 @@ unsafe extern "C" {
         strideA: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function provides the output dimensions of a tensor after `PoolingNd` has been applied.
     ///
     /// Each dimension of the `(nbDims-2)-D` images of the output tensor is computed as follows.
@@ -5653,7 +5653,7 @@ unsafe extern "C" {
         outputTensorDimA: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function provides the output dimensions of a tensor after `Pooling2d` has been applied.
     ///
     /// Each dimension `h` and `w` of the output images is computed as follows.
@@ -5683,7 +5683,7 @@ unsafe extern "C" {
         w: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created pooling descriptor object.
     ///
     /// # Parameters
@@ -5697,7 +5697,7 @@ unsafe extern "C" {
         poolingDesc: cudnnPoolingDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes pooling of input values (meaning, the maximum or average of several adjacent values) to produce an output with smaller height and/or width.
     ///
     /// All tensor formats are supported, best performance is expected when using HW-packed tensors. Only 2 and 3 spatial dimensions are allowed. Vectorized tensors are only supported if they have 2 spatial dimensions.
@@ -5738,7 +5738,7 @@ unsafe extern "C" {
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates an activation descriptor object by allocating the memory needed to hold its opaque structure. For more information, refer to [`cudnnActivationDescriptor_t`].
     ///
     /// # Parameters
@@ -5753,7 +5753,7 @@ unsafe extern "C" {
         activationDesc: *mut cudnnActivationDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic activation descriptor object.
     ///
     /// # Parameters
@@ -5774,7 +5774,7 @@ unsafe extern "C" {
         coef: f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously initialized generic activation descriptor object.
     ///
     /// # Parameters
@@ -5794,7 +5794,7 @@ unsafe extern "C" {
         coef: *mut f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the beta parameter of the SWISH activation function to `swish_beta`.
     ///
     /// # Parameters
@@ -5811,7 +5811,7 @@ unsafe extern "C" {
         swish_beta: f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the current beta parameter set for `SWISH` activation.
     ///
     /// # Parameters
@@ -5828,7 +5828,7 @@ unsafe extern "C" {
         swish_beta: *mut f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created activation descriptor object.
     ///
     /// # Parameters
@@ -5842,7 +5842,7 @@ unsafe extern "C" {
         activationDesc: cudnnActivationDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine applies a specified neuron activation function element-wise over each input value.
     ///
     /// In-place operation is allowed for this routine; meaning, `xData` and `yData` pointers may be equal. However, this requires `xDesc` and `yDesc` descriptors to be identical (particularly, the strides of the input and output must match for an in-place operation to be allowed).
@@ -5883,7 +5883,7 @@ unsafe extern "C" {
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allocates the memory needed to hold the data needed for LRN and `DivisiveNormalization` layers operation and returns a descriptor used with subsequent layer forward and backward calls.
     ///
     /// # Parameters
@@ -5916,7 +5916,7 @@ pub enum cudnnLRNMode_t {
     /// LRN computation is performed across the tensor’s dimension `dimA\[1\]`.
     CUDNN_LRN_CROSS_CHANNEL_DIM1 = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created LRN descriptor object.
     ///
     /// # Parameters
@@ -5939,7 +5939,7 @@ unsafe extern "C" {
         lrnK: f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves values stored in the previously initialized `LRN` descriptor object.
     ///
     /// `lrnN`, `lrnAlpha`, `lrnBeta`, `lrnK`
@@ -5964,7 +5964,7 @@ unsafe extern "C" {
         lrnK: *mut f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created LRN descriptor object.
     ///
     /// # Parameters
@@ -5976,7 +5976,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was destroyed successfully.
     pub fn cudnnDestroyLRNDescriptor(lrnDesc: cudnnLRNDescriptor_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward LRN layer computation.
     ///
     /// Supported formats are: `positive-strided`, NCHW and NHWC for 4D `x` and `y`, and only NCDHW DHW-packed for 5D (for both `x` and `y`). Only non-overlapping 4D and 5D tensors are supported. NCHW layout is preferred for performance.
@@ -6039,7 +6039,7 @@ pub enum cudnnDivNormMode_t {
     /// In the backward pass, the means are treated as independent inputs and the gradient over means is computed independently. In this mode, to yield a net gradient over the entire LCN computational graph, the `destDiffMeans` result should be backpropagated through the user’s means layer (which can be implemented using average pooling) and added to the `destDiffData` tensor produced by [`cudnnDivisiveNormalizationBackward`].
     CUDNN_DIVNORM_PRECOMPUTED_MEANS = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward spatial `DivisiveNormalization` layer computation. It divides every value in a layer by the standard deviation of its spatial neighbors. Note that `DivisiveNormalization` only implements the `x/max(c, sigma_x)` portion of the computation, where `sigma_x` is the variance over the spatial neighborhood of `x`.
     ///
     /// The full LCN (Local Contrastive Normalization) computation can be implemented as a two-step process:
@@ -6126,7 +6126,7 @@ pub enum cudnnBatchNormMode_t {
     #[deprecated]
     CUDNN_BATCHNORM_SPATIAL_PERSISTENT = 2,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function derives a secondary tensor descriptor for the batch normalization `scale`, `invVariance`, `bnBias`, and `bnScale` subtensors from the layer’s `x` data descriptor.
     ///
     /// Use the tensor descriptor produced by this function as the `bnScaleBiasMeanVarDesc` parameter for the [`cudnnBatchNormalizationForwardInference`] and [`cudnnBatchNormalizationForwardTraining`] functions, and as the `bnScaleBiasDiffDesc` parameter in the [`cudnnBatchNormalizationBackward`] function.
@@ -6177,7 +6177,7 @@ pub enum cudnnBatchNormOps_t {
     #[deprecated]
     CUDNN_BATCHNORM_OPS_BN_ADD_ACTIVATION = 2,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward batch normalization layer computation for the inference phase. This layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
     /// Only 4D and 5D tensors are supported.
@@ -6297,7 +6297,7 @@ pub enum cudnnNormAlgo_t {
     #[deprecated]
     CUDNN_NORM_ALGO_PERSIST = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function derives tensor descriptors for the normalization `mean`, `invariance`, `normBias`, and `normScale` subtensors from the layer’s `x` data descriptor and norm mode. Normalization `mean` and `invariance` share the same descriptor while `bias` and `scale` share the same descriptor.
     ///
     /// Use the tensor descriptor produced by this function as the `normScaleBiasDesc` or `normMeanVarDesc` parameter for the [`cudnnNormalizationForwardInference`] and [`cudnnNormalizationForwardTraining`] functions, and as the `dNormScaleBiasDesc` and `normMeanVarDesc` parameters in the [`cudnnNormalizationBackward`] function.
@@ -6341,7 +6341,7 @@ pub enum cudnnNormOps_t {
     #[deprecated]
     CUDNN_NORM_OPS_NORM_ADD_ACTIVATION = 2,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward normalization layer computation for the inference phase. Per-channel normalization layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
     /// Only 4D and 5D tensors are supported.
@@ -6432,7 +6432,7 @@ pub enum cudnnSamplerType_t {
     /// Selects the bilinear sampler.
     CUDNN_SAMPLER_BILINEAR = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a generic spatial transformer descriptor object by allocating the memory needed to hold its opaque structure.
     ///
     /// # Parameters
@@ -6447,7 +6447,7 @@ unsafe extern "C" {
         stDesc: *mut cudnnSpatialTransformerDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic spatial transformer descriptor object.
     ///
     /// # Parameters
@@ -6473,7 +6473,7 @@ unsafe extern "C" {
         dimA: *const ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created spatial transformer descriptor object.
     ///
     /// # Parameters
@@ -6487,7 +6487,7 @@ unsafe extern "C" {
         stDesc: cudnnSpatialTransformerDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function generates a grid of coordinates in the input tensor corresponding to each pixel from the output tensor.
     ///
     /// Only 2D transformation is supported.
@@ -6517,7 +6517,7 @@ unsafe extern "C" {
         grid: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs a sampler operation and generates the output tensor using the grid given by the grid generator.
     ///
     /// Only 2D transformation is supported.
@@ -6566,7 +6566,7 @@ pub struct cudnnDropoutStruct {
 }
 /// [`cudnnDropoutDescriptor_t`] is a pointer to an opaque structure holding the description of a dropout operation. [`cudnnCreateDropoutDescriptor`] is used to create one instance, [`cudnnSetDropoutDescriptor`] is used to initialize this instance, [`cudnnDestroyDropoutDescriptor`] is used to destroy this instance, [`cudnnGetDropoutDescriptor`] is used to query fields of a previously initialized instance, [`cudnnRestoreDropoutDescriptor`] is used to restore an instance to a previously saved off state.
 pub type cudnnDropoutDescriptor_t = *mut cudnnDropoutStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a generic dropout descriptor object by allocating the memory needed to hold its opaque structure. For more information, refer to [`cudnnDropoutDescriptor_t`].
     ///
     /// # Parameters
@@ -6581,7 +6581,7 @@ unsafe extern "C" {
         dropoutDesc: *mut cudnnDropoutDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created dropout descriptor object.
     ///
     /// # Parameters
@@ -6595,7 +6595,7 @@ unsafe extern "C" {
         dropoutDesc: cudnnDropoutDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is used to query the amount of space required to store the states of the random number generators used by the [`cudnnDropoutForward`] function.
     ///
     /// # Parameters
@@ -6611,7 +6611,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is used to query the amount of reserve needed to run dropout with the input dimensions given by `xDesc`. The same reserve space is expected to be passed to [`cudnnDropoutForward`] and [`cudnnDropoutBackward`], and its contents is expected to remain unchanged between [`cudnnDropoutForward`] and [`cudnnDropoutBackward`] calls.
     ///
     /// # Parameters
@@ -6627,7 +6627,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created dropout descriptor object. If the `states` argument is equal to `NULL`, then the random number generator states won’t be initialized, and only the `dropout` value will be set. The user is expected not to change the memory pointed at by `states` for the duration of the computation.
     ///
     /// When the `states` argument is not `NULL`, a cuRAND initialization kernel is invoked by [`cudnnSetDropoutDescriptor`]. This kernel requires a substantial amount of GPU memory for the stack. Memory is released when the kernel finishes. The `CUDNN_STATUS_ALLOC_FAILED` status is returned when no sufficient free memory is available for the GPU stack.
@@ -6657,7 +6657,7 @@ unsafe extern "C" {
         seed: ::core::ffi::c_ulonglong,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function restores a dropout descriptor to a previously saved-off state.
     ///
     /// # Parameters
@@ -6682,7 +6682,7 @@ unsafe extern "C" {
         seed: ::core::ffi::c_ulonglong,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries the fields of a previously initialized dropout descriptor.
     ///
     /// # Parameters
@@ -6705,7 +6705,7 @@ unsafe extern "C" {
         seed: *mut ::core::ffi::c_ulonglong,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs forward dropout operation over `x` returning results in `y`. If dropout was used as a parameter to [`cudnnSetDropoutDescriptor`], the approximate `dropout` fraction of `x` values will be replaced by a `0`, and the rest will be scaled by `1/(1-dropout)`. This function should not be running concurrently with another [`cudnnDropoutForward`] function using the same states.
     ///
     /// # Parameters
@@ -6878,7 +6878,7 @@ pub enum cudnnCTCLossAlgo_t {
     /// Results are not guaranteed to be reproducible.
     CUDNN_CTC_LOSS_ALGO_NON_DETERMINISTIC = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Cross-library version checker. Each sublibrary has a version checker that checks whether its own version matches that of its dependencies.
     ///
     /// # Return value
@@ -6887,7 +6887,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The version check passed.
     pub fn cudnnOpsVersionCheck() -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the gradient of the softmax function.
     ///
     /// In-place operation is allowed for this routine; meaning, `dy` and `dx` pointers may be equal. However, this requires `dyDesc` and `dxDesc` descriptors to be identical (particularly, the strides of the input and output must match for in-place operation to be allowed).
@@ -6932,7 +6932,7 @@ unsafe extern "C" {
         dx: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the gradient of a pooling operation.
     ///
     /// As of cuDNN version 6.0, a deterministic algorithm is implemented for max backwards pooling. This algorithm can be chosen via the pooling mode enum of `poolingDesc`. The deterministic algorithm has been measured to be up to 50% slower than the legacy max backwards pooling algorithm, or up to 20% faster, depending upon the use case.
@@ -6984,7 +6984,7 @@ unsafe extern "C" {
         dx: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the gradient of a neuron activation function.
     ///
     /// In-place operation is allowed for this routine; meaning `dy` and `dx` pointers may be equal. However, this requires the corresponding tensor descriptors to be identical (particularly, the strides of the input and output must match for an in-place operation to be allowed).
@@ -7035,7 +7035,7 @@ unsafe extern "C" {
         dx: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the backward LRN layer computation.
     ///
     /// Supported formats are: `positive-strided`, NCHW and NHWC for 4D `x` and `y`, and only NCDHW DHW-packed for 5D (for both `x` and `y`). Only non-overlapping 4D and 5D tensors are supported. NCHW layout is preferred for performance.
@@ -7086,7 +7086,7 @@ unsafe extern "C" {
         dx: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the backward `DivisiveNormalization` layer computation.
     ///
     /// Supported tensor formats are NCHW for 4D and NCDHW for 5D with any non-overlapping non-negative strides. Only 4D and 5D tensors are supported.
@@ -7137,7 +7137,7 @@ unsafe extern "C" {
         dMeans: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user should allocate to be able to call [`cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize`] function for the specified `bnOps` input setting. The workspace allocated should then be passed by the user to the function [`cudnnGetBatchNormalizationForwardTrainingExWorkspaceSize`].
     ///
     /// # Parameters
@@ -7174,7 +7174,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user should allocate to be able to call [`cudnnGetBatchNormalizationBackwardExWorkspaceSize`] function for the specified `bnOps` input setting. The workspace allocated will then be passed to the function [`cudnnGetBatchNormalizationBackwardExWorkspaceSize`].
     ///
     /// # Parameters
@@ -7214,7 +7214,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of reserve GPU memory workspace the user should allocate for the batch normalization operation, for the specified `bnOps` input setting. In contrast to the `workspace`, the reserved space should be preserved between the forward and backward calls, and the data should not be altered.
     ///
     /// # Parameters
@@ -7243,7 +7243,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward batch normalization layer computation for the training phase. This layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
     /// Only 4D and 5D tensors are supported.
@@ -7333,7 +7333,7 @@ unsafe extern "C" {
         resultSaveInvVariance: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is an extension of the [`cudnnBatchNormalizationForwardTraining`] for performing the forward batch normalization layer computation.
     ///
     /// This API will trigger the new semi-persistent NHWC kernel when the following conditions are true:
@@ -7443,7 +7443,7 @@ unsafe extern "C" {
         reserveSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the backward batch normalization layer computation. This layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
     /// Only 4D and 5D tensors are supported.
@@ -7515,7 +7515,7 @@ unsafe extern "C" {
         savedInvVariance: *const ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is an extension of the [`cudnnBatchNormalizationBackward`] for performing the backward batch normalization layer computation with a fast NHWC semi-persistent kernel.
     ///
     /// This API will trigger the new semi-persistent NHWC kernel when the following conditions are true:
@@ -7621,7 +7621,7 @@ unsafe extern "C" {
         reserveSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user should allocate to be able to call [`cudnnNormalizationForwardTraining`] function for the specified `normOps` and `algo` input setting. The workspace allocated should then be passed by the user to the function [`cudnnNormalizationForwardTraining`].
     ///
     /// # Parameters
@@ -7663,7 +7663,7 @@ unsafe extern "C" {
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user should allocate to be able to call [`cudnnNormalizationBackward`] function for the specified `normOps` and `algo` input setting. The workspace allocated will then be passed to the function [`cudnnNormalizationBackward`].
     ///
     /// # Parameters
@@ -7709,7 +7709,7 @@ unsafe extern "C" {
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of reserve GPU memory workspace the user should allocate for the normalization operation, for the specified `normOps` input setting. In contrast to the workspace, the reserved space should be preserved between the forward and backward calls, and the data should not be altered.
     ///
     /// # Parameters
@@ -7741,7 +7741,7 @@ unsafe extern "C" {
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the forward normalization layer computation for the training phase. Depending on mode, different normalization operations will be performed. Per-channel layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
     /// Only 4D and 5D tensors are supported.
@@ -7858,7 +7858,7 @@ unsafe extern "C" {
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs backward normalization layer computation that is specified by mode. Per-channel normalization layer is based on the [Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift paper](https://arxiv.org/abs/1502.03167).
     ///
     /// Only 4D and 5D tensors are supported.
@@ -7962,7 +7962,7 @@ unsafe extern "C" {
         groupCnt: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the gradient of a grid generation operation.
     ///
     /// Only 2D transformation is supported.
@@ -7992,7 +7992,7 @@ unsafe extern "C" {
         dtheta: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the gradient of a sampling operation.
     ///
     /// Only 2D transformation is supported.
@@ -8043,7 +8043,7 @@ unsafe extern "C" {
         dgrid: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs backward dropout operation over `dy` returning results in `dx`. If during forward dropout operation value from `x` was propagated to `y` then during backward operation value from `dy` will be propagated to `dx`, otherwise, `dx` value will be set to `0`.
     ///
     /// Better performance is obtained for fully packed tensors.
@@ -8404,7 +8404,7 @@ pub struct cudnnRNNDataStruct {
 }
 /// [`cudnnRNNDataDescriptor_t`] is a pointer to an opaque structure holding the description of an RNN data set. The function [`cudnnCreateRNNDataDescriptor`] is used to create one instance, and [`cudnnSetRNNDataDescriptor`] must be used to initialize this instance.
 pub type cudnnRNNDataDescriptor_t = *mut cudnnRNNDataStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a generic RNN descriptor object by allocating the memory needed to hold its opaque structure.
     ///
     /// # Parameters
@@ -8418,7 +8418,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateRNNDescriptor(rnnDesc: *mut cudnnRNNDescriptor_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created RNN descriptor object. Invoking [`cudnnDestroyRNNDescriptor`] with the `NULL` argument is a no operation (NOP).
     ///
     /// The [`cudnnDestroyRNNDescriptor`] function is not able to detect if the `rnnDesc` argument holds a valid address. Undefined behavior will occur in cases of passing an invalid pointer, not returned by the [`cudnnCreateRNNDescriptor`] function, or in the double deletion scenario of a valid address.
@@ -8432,7 +8432,7 @@ unsafe extern "C" {
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was destroyed successfully.
     pub fn cudnnDestroyRNNDescriptor(rnnDesc: cudnnRNNDescriptor_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created RNN descriptor object. The RNN descriptor configured by [`cudnnSetRNNDescriptor_v8`] was enhanced to store all information needed to compute the total number of adjustable weights/biases in the RNN model.
     ///
     /// # Parameters
@@ -8486,7 +8486,7 @@ unsafe extern "C" {
         auxFlags: u32,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves RNN network parameters that were configured by [`cudnnSetRNNDescriptor_v8`]. The user can assign `NULL` to any pointer except `rnnDesc` when the retrieved value is not needed. The function does not check the validity of retrieved parameters.
     ///
     /// # Parameters
@@ -8530,7 +8530,7 @@ unsafe extern "C" {
         auxFlags: *mut u32,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the LSTM cell clipping mode. The LSTM clipping is disabled by default. When enabled, clipping is applied to all layers. This [`cudnnRNNSetClip_v8`] function does not affect the work, reserve, and weight-space buffer sizes and may be called multiple times.
     ///
     /// # Parameters
@@ -8556,7 +8556,7 @@ unsafe extern "C" {
         rclip: f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the LSTM cell clipping mode. The LSTM clipping is disabled by default. When enabled, clipping is applied to all layers. This [`cudnnRNNSetClip_v8`] function does not affect the work, reserve, and weight-space buffer sizes and may be called multiple times.
     ///
     /// # Parameters
@@ -8581,7 +8581,7 @@ unsafe extern "C" {
         rclip: f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Retrieves the current LSTM cell clipping parameters, and stores them in the arguments provided. The user can assign `NULL` to any pointer except `rnnDesc` when the retrieved value is not needed. The function does not check the validity of retrieved parameters.
     ///
     /// # Parameters
@@ -8603,7 +8603,7 @@ unsafe extern "C" {
         rclip: *mut f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Retrieves the current LSTM cell clipping parameters, and stores them in the arguments provided. The user can assign NULL to any pointer except rnnDesc when the retrieved value is not needed. The function does not check the validity of retrieved parameters.
     ///
     /// # Parameters
@@ -8624,7 +8624,7 @@ unsafe extern "C" {
         rclip: *mut f64,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function compiles the RNN persistent code using CUDA runtime compilation library (NVRTC) when the [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] algo is selected. The code is tailored to the current GPU and specific hyperparameters (`miniBatch`). This call is expected to be expensive in terms of runtime and should be invoked infrequently. Note that the [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`] algo does not support variable length sequences within the batch.
     ///
     /// # Parameters
@@ -8648,7 +8648,7 @@ unsafe extern "C" {
         miniBatch: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the work and reserve space buffer sizes based on the RNN network geometry stored in `rnnDesc`, designated usage (inference or training) defined by the `fMode` argument, and the current RNN data dimensions (`maxSeqLength`, `batchSize`) retrieved from `xDesc`. When RNN data dimensions change, the [`cudnnGetRNNTempSpaceSizes`] must be called again because RNN temporary buffer sizes are not monotonic.
     ///
     /// The user can assign `NULL` to `workSpaceSize` or `reserveSpaceSize` pointers when the corresponding value is not needed.
@@ -8676,7 +8676,7 @@ unsafe extern "C" {
         reserveSpaceSize: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reports the required size of the weight space buffer in bytes. The weight space buffer holds all RNN weight matrices and bias vectors.
     ///
     /// # Parameters
@@ -8696,7 +8696,7 @@ unsafe extern "C" {
         weightSpaceSize: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is used to obtain the start address and shape of every RNN weight matrix and bias vector in each pseudo-layer within the recurrent neural network model.
     ///
     /// For more information on modes and bias modes, refer to [`cudnnRNNMode_t`].
@@ -8766,7 +8766,7 @@ unsafe extern "C" {
         bAddr: *mut *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a RNN data descriptor object by allocating the memory needed to hold its opaque structure.
     ///
     /// # Parameters
@@ -8782,7 +8782,7 @@ unsafe extern "C" {
         rnnDataDesc: *mut cudnnRNNDataDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created RNN data descriptor object. Invoking [`cudnnDestroyRNNDataDescriptor`] with the `NULL` argument is a no operation (NOP).
     ///
     /// The [`cudnnDestroyRNNDataDescriptor`] function is not able to detect if the `RNNDataDesc` argument holds a valid address. Undefined behavior will occur in cases of passing an invalid pointer, not returned by the [`cudnnCreateRNNDataDescriptor`] function, or in the double deletion scenario of a valid address.
@@ -8798,7 +8798,7 @@ unsafe extern "C" {
         rnnDataDesc: cudnnRNNDataDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created RNN data descriptor object. This data structure is intended to support the unpacked (padded) layout for input and output of extended RNN inference and training functions. A packed (unpadded) layout is also supported for backward compatibility.
     ///
     /// # Parameters
@@ -8837,7 +8837,7 @@ unsafe extern "C" {
         paddingFill: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves a previously created RNN data descriptor object.
     ///
     /// # Parameters
@@ -8871,7 +8871,7 @@ unsafe extern "C" {
         paddingFill: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This routine computes the forward response of the recurrent neural network described by `rnnDesc` with inputs in `x`, `hx`, `cx`, and weights/biases in the `weightSpace` buffer. RNN outputs are written to `y`, `hy`, and `cy` buffers. Locations of `x`, `y`, `hx`, `cx`, `hy`, and `cy` signals in the multi-layer RNN model are shown in the following figure. Note that internal RNN signals between time-steps and between layers are not exposed to the user.
     ///
     /// The next figure depicts data flow when the RNN model is bidirectional. In this mode, each RNN physical layer consists of two consecutive pseudo-layers, each with its own weights, biases, the initial hidden state `hx`, and for LSTM, also the initial cell state `cx`. Even pseudo-layers 0, 2, 4 process input vectors from left to right or in the forward (`F`) direction. Odd pseudo-layers 1, 3, 5 process input vectors from right to left or in the reverse (`R`) direction. Two successive pseudo-layers operate on the same input vectors, just in a different order. Pseudo-layers 0 and 1 access the original sequences stored in the x buffer. Outputs of `F` and `R` cells are concatenated so vectors fed to the next two pseudo-layers have lengths of 2x `hiddenSize` or 2x `projSize`. Input GEMMs in subsequent pseudo-layers adjust vector lengths to 1x `hiddenSize`.
@@ -9010,7 +9010,7 @@ pub struct cudnnSeqDataStruct {
 /// This descriptor is used by multihead attention API functions.
 #[deprecated]
 pub type cudnnSeqDataDescriptor_t = *mut cudnnSeqDataStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates one instance of an opaque sequence data descriptor object by allocating the host memory for it and initializing all descriptor fields. The function writes `NULL` to `seqDataDesc` when the sequence data descriptor object cannot be allocated.
     ///
     /// Use the [`cudnnSetSeqDataDescriptor`] function to configure the sequence data descriptor and [`cudnnDestroySeqDataDescriptor`] to destroy it and release the allocated memory.
@@ -9029,7 +9029,7 @@ unsafe extern "C" {
         seqDataDesc: *mut cudnnSeqDataDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys the sequence data descriptor object and releases its memory. The `seqDataDesc` argument can be `NULL`. Invoking [`cudnnDestroySeqDataDescriptor`] with a `NULL` argument is a no operation (NOP).
     ///
     /// The [`cudnnDestroySeqDataDescriptor`] function is not able to detect if the `seqDataDesc` argument holds a valid address. Undefined behavior will occur in case of passing an invalid pointer, not returned by the [`cudnnCreateSeqDataDescriptor`] function, or in the double deletion scenario of a valid address.
@@ -9046,7 +9046,7 @@ unsafe extern "C" {
         seqDataDesc: cudnnSeqDataDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created sequence data descriptor object. In the most simplified view, this descriptor defines dimensions (`dimA`) and the data layout (`axes`) of a four-dimensional tensor.
     ///
     /// All four dimensions of the sequence data descriptor have unique identifiers that can be used to index the `dimA[]` array:
@@ -9116,7 +9116,7 @@ unsafe extern "C" {
         paddingFill: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves settings from a previously created sequence data descriptor. The user can assign `NULL` to any pointer except `seqDataDesc` when the retrieved value is not needed. The `nbDimsRequested` argument applies to both `dimA[]` and `axes[]` arrays. A positive value of `nbDimsRequested` or `seqLengthSizeRequested` is ignored when the corresponding array, `dimA[]`, `axes[]`, or `seqLengthArray[]` is `NULL`.
     ///
     /// The [`cudnnGetSeqDataDescriptor`] function does not report the actual strides in the sequence data buffer. Those strides can be handy in computing the offset to any sequence data element. The user must precompute strides based on the `axes[]` and `dimA[]` arrays reported by the [`cudnnGetSeqDataDescriptor`] function. Below is sample code that performs this task:
@@ -9169,7 +9169,7 @@ pub struct cudnnAttnStruct {
 /// Use the [`cudnnCreateAttnDescriptor`] function to create an instance of the attention descriptor object and [`cudnnDestroyAttnDescriptor`] to delete the previously created descriptor. Use the [`cudnnSetAttnDescriptor`] function to configure the descriptor.
 #[deprecated]
 pub type cudnnAttnDescriptor_t = *mut cudnnAttnStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates one instance of an opaque attention descriptor object by allocating the host memory for it and initializing all descriptor fields. The function writes `NULL` to `attnDesc` when the attention descriptor object cannot be allocated.
     ///
     /// Use the [`cudnnSetAttnDescriptor`] function to configure the attention descriptor and [`cudnnDestroyAttnDescriptor`] to destroy it and release the allocated memory.
@@ -9188,7 +9188,7 @@ unsafe extern "C" {
         attnDesc: *mut cudnnAttnDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys the attention descriptor object and releases its memory. The `attnDesc` argument can be `NULL`. Invoking [`cudnnDestroyAttnDescriptor`] with a `NULL` argument is a no operation (NOP).
     ///
     /// The [`cudnnDestroyAttnDescriptor`] function is not able to detect if the `attnDesc` argument holds a valid address. Undefined behavior will occur in case of passing an invalid pointer, not returned by the [`cudnnCreateAttnDescriptor`] function, or in the double deletion scenario of a valid address.
@@ -9203,7 +9203,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cudnnDestroyAttnDescriptor(attnDesc: cudnnAttnDescriptor_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function configures a multihead attention descriptor that was previously created using the [`cudnnCreateAttnDescriptor`] function. The function sets attention parameters that are necessary to compute internal buffer sizes, dimensions of weight and bias tensors, or to select optimized code paths.
     ///
     /// Input sequence data descriptors in [`cudnnMultiHeadAttnForward`], [`cudnnMultiHeadAttnBackwardData`], and [`cudnnMultiHeadAttnBackwardWeights`] functions are checked against the configuration parameters stored in the attention descriptor. Some parameters must match exactly while `max` arguments such as `maxBatchSize` or `qoMaxSeqLength` establish upper limits for the corresponding dimensions.
@@ -9300,7 +9300,7 @@ unsafe extern "C" {
         maxBeamSize: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves settings from the previously created attention descriptor. The user can assign `NULL` to any pointer except `attnDesc` when the retrieved value is not needed.
     ///
     /// # Parameters
@@ -9348,7 +9348,7 @@ unsafe extern "C" {
         maxBeamSize: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes weight, work, and reserve space buffer sizes used by the following functions:
     ///
     /// Assigning `NULL` to the `reserveSpaceSizeInBytes` argument indicates that the user does not plan to invoke multihead attention gradient functions: [`cudnnMultiHeadAttnBackwardData`] and [`cudnnMultiHeadAttnBackwardWeights`]. This situation occurs in the inference mode.
@@ -9412,7 +9412,7 @@ pub enum cudnnMultiHeadAttnWeightKind_t {
     /// Selects the output projection biases.
     CUDNN_MH_ATTN_O_BIASES = 7,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the shape of the weight or bias tensor. It also retrieves the start address of tensor data located in the `weight` buffer. Use the `wKind` argument to select a particular tensor. For more information, refer to [`cudnnMultiHeadAttnWeightKind_t`] for the description of the enumerant type.
     ///
     /// Biases are used in the input and output projections when the [`CUDNN_ATTN_ENABLE_PROJ_BIASES`] flag is set in the attention descriptor. Refer to [`cudnnSetAttnDescriptor`] for the description of flags to control projection biases.
@@ -9446,7 +9446,7 @@ unsafe extern "C" {
         wAddr: *mut *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The [`cudnnMultiHeadAttnForward`] function computes the forward responses of the multihead attention layer. When `reserveSpaceSizeInBytes=0` and `reserveSpace=NULL`, the function operates in the inference mode in which backward (gradient) functions are not invoked, otherwise, the training mode is assumed. In the training mode, the reserve space is used to pass intermediate results from [`cudnnMultiHeadAttnForward`] to [`cudnnMultiHeadAttnBackwardData`] and from [`cudnnMultiHeadAttnBackwardData`] to [`cudnnMultiHeadAttnBackwardWeights`].
     ///
     /// In the inference mode, the `currIdx` specifies the time-step or sequence index of the embedding vectors to be processed. In this mode, the user can perform one iteration for time-step zero (`currIdx=0`), then update **Q**, **K**, **V** vectors and the attention window, and execute the next step (`currIdx=1`). The iterative process can be repeated for all time-steps.
@@ -9532,7 +9532,7 @@ unsafe extern "C" {
         reserveSpace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Cross-library version checker. Each sublibrary has a version checker that checks whether its own version matches that of its dependencies.
     ///
     /// # Return value
@@ -9561,7 +9561,7 @@ pub enum cudnnWgradMode_t {
     /// A weight gradient component, corresponding to a new batch of inputs, overwrites previously stored weight gradients in the output buffer.
     CUDNN_WGRAD_MODE_SET = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes exact, first-order derivatives of the RNN model with respect to its inputs: `x`, `hx` and for the LSTM cell type also `cx`. If `o = \[y, hy, cy\] = F(x, hx, cx) = F(z)` is a vector-valued function that represents the entire RNN model and it takes vectors `x` (for all time-steps) and vectors `hx`, `cx` (for all layers) as inputs, concatenated into $\textbf{z}\epsilon\mathbb{R}^{n}$ (network weights and biases are assumed constant), and outputs vectors `y`, `hy`, `cy` concatenated into a vector $\textbf{o}\epsilon\mathbb{R}^{m}$, then [`cudnnRNNBackwardData_v8`] computes the result of $\left(\partial o_{i}/\partial z_{j}\right)^{T} \delta_{out}$ where $\delta_{out}$ is the `mx1` gradient of the loss function with respect to all RNN outputs. The $\delta_{out}$ gradient is back propagated through prior layers of the deep learning model, starting from the model output. $\partial o_{i}/\partial z_{j}$ is the `mxn` Jacobian matrix of `F(z)`. The $\delta_{out}$ input is supplied via the `dy`, `dhy`, and `dcy` arguments and gradient results $\left(\partial o_{i}/\partial z_{j}\right)^{T} \delta_{out}$ are written to the `dx`, `dhx`, and `dcx` buffers.
     ///
     /// Locations of `x`, `y`, `hx`, `cx`, `hy`, `cy`, `dx`, `dy`, `dhx`, `dcx`, `dhy`, and `dcy` signals a multi-layer RNN model are shown in the following figure. Note that internal RNN signals (between time-steps and between layers) are not exposed by the [`cudnnRNNBackwardData_v8`] function.
@@ -9665,7 +9665,7 @@ unsafe extern "C" {
         reserveSpace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes exact, first-order derivatives of the RNN model with respect to all trainable parameters: weights and biases. If `o = \[y, hy, cy\] = F(w)` is a vector-valued function that represents the multi-layer RNN model and it takes some vector $\textbf{w}\epsilon\mathbb{R}^{n}$ of “flatten” weights or biases as input (with all other data inputs constant), and outputs vector $\textbf{o}\epsilon\mathbb{R}^{m}$, then [`cudnnRNNBackwardWeights_v8`] computes the result of $\left(\partial o_{i}/\partial w_{j}\right)^{T} \delta_{out}$ where $\delta_{out}$ is the `mx1` gradient of the loss function with respect to all RNN outputs. The $\delta_{out}$ gradient is back propagated through prior layers of the deep learning model, starting from the model output. $\partial o_{i}/\partial w_{j}$ is the `mxn` Jacobian matrix of `F(w)`. The $\delta_{out}$ input is supplied via the `dy`, `dhy`, and `dcy` arguments in the [`cudnnRNNBackwardData_v8`] function.
     ///
     /// All gradient results $\left(\partial o_{i}/\partial w_{j}\right)^{T} \delta_{out}$ with respect to weights and biases are written to the `dweightSpace` buffer. The size and the organization of the `dweightSpace` buffer is the same as the `weightSpace` buffer that holds RNN weights and biases.
@@ -9726,7 +9726,7 @@ unsafe extern "C" {
         reserveSpace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes exact, first-order derivatives of the multihead attention block with respect to its inputs: **Q**, **K**, **V**. If `y=F(w)` is a vector-valued function that represents the multihead attention layer and it takes some vector $\chi\epsilon\mathbb{R}^{n}$ as an input (with all other parameters and inputs constant), and outputs vector $\chi\epsilon\mathbb{R}^{m}$, then [`cudnnMultiHeadAttnBackwardData`] computes the result of $\left(\partial y_{i}/\partial x_{j}\right)^{T} \delta_{out}$ where $\delta_{out}$ is the `mx1` gradient of the loss function with respect to multihead attention outputs. The $\delta_{out}$ gradient is back propagated through prior layers of the deep learning model. $\partial y_{i}/\partial x_{j}$ is the `mxn` Jacobian matrix of `F(x)`. The input is supplied via the `dout` argument and gradient results for **Q**, **K**, **V** are written to the `dqueries`, `dkeys`, and `dvalues` buffers.
     ///
     /// The [`cudnnMultiHeadAttnBackwardData`] function does not output partial derivatives for residual connections because this result is equal to $\delta_{out}$. If the multihead attention model enables residual connections sourced directly from **Q**, then the `dout` tensor needs to be added to `dqueries` to obtain the correct result of the latter. This operation is demonstrated in the cuDNN `multiHeadAttention` sample code.
@@ -9790,7 +9790,7 @@ unsafe extern "C" {
         reserveSpace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes exact, first-order derivatives of the multihead attention block with respect to its trainable parameters: projection weights and projection biases. If `y=F(w)` is a vector-valued function that represents the multihead attention layer and it takes some vector $\chi\epsilon\mathbb{R}^{n}$ of “flatten” weights or biases as an input (with all other parameters and inputs fixed), and outputs vector $\chi\epsilon\mathbb{R}^{m}$, then [`cudnnMultiHeadAttnBackwardWeights`] computes the result of $\left(\partial y_{i}/\partial w_{j}\right)^{T} \delta_{out}$ where $\delta_{out}$ is the `mx1` gradient of the loss function with respect to multihead attention outputs. The $\delta_{out}$ gradient is back propagated through prior layers of the deep learning model. $\partial y_{i}/\partial w_{j}$ is the `mxn` Jacobian matrix of `F(w)`. The $\delta_{out}$ input is supplied via the `dout` argument.
     ///
     /// All gradient results with respect to weights and biases are written to the `dweights` buffer. The size and the organization of the `dweights` buffer is the same as the `weights` buffer that holds multihead attention weights and biases. The cuDNN `multiHeadAttention` sample code demonstrates how to access those weights.
@@ -9869,7 +9869,7 @@ pub enum cudnnLossNormalizationMode_t {
     /// The input probs of the [`cudnnCTCLoss`] function is expected to be the unnormalized activation from the previous layer, and the output `gradients` is the gradient with respect to the activation. Internally the probability is computed by softmax normalization.
     CUDNN_LOSS_NORMALIZATION_SOFTMAX = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a CTC loss function descriptor.
     ///
     /// # Parameters
@@ -9885,7 +9885,7 @@ unsafe extern "C" {
         ctcLossDesc: *mut cudnnCTCLossDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets a CTC loss function descriptor. Refer to the extended version [`cudnnSetCTCLossDescriptorEx`] to set the input normalization mode.
     ///
     /// When the extended version [`cudnnSetCTCLossDescriptorEx`] is used with `normMode` set to [`cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_NONE`] and the `gradMode` set to [`cudnnNanPropagation_t::CUDNN_NOT_PROPAGATE_NAN`], then it is the same as the current function [`cudnnSetCTCLossDescriptor`], meaning.
@@ -9905,7 +9905,7 @@ unsafe extern "C" {
         compType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is an extension of [`cudnnSetCTCLossDescriptor`]. This function provides an additional interface `normMode` to set the input normalization mode for the CTC loss function, and `gradMode` to control the `NaN` propagation type.
     ///
     /// When this function [`cudnnSetCTCLossDescriptorEx`] is used with `normMode` set to [`cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_NONE`] and the `gradMode` set to [`cudnnNanPropagation_t::CUDNN_NOT_PROPAGATE_NAN`], then it is the same as [`cudnnSetCTCLossDescriptor`], meaning.
@@ -9929,7 +9929,7 @@ unsafe extern "C" {
         gradMode: cudnnNanPropagation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Many CTC API functions are updated in v8 to support CUDA graphs. In order to do so, a new parameter is needed, `maxLabelLength`. Now that label and input data are assumed to be in GPU memory, this information is not otherwise readily available.
     ///
     /// # Parameters
@@ -9953,7 +9953,7 @@ unsafe extern "C" {
         maxLabelLength: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets a CTC loss function descriptor.
     ///
     /// # Parameters
@@ -9979,7 +9979,7 @@ unsafe extern "C" {
         maxLabelLength: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the configuration of the passed CTC loss function descriptor.
     ///
     /// # Parameters
@@ -9997,7 +9997,7 @@ unsafe extern "C" {
         compType: *mut cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the configuration of the passed CTC loss function descriptor.
     ///
     /// # Parameters
@@ -10019,7 +10019,7 @@ unsafe extern "C" {
         gradMode: *mut cudnnNanPropagation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the configuration of the passed CTC loss function descriptor.
     ///
     /// # Parameters
@@ -10043,7 +10043,7 @@ unsafe extern "C" {
         maxLabelLength: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the configuration of the passed CTC loss function descriptor.
     ///
     /// # Parameters
@@ -10066,7 +10066,7 @@ unsafe extern "C" {
         maxLabelLength: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a CTC loss function descriptor object.
     ///
     /// # Parameters
@@ -10080,7 +10080,7 @@ unsafe extern "C" {
         ctcLossDesc: cudnnCTCLossDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the CTC costs and gradients, given the probabilities and labels.
     ///
     /// This function can have an inconsistent interface depending on the [`cudnnLossNormalizationMode_t`] chosen (bound to the [`cudnnCTCLossDescriptor_t`] with [`cudnnSetCTCLossDescriptorEx`]). For the [`cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_NONE`], this function has an inconsistent interface, for example, the probs input is probability normalized by softmax, but the gradients output is with respect to the unnormalized activation. However, for [`cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_SOFTMAX`], the function has a consistent interface; all values are normalized by softmax.
@@ -10128,7 +10128,7 @@ unsafe extern "C" {
         workSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the CTC costs and gradients, given the probabilities and labels. Many CTC API functions were updated in version 8 with the `_v8` suffix to support CUDA graphs. Label and input data is now passed in GPU memory.
     ///
     /// This function can have an inconsistent interface depending on the [`cudnnLossNormalizationMode_t`] chosen (bound to the [`cudnnCTCLossDescriptor_t`] with [`cudnnSetCTCLossDescriptorEx`]). For the [`cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_NONE`], this function has an inconsistent interface, for example, the probs input is probability normalized by softmax, but the gradients output is with respect to the unnormalized activation. However, for [`cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_SOFTMAX`], the function has a consistent interface; all values are normalized by softmax.
@@ -10173,7 +10173,7 @@ unsafe extern "C" {
         workspace: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user needs to allocate to be able to call [`cudnnCTCLoss`] with the specified algorithm. The workspace allocated will then be passed to the routine [`cudnnCTCLoss`].
     ///
     /// # Parameters
@@ -10210,7 +10210,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user needs to allocate to be able to call [`cudnnCTCLoss_v8`] with the specified algorithm. The workspace allocated will then be passed to the routine [`cudnnCTCLoss_v8`].
     ///
     /// [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]
@@ -10292,7 +10292,7 @@ impl Default for cudnnConvolutionFwdAlgoPerfStruct {
 /// **Data Members**.
 #[deprecated]
 pub type cudnnConvolutionFwdAlgoPerf_t = cudnnConvolutionFwdAlgoPerfStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates a convolution descriptor object by allocating the memory needed to hold its opaque structure. For more information, refer to [`cudnnConvolutionDescriptor_t`].
     ///
     /// # Parameters
@@ -10308,7 +10308,7 @@ unsafe extern "C" {
         convDesc: *mut cudnnConvolutionDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously created convolution descriptor object.
     ///
     /// # Parameters
@@ -10323,7 +10323,7 @@ unsafe extern "C" {
         convDesc: cudnnConvolutionDescriptor_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allows the user to specify whether or not the use of tensor op is permitted in the library routines associated with a given convolution descriptor.
     ///
     /// # Parameters
@@ -10341,7 +10341,7 @@ unsafe extern "C" {
         mathType: cudnnMathType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the math type specified in a given convolution descriptor.
     ///
     /// # Parameters
@@ -10359,7 +10359,7 @@ unsafe extern "C" {
         mathType: *mut cudnnMathType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function allows the user to specify the number of groups to be used in the associated convolution.
     ///
     /// # Parameters
@@ -10377,7 +10377,7 @@ unsafe extern "C" {
         groupCount: ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the group count specified in the given convolution descriptor.
     ///
     /// # Parameters
@@ -10395,7 +10395,7 @@ unsafe extern "C" {
         groupCount: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the convolution reorder type for the given convolution descriptor.
     ///
     /// # Parameters
@@ -10413,7 +10413,7 @@ unsafe extern "C" {
         reorderType: cudnnReorderType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves the convolution reorder type from the given convolution descriptor.
     ///
     /// # Parameters
@@ -10431,7 +10431,7 @@ unsafe extern "C" {
         reorderType: *mut cudnnReorderType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created convolution descriptor object into a 2D correlation. This function assumes that the tensor and filter descriptors correspond to the forward convolution path and checks if their settings are valid. That same convolution descriptor can be reused in the backward path provided it corresponds to the same layer.
     ///
     /// # Parameters
@@ -10469,7 +10469,7 @@ unsafe extern "C" {
         computeType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously initialized 2D convolution descriptor object.
     ///
     /// # Parameters
@@ -10501,7 +10501,7 @@ unsafe extern "C" {
         computeType: *mut cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created generic convolution descriptor object into a `Nd` correlation. That same convolution descriptor can be reused in the backward path provided it corresponds to the same layer. The convolution computation will be done in the specified `dataType`, which can be potentially different from the input/output tensors.
     ///
     /// # Parameters
@@ -10540,7 +10540,7 @@ unsafe extern "C" {
         computeType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function queries a previously initialized convolution descriptor object.
     ///
     /// # Parameters
@@ -10574,7 +10574,7 @@ unsafe extern "C" {
         computeType: *mut cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the dimensions of the resulting 4D tensor of a 2D convolution, given the convolution descriptor, the input tensor descriptor and the filter descriptor. This function can help to set up the output tensor and allocate the proper amount of memory prior to launching the actual convolution.
     ///
     /// Each dimension `h` and `w` of the output images is computed as follows.
@@ -10604,7 +10604,7 @@ unsafe extern "C" {
         w: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the dimensions of the resulting `Nd` tensor of a `nbDims-2-D` convolution, given the convolution descriptor, the input tensor descriptor and the filter descriptor This function can help to setup the output tensor and allocate the proper amount of memory prior to launch the actual convolution.
     ///
     /// Each dimension of the `(nbDims-2)-D` images of the output tensor is computed as follows:
@@ -10639,7 +10639,7 @@ unsafe extern "C" {
         tensorOuputDimA: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the maximum number of algorithms which can be returned from [`cudnnFindConvolutionForwardAlgorithm`] and [`cudnnGetConvolutionForwardAlgorithm_v7`]. This is the sum of all algorithms plus the sum of all algorithms with Tensor Core operations supported for the current device.
     ///
     /// # Parameters
@@ -10657,7 +10657,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function serves as a heuristic for obtaining the best suited algorithm for [`cudnnConvolutionForward`] for the given layer specifications. This function will return all algorithms (including [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] versions of algorithms where [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] may be available) sorted by expected (based on internal heuristic) relative performance with the fastest being index `0` of `perfResults`. For an exhaustive search for the fastest algorithm, use [`cudnnFindConvolutionForwardAlgorithm`]. The total number of resulting algorithms can be queried through the `returnedAlgoCount` variable.
     ///
     /// # Parameters
@@ -10694,7 +10694,7 @@ unsafe extern "C" {
         perfResults: *mut cudnnConvolutionFwdAlgoPerf_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function attempts all algorithms available for [`cudnnConvolutionForward`]. It will attempt both the provided `convDesc mathType` and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] (assuming the two differ).
     ///
     /// Algorithms without the [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] availability will only be tried with [`cudnnMathType_t::CUDNN_DEFAULT_MATH`], and returned as such.
@@ -10738,7 +10738,7 @@ unsafe extern "C" {
         perfResults: *mut cudnnConvolutionFwdAlgoPerf_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function attempts all algorithms available for [`cudnnConvolutionForward`]. It will attempt both the provided `convDesc mathType` and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] (assuming the two differ).
     ///
     /// Algorithms without the [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] availability will only be tried with [`cudnnMathType_t::CUDNN_DEFAULT_MATH`], and returned as such.
@@ -10792,7 +10792,7 @@ unsafe extern "C" {
         workSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function constructs the A matrix necessary to perform a forward pass of GEMM convolution.
     ///
     /// This A matrix has a height of `batch_size`y_height`y_width` and width of `input_channels`filter_height`filter_width`, where:
@@ -10824,7 +10824,7 @@ unsafe extern "C" {
         colBuffer: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function reorders the filter and bias values for tensors with data type [`cudnnDataType_t::CUDNN_DATA_INT8x32`] and tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`]. It can be used to enhance the inference time by separating the reordering operation from convolution.
     ///
     /// Filter and bias tensors with data type [`cudnnDataType_t::CUDNN_DATA_INT8x32`] (also implying tensor format [`cudnnTensorFormat_t::CUDNN_TENSOR_NCHW_VECT_C`]) requires permutation of output channel axes in order to take advantage of the Tensor Core IMMA instruction. This is done in every [`cudnnConvolutionForward`] and [`cudnnConvolutionBiasActivationForward`] call when the reorder type attribute of the convolution descriptor is set to [`cudnnReorderType_t::CUDNN_DEFAULT_REORDER`]. Users can avoid the repeated reordering kernel call by first using this call to reorder the filter and bias tensor and call the convolution forward APIs with reorder type set to [`cudnnReorderType_t::CUDNN_NO_REORDER`].
@@ -10860,7 +10860,7 @@ unsafe extern "C" {
         reorderedBiasData: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user needs to allocate to be able to call [`cudnnConvolutionForward`] with the specified algorithm. The workspace allocated will then be passed to the routine [`cudnnConvolutionForward`]. The specified algorithm can be the result of the call to [`cudnnGetConvolutionForwardAlgorithm_v7`] or can be chosen arbitrarily by the user. Note that not every algorithm is available for every configuration of the input tensor and/or every configuration of the convolution descriptor.
     ///
     /// # Parameters
@@ -10895,7 +10895,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function executes convolutions or cross-correlations over `x` using filters specified with `w`, returning results in `y`. Scaling factors `alpha` and `beta` can be used to scale the input tensor and the output tensor respectively.
     ///
     /// The routine [`cudnnGetConvolution2dForwardOutputDim`] or [`cudnnGetConvolutionNdForwardOutputDim`] can be used to determine the proper dimensions of the output tensor descriptor `yDesc` with respect to `xDesc`, `convDesc`, and `wDesc`.
@@ -10971,7 +10971,7 @@ unsafe extern "C" {
         y: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function applies a bias and then an activation to the convolutions or cross-correlations of [`cudnnConvolutionForward`], returning results in `y`. The full computation follows the equation `y = act (alpha1 * conv(x) + alpha2 * z + bias)`.
     ///
     /// The routine [`cudnnGetConvolution2dForwardOutputDim`] or [`cudnnGetConvolutionNdForwardOutputDim`] can be used to determine the proper dimensions of the output tensor descriptor `yDesc` with respect to `xDesc`, `convDesc`, and `wDesc`.
@@ -11067,7 +11067,7 @@ impl Default for cudnnConvolutionBwdDataAlgoPerfStruct {
 /// **Data Members**.
 #[deprecated]
 pub type cudnnConvolutionBwdDataAlgoPerf_t = cudnnConvolutionBwdDataAlgoPerfStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the maximum number of algorithms which can be returned from [`cudnnFindConvolutionBackwardDataAlgorithm`] and [`cudnnGetConvolutionForwardAlgorithm_v7`]. This is the sum of all algorithms plus the sum of all algorithms with Tensor Core operations supported for the current device.
     ///
     /// # Parameters
@@ -11085,7 +11085,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function attempts all algorithms available for [`cudnnConvolutionBackwardData`]. It will attempt both the provided `convDesc` `mathType` and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] (assuming the two differ).
     ///
     /// Algorithms without the [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] availability will only be tried with [`cudnnMathType_t::CUDNN_DEFAULT_MATH`], and returned as such.
@@ -11131,7 +11131,7 @@ unsafe extern "C" {
         perfResults: *mut cudnnConvolutionBwdDataAlgoPerf_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function attempts all algorithms available for [`cudnnConvolutionBackwardData`]. It will attempt both the provided `convDesc` `mathType` and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] (assuming the two differ).
     ///
     /// Algorithms without the [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] availability will only be tried with [`cudnnMathType_t::CUDNN_DEFAULT_MATH`], and returned as such.
@@ -11186,7 +11186,7 @@ unsafe extern "C" {
         workSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function serves as a heuristic for obtaining the best suited algorithm for [`cudnnConvolutionBackwardData`] for the given layer specifications. This function will return all algorithms (including [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] versions of algorithms where [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] may be available) sorted by expected (based on internal heuristic) relative performance with the fastest being index `0` of `perfResults`. For an exhaustive search for the fastest algorithm, use [`cudnnFindConvolutionBackwardDataAlgorithm`]. The total number of resulting algorithms can be queried through the `returnedAlgoCount` variable.
     ///
     /// # Parameters
@@ -11221,7 +11221,7 @@ unsafe extern "C" {
         perfResults: *mut cudnnConvolutionBwdDataAlgoPerf_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user needs to allocate to be able to call [`cudnnConvolutionBackwardData`] with the specified algorithm. The workspace allocated will then be passed to the routine [`cudnnConvolutionBackwardData`]. The specified algorithm can be the result of the call to [`cudnnGetConvolutionBackwardDataAlgorithm_v7`] or can be chosen arbitrarily by the user. Note that not every algorithm is available for every configuration of the input tensor and/or every configuration of the convolution descriptor.
     ///
     /// # Parameters
@@ -11253,7 +11253,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the convolution data gradient of the tensor `dy`, where `y` is the output of the forward convolution in [`cudnnConvolutionForward`]. It uses the specified `algo`, and returns the results in the output tensor `dx`. Scaling factors `alpha` and `beta` can be used to scale the computed result or accumulate with the current `dx`.
     ///
     /// **Supported Configurations**
@@ -11323,7 +11323,7 @@ unsafe extern "C" {
         dx: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function calculates folding descriptors for backward data gradients. It takes as input the data descriptors along with the convolution descriptor and computes the folded data descriptors and the folding transform descriptors. These can then be used to do the actual folding transform.
     ///
     /// # Parameters
@@ -11709,7 +11709,7 @@ pub enum cudnnFusedOpsVariantParamLabel_t {
     #[deprecated]
     CUDNN_SCALAR_DOUBLE_BN_EPSILON = 103,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Cross-library version checker. Each sublibrary has a version checker that checks whether its own version matches that of its dependencies.
     ///
     /// # Return value
@@ -11759,7 +11759,7 @@ impl Default for cudnnConvolutionBwdFilterAlgoPerfStruct {
 /// **Data Members**.
 #[deprecated]
 pub type cudnnConvolutionBwdFilterAlgoPerf_t = cudnnConvolutionBwdFilterAlgoPerfStruct;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the maximum number of algorithms which can be returned from [`cudnnFindConvolutionBackwardFilterAlgorithm`] and [`cudnnGetConvolutionForwardAlgorithm_v7`]. This is the sum of all algorithms plus the sum of all algorithms with Tensor Core operations supported for the current device.
     ///
     /// # Parameters
@@ -11777,7 +11777,7 @@ unsafe extern "C" {
         count: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function attempts all algorithms available for [`cudnnConvolutionBackwardFilter`]. It will attempt both the provided `convDesc mathType` and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] (assuming the two differ).
     ///
     /// Algorithms without the [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] availability will only be tried with [`cudnnMathType_t::CUDNN_DEFAULT_MATH`], and returned as such.
@@ -11823,7 +11823,7 @@ unsafe extern "C" {
         perfResults: *mut cudnnConvolutionBwdFilterAlgoPerf_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function attempts all algorithms available for [`cudnnConvolutionBackwardFilter`]. It will attempt both the provided `convDesc mathType` and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] (assuming the two differ).
     ///
     /// Algorithms without the [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] availability will only be tried with [`cudnnMathType_t::CUDNN_DEFAULT_MATH`], and returned as such.
@@ -11877,7 +11877,7 @@ unsafe extern "C" {
         workSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function serves as a heuristic for obtaining the best suited algorithm for [`cudnnConvolutionBackwardFilter`] for the given layer specifications. This function will return all algorithms (including [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] and [`cudnnMathType_t::CUDNN_DEFAULT_MATH`] versions of algorithms where [`cudnnMathType_t::CUDNN_TENSOR_OP_MATH`] may be available) sorted by expected (based on internal heuristic) relative performance with the fastest being index `0` of `perfResults`. For an exhaustive search for the fastest algorithm, use [`cudnnFindConvolutionBackwardFilterAlgorithm`]. The total number of resulting algorithms can be queried through the `returnedAlgoCount` variable.
     ///
     /// # Parameters
@@ -11912,7 +11912,7 @@ unsafe extern "C" {
         perfResults: *mut cudnnConvolutionBwdFilterAlgoPerf_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the amount of GPU memory workspace the user needs to allocate to be able to call [`cudnnConvolutionBackwardFilter`] with the specified algorithm. The workspace allocated will then be passed to the routine [`cudnnConvolutionBackwardFilter`]. The specified algorithm can be the result of the call to [`cudnnGetConvolutionBackwardFilterAlgorithm_v7`] or can be chosen arbitrarily by the user. Note that not every algorithm is available for every configuration of the input tensor and/or every configuration of the convolution descriptor.
     ///
     /// # Parameters
@@ -11944,7 +11944,7 @@ unsafe extern "C" {
         sizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the convolution weight (filter) gradient of the tensor `dy`, where `y` is the output of the forward convolution in [`cudnnConvolutionForward`]. It uses the specified `algo`, and returns the results in the output tensor `dw`. Scaling factors `alpha` and `beta` can be used to scale the computed result or accumulate with the current `dw`.
     ///
     /// **Supported Configurations**
@@ -12015,7 +12015,7 @@ unsafe extern "C" {
         dw: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the convolution function gradient with respect to the bias, which is the sum of every element belonging to the same feature map across all of the images of the input tensor. Therefore, the number of elements produced is equal to the number of features maps of the input tensor.
     ///
     /// # Parameters
@@ -12048,7 +12048,7 @@ unsafe extern "C" {
         db: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates an opaque structure to store the various problem size information, such as the shape, layout and the type of tensors, and the descriptors for convolution and activation, for the selected sequence of `cudnnFusedOps` computations.
     ///
     /// # Parameters
@@ -12067,7 +12067,7 @@ unsafe extern "C" {
         ops: cudnnFusedOps_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously-created [`cudnnFusedOpsConstParamPack_t`] structure.
     ///
     /// # Parameters
@@ -12083,7 +12083,7 @@ unsafe extern "C" {
         constPack: cudnnFusedOpsConstParamPack_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the descriptor pointed to by the `param` pointer input. The type of the descriptor to be set is indicated by the enum value of the `paramLabel` input.
     ///
     /// # Parameters
@@ -12105,7 +12105,7 @@ unsafe extern "C" {
         param: *const ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves the values of the descriptor pointed to by the `param` pointer input. The type of the descriptor is indicated by the enum value of `paramLabel` input.
     ///
     /// # Parameters
@@ -12126,7 +12126,7 @@ unsafe extern "C" {
         isNULL: *mut ::core::ffi::c_int,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates the variant pack descriptor for the `cudnnFusedOps` computation.
     ///
     /// # Parameters
@@ -12145,7 +12145,7 @@ unsafe extern "C" {
         ops: cudnnFusedOps_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys a previously-created descriptor for `cudnnFusedOps` constant parameters.
     ///
     /// # Parameters
@@ -12160,7 +12160,7 @@ unsafe extern "C" {
         varPack: cudnnFusedOpsVariantParamPack_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the variable parameter pack descriptor.
     ///
     /// Footnotes.
@@ -12184,7 +12184,7 @@ unsafe extern "C" {
         ptr: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function retrieves the settings of the variable parameter pack descriptor.
     ///
     /// # Parameters
@@ -12203,7 +12203,7 @@ unsafe extern "C" {
         ptr: *mut ::core::ffi::c_void,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates the plan descriptor for the `cudnnFusedOps` computation. This descriptor contains the plan information, including the problem type and size, which kernels should be run, and the internal workspace partition.
     ///
     /// # Parameters
@@ -12222,7 +12222,7 @@ unsafe extern "C" {
         ops: cudnnFusedOps_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys the plan descriptor provided.
     ///
     /// # Parameters
@@ -12235,7 +12235,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cudnnDestroyFusedOpsPlan(plan: cudnnFusedOpsPlan_t) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function determines the optimum kernel to execute, and the workspace size the user should allocate, prior to the actual execution of the fused operations by [`cudnnFusedOpsExecute`].
     ///
     /// # Parameters
@@ -12257,7 +12257,7 @@ unsafe extern "C" {
         workspaceSizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function executes the sequence of `cudnnFusedOps` operations.
     ///
     /// # Parameters
@@ -12288,7 +12288,7 @@ pub enum cudnnCausalConv1dActivation_t {
     /// SiLU (Sigmoid Linear Unit) activation.
     CUDNN_CAUSAL_CONV1D_ACTIVATION_SILU = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Check the version of the cuDNN SubquadraticOps library.
     ///
     /// Verifies that the SubquadraticOps sub-library version matches the core cuDNN version.
@@ -12304,7 +12304,7 @@ unsafe extern "C" {
     /// since: cuDNN 9.22.0
     pub fn cudnnSubquadraticOpsVersionCheck() -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Compute a causal (left-padded) depthwise 1D convolution with optional SiLU activation.
     ///
     /// Computes: y = Act( conv1d_causal(x, weight) + bias )
@@ -12356,7 +12356,7 @@ unsafe extern "C" {
         activation: cudnnCausalConv1dActivation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Compute gradients for causal depthwise 1D convolution.
     ///
     /// Computes:
@@ -12417,7 +12417,7 @@ unsafe extern "C" {
         activation: cudnnCausalConv1dActivation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cudnnCausalConv1dNwhForward
     ///
     /// Same as cudnnCausalConv1dForward but with NWH input/output layout: x:  (batch, seqLen, dim) y:  (batch, seqLen, dim) The weight layout is (kernelSize, dim); the bias layout is (dim,). Supported data types are DOUBLE, FLOAT, HALF, and BFLOAT16.
@@ -12435,7 +12435,7 @@ unsafe extern "C" {
         activation: cudnnCausalConv1dActivation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cudnnCausalConv1dNwhBackward
     ///
     /// Same as cudnnCausalConv1dBackward but with NWH tensor layouts: x, dy, dx: (batch, seqLen, dim) weight, dweight: (kernelSize, dim) bias, dbias: (dim,) dweight and dbias use DOUBLE for DOUBLE inputs and FLOAT otherwise.
@@ -12457,7 +12457,7 @@ unsafe extern "C" {
         activation: cudnnCausalConv1dActivation_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cudnnB2BCausalConv1dForward
     ///
     /// Fused back-to-back causal conv1d: projection conv → elementwise gating → mixer conv. No activation is applied to individual conv outputs (identity only).
@@ -12481,7 +12481,7 @@ unsafe extern "C" {
         dataType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cudnnB2BCausalConv1dBackward
     ///
     /// Computes gradients for fused back-to-back causal conv1d.
@@ -12510,7 +12510,7 @@ unsafe extern "C" {
         dwDataType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Compute a causal depthwise 1D convolution using the medium FFT path.
     ///
     /// Computes: y = conv1d_causal(x, weight)
@@ -12570,7 +12570,7 @@ unsafe extern "C" {
         dataType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Compute gradients for medium FFT causal depthwise 1D convolution.
     ///
     /// Computes gradients for: y = conv1d_causal(x, weight)
@@ -12632,7 +12632,7 @@ unsafe extern "C" {
         dataType: cudnnDataType_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Return workspace and reserve-space sizes for the long FFT causal conv1d path.
     ///
     /// The long FFT path computes the same causal depthwise convolution as cudnnLongFFTCausalConv1dForward, using a full-sequence FFT formulation. For supported long shapes, kernelSize == seqLen and the forward path transforms zero-padded x and weight with FFT length 2 * seqLen, multiplies their spectra pointwise, and inverse-transforms the product to recover the causal output. The long FFT path uses the FFT weight layout documented by cudnnLongFFTCausalConv1dForward, which is reversed relative to the non-FFT causal conv1d weight layout.
@@ -12684,7 +12684,7 @@ unsafe extern "C" {
         reserveSpaceSizeInBytes: *mut size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Compute a causal depthwise 1D convolution using the long FFT path.
     ///
     /// Computes: y = conv1d_causal(x, weight)
@@ -12756,7 +12756,7 @@ unsafe extern "C" {
         reserveSpaceSizeInBytes: size_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Compute gradients for long FFT causal depthwise 1D convolution.
     ///
     /// Computes gradients for: y = conv1d_causal(x, weight)
@@ -12873,7 +12873,7 @@ impl Default for cudnnGnnCscGraph_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cudnnGnnAggSimpleForward
     ///
     /// Performs neighborhood aggregation on a CSC-format graph using NVRTC-compiled kernels (JIT-compiled on first call per (dataType, idxType), cached thereafter). The JIT cache is process-global and thread-safe.
@@ -12900,7 +12900,7 @@ unsafe extern "C" {
         aggOp: cudnnGnnAggOp_t,
     ) -> cudnnStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// cudnnGnnAggSimpleBackward
     ///
     /// Computes gradients for cudnnGnnAggSimpleForward. For each destination node, reads the upstream gradient and scatters contributions back to source neighbors via atomic-add (non-deterministic across runs; order of atomics is not guaranteed).

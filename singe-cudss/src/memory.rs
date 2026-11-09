@@ -42,11 +42,8 @@ pub type DeviceFreeFn = unsafe extern "C" fn(
 
 /// A user-provided stream-ordered device memory handler for cuDSS.
 ///
-/// cuDSS uses this handler during [`Context::execute`](crate::context::Context::execute)
-/// to allocate internal device buffers. Those allocations are owned by
-/// [`SolverState`](crate::data::SolverState) objects until the corresponding data object is
-/// destroyed, so a handler must not be replaced or outlive its backing memory
-/// pool while any `SolverState` object may still contain memory allocated by it.
+/// cuDSS uses this handler during [`Context::execute`](crate::context::Context::execute) to allocate internal device buffers.
+/// Those allocations are owned by [`SolverState`](crate::data::SolverState) objects until the corresponding data object is destroyed, so a handler must not be replaced or outlive its backing memory pool while any `SolverState` object may still contain memory allocated by it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeviceMemoryHandler(sys::cudssDeviceMemHandler_t);
 
@@ -57,17 +54,13 @@ impl DeviceMemoryHandler {
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` contains an interior NUL byte or exceeds
-    /// cuDSS' allocator-name capacity, including the trailing NUL byte.
+    /// Returns an error if `name` contains an interior NUL byte or exceeds cuDSS' allocator-name capacity, including the trailing NUL byte.
     ///
     /// # Safety
     ///
-    /// `context` must remain valid for every cuDSS call that can allocate or free
-    /// through this handler. The callbacks must implement cuDSS' stream-ordered
-    /// allocation contract, return `0` on success, and allocate memory that is
-    /// valid for the CUDA context bound to the cuDSS handle. Memory returned by
-    /// `device_alloc` must be at least 256-byte aligned, and `device_free` must
-    /// accept the exact pointer and size pairs produced by `device_alloc`.
+    /// `context` must remain valid for every cuDSS call that can allocate or free through this handler.
+    /// The callbacks must implement cuDSS' stream-ordered allocation contract, return `0` on success, and allocate memory that is valid for the CUDA context bound to the cuDSS handle.
+    /// Memory returned by `device_alloc` must be at least 256-byte aligned, and `device_free` must accept the exact pointer and size pairs produced by `device_alloc`.
     pub unsafe fn create(
         name: &str,
         context: *mut c_void,
@@ -136,9 +129,9 @@ impl DeviceMemoryHandler {
 
 /// A borrowed, initialized device pointer table with its actual CUDA context.
 ///
-/// The table contains addresses, not initialized `T` values. Write-only solution
-/// pointers may identify uninitialized storage. Raw execution determines which
-/// pointees must be initialized and which may be written.
+/// The table contains addresses, not initialized `T` values.
+/// Write-only solution pointers may identify uninitialized storage.
+/// Raw execution determines which pointees must be initialized and which may be written.
 #[derive(Debug, Clone, Copy)]
 pub struct DevicePointerTable<'a, T: DeviceRepr> {
     table: Option<DeviceView<'a, DevicePtr>>,
@@ -170,17 +163,14 @@ impl<'a, T: DeviceRepr> DevicePointerTable<'a, T> {
     ///
     /// # Errors
     ///
-    /// Returns a CUDA view error if the pointer-table length overflows its byte
-    /// representation, exceeds the region, or the region does not satisfy the
-    /// alignment and address requirements of a `DevicePtr` slice.
+    /// Returns a CUDA view error if the pointer-table length overflows its byte representation, exceeds the region, or the region does not satisfy the alignment and address requirements of a `DevicePtr` slice.
     ///
     /// # Safety
     ///
-    /// The region must contain `length` initialized `DevicePtr` values. Every entry
-    /// used by cuDSS must identify live, aligned storage for T in the region's
-    /// actual context. Retain the table and all pointees through descriptor use
-    /// and queued completion. Initialization and access permissions of pointees
-    /// must satisfy the execution phase; constructing a table establishes neither.
+    /// The region must contain `length` initialized `DevicePtr` values.
+    /// Every entry used by cuDSS must identify live, aligned storage for T in the region's actual context.
+    /// Retain the table and all pointees through descriptor use and queued completion.
+    /// Initialization and access permissions of pointees must satisfy the execution phase; constructing a table establishes neither.
     pub unsafe fn from_raw(region: DeviceRegion<'a>, length: usize) -> Result<Self> {
         let context = region.context();
         // SAFETY: the caller establishes initialized pointers and region liveness.
@@ -200,9 +190,8 @@ impl<'a, T: DeviceRepr> DevicePointerTable<'a, T> {
     ///
     /// # Safety
     ///
-    /// All referenced buffers must outlive the descriptor and queued work, and
-    /// satisfy the context, alignment, initialization, and access contract of
-    /// [`Self::from_raw`]. This borrow alone retains only the table allocation.
+    /// All referenced buffers must outlive the descriptor and queued work, and satisfy the context, alignment, initialization, and access contract of [`Self::from_raw`].
+    /// This borrow alone retains only the table allocation.
     pub unsafe fn from_device_memory<B>(memory: &'a B) -> Result<Self>
     where
         B: DeviceSlice<DevicePtr> + ?Sized,

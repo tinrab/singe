@@ -58,7 +58,8 @@ impl Display for EventRecordFlags {
 
 /// A CUDA event and its retained context.
 ///
-/// Recording captures preceding work on a stream; querying, waiting, and elapsed-time calculations refer to the event's most recent recording. Dropping the wrapper destroys its native event handle.
+/// Recording captures preceding work on a stream; querying, waiting, and elapsed-time calculations refer to the event's most recent recording.
+/// Dropping the wrapper destroys its native event handle.
 #[derive(Debug)]
 pub struct Event {
     handle: runtime::cudaEvent_t,
@@ -92,13 +93,13 @@ impl Event {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid CUDA event owned by `context`, and ownership of the
-    /// handle is transferred to the returned [`Event`]. The handle must not be
-    /// destroyed elsewhere after calling this function.
+    /// `handle` must be a valid CUDA event owned by `context`, and ownership of the handle is transferred to the returned [`Event`].
+    /// The handle must not be destroyed elsewhere after calling this function.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null. The caller must satisfy the remaining handle validity and ownership requirements.
+    /// Returns `Error::NullHandle` if `handle` is null.
+    /// The caller must satisfy the remaining handle validity and ownership requirements.
     pub unsafe fn from_raw(handle: runtime::cudaEvent_t, context: Arc<Context>) -> Result<Self> {
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -109,11 +110,13 @@ impl Event {
 
     /// Records the work preceding this call on the supplied stream.
     ///
-    /// Re-recording replaces the event's captured work. `flags` controls whether capture treats this as an external event record.
+    /// Re-recording replaces the event's captured work.
+    /// `flags` controls whether capture treats this as an external event record.
     ///
     /// # Errors
     ///
-    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts. Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
+    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts.
+    /// Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
     pub fn record(&self, stream: &Stream, flags: EventRecordFlags) -> Result<()> {
         if stream.context() != self.context() {
             return Err(Error::StreamContextMismatch);
@@ -123,11 +126,13 @@ impl Event {
 
     /// Records the work preceding this call on the supplied borrowed stream.
     ///
-    /// Re-recording replaces the event's captured work. `flags` controls whether capture treats this as an external event record.
+    /// Re-recording replaces the event's captured work.
+    /// `flags` controls whether capture treats this as an external event record.
     ///
     /// # Errors
     ///
-    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts. Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
+    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts.
+    /// Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
     pub fn record_borrowed(&self, stream: &BorrowedStream, flags: EventRecordFlags) -> Result<()> {
         if stream.context() != self.context() {
             return Err(Error::StreamContextMismatch);
@@ -137,11 +142,13 @@ impl Event {
 
     /// Records the work preceding this call on the supplied stream binding.
     ///
-    /// Re-recording replaces the event's captured work. `flags` controls whether capture treats this as an external event record.
+    /// Re-recording replaces the event's captured work.
+    /// `flags` controls whether capture treats this as an external event record.
     ///
     /// # Errors
     ///
-    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts. Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
+    /// Returns `Error::StreamContextMismatch` if the stream and event belong to different contexts.
+    /// Also returns an error if the event context cannot be bound, CUDA rejects the recording or flags, or previous asynchronous work reports an error.
     pub fn record_on(&self, stream: &StreamBinding, flags: EventRecordFlags) -> Result<()> {
         if stream.context() != self.context() {
             return Err(Error::StreamContextMismatch);
@@ -171,11 +178,8 @@ impl Event {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the event. CUDA may also report
-    /// errors from previous asynchronous launches, internal runtime
-    /// initialization errors such as [`crate::error::Status::NotInitialized`],
-    /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
-    /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
+    /// Returns an error if CUDA cannot query the event.
+    /// CUDA may also report errors from previous asynchronous launches, internal runtime initialization errors such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn query(&self) -> Result<bool> {
         self.context.bind()?;
         // SAFETY: `cudaEventQuery` receives live handles owned by the wrappers.
@@ -195,11 +199,8 @@ impl Event {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot wait for the event. CUDA may also report
-    /// errors from previous asynchronous launches, internal runtime
-    /// initialization errors such as [`crate::error::Status::NotInitialized`],
-    /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
-    /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
+    /// Returns an error if CUDA cannot wait for the event.
+    /// CUDA may also report errors from previous asynchronous launches, internal runtime initialization errors such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn synchronize(&self) -> Result<()> {
         self.context.bind()?;
         // SAFETY: `cudaEventSynchronize` receives live handles owned by the wrappers.
@@ -223,13 +224,8 @@ impl Event {
     ///
     /// # Errors
     ///
-    /// Returns an error if the events belong to different contexts, either
-    /// event has not been recorded, either event is incomplete, timing was
-    /// disabled on either event, or CUDA rejects the elapsed-time query. CUDA
-    /// may also report errors from previous asynchronous launches, internal
-    /// runtime initialization errors such as [`crate::error::Status::NotInitialized`],
-    /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and
-    /// callback diagnostics such as [`crate::error::Status::NotPermitted`].
+    /// Returns an error if the events belong to different contexts, either event has not been recorded, either event is incomplete, timing was disabled on either event, or CUDA rejects the elapsed-time query.
+    /// CUDA may also report errors from previous asynchronous launches, internal runtime initialization errors such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn elapsed_time_since(&self, start: &Self) -> Result<f32> {
         if self.context() != start.context() {
             return Err(runtime::cudaError_t::CUDA_ERROR_INVALID_CONTEXT.into());
@@ -260,11 +256,9 @@ impl Event {
         self.handle
     }
 
-    /// Consumes the event and returns the raw CUDA event handle without
-    /// destroying it.
+    /// Consumes the event and returns the raw CUDA event handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with CUDA.
+    /// The caller becomes responsible for eventually destroying the returned handle with CUDA.
     #[must_use]
     pub fn into_raw(self) -> runtime::cudaEvent_t {
         let event = ManuallyDrop::new(self);
@@ -281,14 +275,18 @@ unsafe impl Sync for Event {}
 impl Drop for Event {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind context before destroying event: {error}");
+            eprintln!(
+                "failed to bind context before destroying event: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
         // SAFETY: `cudaEventDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(runtime::cudaEventDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cuda event: {error}");
+                eprintln!(
+                    "failed to destroy cuda event: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -317,13 +315,8 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, the flag combination is
-    /// invalid, CUDA cannot create the event, or CUDA returns a null event
-    /// handle. CUDA may also report errors from previous asynchronous launches,
-    /// internal runtime initialization errors such as
-    /// [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`],
-    /// or [`crate::error::Status::NoDevice`], and callback diagnostics such as
-    /// [`crate::error::Status::NotPermitted`].
+    /// Returns an error if the context cannot be bound, the flag combination is invalid, CUDA cannot create the event, or CUDA returns a null event handle.
+    /// CUDA may also report errors from previous asynchronous launches, internal runtime initialization errors such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`], and callback diagnostics such as [`crate::error::Status::NotPermitted`].
     pub fn create_event_with_flags(self: &Arc<Self>, flags: EventFlags) -> Result<Event> {
         self.bind()?;
         let mut handle = ptr::null_mut();
@@ -334,6 +327,7 @@ impl Context {
                 flags.bits()
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }

@@ -46,12 +46,12 @@ impl Allocation {
     /// Imports a memory allocation from a fabric handle.
     ///
     /// # Safety
-    /// The handle must refer to a live allocation with at least `size` bytes,
-    /// exported by an authorized process and accessible to `context`.
+    /// The handle must refer to a live allocation with at least `size` bytes, exported by an authorized process and accessible to `context`.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if `size` is zero or CUDA returns a zero allocation handle. Also propagates context binding and native import errors for invalid handles, unsupported fabric access, or insufficient permissions.
+    /// Returns `Error::InvalidValue` if `size` is zero or CUDA returns a zero allocation handle.
+    /// Also propagates context binding and native import errors for invalid handles, unsupported fabric access, or insufficient permissions.
     pub unsafe fn import_fabric(
         context: &Arc<Context>,
         handle: &MemoryFabricHandle,
@@ -60,6 +60,7 @@ impl Allocation {
         if size == 0 {
             return Err(Error::InvalidValue);
         }
+
         context.bind()?;
         let mut raw = sys::CUmemFabricHandle { data: handle.0 };
         let mut allocation = 0;
@@ -100,7 +101,8 @@ impl MulticastOptions {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA rejects the multicast properties or cannot query the selected granularity. Also returns an error if the byte granularity does not fit `usize`.
+    /// Returns an error if CUDA rejects the multicast properties or cannot query the selected granularity.
+    /// Also returns an error if the byte granularity does not fit `usize`.
     pub fn granularity(self, recommended: bool) -> Result<usize> {
         let mut size = 0;
         let flag = if recommended {
@@ -133,7 +135,8 @@ impl Multicast {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for zero devices, zero size, a size not divisible by the minimum multicast granularity, or a zero returned allocation handle. Also propagates granularity query, context binding, and native multicast creation errors.
+    /// Returns `Error::InvalidValue` for zero devices, zero size, a size not divisible by the minimum multicast granularity, or a zero returned allocation handle.
+    /// Also propagates granularity query, context binding, and native multicast creation errors.
     pub fn create(context: &Arc<Context>, options: MulticastOptions) -> Result<Rc<Self>> {
         if options.devices == 0
             || options.size == 0
@@ -141,12 +144,14 @@ impl Multicast {
         {
             return Err(Error::InvalidValue);
         }
+
         context.bind()?;
         let mut handle = 0;
         // SAFETY: `cuMulticastCreate` receives valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cuMulticastCreate(&raw mut handle, &options.raw()))?;
         }
+
         // SAFETY: `options` is a valid local properties struct, and `handle` is a writable local.
         let allocation = unsafe { Allocation::from_raw(context, handle, options.size)? };
         Ok(Rc::new(Self {
@@ -160,12 +165,15 @@ impl Multicast {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the device is already registered or the team already has its declared number of devices. Also propagates CUDA errors when adding the device. The local team list changes only after native registration succeeds.
+    /// Returns `Error::InvalidValue` if the device is already registered or the team already has its declared number of devices.
+    /// Also propagates CUDA errors when adding the device.
+    /// The local team list changes only after native registration succeeds.
     pub fn add_device(&self, device: Device) -> Result<()> {
         let mut devices = self.devices.borrow_mut();
         if devices.contains(&device) || devices.len() >= self.required_devices as usize {
             return Err(Error::InvalidValue);
         }
+
         // SAFETY: `cuMulticastAddDevice` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::cuMulticastAddDevice(
@@ -173,6 +181,7 @@ impl Multicast {
                 device.id() as _
             ))?;
         }
+
         devices.push(device);
         Ok(())
     }
@@ -193,7 +202,8 @@ impl Multicast {
     ///
     /// # Errors
     ///
-    /// Returns the native not-ready status if the team has fewer than its declared number of devices. Also propagates reservation-context, size, binding, and native mapping errors from [`AddressReservation::map`].
+    /// Returns the native not-ready status if the team has fewer than its declared number of devices.
+    /// Also propagates reservation-context, size, binding, and native mapping errors from [`AddressReservation::map`].
     pub fn map(self: &Rc<Self>, reservation: AddressReservation) -> Result<MulticastMapping> {
         self.ready()?;
         Ok(MulticastMapping {
@@ -206,7 +216,8 @@ impl Multicast {
     ///
     /// # Errors
     ///
-    /// Returns the native not-ready status if the team is incomplete, or `Error::InvalidValue` for zero size, range-end overflow, or a range exceeding either the multicast object or physical allocation. Also propagates native binding errors for device, granularity, or allocation incompatibilities.
+    /// Returns the native not-ready status if the team is incomplete, or `Error::InvalidValue` for zero size, range-end overflow, or a range exceeding either the multicast object or physical allocation.
+    /// Also propagates native binding errors for device, granularity, or allocation incompatibilities.
     pub fn bind(
         self: &Rc<Self>,
         device: Device,
@@ -243,12 +254,13 @@ impl Multicast {
     /// Binds a virtual address to this multicast object.
     ///
     /// # Safety
-    /// The address range must be eligible CUDA memory and remain valid until
-    /// the binding is dropped. All accesses must finish before unbinding.
+    /// The address range must be eligible CUDA memory and remain valid until the binding is dropped.
+    /// All accesses must finish before unbinding.
     ///
     /// # Errors
     ///
-    /// Returns the native not-ready status if the team is incomplete, or `Error::InvalidValue` for zero size, range-end overflow, or a range exceeding the multicast object. Also propagates native address-binding errors; address validity and lifetime remain the caller's responsibility.
+    /// Returns the native not-ready status if the team is incomplete, or `Error::InvalidValue` for zero size, range-end overflow, or a range exceeding the multicast object.
+    /// Also propagates native address-binding errors; address validity and lifetime remain the caller's responsibility.
     pub unsafe fn bind_address(
         self: &Rc<Self>,
         device: Device,
@@ -283,7 +295,8 @@ impl Multicast {
 /// A mapping retaining its multicast owner.
 #[derive(Debug)]
 pub struct MulticastMapping {
-    /// Mapped virtual range and its retained physical allocation. Set access permissions before device use.
+    /// Mapped virtual range and its retained physical allocation.
+    /// Set access permissions before device use.
     pub mapping: Mapping,
     _owner: Rc<Multicast>,
 }
@@ -304,7 +317,8 @@ impl MulticastBinding {
     ///
     /// # Errors
     ///
-    /// Propagates errors from the native unbind operation. If unbinding fails, dropping the consumed binding attempts it again; the cleanup result is discarded.
+    /// Propagates errors from the native unbind operation.
+    /// If unbinding fails, dropping the consumed binding attempts it again; the cleanup result is discarded.
     pub fn unbind(mut self) -> Result<()> {
         self.release()
     }
@@ -320,6 +334,7 @@ impl MulticastBinding {
                     self.size as _
                 ))?;
             }
+
             self.bound = false;
         }
         Ok(())
@@ -432,7 +447,9 @@ impl LogicalEndpoint {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` if the requested size is zero, exceeds the native maximum, or is not a multiple of the binding alignment. Also propagates context binding, missing driver entry-point, property query, ID reservation, and endpoint creation errors. A reserved ID is released when native creation fails.
+    /// Returns `Error::InvalidValue` if the requested size is zero, exceeds the native maximum, or is not a multiple of the binding alignment.
+    /// Also propagates context binding, missing driver entry-point, property query, ID reservation, and endpoint creation errors.
+    /// A reserved ID is released when native creation fails.
     pub fn create(context: &Arc<Context>, options: EndpointOptions) -> Result<Rc<Self>> {
         context.bind()?;
         let limits = options.limits()?;
@@ -442,6 +459,7 @@ impl LogicalEndpoint {
         {
             return Err(Error::InvalidValue);
         }
+
         let mut id = 0;
         // SAFETY: `cuLogicalEndpointIdReserve`, `cuLogicalEndpointCreate`, `cuLogicalEndpointIdRelease` receive valid output locations and pointers into buffers borrowed for the call.
         unsafe {
@@ -478,7 +496,8 @@ impl LogicalEndpoint {
     ///
     /// # Errors
     ///
-    /// Returns an error if the driver entry point is unavailable or CUDA cannot query the endpoint. An endpoint whose construction is still pending returns `Ok(false)`.
+    /// Returns an error if the driver entry point is unavailable or CUDA cannot query the endpoint.
+    /// An endpoint whose construction is still pending returns `Ok(false)`.
     pub fn is_ready(&self) -> Result<bool> {
         let mut ready = 0;
         // SAFETY: `cuLogicalEndpointQuery` receives valid output locations.
@@ -521,7 +540,9 @@ impl LogicalEndpoint {
     ///
     /// # Errors
     ///
-    /// Propagates context binding, missing driver entry-point, local ID reservation, and native import errors. A reserved ID is released if import fails. Handle validity and the supplied size remain the caller's responsibility.
+    /// Propagates context binding, missing driver entry-point, local ID reservation, and native import errors.
+    /// A reserved ID is released if import fails.
+    /// Handle validity and the supplied size remain the caller's responsibility.
     pub unsafe fn import(
         context: &Arc<Context>,
         handle: &EndpointFabricHandle,
@@ -553,7 +574,8 @@ impl LogicalEndpoint {
     ///
     /// # Errors
     ///
-    /// Returns the native not-ready status if endpoint construction is incomplete, or `Error::InvalidValue` for zero allocation range size, range-end overflow, or a range exceeding the endpoint or physical allocation. Also propagates missing driver entry-point and native binding errors for device, alignment, or allocation incompatibilities.
+    /// Returns the native not-ready status if endpoint construction is incomplete, or `Error::InvalidValue` for zero allocation range size, range-end overflow, or a range exceeding the endpoint or physical allocation.
+    /// Also propagates missing driver entry-point and native binding errors for device, alignment, or allocation incompatibilities.
     pub fn bind(
         self: &Rc<Self>,
         device: Device,
@@ -570,6 +592,7 @@ impl LogicalEndpoint {
         {
             return Err(Error::InvalidValue);
         }
+
         // SAFETY: `cuLogicalEndpointBindMem` receives live handles owned by the wrappers.
         unsafe {
             cuLogicalEndpointBindMem(
@@ -595,12 +618,14 @@ impl LogicalEndpoint {
     /// Binds a virtual address range to this logical endpoint.
     ///
     /// # Safety
-    /// The memory must remain valid until the binding is dropped. All accesses
-    /// must finish before unbinding.
+    /// The memory must remain valid until the binding is dropped.
+    /// All accesses must finish before unbinding.
     ///
     /// # Errors
     ///
-    /// Returns the native not-ready status if endpoint construction is incomplete, or `Error::InvalidValue` if `offset + size` overflows or exceeds the endpoint. Also propagates missing driver entry-point and native address-binding errors. Pointer validity and lifetime remain the caller's responsibility.
+    /// Returns the native not-ready status if endpoint construction is incomplete, or `Error::InvalidValue` if `offset + size` overflows or exceeds the endpoint.
+    /// Also propagates missing driver entry-point and native address-binding errors.
+    /// Pointer validity and lifetime remain the caller's responsibility.
     pub unsafe fn bind_address(
         self: &Rc<Self>,
         device: Device,
@@ -615,6 +640,7 @@ impl LogicalEndpoint {
         {
             return Err(Error::InvalidValue);
         }
+
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             cuLogicalEndpointBindAddr(
@@ -670,7 +696,8 @@ impl EndpointBinding {
     ///
     /// # Errors
     ///
-    /// Propagates errors from the native unbind operation. If unbinding fails, dropping the consumed binding attempts it again; the cleanup result is discarded.
+    /// Propagates errors from the native unbind operation.
+    /// If unbinding fails, dropping the consumed binding attempts it again; the cleanup result is discarded.
     pub fn unbind(mut self) -> Result<()> {
         self.release()
     }
@@ -686,6 +713,7 @@ impl EndpointBinding {
                     self.size,
                 )?;
             }
+
             self.bound = false;
         }
         Ok(())

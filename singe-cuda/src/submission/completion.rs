@@ -18,6 +18,7 @@ use crate::{
     event::Event,
     stream::Stream,
     submission::Resources,
+    utility::lock_for_cleanup,
 };
 
 type CompletionResult = StdResult<(), Arc<Error>>;
@@ -80,7 +81,7 @@ impl Completion {
     fn signal(shared: &SharedState, result: Result<()>) {
         let (lock, ready) = shared;
         let wakers = {
-            let mut state = lock.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut state = lock_for_cleanup(lock);
             state.phase = Phase::Complete(result.map_err(|error| match error {
                 Error::Completion(source) => source,
                 error => Arc::new(error),
@@ -107,20 +108,23 @@ impl Completion {
         if self.query()? {
             return Ok(());
         }
+
         Self::retire(&self.state, self.event.synchronize());
         let (lock, ready) = &*self.state;
-        let mut state = lock.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut state = lock_for_cleanup(lock);
         loop {
             if let Phase::Complete(result) = &state.phase {
                 return result.clone().map_err(Error::Completion);
             }
+
+            // A waiter must not stay blocked over what a panicked holder left.
             state = ready.wait(state).unwrap_or_else(PoisonError::into_inner);
         }
     }
 
     fn retire(shared: &SharedState, native_result: Result<()>) {
         let pending = {
-            let mut state = shared.0.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut state = lock_for_cleanup(&shared.0);
             if !matches!(state.phase, Phase::Pending(_)) {
                 return;
             }
@@ -142,7 +146,6 @@ impl Completion {
                 match pending.stream.synchronize() {
                     Ok(()) => retirement.native_complete = true,
                     Err(error) => {
-                        #[cfg(debug_assertions)]
                         eprintln!(
                             "cuda completion failed; retaining live submission resources: {error}"
                         );
@@ -150,10 +153,12 @@ impl Completion {
                     }
                 }
             }
+
             if retirement.result.is_none() {
                 for dependency in &pending.resources.dependencies {
                     dependency.wait()?;
                 }
+
                 retirement.result = Some(Ok(()));
             }
             Ok::<_, Error>(())
@@ -167,9 +172,11 @@ impl Completion {
     ///
     /// # Errors
     ///
-    /// Returns the shared completion error once retirement has finished unsuccessfully. This can contain a CUDA, dependency, worker, or resource-retirement error. Pending or currently retiring work returns `Ok(false)` without waiting on the host.
+    /// Returns the shared completion error once retirement has finished unsuccessfully.
+    /// This can contain a CUDA, dependency, worker, or resource-retirement error.
+    /// Pending or currently retiring work returns `Ok(false)` without waiting on the host.
     pub fn query(&self) -> Result<bool> {
-        let state = self.state.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let state = lock_for_cleanup(&self.state.0);
         match &state.phase {
             Phase::Complete(Ok(())) => Ok(true),
             Phase::Complete(Err(error)) => Err(Error::Completion(Arc::clone(error))),
@@ -181,7 +188,8 @@ impl Completion {
     ///
     /// # Errors
     ///
-    /// Propagates context binding and CUDA event-wait errors from [`Stream::wait_event`]. This establishes device ordering without propagating the producer's checked host result; use [`Resources::depend_on`] to propagate it.
+    /// Propagates context binding and CUDA event-wait errors from [`Stream::wait_event`].
+    /// This establishes device ordering without propagating the producer's checked host result; use [`Resources::depend_on`] to propagate it.
     pub fn order_on(&self, stream: &Stream) -> Result<()> {
         stream.wait_event(&self.event)
     }
@@ -200,17 +208,12 @@ impl Drop for Retirement<'_> {
         let mut result = self.result.take().unwrap_or(Err(Error::CompletionPanicked));
         let pending = self.pending.take().expect("retiring submission");
         if !self.native_complete {
-            pending
-                .stream
-                .context()
-                .access_tracker
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .fail();
+            lock_for_cleanup(&pending.stream.context().access_tracker).fail();
             mem::forget(pending);
         } else if catch_unwind(AssertUnwindSafe(|| drop(pending))).is_err() && result.is_ok() {
             result = Err(Error::ResourceDestructionPanicked);
         }
+
         Completion::signal(self.state, result);
     }
 }
@@ -222,7 +225,7 @@ impl Future for Completion {
         // Waker cloning and destruction can run user code, so keep them outside the mutex.
         let mut waker = Some(cx.waker().clone());
         let result = {
-            let mut state = self.state.0.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut state = lock_for_cleanup(&self.state.0);
             if let Phase::Complete(result) = &state.phase {
                 Poll::Ready(result.clone().map_err(Error::Completion))
             } else {
@@ -249,7 +252,7 @@ struct Work {
 
 impl Work {
     fn query(&self) -> Result<bool> {
-        let state = self.state.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let state = lock_for_cleanup(&self.state.0);
         match &state.phase {
             Phase::Pending(pending) => pending.event.query(),
             Phase::Retiring | Phase::Complete(_) => Ok(true),
@@ -266,7 +269,9 @@ impl Drop for Work {
 
 fn submit(work: Work) -> Result<()> {
     static WORKER: Mutex<Option<Sender<Work>>> = Mutex::new(None);
-    let mut worker = WORKER.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut worker = WORKER.lock().map_err(|_| Error::ResourcePoisoned {
+        name: "completion worker",
+    })?;
     if worker.is_none() {
         let (sender, receiver) = mpsc::channel();
         thread::Builder::new()
@@ -274,6 +279,7 @@ fn submit(work: Work) -> Result<()> {
             .spawn(move || run(&receiver))?;
         *worker = Some(sender);
     }
+
     if let Err(mpsc::SendError(work)) = worker.as_ref().expect("worker was started").send(work) {
         *worker = None;
         drop(worker);

@@ -23,19 +23,16 @@ where
     /// Converts packed YCbCr 4:2:2 into a new planar RGB image.
     ///
     /// The C2 input uses the native packed 4:2:2 component order named by the method.
-    /// Its width must be even. Allocates three full-resolution C1 `u8` planes in R, G, B
-    /// order; output dimensions match the source.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// Its width must be even.
+    /// Allocates three full-resolution C1 `u8` planes in R, G, B order; output dimensions match the source.
+    /// Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn ycbcr422_to_rgb_planar(self) -> Result<PlanarImage<u8, 3>> {
         self.color_convert_to_planar(color::ycbcr422_to_rgb_c2_to_p3)
     }
@@ -43,19 +40,16 @@ where
     /// Converts packed `YCrCb` 4:2:2 into a new planar RGB image.
     ///
     /// The C2 input uses the native packed 4:2:2 component order named by the method.
-    /// Its width must be even. Allocates three full-resolution C1 `u8` planes in R, G, B
-    /// order; output dimensions match the source.
-    /// Prepares source regions and waits for their producers on other streams. Rejects
-    /// capture and returns after successful native conversion and stream completion.
+    /// Its width must be even.
+    /// Allocates three full-resolution C1 `u8` planes in R, G, B order; output dimensions match the source.
+    /// Prepares source regions and waits for their producers on other streams.
+    /// Rejects capture and returns after successful native conversion and stream completion.
     /// All logical output samples are initialized; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or source-region
-    /// preparation, producer waits, checked subsampling geometry, plane allocation, view
-    /// construction, native conversion, or synchronization fail. Input dimensions and
-    /// component-plane sizes must satisfy the specified sampling; NPP can reject native
-    /// conversion parameters.
+    /// Returns an error if capture checks, CUDA context binding or source-region preparation, producer waits, checked subsampling geometry, plane allocation, view construction, native conversion, or synchronization fail.
+    /// Input dimensions and component-plane sizes must satisfy the specified sampling; NPP can reject native conversion parameters.
     pub fn ycrcb422_to_rgb_planar(self) -> Result<PlanarImage<u8, 3>> {
         self.color_convert_to_planar(color::ycrcb422_to_rgb_c2_to_p3)
     }

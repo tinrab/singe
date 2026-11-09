@@ -54,7 +54,8 @@ impl GenStatsConfig {
         self.name.as_deref().filter(|name| !name.is_empty())
     }
 
-    /// Overrides graph math precision. `None` restores inheritance.
+    /// Overrides graph math precision.
+    /// `None` restores inheritance.
     /// When the graph leaves math precision unset, use the input encoding as in C++.
     #[must_use]
     pub fn with_compute_type(mut self, compute_type: impl Into<Option<DataType>>) -> Self {

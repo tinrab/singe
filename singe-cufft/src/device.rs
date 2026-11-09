@@ -117,7 +117,8 @@ pub struct DeviceCode {
     pub bytes: Vec<u8>,
 }
 
-/// Owned FFT description. The experimental interface may change in future cuFFT versions.
+/// Owned FFT description.
+/// The experimental interface may change in future cuFFT versions.
 #[derive(Debug)]
 pub struct Description {
     raw: sys::cufftDescriptionHandle,
@@ -128,8 +129,7 @@ impl Description {
     ///
     /// # Errors
     ///
-    /// Returns a cuFFT error if description creation fails or any supplied transform
-    /// trait is rejected, including an unsupported size, precision, or architecture.
+    /// Returns a cuFFT error if description creation fails or any supplied transform trait is rejected, including an unsupported size, precision, or architecture.
     pub fn create(
         size: i64,
         direction: Direction,
@@ -142,6 +142,7 @@ impl Description {
         unsafe {
             try_ffi!(sys::cufftDescriptionCreate(&raw mut raw))?;
         }
+
         let mut result = Self { raw };
         for (attribute, value) in [
             (DescriptionTrait::Size, size),
@@ -216,8 +217,10 @@ impl Drop for Description {
         // SAFETY: `cufftDescriptionDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cufftDescriptionDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cufft device description: {error}");
+                eprintln!(
+                    "failed to destroy cufft device description: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -235,12 +238,12 @@ impl DeviceProgram {
     ///
     /// # Errors
     ///
-    /// Returns an error if `descriptions` is empty or cuFFT cannot create the
-    /// function database for the supplied descriptions.
+    /// Returns an error if `descriptions` is empty or cuFFT cannot create the function database for the supplied descriptions.
     pub fn create(descriptions: Vec<Description>) -> Result<Self> {
         if descriptions.is_empty() {
             return Err(Error::out_of_range("description count"));
         }
+
         let mut handles = descriptions
             .iter()
             .map(Description::as_raw)
@@ -273,8 +276,7 @@ impl DeviceProgram {
     ///
     /// # Errors
     ///
-    /// Returns an error if `index` is outside the retained description list or
-    /// cuFFT cannot determine support for that description.
+    /// Returns an error if `index` is outside the retained description list or cuFFT cannot determine support for that description.
     pub fn is_supported(&self, index: usize) -> Result<bool> {
         let description = self.description(index)?;
         let mut supported = false;
@@ -293,8 +295,7 @@ impl DeviceProgram {
     ///
     /// # Errors
     ///
-    /// Returns an error if `index` is outside the retained description list, cuFFT
-    /// cannot enumerate matching functions, or the reported count does not fit `usize`.
+    /// Returns an error if `index` is outside the retained description list, cuFFT cannot enumerate matching functions, or the reported count does not fit `usize`.
     pub fn functions(&self, index: usize) -> Result<Vec<DeviceFunction<'_>>> {
         let description = self.description(index)?;
         let mut count = 0;
@@ -306,6 +307,7 @@ impl DeviceProgram {
                 &raw mut count
             ))?;
         }
+
         let mut handles = vec![0; to_usize(count, "function count")?];
         // SAFETY: `cufftDeviceGetDeviceFunctions` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -326,8 +328,8 @@ impl DeviceProgram {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuFFT cannot query or copy the database text, or the
-    /// reported byte count does not fit `usize`. Invalid UTF-8 is replaced lossily.
+    /// Returns an error if cuFFT cannot query or copy the database text, or the reported byte count does not fit `usize`.
+    /// Invalid UTF-8 is replaced lossily.
     pub fn database(&self) -> Result<String> {
         self.database_for(-1)
     }
@@ -342,6 +344,7 @@ impl DeviceProgram {
                 function
             ))?;
         }
+
         let mut bytes = vec![0; to_usize(size, "database size")?];
         // SAFETY: `cufftDeviceGetDatabaseStr` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -352,6 +355,7 @@ impl DeviceProgram {
                 function
             ))?;
         }
+
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
@@ -362,8 +366,7 @@ impl DeviceProgram {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuFFT cannot enumerate or extract code containers, or a
-    /// reported container count or byte size does not fit `usize`.
+    /// Returns an error if cuFFT cannot enumerate or extract code containers, or a reported container count or byte size does not fit `usize`.
     pub fn code(&self) -> Result<Vec<DeviceCode>> {
         self.code_for(-1)
     }
@@ -378,6 +381,7 @@ impl DeviceProgram {
                 function
             ))?;
         }
+
         let count_usize = to_usize(count, "code count")?;
         let mut sizes = vec![0; count_usize];
         // SAFETY: `cufftDeviceGetLTOIRSizes` receives live handles owned by the wrappers and valid output locations.
@@ -389,6 +393,7 @@ impl DeviceProgram {
                 function
             ))?;
         }
+
         let mut code = sizes
             .into_iter()
             .map(|size| Ok(vec![0u8; to_usize(size, "code size")?]))
@@ -427,8 +432,10 @@ impl Drop for DeviceProgram {
         // SAFETY: `cufftDeviceDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cufftDeviceDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cufft device: {error}");
+                eprintln!(
+                    "failed to destroy cufft device: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -465,8 +472,8 @@ impl DeviceFunction<'_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuFFT cannot query or copy the database text, or the
-    /// reported byte count does not fit `usize`. Invalid UTF-8 is replaced lossily.
+    /// Returns an error if cuFFT cannot query or copy the database text, or the reported byte count does not fit `usize`.
+    /// Invalid UTF-8 is replaced lossily.
     pub fn database(&self) -> Result<String> {
         self.program.database_for(self.raw)
     }
@@ -475,8 +482,7 @@ impl DeviceFunction<'_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuFFT cannot enumerate or extract code containers, or a
-    /// reported container count or byte size does not fit `usize`.
+    /// Returns an error if cuFFT cannot enumerate or extract code containers, or a reported container count or byte size does not fit `usize`.
     pub fn code(&self) -> Result<Vec<DeviceCode>> {
         self.program.code_for(self.raw)
     }
@@ -505,8 +511,7 @@ impl DeviceCode {
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` contains an interior NUL byte or nvJitLink
-    /// rejects the input code container.
+    /// Returns an error if `name` contains an interior NUL byte or nvJitLink rejects the input code container.
     pub fn add_to_linker(&self, linker: &mut Linker, name: &str) -> Result<()> {
         let kind = match self.container {
             CodeContainer::LtoIr => InputType::LtoIr,

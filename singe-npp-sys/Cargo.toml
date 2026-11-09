@@ -1,7 +1,7 @@
 [package]
 name = "singe-npp-sys"
 description = "Low-level FFI bindings for the NVIDIA Performance Primitives library (NPP)."
-version = "0.1.0-alpha.8"
+version = "0.1.0-alpha.9"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
@@ -18,9 +18,6 @@ default = ["npp_13_2"]
 npp_13_2 = ["singe-cuda-sys/runtime_13_4"]
 
 [dependencies]
+singe-loader.workspace = true
 singe-cuda-sys.workspace = true
 num_enum.workspace = true
-
-[build-dependencies]
-singe-cuda-find.workspace = true
-anyhow.workspace = true

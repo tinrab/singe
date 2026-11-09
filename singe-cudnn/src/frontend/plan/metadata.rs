@@ -164,12 +164,14 @@ impl EngineConfigFilter {
                 limit,
             });
         }
+
         if let (Some(required), Some(limit)) =
             (metadata.shared_memory_size, self.max_shared_memory_size)
             && required > limit
         {
             return Some(PlanExclusion::SharedMemory { required, limit });
         }
+
         if let Some(pattern) = self
             .excluded_engine_name_substrings
             .iter()
@@ -179,6 +181,7 @@ impl EngineConfigFilter {
                 pattern: pattern.clone(),
             });
         }
+
         if let Some(&note) = self
             .included_numerical_notes
             .iter()
@@ -186,6 +189,7 @@ impl EngineConfigFilter {
         {
             return Some(PlanExclusion::MissingNumericalNote { note });
         }
+
         if let Some(&note) = self
             .excluded_numerical_notes
             .iter()
@@ -193,6 +197,7 @@ impl EngineConfigFilter {
         {
             return Some(PlanExclusion::ExcludedNumericalNote { note });
         }
+
         if let Some(&note) = self
             .included_behavior_notes
             .iter()

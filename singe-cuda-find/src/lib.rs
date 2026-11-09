@@ -1,20 +1,13 @@
-//! CUDA Toolkit and NVIDIA library discovery helpers for Singe build scripts and
-//! wrapper crates.
+//! CUDA Toolkit and NVIDIA library discovery helpers for Singe build scripts and wrapper crates.
 //!
-//! This crate centralizes the path probing used by the Singe CUDA ecosystem. It
-//! looks for headers, libraries, and tools through explicit environment
-//! variables, the active `PATH` or dynamic library path, and common CUDA
-//! installation roots. The result is a small [`Dependency`] value containing
-//! include and library directories plus a detected version when the header
-//! exposes one.
+//! This crate centralizes the path probing used by the Singe CUDA ecosystem.
+//! It looks for headers, libraries, and tools through explicit environment variables, the active `PATH` or dynamic library path, and common CUDA installation roots.
+//! The result is a small [`Dependency`] value containing include and library directories plus a detected version when the header exposes one.
 //!
 //! # Discovery
 //!
-//! Toolkit components prefer component-specific roots such as `CUBLAS_PATH` or
-//! `CUSOLVER_ROOT`, then fall back to `CUDA_PATH` or `CUDA_HOME`, then common
-//! platform locations. Driver-owned libraries such as CUDA Driver and NVML are
-//! searched in driver library paths because they are not necessarily installed
-//! inside the CUDA Toolkit.
+//! Toolkit components prefer component-specific roots such as `CUBLAS_PATH` or `CUSOLVER_ROOT`, then fall back to `CUDA_PATH` or `CUDA_HOME`, then common platform locations.
+//! Driver-owned libraries such as CUDA Driver and NVML are searched in driver library paths because they are not necessarily installed inside the CUDA Toolkit.
 //!
 //! # Example
 //!

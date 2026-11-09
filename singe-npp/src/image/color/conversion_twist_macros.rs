@@ -6,7 +6,6 @@ macro_rules! impl_subsampled_color_twist_planar_forward {
         /// Passes `twist` as a host color-twist matrix; coefficient values are not validated.
         /// Chroma plane byte strides are passed independently.
         /// Row padding remains unwritten.
-        ///
         #[doc = concat!("Chroma width and height divide the full-resolution dimensions by ", stringify!($horizontal_subsampling), " and ", stringify!($vertical_subsampling), ", respectively.")]
         ///
         /// # Errors
@@ -94,7 +93,6 @@ macro_rules! impl_subsampled_color_twist_packed_forward {
         /// Passes `twist` as a host color-twist matrix; coefficient values are not validated.
         /// Chroma plane byte strides are passed independently.
         /// Row padding remains unwritten.
-        ///
         #[doc = concat!("Chroma width and height divide the full-resolution dimensions by ", stringify!($horizontal_subsampling), " and ", stringify!($vertical_subsampling), ", respectively.")]
         ///
         /// # Errors
@@ -170,7 +168,6 @@ macro_rules! impl_subsampled_color_twist_planar_inverse {
         /// Passes `twist` as a host color-twist matrix; coefficient values are not validated.
         /// Chroma plane byte strides are passed independently.
         /// Row padding remains unwritten.
-        ///
         #[doc = concat!("Chroma width and height divide the full-resolution dimensions by ", stringify!($horizontal_subsampling), " and ", stringify!($vertical_subsampling), ", respectively.")]
         ///
         /// # Errors
@@ -257,7 +254,6 @@ macro_rules! impl_subsampled_color_twist_packed_inverse {
         /// Passes `twist` as a host color-twist matrix; coefficient values are not validated.
         /// Chroma plane byte strides are passed independently.
         /// Row padding remains unwritten.
-        ///
         #[doc = concat!("Chroma width and height divide the full-resolution dimensions by ", stringify!($horizontal_subsampling), " and ", stringify!($vertical_subsampling), ", respectively.")]
         ///
         /// # Errors
@@ -329,7 +325,6 @@ macro_rules! impl_subsampled_color_twist_packed_inverse_constant_alpha {
         /// Passes `twist` as a host color-twist matrix; coefficient values are not validated.
         /// Chroma plane byte strides are passed independently.
         /// Row padding remains unwritten.
-        ///
         #[doc = concat!("Chroma width and height divide the full-resolution dimensions by ", stringify!($horizontal_subsampling), " and ", stringify!($vertical_subsampling), ", respectively.")]
         /// Writes `alpha` to the fourth destination channel.
         ///

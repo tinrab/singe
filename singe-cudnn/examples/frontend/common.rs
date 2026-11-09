@@ -86,6 +86,7 @@ pub fn round_up(value: i64, multiple: i64) -> Result<i64> {
     if value <= 0 || multiple <= 0 {
         return Err(invalid());
     }
+
     let blocks = value / multiple + i64::from(value % multiple != 0);
     blocks.checked_mul(multiple).ok_or_else(invalid)
 }

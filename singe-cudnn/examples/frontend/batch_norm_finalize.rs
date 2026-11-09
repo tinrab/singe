@@ -60,6 +60,7 @@ fn run() -> Result<()> {
         });
         input_values.extend([(mean, 0.0), (variance, 1.0)]);
     }
+
     let output = TensorOutputConfig::new()
         .with_data_type(DataType::F32)
         .output_tensor();
@@ -97,6 +98,7 @@ fn run() -> Result<()> {
     if let Some(running) = outputs.running {
         output_ids.extend([running.mean, running.variance]);
     }
+
     let compiled = graph.compile(
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::Fallback]),
@@ -112,6 +114,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     for id in &output_ids {
         let count = graph.shape(*id)?.storage_span()?;
         let memory = DeviceMemory::<f32>::zeroed(cuda, count)?;
@@ -121,6 +124,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: bindings retain initialized FP32 inputs and writable FP32 destinations.
     // Scalars retain their native encodings, all ranges are independent, and buffers

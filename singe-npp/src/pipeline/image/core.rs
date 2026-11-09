@@ -48,8 +48,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error during stream capture, if image dimensions or allocation arithmetic
-    /// are invalid, or if allocating device image storage fails.
+    /// Returns an error during stream capture, if image dimensions or allocation arithmetic are invalid, or if allocating device image storage fails.
     pub fn create_uninit(
         stream_context: &'a StreamContext,
         workspace: &'a mut Workspace,
@@ -97,8 +96,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if capture-retention setup or the capture check fails, or if `image`
-    /// belongs to another CUDA context.
+    /// Returns an error if capture-retention setup or the capture check fails, or if `image` belongs to another CUDA context.
     pub fn from_owned(
         stream_context: &'a StreamContext,
         workspace: &'a mut Workspace,
@@ -124,8 +122,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if image dimensions, channel geometry, byte-size arithmetic, alignment,
-    /// or buffer capacity are invalid, or if the buffer belongs to another CUDA context.
+    /// Returns an error if image dimensions, channel geometry, byte-size arithmetic, alignment, or buffer capacity are invalid, or if the buffer belongs to another CUDA context.
     pub fn from_buffer<B>(
         stream_context: &'a StreamContext,
         workspace: &'a mut Workspace,
@@ -145,12 +142,12 @@ where
 
     /// Borrows an image using `step` bytes between successive row starts.
     ///
-    /// `size` counts pixels. Does not copy pixels or wait for pending producers.
+    /// `size` counts pixels.
+    /// Does not copy pixels or wait for pending producers.
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions, channel geometry, byte-size arithmetic, alignment, byte
-    /// stride, or buffer capacity are invalid, or if the buffer belongs to another CUDA context.
+    /// Returns an error if dimensions, channel geometry, byte-size arithmetic, alignment, byte stride, or buffer capacity are invalid, or if the buffer belongs to another CUDA context.
     pub fn from_buffer_with_step<B>(
         stream_context: &'a StreamContext,
         workspace: &'a mut Workspace,
@@ -175,6 +172,7 @@ where
                 .stream()
                 .defer_drop_until_capture_end(Arc::clone(image.allocation()))?;
         }
+
         self.stream_context.stream().ensure_not_capturing()?;
         if let Some(producer) = self.view()?.region().stream() {
             producer.ensure_not_capturing()?;
@@ -228,9 +226,7 @@ impl<'a, T: Copy, L: ChannelLayout> UninitImagePipeline<'a, T, L> {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture-retention setup, capture checks, view construction, CUDA
-    /// context validation, region preparation, producer waits, native filling, or stream
-    /// synchronization fails.
+    /// Returns an error if capture-retention setup, capture checks, view construction, CUDA context validation, region preparation, producer waits, native filling, or stream synchronization fails.
     pub fn set(
         mut self,
         value: <ImagePipeline<'a, T, L> as fill::SetImage<T, L>>::Value,
@@ -259,16 +255,14 @@ impl<'a, T: Copy, L: ChannelLayout> UninitImagePipeline<'a, T, L> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the stored image geometry, byte stride, alignment, or allocation span
-    /// cannot form a valid output view.
+    /// Returns an error if the stored image geometry, byte stride, alignment, or allocation span cannot form a valid output view.
     pub fn output(&mut self) -> Result<ImageOutputView<'_, T, L>> {
         self.image.output()
     }
 
     /// Consumes the pending pipeline and returns its uninitialized image allocation.
     ///
-    /// Preserves the current initialization state without copying, synchronizing, or promoting
-    /// samples to readable `T` values.
+    /// Preserves the current initialization state without copying, synchronizing, or promoting samples to readable `T` values.
     #[must_use]
     pub fn into_image(self) -> Image<MaybeUninit<T>, L> {
         self.image

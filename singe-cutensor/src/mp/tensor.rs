@@ -18,9 +18,11 @@ pub struct TensorMode {
     pub shape: u64,
     /// Rank-local stride in elements between adjacent values; `None` selects compact local strides.
     pub element_stride: Option<u64>,
-    /// Block-cyclic extent for the mode. `None`, or an explicit zero, selects one contiguous partition per rank along this mode.
+    /// Block-cyclic extent for the mode.
+    /// `None`, or an explicit zero, selects one contiguous partition per rank along this mode.
     pub block_size: Option<u64>,
-    /// Rank-local displacement in elements between adjacent stored blocks; `None` selects ordinary linear addressing without inter-block padding. Explicit entries must be positive and produce a non-overlapping layout supported by the operation.
+    /// Rank-local displacement in elements between adjacent stored blocks; `None` selects ordinary linear addressing without inter-block padding.
+    /// Explicit entries must be positive and produce a non-overlapping layout supported by the operation.
     pub block_stride: Option<u64>,
 }
 
@@ -64,7 +66,8 @@ pub struct TensorDescriptor<'comm> {
 impl<'comm> TensorDescriptor<'comm> {
     /// Creates a descriptor for `T` with compact local storage and an implicit communicator rank mapping.
     ///
-    /// The supplied `ranks_per_mode` determines distribution. Native defaults select contiguous partitions along distributed modes; `rank_count` records the total participating ranks.
+    /// The supplied `ranks_per_mode` determines distribution.
+    /// Native defaults select contiguous partitions along distributed modes; `rank_count` records the total participating ranks.
     ///
     /// # Errors
     ///
@@ -186,13 +189,14 @@ impl<'comm> TensorDescriptor<'comm> {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMp tensor descriptor associated with
-    /// `context`. The metadata in `config` must describe the raw descriptor.
+    /// `handle` must be a valid cuTENSORMp tensor descriptor associated with `context`.
+    /// The metadata in `config` must describe the raw descriptor.
     /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
-    /// Returns an error if `handle` is null, process-grid or explicit rank-array lengths are inconsistent, or an optional property is specified for only some modes. The caller must uphold the remaining native descriptor invariants.
+    /// Returns an error if `handle` is null, process-grid or explicit rank-array lengths are inconsistent, or an optional property is specified for only some modes.
+    /// The caller must uphold the remaining native descriptor invariants.
     pub unsafe fn from_raw(
         handle: sys::cutensorMpTensorDescriptor_t,
         context: &Context<'comm>,
@@ -249,7 +253,8 @@ impl<'comm> TensorDescriptor<'comm> {
     ///
     /// # Panics
     ///
-    /// Panics if the stored rank does not fit `u32`. Checked creation excludes this; unsafe adoption must preserve the native rank invariant.
+    /// Panics if the stored rank does not fit `u32`.
+    /// Checked creation excludes this; unsafe adoption must preserve the native rank invariant.
     #[must_use]
     pub fn rank(&self) -> u32 {
         u32::try_from(self.shape.len()).expect("tensor rank is validated on construction")
@@ -326,7 +331,6 @@ impl<'comm> TensorDescriptor<'comm> {
 impl Drop for TensorDescriptor<'_> {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
             eprintln!(
                 "failed to bind cutensormp context before destroying tensor descriptor: {error}"
             );
@@ -335,8 +339,10 @@ impl Drop for TensorDescriptor<'_> {
         // SAFETY: `cutensorMpDestroyTensorDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMpDestroyTensorDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormp tensor descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensormp tensor descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -375,6 +381,7 @@ fn collect_optional_mode_values(
     if values.is_empty() {
         return Ok(None);
     }
+
     if values.len() != modes.len() {
         return Err(Error::LengthMismatch {
             name: name.to_owned().into(),
@@ -385,11 +392,11 @@ fn collect_optional_mode_values(
     Ok(Some(values))
 }
 
-/// Realized layout of this rank's shard. Strides and block sizes are in elements.
+/// Realized layout of this rank's shard.
+/// Strides and block sizes are in elements.
 ///
-/// Storage size is the minimum byte span covering all reachable local offsets,
-/// including holes introduced by explicit strides. Nonparticipating ranks have
-/// zero extents and storage size; this query performs no communication.
+/// Storage size is the minimum byte span covering all reachable local offsets, including holes introduced by explicit strides.
+/// Nonparticipating ranks have zero extents and storage size; this query performs no communication.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalTensorLayout {
     /// Number of valid local logical elements per mode, without padding ragged tails.
@@ -431,6 +438,7 @@ impl TensorDescriptor<'_> {
                 size_of::<u32>() as _
             ))?;
         }
+
         let array = |attribute| -> Result<Vec<i64>> {
             let mut values = vec![0i64; modes as usize];
             let bytes = values

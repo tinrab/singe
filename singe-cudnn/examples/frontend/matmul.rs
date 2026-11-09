@@ -71,6 +71,7 @@ fn run() -> Result<()> {
     for (id, tensor) in graph.tensors_named("projection::C") {
         println!("named result {id}: {:?}", tensor.shape.dimensions());
     }
+
     let input_a_elements = graph.shape(a)?.storage_span()?;
     let input_b_elements = graph.shape(b_tensor)?.storage_span()?;
     let output_elements = graph.shape(c)?.storage_span()?;

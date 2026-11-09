@@ -6,12 +6,6 @@ use singe_nvml_sys as sys;
 use crate::{
     device::Device,
     error::{Error, Result, Status},
-    optional::{
-        nvmlDeviceGetAdaptiveTgpModeInfo_v1, nvmlDeviceGetBankRemapperStatus_v1,
-        nvmlDeviceGetMemoryLimits_v1, nvmlDeviceGetNvLinkTelemetrySamples_v1,
-        nvmlDevicePerfMetricsGetSamples_v1, nvmlDeviceSetAdaptiveTgpMode_v1,
-        nvmlDeviceSetMemoryLimits_v1, nvmlDeviceSetNvlinkBwModeAsync_v1,
-    },
     to_u32, try_ffi,
     types::{EnableState, FieldValue, GridLicenseFeatureCode, VgpuLicenseExpiry},
     utility::struct_version,
@@ -115,16 +109,18 @@ pub struct PrmCounterRequest {
 impl Device {
     /// Retrieves Adaptive TGP Mode state and telemetry for a GPU.
     ///
-    /// For Rubin or newer devices. The adjusted base power is valid only when enabled.
+    /// For Rubin or newer devices.
+    /// The adjusted base power is valid only when enabled.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML lacks this entry point, the device is inaccessible, or adaptive TGP reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the installed NVML lacks this entry point, the device is inaccessible, or adaptive TGP reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn adaptive_tgp_mode_info(self) -> Result<AdaptiveTgpModeInfo> {
         let mut info = sys::nvmlAdaptiveTgpModeInfo_v1_t::default();
         // SAFETY: `nvmlDeviceGetAdaptiveTgpModeInfo_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceGetAdaptiveTgpModeInfo_v1(
+            try_ffi!(sys::nvmlDeviceGetAdaptiveTgpModeInfo_v1(
                 self.as_raw(),
                 &raw mut info
             ))?;
@@ -140,24 +136,33 @@ impl Device {
 
     /// Requests to enable or disable Adaptive TGP Mode for a GPU.
     ///
-    /// For Rubin or newer devices. Requires root/admin privileges. An out-of-band
-    /// administrator policy may override the in-band request.
+    /// For Rubin or newer devices.
+    /// Requires root/admin privileges.
+    /// An out-of-band administrator policy may override the in-band request.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML lacks this entry point, the device or mode is unsupported, or NVML denies permission to change adaptive TGP mode. Also propagates NVML configuration failures.
+    /// Returns an error if the installed NVML lacks this entry point, the device or mode is unsupported, or NVML denies permission to change adaptive TGP mode.
+    /// Also propagates NVML configuration failures.
     pub fn set_adaptive_tgp_mode(self, mode: EnableState) -> Result<()> {
         // SAFETY: `nvmlDeviceSetAdaptiveTgpMode_v1` receives a live handle and a plain mode value.
-        unsafe { try_ffi!(nvmlDeviceSetAdaptiveTgpMode_v1(self.as_raw(), mode.into())) }
+        unsafe {
+            try_ffi!(sys::nvmlDeviceSetAdaptiveTgpMode_v1(
+                self.as_raw(),
+                mode.into()
+            ))
+        }
     }
 
     /// Gets current memory limits and memory used for the specified cgroup partition.
     ///
-    /// For Linux only. `cgroup` is the full path to the sysfs cgroup file name.
+    /// For Linux only.
+    /// `cgroup` is the full path to the sysfs cgroup file name.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML lacks this entry point, the cgroup namespace is invalid or unavailable, or memory-limit reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the installed NVML lacks this entry point, the cgroup namespace is invalid or unavailable, or memory-limit reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn memory_limits(self, cgroup: &CStr) -> Result<MemoryLimits> {
         let mut limits = sys::nvmlGetMemoryLimits_v1_t {
             nameSpace: cgroup.as_ptr(),
@@ -165,7 +170,10 @@ impl Device {
         };
         // SAFETY: `nvmlDeviceGetMemoryLimits_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceGetMemoryLimits_v1(self.as_raw(), &raw mut limits))?;
+            try_ffi!(sys::nvmlDeviceGetMemoryLimits_v1(
+                self.as_raw(),
+                &raw mut limits
+            ))?;
         }
         Ok(MemoryLimits {
             soft_limit: limits.softLimit,
@@ -180,12 +188,14 @@ impl Device {
 
     /// Sets the memory limits of the device for a cgroup partition.
     ///
-    /// For Linux only. Requires root/admin permissions. The soft limit is the
-    /// guaranteed amount; the hard limit is the maximum allocation size.
+    /// For Linux only.
+    /// Requires root/admin permissions.
+    /// The soft limit is the guaranteed amount; the hard limit is the maximum allocation size.
     ///
     /// # Errors
     ///
-    /// Returns `Status::InvalidArgument` if `soft_limit` exceeds the encoded hard limit. Also returns an error if the entry point is unavailable or NVML rejects the cgroup, limits, device, or caller permissions.
+    /// Returns `Status::InvalidArgument` if `soft_limit` exceeds the encoded hard limit.
+    /// Also returns an error if the entry point is unavailable or NVML rejects the cgroup, limits, device, or caller permissions.
     pub fn set_memory_limits(
         self,
         cgroup: &CStr,
@@ -199,13 +209,19 @@ impl Device {
         if soft_limit > hard_limit {
             return Err(Status::InvalidArgument.into());
         }
+
         let mut limits = sys::nvmlSetMemoryLimits_v1_t {
             nameSpace: cgroup.as_ptr(),
             softLimit: soft_limit,
             hardLimit: hard_limit,
         };
         // SAFETY: `nvmlDeviceSetMemoryLimits_v1` receives a live handle and a versioned local struct that outlives the call.
-        unsafe { try_ffi!(nvmlDeviceSetMemoryLimits_v1(self.as_raw(), &raw mut limits)) }
+        unsafe {
+            try_ffi!(sys::nvmlDeviceSetMemoryLimits_v1(
+                self.as_raw(),
+                &raw mut limits
+            ))
+        }
     }
 
     /// Clears limits by setting the soft limit to zero and hard limit to unlimited.
@@ -221,12 +237,13 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML lacks this entry point, the device is inaccessible, or bank-remapper reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the installed NVML lacks this entry point, the device is inaccessible, or bank-remapper reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn bank_remapper_status(self) -> Result<BankRemapperStatus> {
         let mut status = sys::nvmlEccBankRemapperStatus_v1_t::default();
         // SAFETY: `nvmlDeviceGetBankRemapperStatus_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceGetBankRemapperStatus_v1(
+            try_ffi!(sys::nvmlDeviceGetBankRemapperStatus_v1(
                 self.as_raw(),
                 &raw mut status
             ))?;
@@ -244,7 +261,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the requested bandwidth mode is unsupported, the device is inaccessible, or NVML denies permission to configure `NVLink` bandwidth. Also propagates NVML configuration failures.
+    /// Returns an error if the requested bandwidth mode is unsupported, the device is inaccessible, or NVML denies permission to configure `NVLink` bandwidth.
+    /// Also propagates NVML configuration failures.
     pub fn set_nvlink_bandwidth_mode(self, mode: NvLinkBandwidthMode) -> Result<()> {
         let mut params = sys::nvmlNvlinkSetBwMode_t {
             version: struct_version::<sys::nvmlNvlinkSetBwMode_t>(1),
@@ -265,12 +283,13 @@ impl Device {
 
     /// Sets `NVLink` Reduced Bandwidth Mode asynchronously and returns the polling timeout in milliseconds.
     ///
-    /// For Rubin or newer devices. Poll fabric information for the completed state
-    /// to check whether the setting was applied.
+    /// For Rubin or newer devices.
+    /// Poll fabric information for the completed state to check whether the setting was applied.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML lacks this entry point or rejects the requested mode, device, or caller permissions. This reports request-submission errors; the returned timeout describes subsequent polling.
+    /// Returns an error if the installed NVML lacks this entry point or rejects the requested mode, device, or caller permissions.
+    /// This reports request-submission errors; the returned timeout describes subsequent polling.
     pub fn set_nvlink_bandwidth_mode_async(self, mode: NvLinkBandwidthMode) -> Result<u32> {
         let mut params = sys::nvmlNvlinkSetBwModeAsync_v1_t {
             bSetBest: u32::from(mode == NvLinkBandwidthMode::Best),
@@ -282,7 +301,7 @@ impl Device {
         };
         // SAFETY: `nvmlDeviceSetNvlinkBwModeAsync_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceSetNvlinkBwModeAsync_v1(
+            try_ffi!(sys::nvmlDeviceSetNvlinkBwModeAsync_v1(
                 self.as_raw(),
                 &raw mut params
             ))?;
@@ -292,12 +311,14 @@ impl Device {
 
     /// Retrieves a batch of historical `NVLink` per-link telemetry samples.
     ///
-    /// Samples are taken at approximately 100 ms intervals. Intended for periodic
-    /// polling every roughly two seconds. For Rubin or newer devices.
+    /// Samples are taken at approximately 100 ms intervals.
+    /// Intended for periodic polling every roughly two seconds.
+    /// For Rubin or newer devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if request or sample counts cannot fit in `u32`, the native entry point is unavailable, or a batch query fails. Per-link errors, including insufficient sample capacity, are retained in the corresponding returned record.
+    /// Returns an error if request or sample counts cannot fit in `u32`, the native entry point is unavailable, or a batch query fails.
+    /// Per-link errors, including insufficient sample capacity, are retained in the corresponding returned record.
     pub fn nvlink_telemetry_samples(
         self,
         requests: &[NvLinkTelemetryRequest],
@@ -315,11 +336,12 @@ impl Device {
         };
         // SAFETY: `nvmlDeviceGetNvLinkTelemetrySamples_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceGetNvLinkTelemetrySamples_v1(
+            try_ffi!(sys::nvmlDeviceGetNvLinkTelemetrySamples_v1(
                 self.as_raw(),
                 &raw mut batch
             ))?;
         }
+
         let mut buffers: Vec<_> = slots
             .iter()
             .map(|slot| {
@@ -339,9 +361,10 @@ impl Device {
             };
             slot.sampleCount = to_u32(buffer.len(), "telemetry sample count")?;
         }
+
         // SAFETY: `nvmlDeviceGetNvLinkTelemetrySamples_v1` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceGetNvLinkTelemetrySamples_v1(
+            try_ffi!(sys::nvmlDeviceGetNvLinkTelemetrySamples_v1(
                 self.as_raw(),
                 &raw mut batch
             ))?;
@@ -375,7 +398,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the request count cannot fit in `u32` or NVML rejects the counter batch. Per-counter NVML errors and unrecognized scalar value types are retained in the returned inner results.
+    /// Returns an error if the request count cannot fit in `u32` or NVML rejects the counter batch.
+    /// Per-counter NVML errors and unrecognized scalar value types are retained in the returned inner results.
     pub fn read_prm_counters(
         self,
         requests: &[PrmCounterRequest],
@@ -765,16 +789,18 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML lacks this entry point or the native query fails. Returns `Status::InsufficientSize` if a reported sample or controller count exceeds its native array capacity.
+    /// Returns an error if the installed NVML lacks this entry point or the native query fails.
+    /// Returns `Status::InsufficientSize` if a reported sample or controller count exceeds its native array capacity.
     pub fn performance_metric_samples(self) -> Result<Vec<PerformanceSample>> {
         let mut data = Box::new(sys::nvmlPerfMetricsSamples_v1_t::default());
         // SAFETY: `nvmlDevicePerfMetricsGetSamples_v1` receives a live handle and a boxed, versioned struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDevicePerfMetricsGetSamples_v1(
+            try_ffi!(sys::nvmlDevicePerfMetricsGetSamples_v1(
                 self.as_raw(),
                 &raw mut *data
             ))?;
         }
+
         let samples = data
             .samples
             .get(..data.numSamples as usize)
@@ -837,12 +863,13 @@ pub struct GridLicensableFeatures {
 impl Device {
     /// Retrieve the vGPU Software licensable features.
     ///
-    /// Identifies whether the system supports vGPU Software Licensing. If it
-    /// does, returns the licensable features and their current license status.
+    /// Identifies whether the system supports vGPU Software Licensing.
+    /// If it does, returns the licensable features and their current license status.
     ///
     /// # Errors
     ///
-    /// Propagates NVML license-feature query errors. Returns `Status::InsufficientSize` if the reported feature count exceeds the native array capacity.
+    /// Propagates NVML license-feature query errors.
+    /// Returns `Status::InsufficientSize` if the reported feature count exceeds the native array capacity.
     pub fn grid_licensable_features(self) -> Result<GridLicensableFeatures> {
         let mut raw = sys::nvmlGridLicensableFeatures_t::default();
         // SAFETY: `nvmlDeviceGetGridLicensableFeatures_v4` receives live handles owned by the wrappers and valid output locations.
@@ -852,6 +879,7 @@ impl Device {
                 &raw mut raw
             ))?;
         }
+
         let features = raw
             .gridLicensableFeatures
             .get(..raw.licensableFeaturesCount as usize)

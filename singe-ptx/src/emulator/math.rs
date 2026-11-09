@@ -32,15 +32,19 @@ fn square_root(bits: u64, fraction_bits: u32, exponent_bits: u32, mode: FloatRou
             nan
         };
     }
+
     if exponent == 0 && fraction == 0 {
         return bits;
     }
+
     if sign != 0 {
         return nan;
     }
+
     if exponent == exponent_mask {
         return bits;
     }
+
     let encoding_offset = (1i32 << (exponent_bits - 1)) - 1;
     let (mantissa, power) = if exponent == 0 {
         let shift = fraction_bits - fraction.ilog2();
@@ -77,16 +81,17 @@ fn reciprocal<F: Float>(value: F, round: Round) -> F {
     F::from_u128(1).value.div_r(value, round).value
 }
 
-/// Computes the binary32 base-2 exponential within the two-ulp bound PTX allows for
-/// `ex2.approx.f32`.
+/// Computes the binary32 base-2 exponential within the two-ulp bound PTX allows for `ex2.approx.f32`.
 pub fn exponential(bits: u128, ftz: bool) -> u128 {
     let value = flush(Single::from_bits(bits), ftz);
     if value.is_nan() {
         return 0x7fc0_0000;
     }
+
     if value >= Single::from_u128(128).value {
         return 0x7f80_0000;
     }
+
     if value <= Single::from_i128(-150).value {
         return 0;
     }
@@ -109,6 +114,7 @@ pub fn exponential(bits: u128, ftz: bool) -> u128 {
         term = ((term * argument) >> 63) / divisor;
         sum += term;
     }
+
     let result: Single = Double::from_u128(sum)
         .value
         .scalbn(
@@ -154,6 +160,7 @@ pub fn evaluate(op: FloatMath, ty: ScalarType, bits: u128, control: MathControl)
             if result.is_nan() {
                 return 0x7fff_ffff_0000_0000;
             }
+
             // Round to the upper-word format, then zero the low word.
             let bits = numeric::low_u64(result.to_bits());
             let low = bits & 0xffff_ffff;

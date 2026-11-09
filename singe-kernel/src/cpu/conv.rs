@@ -148,10 +148,12 @@ pub fn conv1d_causal(input: &[f32], weight: &[f32], config: CausalConv1dConfig) 
                     if raw_input_pos < config.left_padding {
                         continue;
                     }
+
                     let input_pos = raw_input_pos - config.left_padding;
                     if input_pos >= config.input_length {
                         continue;
                     }
+
                     let input_value = input[input_channel * config.input_length + input_pos];
                     let weight_value = weight[(out_channel * channels_in_per_group
                         + group_input_channel)
@@ -160,6 +162,7 @@ pub fn conv1d_causal(input: &[f32], weight: &[f32], config: CausalConv1dConfig) 
                     sum = input_value.mul_add(weight_value, sum);
                 }
             }
+
             output[out_channel * output_length + out_pos] = sum;
         }
     }
@@ -184,10 +187,12 @@ pub fn conv1d(input: &[f32], weight: &[f32], config: Conv1dConfig) -> Vec<f32> {
                     if raw_input_pos < config.left_padding {
                         continue;
                     }
+
                     let input_pos = raw_input_pos - config.left_padding;
                     if input_pos >= config.input_length {
                         continue;
                     }
+
                     let input_value = input[input_channel * config.input_length + input_pos];
                     let weight_value = weight[(out_channel * channels_in_per_group
                         + group_input_channel)
@@ -196,6 +201,7 @@ pub fn conv1d(input: &[f32], weight: &[f32], config: Conv1dConfig) -> Vec<f32> {
                     sum = input_value.mul_add(weight_value, sum);
                 }
             }
+
             output[out_channel * output_length + out_pos] = sum;
         }
     }
@@ -250,10 +256,12 @@ pub fn conv1d_batched(input: &[f32], weight: &[f32], config: BatchedConv1dConfig
                         if raw_input_pos < config.left_padding {
                             continue;
                         }
+
                         let input_pos = raw_input_pos - config.left_padding;
                         if input_pos >= config.input_length {
                             continue;
                         }
+
                         let input_value = input
                             [input_batch_base + input_channel * config.input_length + input_pos];
                         let weight_value = weight[(out_channel * channels_in_per_group
@@ -263,6 +271,7 @@ pub fn conv1d_batched(input: &[f32], weight: &[f32], config: BatchedConv1dConfig
                         sum = input_value.mul_add(weight_value, sum);
                     }
                 }
+
                 output[output_batch_base + out_channel * output_length + out_pos] = sum;
             }
         }
@@ -294,10 +303,12 @@ pub fn conv1d_batched_im2col(input: &[f32], config: Conv1dIm2colConfig) -> Vec<f
                         if raw_input_pos < config.left_padding {
                             continue;
                         }
+
                         let input_pos = raw_input_pos - config.left_padding;
                         if input_pos >= config.input_length {
                             continue;
                         }
+
                         output[output_offset] = input
                             [input_batch_base + input_channel * config.input_length + input_pos];
                     }
@@ -346,6 +357,7 @@ pub fn conv1d_batched_from_im2col(
                         sum = columns[column_offset].mul_add(weight[weight_offset], sum);
                     }
                 }
+
                 output[output_batch_base + out_channel * output_length + out_pos] = sum;
             }
         }
@@ -434,6 +446,7 @@ fn validate_batched_conv1d_config(config: BatchedConv1dConfig) -> Result<()> {
     if config.batch == 0 || config.input_batch_stride == 0 || config.output_batch_stride == 0 {
         return Err(Error::InvalidLength);
     }
+
     validate_conv1d_shape(
         config.channels_in,
         config.channels_out,
@@ -463,6 +476,7 @@ fn validate_conv1d_im2col_config(config: Conv1dIm2colConfig) -> Result<()> {
     if config.batch == 0 || config.input_batch_stride == 0 {
         return Err(Error::InvalidLength);
     }
+
     validate_conv1d_shape(
         config.channels_in,
         config.channels_in,
@@ -510,9 +524,11 @@ fn validate_conv1d_shape(
     {
         return Err(Error::InvalidLength);
     }
+
     if !channels_in.is_multiple_of(groups) || !channels_out.is_multiple_of(groups) {
         return Err(Error::InvalidLength);
     }
+
     effective_kernel_size(kernel_size, dilation)?;
     Ok(())
 }
@@ -547,11 +563,9 @@ fn effective_kernel_size(kernel_size: usize, dilation: usize) -> Result<usize> {
 
 /// Depthwise causal conv1d decode step with in-place rolling state and `SiLU`.
 ///
-/// `input` and `out` are `[batch, channels]`. `conv_state` is
-/// `[batch, channels, kernel_size]` and is shifted left by one slot per
-/// channel before inserting the new input at `kernel_size - 1`. `weight` is
-/// `[channels, kernel_size]`, `bias` is `[channels]`, and the returned output
-/// is `silu(dot(updated_state, weight) + bias)`.
+/// `input` and `out` are `[batch, channels]`.
+/// `conv_state` is `[batch, channels, kernel_size]` and is shifted left by one slot per channel before inserting the new input at `kernel_size - 1`.
+/// `weight` is `[channels, kernel_size]`, `bias` is `[channels]`, and the returned output is `silu(dot(updated_state, weight) + bias)`.
 #[must_use]
 pub fn causal_conv1d_update_silu(
     conv_state: &[f32],
@@ -578,10 +592,12 @@ pub fn causal_conv1d_update_silu(
                 };
                 dot = f32::mul_add(value, weight[weight_offset + kernel], dot);
             }
+
             out[token_offset] = dot / (1.0 + (-dot).exp());
             for kernel in 0..kernel_size - 1 {
                 next_state[state_offset + kernel] = conv_state[state_offset + kernel + 1];
             }
+
             next_state[state_offset + kernel_size - 1] = input[token_offset];
         }
     }
@@ -590,10 +606,9 @@ pub fn causal_conv1d_update_silu(
 
 /// Depthwise causal conv1d sequence prefill from an implicit zero state.
 ///
-/// `input` and `out` use `[batch, channels, time]` layout. For each output
-/// position, values before the beginning of the sequence are zero-padded. The
-/// returned state is the final `[batch, channels, kernel_size]` rolling window,
-/// also left-padded with zeros when the input is shorter than the kernel.
+/// `input` and `out` use `[batch, channels, time]` layout.
+/// For each output position, values before the beginning of the sequence are zero-padded.
+/// The returned state is the final `[batch, channels, kernel_size]` rolling window, also left-padded with zeros when the input is shorter than the kernel.
 #[must_use]
 pub fn causal_conv1d_prefill_silu(
     input: &[f32],
@@ -631,6 +646,7 @@ pub fn causal_conv1d_prefill_silu(
                     };
                     dot = f32::mul_add(value, weight[weight_offset + kernel], dot);
                 }
+
                 out[output_offset + time] = dot / (1.0 + (-dot).exp());
             }
 

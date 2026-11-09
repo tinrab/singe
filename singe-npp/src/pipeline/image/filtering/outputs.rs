@@ -31,8 +31,7 @@ impl HoughLinesOutput {
     ///
     /// # Errors
     ///
-    /// Returns an error if `max_line_count` is zero or does not fit `i32`, allocation-size
-    /// arithmetic fails, or either device allocation fails.
+    /// Returns an error if `max_line_count` is zero or does not fit `i32`, allocation-size arithmetic fails, or either device allocation fails.
     pub fn create(context: &Arc<CudaContext>, max_line_count: usize) -> Result<Self> {
         if max_line_count == 0 || i32::try_from(max_line_count).is_err() {
             return Err(Error::out_of_range("max line count"));
@@ -49,14 +48,12 @@ impl HoughLinesOutput {
     ///
     /// # Errors
     ///
-    /// Returns an error if the count buffer does not have exactly one element, copying the count
-    /// to the host fails, the count is negative or exceeds line capacity, or constructing the
-    /// initialized prefix fails.
+    /// Returns an error if the count buffer does not have exactly one element, copying the count to the host fails, the count is negative or exceeds line capacity, or constructing the initialized prefix fails.
     ///
     /// # Safety
     ///
-    /// Production must have completed and initialized the device count and that many valid
-    /// lines. The count must describe the prefix produced into this exact line allocation.
+    /// Production must have completed and initialized the device count and that many valid lines.
+    /// The count must describe the prefix produced into this exact line allocation.
     pub unsafe fn assume_init(self) -> Result<HoughLines> {
         if self.line_count.len() != 1 {
             return Err(Error::LengthMismatch {
@@ -65,6 +62,7 @@ impl HoughLinesOutput {
                 actual: self.line_count.len(),
             });
         }
+
         // SAFETY: the producer initialized the sole count and completed its write.
         let line_count = unsafe { self.line_count.assume_init() };
         let count = usize::try_from(line_count.copy_to_host_vec()?[0])

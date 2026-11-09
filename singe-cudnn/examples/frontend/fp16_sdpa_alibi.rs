@@ -22,7 +22,6 @@ use singe_cudnn::{
         plan::{CompileConfig, HeuristicMode},
     },
     operation::FrontendExecution,
-    scalar::ScalarValue,
 };
 
 fn run() -> Result<()> {
@@ -56,8 +55,8 @@ fn run() -> Result<()> {
     let key = graph.tensor(key_value_spec.clone());
     let value = graph.tensor(key_value_spec.clone());
     let scale = graph.tensor(
-        TensorSpec::new(DataType::F32, Shape::contiguous([1, 1, 1, 1])?)
-            .with_constant_value(ScalarValue::F32(1.0 / (head_dimension as f32).sqrt()))?,
+        TensorSpec::scalar(1.0 / (head_dimension as f32).sqrt())
+            .with_shape(Shape::contiguous([1, 1, 1, 1])?),
     );
     let output = graph
         .sdpa_auto(
@@ -100,6 +99,7 @@ fn run() -> Result<()> {
         // The standard C++ schedule includes the two extra heads after its four-head prefix.
         println!("standard alibi slopes: {:?}", alibi_slopes(query_heads)?);
     }
+
     let output_device =
         DeviceMemory::<bf16>::zeroed(&cuda, graph.tensor_spec(output)?.logical_element_count()?)?;
     let workspace = common::workspace(&cuda, compiled.workspace_size())?;
@@ -112,6 +112,7 @@ fn run() -> Result<()> {
     ] {
         bindings.set_owned_region(id, OwnedDeviceRegion::from_memory(memory), access)?;
     }
+
     drop((query_device, key_device, value_device));
     // SAFETY: every binding has matching initialized storage and permitted aliases.
     // Retained bindings supply allocation owners and native access declarations automatically.

@@ -39,8 +39,8 @@ use crate::{
 
 /// Describes the configuration for a cuBLASLt matrix multiplication operation.
 ///
-/// Owns a cuBLASLt matmul descriptor handle. Configure transpose modes,
-/// epilogue, scaling, and other attributes through the setter methods.
+/// Owns a cuBLASLt matmul descriptor handle.
+/// Configure transpose modes, epilogue, scaling, and other attributes through the setter methods.
 #[derive(Debug)]
 pub struct MatmulDescriptor {
     raw: sys::cublasLtMatmulDesc_t,
@@ -48,9 +48,8 @@ pub struct MatmulDescriptor {
 
 /// Stores algorithm-search preferences for cuBLASLt matmul heuristic queries.
 ///
-/// Owns a cuBLASLt matmul preference handle. Use setter methods to configure
-/// workspace limits, search mode, alignment requirements, and other tuning
-/// parameters.
+/// Owns a cuBLASLt matmul preference handle.
+/// Use setter methods to configure workspace limits, search mode, alignment requirements, and other tuning parameters.
 #[derive(Debug)]
 pub struct MatmulPreference {
     raw: sys::cublasLtMatmulPreference_t,
@@ -79,11 +78,9 @@ pub struct MatmulHeuristicResult {
 ///
 /// # Safety
 ///
-/// The pointer must identify live storage for the borrow, in the
-/// address space appropriate to its use. Host scalar implementations may only
-/// be used where the operation accepts host scalar pointers.
-/// Raw operations require valid values when each range is read; address
-/// metadata alone does not establish initialization.
+/// The pointer must identify live storage for the borrow, in the address space appropriate to its use.
+/// Host scalar implementations may only be used where the operation accepts host scalar pointers.
+/// Raw operations require valid values when each range is read; address metadata alone does not establish initialization.
 pub unsafe trait ConstDataPointer {
     /// Returns a borrowed pointer to the underlying data.
     fn as_const_data_ptr(&self) -> *const c_void;
@@ -93,9 +90,8 @@ pub unsafe trait ConstDataPointer {
 ///
 /// # Safety
 ///
-/// The pointer must identify live writable storage and grant exclusive access
-/// for the mutable borrow. Operation-specific bounds and GPU lifetimes remain
-/// the caller's responsibility when using raw submission APIs.
+/// The pointer must identify live writable storage and grant exclusive access for the mutable borrow.
+/// Operation-specific bounds and GPU lifetimes remain the caller's responsibility when using raw submission APIs.
 pub unsafe trait MutDataPointer {
     /// Returns a borrowed writable pointer to the underlying data.
     fn as_mut_data_ptr(&mut self) -> *mut c_void;
@@ -190,8 +186,7 @@ impl MatmulDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return
-    /// a valid handle.
+    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return a valid handle.
     pub fn create(compute_type: ComputeType, scale_type: DataType) -> Result<Self> {
         let mut raw = ptr::null_mut();
         // SAFETY: `cublasLtMatmulDescCreate` receives valid output locations.
@@ -214,13 +209,12 @@ impl MatmulDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_attribute<T>(
         &mut self,
         attr: MatmulDescriptorAttribute,
@@ -242,8 +236,7 @@ impl MatmulDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn attribute<T: AnyBitPatternDeviceRepr>(
         &self,
         attr: MatmulDescriptorAttribute,
@@ -451,8 +444,7 @@ impl MatmulDescriptor {
 
     /// Enables or disables fast accumulation.
     ///
-    /// Fast accumulation may use higher-precision internally for better
-    /// accuracy at the cost of performance.
+    /// Fast accumulation may use higher-precision internally for better accuracy at the cost of performance.
     ///
     /// # Errors
     ///
@@ -605,8 +597,7 @@ impl MatmulDescriptor {
 
     /// Returns the raw cuBLASLt matmul descriptor handle.
     ///
-    /// The returned handle is borrowed and remains valid only while the
-    /// descriptor is alive.
+    /// The returned handle is borrowed and remains valid only while the descriptor is alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtMatmulDesc_t {
         self.raw
@@ -617,8 +608,7 @@ impl MatmulDescriptor {
     /// # Safety
     ///
     /// `raw` must be a valid `cublasLtMatmulDesc_t` handle created by cuBLASLt.
-    /// The returned wrapper takes ownership and will destroy it with
-    /// `cublasLtMatmulDescDestroy`; no other owner may destroy or keep using it.
+    /// The returned wrapper takes ownership and will destroy it with `cublasLtMatmulDescDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -647,8 +637,10 @@ impl Drop for MatmulDescriptor {
         // SAFETY: `cublasLtMatmulDescDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasLtMatmulDescDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublaslt matmul descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cublaslt matmul descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -661,8 +653,7 @@ impl MatmulPreference {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return
-    /// a valid handle.
+    /// Returns an error if cuBLASLt cannot allocate the descriptor or if it does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut raw = ptr::null_mut();
         // SAFETY: `cublasLtMatmulPreferenceCreate` receives valid output locations.
@@ -681,13 +672,12 @@ impl MatmulPreference {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_attribute<T>(
         &mut self,
         attr: MatmulPreferenceAttribute,
@@ -709,8 +699,7 @@ impl MatmulPreference {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn attribute<T: AnyBitPatternDeviceRepr>(
         &self,
         attr: MatmulPreferenceAttribute,
@@ -812,8 +801,7 @@ impl MatmulPreference {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt cannot report the attribute or if the
-    /// returned size overflows `usize`.
+    /// Returns an error if cuBLASLt cannot report the attribute or if the returned size overflows `usize`.
     pub fn max_workspace_bytes(&self) -> Result<usize> {
         let size = self.attribute::<ffi::c_ulong>(MatmulPreferenceAttribute::MaxWorkspaceBytes)?;
         to_usize(size, "workspace size")
@@ -821,8 +809,7 @@ impl MatmulPreference {
 
     /// Returns the raw cuBLASLt matmul preference handle.
     ///
-    /// The returned handle is borrowed and remains valid only while the
-    /// preference is alive.
+    /// The returned handle is borrowed and remains valid only while the preference is alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cublasLtMatmulPreference_t {
         self.raw
@@ -832,10 +819,8 @@ impl MatmulPreference {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid `cublasLtMatmulPreference_t` handle created by
-    /// cuBLASLt. The returned wrapper takes ownership and will destroy it with
-    /// `cublasLtMatmulPreferenceDestroy`; no other owner may destroy or keep
-    /// using it.
+    /// `raw` must be a valid `cublasLtMatmulPreference_t` handle created by cuBLASLt.
+    /// The returned wrapper takes ownership and will destroy it with `cublasLtMatmulPreferenceDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -864,8 +849,10 @@ impl Drop for MatmulPreference {
         // SAFETY: `cublasLtMatmulPreferenceDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cublasLtMatmulPreferenceDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cublaslt matmul preference: {error}");
+                eprintln!(
+                    "failed to destroy cublaslt matmul preference: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -888,13 +875,12 @@ impl MatmulAlgorithm {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the
-    /// attribute storage expected by cuBLASLt.
+    /// Returns an error if cuBLASLt rejects the attribute or the value size does not match the attribute storage expected by cuBLASLt.
     ///
     /// # Safety
     ///
-    /// `T` must match the selected attribute's native representation, including
-    /// its validity and initialized-byte requirements. Retain pointer targets for every native use.
+    /// `T` must match the selected attribute's native representation, including its validity and initialized-byte requirements.
+    /// Retain pointer targets for every native use.
     pub unsafe fn set_config_attribute<T>(
         &mut self,
         attr: MatmulAlgorithmConfigAttribute,
@@ -921,8 +907,7 @@ impl MatmulAlgorithm {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn config_attribute<T: AnyBitPatternDeviceRepr>(
         &self,
         attr: MatmulAlgorithmConfigAttribute,
@@ -955,8 +940,7 @@ impl MatmulAlgorithm {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not
-    /// match `T`.
+    /// Returns an error if cuBLASLt rejects the query or if the returned attribute size does not match `T`.
     pub fn cap_attribute<T: AnyBitPatternDeviceRepr>(
         &self,
         attr: MatmulAlgorithmCapAttribute,
@@ -1023,8 +1007,7 @@ impl MatmulAlgorithm {
 
     /// Returns a reference to the raw cuBLASLt algorithm representation.
     ///
-    /// The returned value is borrowed and remains valid only while the
-    /// algorithm wrapper is alive.
+    /// The returned value is borrowed and remains valid only while the algorithm wrapper is alive.
     #[must_use]
     pub fn as_raw(&self) -> &sys::cublasLtMatmulAlgo_t {
         &self.raw
@@ -1048,22 +1031,18 @@ impl MatmulHeuristicResult {
 ///
 /// `D = alpha*(A*B) + beta*(C),`
 ///
-/// `alpha`, `beta`, and the matrix pointers must match the types and pointer mode configured in
-/// `desc`.
+/// `alpha`, `beta`, and the matrix pointers must match the types and pointer mode configured in `desc`.
 ///
-/// When provided, `workspace` must satisfy cuBLASLt's alignment requirements and be large enough
-/// for the selected algorithm.
+/// When provided, `workspace` must satisfy cuBLASLt's alignment requirements and be large enough for the selected algorithm.
 ///
 /// # Safety
 ///
-/// Matrix and scalar pointers must be valid for the configured descriptors, pointer mode, and
-/// stream until the operation completes. Output pointer `d` and `workspace`, when provided, must
-/// be writable for the required ranges.
+/// Matrix and scalar pointers must be valid for the configured descriptors, pointer mode, and stream until the operation completes.
+/// Output pointer `d` and `workspace`, when provided, must be writable for the required ranges.
 ///
 /// # Errors
 ///
-/// Returns an error if the descriptors, pointer mode, algorithm, workspace, or device do not
-/// support the requested operation, or if execution fails.
+/// Returns an error if the descriptors, pointer mode, algorithm, workspace, or device do not support the requested operation, or if execution fails.
 pub unsafe fn matmul_raw(
     context: &Context,
     desc: &MatmulDescriptor,
@@ -1087,6 +1066,7 @@ pub unsafe fn matmul_raw(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     // SAFETY: the caller upholds this function's safety contract.
     let stream = unsafe { context.stream_raw(stream)? };
     let (workspace_ptr, workspace_size) = workspace.map_or((ptr::null_mut(), 0), |workspace| {
@@ -1122,9 +1102,8 @@ pub unsafe fn matmul_raw(
 ///
 /// # Safety
 ///
-/// Matrix and scalar representations, accessible ranges, pointer modes, and
-/// layouts must match the descriptors. Inputs, outputs, and workspace must
-/// remain live and correctly ordered until the selected stream completes.
+/// Matrix and scalar representations, accessible ranges, pointer modes, and layouts must match the descriptors.
+/// Inputs, outputs, and workspace must remain live and correctly ordered until the selected stream completes.
 /// Output and workspace writes must not conflict with other access.
 ///
 /// # Errors
@@ -1182,19 +1161,16 @@ where
 ///
 /// `C = alpha*transformation(A) + beta*transformation(B),`
 ///
-/// The transformation is defined by `desc` and may reorder matrix data or apply
-/// scaling.
+/// The transformation is defined by `desc` and may reorder matrix data or apply scaling.
 ///
 /// # Safety
 ///
-/// Matrix and scalar pointers must be valid for the configured descriptors, pointer mode, and
-/// stream until the operation completes. Output pointer `c` must be writable for the range
-/// described by `c_desc`.
+/// Matrix and scalar pointers must be valid for the configured descriptors, pointer mode, and stream until the operation completes.
+/// Output pointer `c` must be writable for the range described by `c_desc`.
 ///
 /// # Errors
 ///
-/// Returns an error if the descriptors or parameters are incompatible with the configured
-/// transform, if the device does not support it, or if execution fails.
+/// Returns an error if the descriptors or parameters are incompatible with the configured transform, if the device does not support it, or if execution fails.
 pub(crate) unsafe fn matrix_transform_raw(
     context: &Context,
     desc: &MatrixTransformDescriptor,
@@ -1282,8 +1258,7 @@ where
 ///
 /// # Errors
 ///
-/// Returns an error if `requested_count` cannot be represented as `i32` or if cuBLASLt rejects
-/// the query.
+/// Returns an error if `requested_count` cannot be represented as `i32` or if cuBLASLt rejects the query.
 pub fn matmul_algorithm_ids(
     context: &Context,
     compute_type: ComputeType,
@@ -1324,8 +1299,7 @@ pub fn matmul_algorithm_ids(
 ///
 /// # Errors
 ///
-/// Returns an error if the algorithm ID is invalid or unsupported for the supplied data type
-/// combination.
+/// Returns an error if the algorithm ID is invalid or unsupported for the supplied data type combination.
 pub fn matmul_algorithm(
     context: &Context,
     compute_type: ComputeType,
@@ -1362,8 +1336,7 @@ pub fn matmul_algorithm(
 ///
 /// # Errors
 ///
-/// Returns an error if `requested_count` cannot be represented as `i32`, if no heuristic is
-/// available for the configuration, or if cuBLASLt rejects the query.
+/// Returns an error if `requested_count` cannot be represented as `i32`, if no heuristic is available for the configuration, or if cuBLASLt rejects the query.
 pub fn matmul_algorithm_heuristics(
     context: &Context,
     desc: &MatmulDescriptor,
@@ -1408,15 +1381,13 @@ pub fn matmul_algorithm_heuristics(
         .collect()
 }
 
-/// Checks whether a [`MatmulAlgorithm`] is valid for the supplied descriptors on the current
-/// device.
+/// Checks whether a [`MatmulAlgorithm`] is valid for the supplied descriptors on the current device.
 ///
 /// On success, returns the required workspace size and estimated wave count reported by cuBLASLt.
 ///
 /// # Errors
 ///
-/// Returns an error if the descriptors do not match the algorithm configuration or if the device
-/// does not support the requested algorithm.
+/// Returns an error if the descriptors do not match the algorithm configuration or if the device does not support the requested algorithm.
 pub fn check_matmul_algorithm(
     context: &Context,
     desc: &MatmulDescriptor,
@@ -1450,8 +1421,7 @@ pub fn check_matmul_algorithm(
 
 /// Takes a CUDA stream into account when evaluating algorithm compatibility.
 ///
-/// If the stream is associated with a green context, the result reflects its
-/// SM count and resource constraints, not the full device.
+/// If the stream is associated with a green context, the result reflects its SM count and resource constraints, not the full device.
 ///
 /// # Errors
 ///
@@ -1506,8 +1476,7 @@ pub fn matmul_algorithm_heuristics_for_stream(
 
 /// Takes a CUDA stream into account when evaluating algorithm compatibility.
 ///
-/// If the stream is associated with a green context, the result reflects its
-/// SM count and resource constraints, not the full device.
+/// If the stream is associated with a green context, the result reflects its SM count and resource constraints, not the full device.
 ///
 /// # Errors
 ///

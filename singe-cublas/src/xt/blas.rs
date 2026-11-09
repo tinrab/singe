@@ -91,8 +91,7 @@ macro_rules! impl_gemm {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             transpose_a: Operation,
@@ -154,8 +153,7 @@ macro_rules! impl_syrk {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             fill_mode: FillMode,
@@ -199,8 +197,7 @@ macro_rules! impl_herk {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             fill_mode: FillMode,
@@ -244,8 +241,7 @@ macro_rules! impl_syr2k_like {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             fill_mode: FillMode,
@@ -293,8 +289,7 @@ macro_rules! impl_her2k_like {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             fill_mode: FillMode,
@@ -342,8 +337,7 @@ macro_rules! impl_symm {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             side: SideMode,
@@ -402,8 +396,7 @@ macro_rules! impl_trsm {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             side: SideMode,
@@ -449,8 +442,7 @@ macro_rules! impl_trmm {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             side: SideMode,
@@ -511,8 +503,7 @@ macro_rules! impl_spmm {
         ///
         /// # Errors
         ///
-        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid,
-        /// a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
+        /// Returns an error if dimensions, leading dimensions, or operand lengths are invalid, a storage-size calculation overflows, or cuBLASXt cannot execute the operation.
         pub fn $name(
             context: &Context,
             side: SideMode,
@@ -907,6 +898,7 @@ fn validate_syrk(
     if lda < a_rows || ldc < n {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, a_cols)? || c_len < required_matrix_len(ldc, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -939,6 +931,7 @@ fn validate_syr2k(
     if ldb < b_rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if b_len < required_matrix_len(ldb, b_cols)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -1014,6 +1007,7 @@ fn validate_triangular_solve(
     if lda < a_dimension || ldb < m {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, a_dimension)? || b_len < required_matrix_len(ldb, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -1034,6 +1028,7 @@ fn validate_packed_symmetric_matrix_multiply(
     if ldb < m || ldc < m {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if ap_len < required_packed_triangular_len(a_dimension)?
         || b_len < required_matrix_len(ldb, n)?
         || c_len < required_matrix_len(ldc, n)?
@@ -1060,6 +1055,7 @@ fn validate_three_matrices(
     if lda < a_rows || ldb < b_rows || ldc < c_rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, a_cols)?
         || b_len < required_matrix_len(ldb, b_cols)?
         || c_len < required_matrix_len(ldc, c_cols)?

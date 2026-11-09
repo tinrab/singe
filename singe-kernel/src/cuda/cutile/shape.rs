@@ -4,6 +4,12 @@ use std::sync::Arc;
 use cutile::half::f16;
 use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
+#[cfg(feature = "dtype_f16")]
+use crate::cuda::cutile::kernel::f16::shape as kernel_f16;
+#[cfg(feature = "dtype_f32")]
+use crate::cuda::cutile::kernel::f32::shape as kernel_f32;
+#[cfg(feature = "dtype_f64")]
+use crate::cuda::cutile::kernel::f64::shape as kernel_f64;
 #[cfg(any(
     feature = "dtype_i8",
     feature = "dtype_u8",
@@ -12,13 +18,7 @@ use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
     feature = "dtype_i64",
     feature = "dtype_u64",
 ))]
-use crate::cuda::cutile::kernel::common as kernel_common;
-#[cfg(feature = "dtype_f16")]
-use crate::cuda::cutile::kernel::f16::shape as kernel_f16;
-#[cfg(feature = "dtype_f32")]
-use crate::cuda::cutile::kernel::f32::shape as kernel_f32;
-#[cfg(feature = "dtype_f64")]
-use crate::cuda::cutile::kernel::f64::shape as kernel_f64;
+use crate::cuda::cutile::kernel::vector as vector_kernels;
 use crate::{
     cuda::cutile::{
         DeviceOpExt, TileKernel,
@@ -41,6 +41,7 @@ fn ensure_i32_source_offsets<const R: usize>(
     if dimensions.contains(&0) {
         return Ok(());
     }
+
     let mut maximum = 0usize;
     for axis in 0..R {
         let coordinate = starts[axis]
@@ -51,6 +52,7 @@ fn ensure_i32_source_offsets<const R: usize>(
             .ok_or(Error::SizeOverflow)?;
         maximum = maximum.checked_add(span).ok_or(Error::SizeOverflow)?;
     }
+
     checked_i32_value(maximum)?;
     Ok(())
 }
@@ -91,22 +93,22 @@ copy_fn!(copy_f16, f16, kernel_f16, copy_f16);
 copy_fn!(copy_f64, f64, kernel_f64, copy_f64);
 
 #[cfg(feature = "dtype_u8")]
-copy_fn!(copy_u8, u8, kernel_common, copy_u8);
+copy_fn!(copy_u8, u8, vector_kernels, copy_u8);
 
 #[cfg(feature = "dtype_i8")]
-copy_fn!(copy_i8, i8, kernel_common, copy_i8);
+copy_fn!(copy_i8, i8, vector_kernels, copy_i8);
 
 #[cfg(feature = "dtype_u32")]
-copy_fn!(copy_u32, u32, kernel_common, copy_u32);
+copy_fn!(copy_u32, u32, vector_kernels, copy_u32);
 
 #[cfg(feature = "dtype_u64")]
-copy_fn!(copy_u64, u64, kernel_common, copy_u64);
+copy_fn!(copy_u64, u64, vector_kernels, copy_u64);
 
 #[cfg(feature = "dtype_i32")]
-copy_fn!(copy_i32, i32, kernel_common, copy_i32);
+copy_fn!(copy_i32, i32, vector_kernels, copy_i32);
 
 #[cfg(feature = "dtype_i64")]
-copy_fn!(copy_i64, i64, kernel_common, copy_i64);
+copy_fn!(copy_i64, i64, vector_kernels, copy_i64);
 
 macro_rules! transpose_2d_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -148,22 +150,22 @@ transpose_2d_fn!(transpose_2d_f16, f16, kernel_f16, transpose_2d_f16);
 transpose_2d_fn!(transpose_2d_f64, f64, kernel_f64, transpose_2d_f64);
 
 #[cfg(feature = "dtype_u8")]
-transpose_2d_fn!(transpose_2d_u8, u8, kernel_common, transpose_2d_u8);
+transpose_2d_fn!(transpose_2d_u8, u8, vector_kernels, transpose_2d_u8);
 
 #[cfg(feature = "dtype_i8")]
-transpose_2d_fn!(transpose_2d_i8, i8, kernel_common, transpose_2d_i8);
+transpose_2d_fn!(transpose_2d_i8, i8, vector_kernels, transpose_2d_i8);
 
 #[cfg(feature = "dtype_u32")]
-transpose_2d_fn!(transpose_2d_u32, u32, kernel_common, transpose_2d_u32);
+transpose_2d_fn!(transpose_2d_u32, u32, vector_kernels, transpose_2d_u32);
 
 #[cfg(feature = "dtype_i32")]
-transpose_2d_fn!(transpose_2d_i32, i32, kernel_common, transpose_2d_i32);
+transpose_2d_fn!(transpose_2d_i32, i32, vector_kernels, transpose_2d_i32);
 
 #[cfg(feature = "dtype_u64")]
-transpose_2d_fn!(transpose_2d_u64, u64, kernel_common, transpose_2d_u64);
+transpose_2d_fn!(transpose_2d_u64, u64, vector_kernels, transpose_2d_u64);
 
 #[cfg(feature = "dtype_i64")]
-transpose_2d_fn!(transpose_2d_i64, i64, kernel_common, transpose_2d_i64);
+transpose_2d_fn!(transpose_2d_i64, i64, vector_kernels, transpose_2d_i64);
 
 macro_rules! transpose_last2_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -228,7 +230,7 @@ transpose_last2_rank3_fn!(
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank3_u8
 );
 
@@ -236,7 +238,7 @@ transpose_last2_rank3_fn!(
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank3_i8
 );
 
@@ -244,7 +246,7 @@ transpose_last2_rank3_fn!(
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank3_u32
 );
 
@@ -252,7 +254,7 @@ transpose_last2_rank3_fn!(
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank3_i32
 );
 
@@ -260,7 +262,7 @@ transpose_last2_rank3_fn!(
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank3_u64
 );
 
@@ -268,7 +270,7 @@ transpose_last2_rank3_fn!(
 transpose_last2_rank3_fn!(
     transpose_last2_rank3_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank3_i64
 );
 
@@ -338,7 +340,7 @@ transpose_last2_rank4_fn!(
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank4_u8
 );
 
@@ -346,7 +348,7 @@ transpose_last2_rank4_fn!(
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank4_i8
 );
 
@@ -354,7 +356,7 @@ transpose_last2_rank4_fn!(
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank4_u32
 );
 
@@ -362,7 +364,7 @@ transpose_last2_rank4_fn!(
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank4_i32
 );
 
@@ -370,7 +372,7 @@ transpose_last2_rank4_fn!(
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank4_u64
 );
 
@@ -378,7 +380,7 @@ transpose_last2_rank4_fn!(
 transpose_last2_rank4_fn!(
     transpose_last2_rank4_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     transpose_last2_rank4_i64
 );
 
@@ -393,14 +395,17 @@ fn concat_rhs_dimensions<const R: usize>(
             axis,
         });
     }
+
     if lhs_dimensions[axis] > output_dimensions[axis] {
         return Err(Error::LengthMismatch);
     }
+
     for dim in 0..R {
         if dim != axis && lhs_dimensions[dim] != output_dimensions[dim] {
             return Err(Error::LengthMismatch);
         }
     }
+
     let mut dimensions = output_dimensions;
     dimensions[axis] -= lhs_dimensions[axis];
     Ok(dimensions)
@@ -442,9 +447,11 @@ fn repeat_kv_input_dimensions(output_dimensions: [usize; 4], repeats: usize) -> 
     if repeats == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !output_dimensions[1].is_multiple_of(repeats) {
         return Err(Error::LengthMismatch);
     }
+
     let mut dimensions = output_dimensions;
     dimensions[1] /= repeats;
     Ok(dimensions)
@@ -519,7 +526,7 @@ materialize_rank2_fn!(
 materialize_rank2_fn!(
     materialize_rank2_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     materialize_rank2_u8
 );
 
@@ -527,7 +534,7 @@ materialize_rank2_fn!(
 materialize_rank2_fn!(
     materialize_rank2_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     materialize_rank2_i8
 );
 
@@ -535,7 +542,7 @@ materialize_rank2_fn!(
 materialize_rank2_fn!(
     materialize_rank2_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     materialize_rank2_u32
 );
 
@@ -543,7 +550,7 @@ materialize_rank2_fn!(
 materialize_rank2_fn!(
     materialize_rank2_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     materialize_rank2_i32
 );
 
@@ -551,7 +558,7 @@ materialize_rank2_fn!(
 materialize_rank2_fn!(
     materialize_rank2_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     materialize_rank2_u64
 );
 
@@ -559,7 +566,7 @@ materialize_rank2_fn!(
 materialize_rank2_fn!(
     materialize_rank2_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     materialize_rank2_i64
 );
 
@@ -621,22 +628,22 @@ slice_rank2_fn!(slice_rank2_f16, f16, kernel_f16, slice_rank2_f16);
 slice_rank2_fn!(slice_rank2_f64, f64, kernel_f64, slice_rank2_f64);
 
 #[cfg(feature = "dtype_u8")]
-slice_rank2_fn!(slice_rank2_u8, u8, kernel_common, slice_rank2_u8);
+slice_rank2_fn!(slice_rank2_u8, u8, vector_kernels, slice_rank2_u8);
 
 #[cfg(feature = "dtype_i8")]
-slice_rank2_fn!(slice_rank2_i8, i8, kernel_common, slice_rank2_i8);
+slice_rank2_fn!(slice_rank2_i8, i8, vector_kernels, slice_rank2_i8);
 
 #[cfg(feature = "dtype_u32")]
-slice_rank2_fn!(slice_rank2_u32, u32, kernel_common, slice_rank2_u32);
+slice_rank2_fn!(slice_rank2_u32, u32, vector_kernels, slice_rank2_u32);
 
 #[cfg(feature = "dtype_i32")]
-slice_rank2_fn!(slice_rank2_i32, i32, kernel_common, slice_rank2_i32);
+slice_rank2_fn!(slice_rank2_i32, i32, vector_kernels, slice_rank2_i32);
 
 #[cfg(feature = "dtype_u64")]
-slice_rank2_fn!(slice_rank2_u64, u64, kernel_common, slice_rank2_u64);
+slice_rank2_fn!(slice_rank2_u64, u64, vector_kernels, slice_rank2_u64);
 
 #[cfg(feature = "dtype_i64")]
-slice_rank2_fn!(slice_rank2_i64, i64, kernel_common, slice_rank2_i64);
+slice_rank2_fn!(slice_rank2_i64, i64, vector_kernels, slice_rank2_i64);
 
 macro_rules! materialize_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -710,7 +717,7 @@ materialize_rank3_fn!(
 materialize_rank3_fn!(
     materialize_rank3_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     materialize_rank3_u8
 );
 
@@ -718,7 +725,7 @@ materialize_rank3_fn!(
 materialize_rank3_fn!(
     materialize_rank3_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     materialize_rank3_i8
 );
 
@@ -726,7 +733,7 @@ materialize_rank3_fn!(
 materialize_rank3_fn!(
     materialize_rank3_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     materialize_rank3_u32
 );
 
@@ -734,7 +741,7 @@ materialize_rank3_fn!(
 materialize_rank3_fn!(
     materialize_rank3_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     materialize_rank3_i32
 );
 
@@ -742,7 +749,7 @@ materialize_rank3_fn!(
 materialize_rank3_fn!(
     materialize_rank3_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     materialize_rank3_u64
 );
 
@@ -750,7 +757,7 @@ materialize_rank3_fn!(
 materialize_rank3_fn!(
     materialize_rank3_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     materialize_rank3_i64
 );
 
@@ -816,22 +823,22 @@ slice_rank3_fn!(slice_rank3_f16, f16, kernel_f16, slice_rank3_f16);
 slice_rank3_fn!(slice_rank3_f64, f64, kernel_f64, slice_rank3_f64);
 
 #[cfg(feature = "dtype_u8")]
-slice_rank3_fn!(slice_rank3_u8, u8, kernel_common, slice_rank3_u8);
+slice_rank3_fn!(slice_rank3_u8, u8, vector_kernels, slice_rank3_u8);
 
 #[cfg(feature = "dtype_i8")]
-slice_rank3_fn!(slice_rank3_i8, i8, kernel_common, slice_rank3_i8);
+slice_rank3_fn!(slice_rank3_i8, i8, vector_kernels, slice_rank3_i8);
 
 #[cfg(feature = "dtype_u32")]
-slice_rank3_fn!(slice_rank3_u32, u32, kernel_common, slice_rank3_u32);
+slice_rank3_fn!(slice_rank3_u32, u32, vector_kernels, slice_rank3_u32);
 
 #[cfg(feature = "dtype_i32")]
-slice_rank3_fn!(slice_rank3_i32, i32, kernel_common, slice_rank3_i32);
+slice_rank3_fn!(slice_rank3_i32, i32, vector_kernels, slice_rank3_i32);
 
 #[cfg(feature = "dtype_u64")]
-slice_rank3_fn!(slice_rank3_u64, u64, kernel_common, slice_rank3_u64);
+slice_rank3_fn!(slice_rank3_u64, u64, vector_kernels, slice_rank3_u64);
 
 #[cfg(feature = "dtype_i64")]
-slice_rank3_fn!(slice_rank3_i64, i64, kernel_common, slice_rank3_i64);
+slice_rank3_fn!(slice_rank3_i64, i64, vector_kernels, slice_rank3_i64);
 
 macro_rules! pad_rank2_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -900,22 +907,22 @@ pad_rank2_fn!(pad_rank2_f16, f16, kernel_f16, pad_rank2_f16);
 pad_rank2_fn!(pad_rank2_f64, f64, kernel_f64, pad_rank2_f64);
 
 #[cfg(feature = "dtype_u8")]
-pad_rank2_fn!(pad_rank2_u8, u8, kernel_common, pad_rank2_u8);
+pad_rank2_fn!(pad_rank2_u8, u8, vector_kernels, pad_rank2_u8);
 
 #[cfg(feature = "dtype_i8")]
-pad_rank2_fn!(pad_rank2_i8, i8, kernel_common, pad_rank2_i8);
+pad_rank2_fn!(pad_rank2_i8, i8, vector_kernels, pad_rank2_i8);
 
 #[cfg(feature = "dtype_u32")]
-pad_rank2_fn!(pad_rank2_u32, u32, kernel_common, pad_rank2_u32);
+pad_rank2_fn!(pad_rank2_u32, u32, vector_kernels, pad_rank2_u32);
 
 #[cfg(feature = "dtype_i32")]
-pad_rank2_fn!(pad_rank2_i32, i32, kernel_common, pad_rank2_i32);
+pad_rank2_fn!(pad_rank2_i32, i32, vector_kernels, pad_rank2_i32);
 
 #[cfg(feature = "dtype_u64")]
-pad_rank2_fn!(pad_rank2_u64, u64, kernel_common, pad_rank2_u64);
+pad_rank2_fn!(pad_rank2_u64, u64, vector_kernels, pad_rank2_u64);
 
 #[cfg(feature = "dtype_i64")]
-pad_rank2_fn!(pad_rank2_i64, i64, kernel_common, pad_rank2_i64);
+pad_rank2_fn!(pad_rank2_i64, i64, vector_kernels, pad_rank2_i64);
 
 macro_rules! pad_rank3_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -990,22 +997,22 @@ pad_rank3_fn!(pad_rank3_f16, f16, kernel_f16, pad_rank3_f16);
 pad_rank3_fn!(pad_rank3_f64, f64, kernel_f64, pad_rank3_f64);
 
 #[cfg(feature = "dtype_u8")]
-pad_rank3_fn!(pad_rank3_u8, u8, kernel_common, pad_rank3_u8);
+pad_rank3_fn!(pad_rank3_u8, u8, vector_kernels, pad_rank3_u8);
 
 #[cfg(feature = "dtype_i8")]
-pad_rank3_fn!(pad_rank3_i8, i8, kernel_common, pad_rank3_i8);
+pad_rank3_fn!(pad_rank3_i8, i8, vector_kernels, pad_rank3_i8);
 
 #[cfg(feature = "dtype_u32")]
-pad_rank3_fn!(pad_rank3_u32, u32, kernel_common, pad_rank3_u32);
+pad_rank3_fn!(pad_rank3_u32, u32, vector_kernels, pad_rank3_u32);
 
 #[cfg(feature = "dtype_i32")]
-pad_rank3_fn!(pad_rank3_i32, i32, kernel_common, pad_rank3_i32);
+pad_rank3_fn!(pad_rank3_i32, i32, vector_kernels, pad_rank3_i32);
 
 #[cfg(feature = "dtype_u64")]
-pad_rank3_fn!(pad_rank3_u64, u64, kernel_common, pad_rank3_u64);
+pad_rank3_fn!(pad_rank3_u64, u64, vector_kernels, pad_rank3_u64);
 
 #[cfg(feature = "dtype_i64")]
-pad_rank3_fn!(pad_rank3_i64, i64, kernel_common, pad_rank3_i64);
+pad_rank3_fn!(pad_rank3_i64, i64, vector_kernels, pad_rank3_i64);
 
 macro_rules! materialize_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -1080,7 +1087,7 @@ materialize_rank4_fn!(
 materialize_rank4_fn!(
     materialize_rank4_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     materialize_rank4_u8
 );
 
@@ -1088,7 +1095,7 @@ materialize_rank4_fn!(
 materialize_rank4_fn!(
     materialize_rank4_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     materialize_rank4_i8
 );
 
@@ -1096,7 +1103,7 @@ materialize_rank4_fn!(
 materialize_rank4_fn!(
     materialize_rank4_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     materialize_rank4_u32
 );
 
@@ -1104,7 +1111,7 @@ materialize_rank4_fn!(
 materialize_rank4_fn!(
     materialize_rank4_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     materialize_rank4_i32
 );
 
@@ -1112,7 +1119,7 @@ materialize_rank4_fn!(
 materialize_rank4_fn!(
     materialize_rank4_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     materialize_rank4_u64
 );
 
@@ -1120,7 +1127,7 @@ materialize_rank4_fn!(
 materialize_rank4_fn!(
     materialize_rank4_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     materialize_rank4_i64
 );
 
@@ -1197,22 +1204,22 @@ pad_rank4_fn!(pad_rank4_f16, f16, kernel_f16, pad_rank4_f16);
 pad_rank4_fn!(pad_rank4_f64, f64, kernel_f64, pad_rank4_f64);
 
 #[cfg(feature = "dtype_u8")]
-pad_rank4_fn!(pad_rank4_u8, u8, kernel_common, pad_rank4_u8);
+pad_rank4_fn!(pad_rank4_u8, u8, vector_kernels, pad_rank4_u8);
 
 #[cfg(feature = "dtype_i8")]
-pad_rank4_fn!(pad_rank4_i8, i8, kernel_common, pad_rank4_i8);
+pad_rank4_fn!(pad_rank4_i8, i8, vector_kernels, pad_rank4_i8);
 
 #[cfg(feature = "dtype_u32")]
-pad_rank4_fn!(pad_rank4_u32, u32, kernel_common, pad_rank4_u32);
+pad_rank4_fn!(pad_rank4_u32, u32, vector_kernels, pad_rank4_u32);
 
 #[cfg(feature = "dtype_i32")]
-pad_rank4_fn!(pad_rank4_i32, i32, kernel_common, pad_rank4_i32);
+pad_rank4_fn!(pad_rank4_i32, i32, vector_kernels, pad_rank4_i32);
 
 #[cfg(feature = "dtype_u64")]
-pad_rank4_fn!(pad_rank4_u64, u64, kernel_common, pad_rank4_u64);
+pad_rank4_fn!(pad_rank4_u64, u64, vector_kernels, pad_rank4_u64);
 
 #[cfg(feature = "dtype_i64")]
-pad_rank4_fn!(pad_rank4_i64, i64, kernel_common, pad_rank4_i64);
+pad_rank4_fn!(pad_rank4_i64, i64, vector_kernels, pad_rank4_i64);
 
 macro_rules! slice_rank4_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -1277,22 +1284,22 @@ slice_rank4_fn!(slice_rank4_f16, f16, kernel_f16, slice_rank4_f16);
 slice_rank4_fn!(slice_rank4_f64, f64, kernel_f64, slice_rank4_f64);
 
 #[cfg(feature = "dtype_u8")]
-slice_rank4_fn!(slice_rank4_u8, u8, kernel_common, slice_rank4_u8);
+slice_rank4_fn!(slice_rank4_u8, u8, vector_kernels, slice_rank4_u8);
 
 #[cfg(feature = "dtype_i8")]
-slice_rank4_fn!(slice_rank4_i8, i8, kernel_common, slice_rank4_i8);
+slice_rank4_fn!(slice_rank4_i8, i8, vector_kernels, slice_rank4_i8);
 
 #[cfg(feature = "dtype_u32")]
-slice_rank4_fn!(slice_rank4_u32, u32, kernel_common, slice_rank4_u32);
+slice_rank4_fn!(slice_rank4_u32, u32, vector_kernels, slice_rank4_u32);
 
 #[cfg(feature = "dtype_i32")]
-slice_rank4_fn!(slice_rank4_i32, i32, kernel_common, slice_rank4_i32);
+slice_rank4_fn!(slice_rank4_i32, i32, vector_kernels, slice_rank4_i32);
 
 #[cfg(feature = "dtype_u64")]
-slice_rank4_fn!(slice_rank4_u64, u64, kernel_common, slice_rank4_u64);
+slice_rank4_fn!(slice_rank4_u64, u64, vector_kernels, slice_rank4_u64);
 
 #[cfg(feature = "dtype_i64")]
-slice_rank4_fn!(slice_rank4_i64, i64, kernel_common, slice_rank4_i64);
+slice_rank4_fn!(slice_rank4_i64, i64, vector_kernels, slice_rank4_i64);
 
 macro_rules! concat_rank2_fn {
     (
@@ -1405,7 +1412,7 @@ concat_rank2_fn!(
 concat_rank2_fn!(
     concat_rank2_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     concat_rank2_u8_axis0,
     concat_rank2_u8_axis1
 );
@@ -1414,7 +1421,7 @@ concat_rank2_fn!(
 concat_rank2_fn!(
     concat_rank2_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     concat_rank2_i8_axis0,
     concat_rank2_i8_axis1
 );
@@ -1423,7 +1430,7 @@ concat_rank2_fn!(
 concat_rank2_fn!(
     concat_rank2_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     concat_rank2_u32_axis0,
     concat_rank2_u32_axis1
 );
@@ -1432,7 +1439,7 @@ concat_rank2_fn!(
 concat_rank2_fn!(
     concat_rank2_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     concat_rank2_i32_axis0,
     concat_rank2_i32_axis1
 );
@@ -1441,7 +1448,7 @@ concat_rank2_fn!(
 concat_rank2_fn!(
     concat_rank2_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     concat_rank2_u64_axis0,
     concat_rank2_u64_axis1
 );
@@ -1450,7 +1457,7 @@ concat_rank2_fn!(
 concat_rank2_fn!(
     concat_rank2_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     concat_rank2_i64_axis0,
     concat_rank2_i64_axis1
 );
@@ -1582,7 +1589,7 @@ concat_rank3_fn!(
 concat_rank3_fn!(
     concat_rank3_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     concat_rank3_u8_axis0,
     concat_rank3_u8_axis1,
     concat_rank3_u8_axis2
@@ -1592,7 +1599,7 @@ concat_rank3_fn!(
 concat_rank3_fn!(
     concat_rank3_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     concat_rank3_i8_axis0,
     concat_rank3_i8_axis1,
     concat_rank3_i8_axis2
@@ -1602,7 +1609,7 @@ concat_rank3_fn!(
 concat_rank3_fn!(
     concat_rank3_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     concat_rank3_u32_axis0,
     concat_rank3_u32_axis1,
     concat_rank3_u32_axis2
@@ -1612,7 +1619,7 @@ concat_rank3_fn!(
 concat_rank3_fn!(
     concat_rank3_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     concat_rank3_i32_axis0,
     concat_rank3_i32_axis1,
     concat_rank3_i32_axis2
@@ -1622,7 +1629,7 @@ concat_rank3_fn!(
 concat_rank3_fn!(
     concat_rank3_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     concat_rank3_u64_axis0,
     concat_rank3_u64_axis1,
     concat_rank3_u64_axis2
@@ -1632,7 +1639,7 @@ concat_rank3_fn!(
 concat_rank3_fn!(
     concat_rank3_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     concat_rank3_i64_axis0,
     concat_rank3_i64_axis1,
     concat_rank3_i64_axis2
@@ -1766,7 +1773,7 @@ concat_rank4_fn!(
 concat_rank4_fn!(
     concat_rank4_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     concat_rank4_u8_axis0,
     concat_rank4_u8_axis1,
     concat_rank4_u8_axis2,
@@ -1777,7 +1784,7 @@ concat_rank4_fn!(
 concat_rank4_fn!(
     concat_rank4_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     concat_rank4_i8_axis0,
     concat_rank4_i8_axis1,
     concat_rank4_i8_axis2,
@@ -1788,7 +1795,7 @@ concat_rank4_fn!(
 concat_rank4_fn!(
     concat_rank4_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     concat_rank4_u32_axis0,
     concat_rank4_u32_axis1,
     concat_rank4_u32_axis2,
@@ -1799,7 +1806,7 @@ concat_rank4_fn!(
 concat_rank4_fn!(
     concat_rank4_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     concat_rank4_i32_axis0,
     concat_rank4_i32_axis1,
     concat_rank4_i32_axis2,
@@ -1810,7 +1817,7 @@ concat_rank4_fn!(
 concat_rank4_fn!(
     concat_rank4_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     concat_rank4_u64_axis0,
     concat_rank4_u64_axis1,
     concat_rank4_u64_axis2,
@@ -1821,7 +1828,7 @@ concat_rank4_fn!(
 concat_rank4_fn!(
     concat_rank4_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     concat_rank4_i64_axis0,
     concat_rank4_i64_axis1,
     concat_rank4_i64_axis2,
@@ -1889,22 +1896,42 @@ repeat_kv_rank4_fn!(repeat_kv_rank4_f16, f16, kernel_f16, repeat_kv_rank4_f16);
 repeat_kv_rank4_fn!(repeat_kv_rank4_f64, f64, kernel_f64, repeat_kv_rank4_f64);
 
 #[cfg(feature = "dtype_u8")]
-repeat_kv_rank4_fn!(repeat_kv_rank4_u8, u8, kernel_common, repeat_kv_rank4_u8);
+repeat_kv_rank4_fn!(repeat_kv_rank4_u8, u8, vector_kernels, repeat_kv_rank4_u8);
 
 #[cfg(feature = "dtype_i8")]
-repeat_kv_rank4_fn!(repeat_kv_rank4_i8, i8, kernel_common, repeat_kv_rank4_i8);
+repeat_kv_rank4_fn!(repeat_kv_rank4_i8, i8, vector_kernels, repeat_kv_rank4_i8);
 
 #[cfg(feature = "dtype_u32")]
-repeat_kv_rank4_fn!(repeat_kv_rank4_u32, u32, kernel_common, repeat_kv_rank4_u32);
+repeat_kv_rank4_fn!(
+    repeat_kv_rank4_u32,
+    u32,
+    vector_kernels,
+    repeat_kv_rank4_u32
+);
 
 #[cfg(feature = "dtype_i32")]
-repeat_kv_rank4_fn!(repeat_kv_rank4_i32, i32, kernel_common, repeat_kv_rank4_i32);
+repeat_kv_rank4_fn!(
+    repeat_kv_rank4_i32,
+    i32,
+    vector_kernels,
+    repeat_kv_rank4_i32
+);
 
 #[cfg(feature = "dtype_u64")]
-repeat_kv_rank4_fn!(repeat_kv_rank4_u64, u64, kernel_common, repeat_kv_rank4_u64);
+repeat_kv_rank4_fn!(
+    repeat_kv_rank4_u64,
+    u64,
+    vector_kernels,
+    repeat_kv_rank4_u64
+);
 
 #[cfg(feature = "dtype_i64")]
-repeat_kv_rank4_fn!(repeat_kv_rank4_i64, i64, kernel_common, repeat_kv_rank4_i64);
+repeat_kv_rank4_fn!(
+    repeat_kv_rank4_i64,
+    i64,
+    vector_kernels,
+    repeat_kv_rank4_i64
+);
 
 #[cfg(feature = "dtype_f32")]
 /// # Safety
@@ -1921,9 +1948,11 @@ pub unsafe fn pack_downsample_2d_f32(
     if rows == 0 || cols == 0 || factor == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !rows.is_multiple_of(factor) {
         return Err(Error::LengthMismatch);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     let len = checked_element_count(rows, cols)?;

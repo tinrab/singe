@@ -205,6 +205,7 @@ fn run() -> Result<()> {
         graph.insert_tensor(bias, score_subgraph.tensor_spec(bias)?.clone())?;
         score_config = score_config.with_bias(bias);
     }
+
     let score_config = score_config.with_score_subgraph(SdpaScoreSubgraph::new(
         score_subgraph,
         score_input,
@@ -343,6 +344,7 @@ fn run() -> Result<()> {
     for (id, buffer) in &mut output_buffers {
         bindings.set_encoded_bytes(*id, buffer)?;
     }
+
     // SAFETY: initialized inputs, writable outputs, overrides and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(

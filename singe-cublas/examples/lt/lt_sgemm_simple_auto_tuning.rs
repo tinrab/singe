@@ -84,6 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
             }?;
         }
+
         stop.record(&stream, EventRecordFlags::DEFAULT)?;
         stop.synchronize()?;
         let elapsed = stop.elapsed_time_since(&start)? / REPEATS as f32;

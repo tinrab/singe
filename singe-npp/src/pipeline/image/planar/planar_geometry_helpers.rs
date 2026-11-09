@@ -31,6 +31,7 @@ impl<T, const C: usize> PlanarImage<T, C> {
                 .stream()
                 .defer_drop_until_capture_end(Arc::clone(plane.allocation()))?;
         }
+
         self.prepare_eager(stream_context)?;
 
         {
@@ -40,9 +41,11 @@ impl<T, const C: usize> PlanarImage<T, C> {
             for plane in source.planes() {
                 stream_context.prepare_region(plane)?;
             }
+
             for plane in destination_view.planes() {
                 stream_context.prepare_region(plane)?;
             }
+
             stream_context.sync_scope(|| {
                 // SAFETY: checked native geometry dispatch retains these plane borrows through completion.
                 unsafe { operation(stream_context, geometry, &source, &mut destination_view) }
@@ -70,6 +73,7 @@ impl<T, const C: usize> PlanarImage<T, C> {
                 .stream()
                 .defer_drop_until_capture_end(Arc::clone(plane.allocation()))?;
         }
+
         self.prepare_eager(stream_context)?;
 
         {
@@ -79,9 +83,11 @@ impl<T, const C: usize> PlanarImage<T, C> {
             for plane in source.planes() {
                 stream_context.prepare_region(plane)?;
             }
+
             for plane in destination_view.planes() {
                 stream_context.prepare_region(plane)?;
             }
+
             stream_context.prepare_region(x_map)?;
             stream_context.prepare_region(y_map)?;
             stream_context.sync_scope(|| {

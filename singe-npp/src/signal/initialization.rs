@@ -16,18 +16,15 @@ macro_rules! impl_set {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the length cannot be represented by the native interface, or NPP fails.
-        /// Success reports native submission. Destination elements become initialized only after
-        /// the queued writes complete successfully.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the length cannot be represented by the native interface, or NPP fails.
+        /// Success reports native submission.
+        /// Destination elements become initialized only after the queued writes complete successfully.
         ///
         /// # Safety
         ///
-        /// Destination addresses and capacity must satisfy the selected native routine's alignment
-        /// and representation requirements. Keep the destination exclusively writable through
-        /// queued completion; it may be uninitialized before the operation.
-        /// Retain all participating allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+        /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
+        /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -57,18 +54,15 @@ macro_rules! impl_zero {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the length cannot be represented by the native interface, or NPP fails.
-        /// Success reports native submission. Destination elements become initialized only after
-        /// the queued writes complete successfully.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the length cannot be represented by the native interface, or NPP fails.
+        /// Success reports native submission.
+        /// Destination elements become initialized only after the queued writes complete successfully.
         ///
         /// # Safety
         ///
-        /// Destination addresses and capacity must satisfy the selected native routine's alignment
-        /// and representation requirements. Keep the destination exclusively writable through
-        /// queued completion; it may be uninitialized before the operation.
-        /// Retain all participating allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+        /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
+        /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -96,21 +90,18 @@ macro_rules! impl_copy {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
-        /// Success reports native submission. Destination elements become initialized only after
-        /// the queued writes complete successfully.
+        /// Success reports native submission.
+        /// Destination elements become initialized only after the queued writes complete successfully.
         ///
         /// # Safety
         ///
-        /// Destination addresses and capacity must satisfy the selected native routine's alignment
-        /// and representation requirements. Keep the destination exclusively writable through
-        /// queued completion; it may be uninitialized before the operation.
+        /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+        /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
         /// Source elements must be initialized and ready when the stream reaches the copy.
         /// Keep the source read-only and disjoint from the destination through completion.
-        /// Retain all participating allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -214,25 +205,21 @@ macro_rules! impl_signal_set_dispatch {
         /// # Safety
         ///
         /// Implementations must match the native element representation and access roles.
-        /// Successful queued completion must initialize every destination element according
-        /// to the method contract, while preserving allocation lifetimes and exclusivity.
+        /// Successful queued completion must initialize every destination element according to the method contract, while preserving allocation lifetimes and exclusivity.
         pub unsafe trait $trait: DataTypeLike {
             /// Fills every element of `destination` with `value`.
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// context, the length cannot be represented by the native interface, or NPP fails.
-            /// Success reports native submission. Destination elements become initialized only after
-            /// the queued writes complete successfully.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs context, the length cannot be represented by the native interface, or NPP fails.
+            /// Success reports native submission.
+            /// Destination elements become initialized only after the queued writes complete successfully.
             ///
             /// # Safety
             ///
-            /// Destination addresses and capacity must satisfy the selected native routine's alignment
-            /// and representation requirements. Keep the destination exclusively writable through
-            /// queued completion; it may be uninitialized before the operation.
-            /// Retain all participating allocations and the stream context through queued completion,
-            /// including submission errors and every captured graph replay.
+            /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+            /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
+            /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 value: Self,
@@ -262,18 +249,15 @@ macro_rules! impl_signal_set_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// context, the length cannot be represented by the native interface, or NPP fails.
-        /// Success reports native submission. Destination elements become initialized only after
-        /// the queued writes complete successfully.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs context, the length cannot be represented by the native interface, or NPP fails.
+        /// Success reports native submission.
+        /// Destination elements become initialized only after the queued writes complete successfully.
         ///
         /// # Safety
         ///
-        /// Destination addresses and capacity must satisfy the selected native routine's alignment
-        /// and representation requirements. Keep the destination exclusively writable through
-        /// queued completion; it may be uninitialized before the operation.
-        /// Retain all participating allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+        /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
+        /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             value: T,
@@ -297,25 +281,21 @@ macro_rules! impl_signal_zero_dispatch {
         /// # Safety
         ///
         /// Implementations must match the native element representation and access roles.
-        /// Successful queued completion must initialize every destination element according
-        /// to the method contract, while preserving allocation lifetimes and exclusivity.
+        /// Successful queued completion must initialize every destination element according to the method contract, while preserving allocation lifetimes and exclusivity.
         pub unsafe trait $trait: DataTypeLike {
             /// Fills every element of `destination` with zero.
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// context, the length cannot be represented by the native interface, or NPP fails.
-            /// Success reports native submission. Destination elements become initialized only after
-            /// the queued writes complete successfully.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs context, the length cannot be represented by the native interface, or NPP fails.
+            /// Success reports native submission.
+            /// Destination elements become initialized only after the queued writes complete successfully.
             ///
             /// # Safety
             ///
-            /// Destination addresses and capacity must satisfy the selected native routine's alignment
-            /// and representation requirements. Keep the destination exclusively writable through
-            /// queued completion; it may be uninitialized before the operation.
-            /// Retain all participating allocations and the stream context through queued completion,
-            /// including submission errors and every captured graph replay.
+            /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+            /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
+            /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 destination: &mut SignalOutputView<'_, Self>,
@@ -343,18 +323,15 @@ macro_rules! impl_signal_zero_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// context, the length cannot be represented by the native interface, or NPP fails.
-        /// Success reports native submission. Destination elements become initialized only after
-        /// the queued writes complete successfully.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs context, the length cannot be represented by the native interface, or NPP fails.
+        /// Success reports native submission.
+        /// Destination elements become initialized only after the queued writes complete successfully.
         ///
         /// # Safety
         ///
-        /// Destination addresses and capacity must satisfy the selected native routine's alignment
-        /// and representation requirements. Keep the destination exclusively writable through
-        /// queued completion; it may be uninitialized before the operation.
-        /// Retain all participating allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+        /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
+        /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             destination: &mut SignalOutputView<'_, T>,
@@ -377,28 +354,24 @@ macro_rules! impl_signal_copy_dispatch {
         /// # Safety
         ///
         /// Implementations must match the native element representation and access roles.
-        /// Successful queued completion must initialize every destination element according
-        /// to the method contract, while preserving allocation lifetimes and exclusivity.
+        /// Successful queued completion must initialize every destination element according to the method contract, while preserving allocation lifetimes and exclusivity.
         pub unsafe trait $trait: DataTypeLike {
             /// Copies every element of `source` to an equally sized `destination`.
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// context, the length cannot be represented by the native interface, or NPP fails.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs context, the length cannot be represented by the native interface, or NPP fails.
             /// Source and destination lengths must match; differing lengths return an error.
-            /// Success reports native submission. Destination elements become initialized only after
-            /// the queued writes complete successfully.
+            /// Success reports native submission.
+            /// Destination elements become initialized only after the queued writes complete successfully.
             ///
             /// # Safety
             ///
-            /// Destination addresses and capacity must satisfy the selected native routine's alignment
-            /// and representation requirements. Keep the destination exclusively writable through
-            /// queued completion; it may be uninitialized before the operation.
+            /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+            /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
             /// Source elements must be initialized and ready when the stream reaches the copy.
             /// Keep the source read-only and disjoint from the destination through completion.
-            /// Retain all participating allocations and the stream context through queued completion,
-            /// including submission errors and every captured graph replay.
+            /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -429,21 +402,18 @@ macro_rules! impl_signal_copy_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// context, the length cannot be represented by the native interface, or NPP fails.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs context, the length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
-        /// Success reports native submission. Destination elements become initialized only after
-        /// the queued writes complete successfully.
+        /// Success reports native submission.
+        /// Destination elements become initialized only after the queued writes complete successfully.
         ///
         /// # Safety
         ///
-        /// Destination addresses and capacity must satisfy the selected native routine's alignment
-        /// and representation requirements. Keep the destination exclusively writable through
-        /// queued completion; it may be uninitialized before the operation.
+        /// Destination addresses and capacity must satisfy the selected native routine's alignment and representation requirements.
+        /// Keep the destination exclusively writable through queued completion; it may be uninitialized before the operation.
         /// Source elements must be initialized and ready when the stream reaches the copy.
         /// Keep the source read-only and disjoint from the destination through completion.
-        /// Retain all participating allocations and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Retain all participating allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             source: &SignalView<'_, T>,

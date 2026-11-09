@@ -59,19 +59,17 @@ where
 {
     /// Reorders C3 channels into C4 with constant fill.
     ///
-    /// Destination channel `i` receives source channel `order[i]`. An order entry of `3`
-    /// writes `value` instead. Entries must lie in `0..=3`; source indices zero through
-    /// two must not repeat, while fill entries may repeat.
+    /// Destination channel `i` receives source channel `order[i]`.
+    /// An order entry of `3` writes `value` instead.
+    /// Entries must lie in `0..=3`; source indices zero through two must not repeat, while fill entries may repeat.
     /// Source and destination pixel dimensions must match.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// Source and destination pixel dimensions must match.
     /// An out-of-range order index or repeated source index is rejected.
     pub fn swap_channels_to_c4_into(
@@ -98,19 +96,17 @@ where
 {
     /// Reorders C3 channels into C4 with constant fill.
     ///
-    /// Destination channel `i` receives source channel `order[i]`. An order entry of `3`
-    /// writes `value` instead. Entries must lie in `0..=3`; source indices zero through
-    /// two must not repeat, while fill entries may repeat.
+    /// Destination channel `i` receives source channel `order[i]`.
+    /// An order entry of `3` writes `value` instead.
+    /// Entries must lie in `0..=3`; source indices zero through two must not repeat, while fill entries may repeat.
     /// Allocates a new source-sized owned image in the destination layout.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// An out-of-range order index or repeated source index is rejected.
     /// Output allocation or image view construction can also fail.
     pub fn swap_channels_to_c4(

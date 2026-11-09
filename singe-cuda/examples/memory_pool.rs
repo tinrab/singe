@@ -40,6 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Enqueue the free on the allocation's stream before the next allocation.
         buffer.free_async()?;
     }
+
     stream.synchronize()?;
     println!(
         "reserved after freeing buffers: {:?}",

@@ -1,0 +1,13 @@
+{
+  "file_scan_exclusions": ["**/ignis-old/**"],
+  "read_only_files": ["**/ignis-old/**"],
+  "lsp": {
+    "rust-analyzer": {
+      "initialization_options": {
+        "cargo": {
+          "features": ["cuda_13_3", "testing", "macros", "onnx"]
+        }
+      }
+    }
+  }
+}

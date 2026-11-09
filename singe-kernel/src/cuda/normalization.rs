@@ -262,8 +262,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $layer_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -317,8 +317,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_layer_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -367,8 +367,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $layer_norm_weight(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -423,8 +423,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_layer_norm_weight(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -474,8 +474,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $layer_norm_bias(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -530,8 +530,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_layer_norm_bias(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -581,8 +581,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $layer_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -638,8 +638,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_layer_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -690,8 +690,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $rms_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -745,8 +745,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_rms_norm(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -795,8 +795,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $rms_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -852,8 +852,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_rms_norm_affine(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -904,8 +904,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $rms_norm_weight_offset(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -960,8 +960,8 @@ macro_rules! normalization_fns {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_rms_norm_weight_offset(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -1111,8 +1111,8 @@ macro_rules! sparsemax_fn {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -1143,8 +1143,8 @@ macro_rules! sparsemax_fn {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -1229,8 +1229,8 @@ pub struct GroupNormConfig {
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from output.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive output access until completion on every path
-/// and throughout replay. Order prior accesses before launch.
+/// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+/// Order prior accesses before launch.
 pub unsafe fn group_norm_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1250,8 +1250,8 @@ pub unsafe fn group_norm_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from output.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive output access until completion on every path
-/// and throughout replay. Order prior accesses before launch.
+/// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+/// Order prior accesses before launch.
 pub unsafe fn group_norm_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
@@ -1271,8 +1271,8 @@ pub unsafe fn group_norm_f16(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from output.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive output access until completion on every path
-/// and throughout replay. Order prior accesses before launch.
+/// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+/// Order prior accesses before launch.
 pub unsafe fn group_norm_bf16(
     stream: &Stream,
     out: &mut impl DeviceOutput<bf16>,
@@ -1293,8 +1293,8 @@ macro_rules! batch_norm_inference_fn {
         ///
         /// Inputs must be valid when read in the stream's context and disjoint from output.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain all ranges and exclusive output access until completion on every path
-        /// and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive output access until completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -1468,20 +1468,25 @@ where
     if config.feature_count == 0 || config.spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = out.len();
     ensure_len(input.len(), len)?;
     if let Some(weight) = config.weight {
         ensure_len(weight.len(), config.feature_count)?;
     }
+
     if let Some(bias) = config.bias {
         ensure_len(bias.len(), config.feature_count)?;
     }
+
     if let Some(running_mean) = config.running_mean {
         ensure_len(running_mean.len(), config.feature_count)?;
     }
+
     if let Some(running_var) = config.running_var {
         ensure_len(running_var.len(), config.feature_count)?;
     }
+
     let feature_period = checked_element_count(config.feature_count, config.spatial_len)?;
     if len % feature_period != 0 {
         return Err(Error::LengthMismatch);
@@ -1581,6 +1586,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))
@@ -1748,6 +1754,7 @@ fn validate_sparsemax(out_len: usize, input_len: usize, rows: usize, cols: usize
     if rows == 0 || cols == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(rows, cols)?;
     ensure_len(out_len, len)?;
     ensure_len(input_len, len)?;
@@ -1764,9 +1771,11 @@ fn validate_group_norm(
     if config.batch == 0 || config.channels == 0 || config.groups == 0 || config.spatial_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     if !config.channels.is_multiple_of(config.groups) {
         return Err(Error::LengthMismatch);
     }
+
     let len = checked_element_count(
         checked_element_count(config.batch, config.channels)?,
         config.spatial_len,
@@ -1807,6 +1816,7 @@ fn normalization_candidates(columns: usize) -> Vec<NormalizationTuning> {
     if columns > 8192 {
         return vec![NormalizationTuning::tile_width(128)];
     }
+
     let width = columns.max(1).next_power_of_two();
     [1, 2, 4, 8]
         .into_iter()
@@ -1819,6 +1829,7 @@ fn normalization_candidates_for_dtype(columns: usize, dtype: &str) -> Vec<Normal
     if dtype != "f64" {
         return normalization_candidates(columns);
     }
+
     let width = match columns {
         0..=1 => 1,
         2..=8 => 8,
@@ -1855,6 +1866,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))
@@ -2230,12 +2242,14 @@ fn validate_normalization_lengths(
     if cols == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(rows, cols)?;
     ensure_len(out_len, len)?;
     ensure_len(input_len, len)?;
     if let Some(weight_len) = weight_len {
         ensure_len(weight_len, cols)?;
     }
+
     if let Some(bias_len) = bias_len {
         ensure_len(bias_len, cols)?;
     }

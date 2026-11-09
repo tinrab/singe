@@ -19,14 +19,11 @@ impl Communicator {
     /// `send` and `recv` must have the same length.
     ///
     /// Input and output regions must be disjoint.
-    /// Work is enqueued on `stream`; asynchronous failures may be reported later
-    /// through [`Communicator::async_error`].
+    /// Work is enqueued on `stream`; asynchronous failures may be reported later through [`Communicator::async_error`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the buffers have different lengths, the stream is not
-    /// associated with the communicator's CUDA context, the element count is too
-    /// large for NCCL, or NCCL rejects the collective.
+    /// Returns an error if the buffers have different lengths, the stream is not associated with the communicator's CUDA context, the element count is too large for NCCL, or NCCL rejects the collective.
     ///
     /// # Safety
     ///
@@ -150,18 +147,16 @@ impl Communicator {
     }
 
     /// Broadcasts the contents of `send` from `root` into `recv` on every rank.
-    /// `send` is only read on the `root` rank. Non-root ranks still pass a buffer, but NCCL ignores its contents.
+    /// `send` is only read on the `root` rank.
+    /// Non-root ranks still pass a buffer, but NCCL ignores its contents.
     /// `send` and `recv` must have the same length.
     ///
     /// Input and output regions must be disjoint.
-    /// Work is enqueued on `stream`; asynchronous failures may be reported later
-    /// through [`Communicator::async_error`].
+    /// Work is enqueued on `stream`; asynchronous failures may be reported later through [`Communicator::async_error`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the buffers have different lengths, the stream is not
-    /// associated with the communicator's CUDA context, the element count is too
-    /// large for NCCL, or NCCL rejects the collective.
+    /// Returns an error if the buffers have different lengths, the stream is not associated with the communicator's CUDA context, the element count is too large for NCCL, or NCCL rejects the collective.
     ///
     /// # Safety
     ///
@@ -349,6 +344,7 @@ impl Communicator {
         if let Some(buffer) = &recv {
             self.ensure_buffer_context(buffer.context())?;
         }
+
         self.ensure_stream(stream)?;
         let config = config.prepare(self)?;
         let rank = self.rank()?;
@@ -365,6 +361,7 @@ impl Communicator {
                 });
             }
         }
+
         let count = to_u64(send.len(), "reduce count")?;
         // SAFETY: `ncclReduceConfig` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
@@ -593,6 +590,7 @@ impl Communicator {
         if let Some(buffer) = &recv {
             self.ensure_buffer_context(buffer.context())?;
         }
+
         self.ensure_stream(stream)?;
         let config = config.prepare(self)?;
         let rank = self.rank()?;
@@ -614,6 +612,7 @@ impl Communicator {
                 });
             }
         }
+
         let count = to_u64(send.len(), "gather count")?;
         // SAFETY: `ncclGatherConfig` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
@@ -685,6 +684,7 @@ impl Communicator {
         if let Some(buffer) = &send {
             self.ensure_buffer_context(buffer.context())?;
         }
+
         self.ensure_buffer_context(recv.context())?;
         self.ensure_stream(stream)?;
         let config = config.prepare(self)?;
@@ -706,6 +706,7 @@ impl Communicator {
                 });
             }
         }
+
         let count = to_u64(recv.len(), "scatter count")?;
         // SAFETY: `ncclScatterConfig` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {

@@ -12,23 +12,22 @@ where
     L: ChannelLayout,
 {
     /// Maps each processed channel through its own lookup table using no interpolation.
-    /// `levels` contains source-domain breakpoints and `values` contains mapped outputs in
-    /// device memory, with one table pair per processed channel: three for C3 and AC4, four
-    /// for C4. The provided integer-image implementations use `i32` tables; `f32` images use
-    /// `f32` tables. Ordering, coefficient values, and native domain coverage are not checked.
+    /// `levels` contains source-domain breakpoints and `values` contains mapped outputs in device memory, with one table pair per processed channel: three for C3 and AC4, four for C4.
+    /// The provided integer-image implementations use `i32` tables; `f32` images use `f32` tables.
+    /// Ordering, coefficient values, and native domain coverage are not checked.
     /// Always allocates a new owned image with the source pixel dimensions.
     /// Preserves AC4 alpha from the source image.
-    /// All table buffers must belong to the selected CUDA context and be ready before
-    /// native execution. This packed dispatch does not check their contexts or wait for
-    /// their producers. Prepares image regions and waits for image producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// All table buffers must belong to the selected CUDA context and be ready before native execution.
+    /// This packed dispatch does not check their contexts or wait for their producers.
+    /// Prepares image regions and waits for image producers on other streams.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Each channel must have equal value and level counts, at least two levels, and a count
-    /// representable as `i32`. Additional native table constraints can cause NPP errors.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Each channel must have equal value and level counts, at least two levels, and a count representable as `i32`.
+    /// Additional native table constraints can cause NPP errors.
     /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn lookup_table_channels<const CHANNELS: usize>(
         self,
@@ -50,6 +49,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source)?;
             }
+
             <Self as PackedLookupTableImage<T, L, CHANNELS>>::lookup_table_channels_image(
                 self.stream_context,
                 &source,
@@ -68,23 +68,22 @@ where
     }
 
     /// Maps each processed channel through its own lookup table using linear interpolation.
-    /// `levels` contains source-domain breakpoints and `values` contains mapped outputs in
-    /// device memory, with one table pair per processed channel: three for C3 and AC4, four
-    /// for C4. The provided integer-image implementations use `i32` tables; `f32` images use
-    /// `f32` tables. Ordering, coefficient values, and native domain coverage are not checked.
+    /// `levels` contains source-domain breakpoints and `values` contains mapped outputs in device memory, with one table pair per processed channel: three for C3 and AC4, four for C4.
+    /// The provided integer-image implementations use `i32` tables; `f32` images use `f32` tables.
+    /// Ordering, coefficient values, and native domain coverage are not checked.
     /// Always allocates a new owned image with the source pixel dimensions.
     /// Preserves AC4 alpha from the source image.
-    /// All table buffers must belong to the selected CUDA context and be ready before
-    /// native execution. This packed dispatch does not check their contexts or wait for
-    /// their producers. Prepares image regions and waits for image producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// All table buffers must belong to the selected CUDA context and be ready before native execution.
+    /// This packed dispatch does not check their contexts or wait for their producers.
+    /// Prepares image regions and waits for image producers on other streams.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Each channel must have equal value and level counts, at least two levels, and a count
-    /// representable as `i32`. Additional native table constraints can cause NPP errors.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Each channel must have equal value and level counts, at least two levels, and a count representable as `i32`.
+    /// Additional native table constraints can cause NPP errors.
     /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn lookup_table_channels_linear<const CHANNELS: usize>(
         self,
@@ -106,6 +105,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source)?;
             }
+
             <Self as PackedLookupTableImage<T, L, CHANNELS>>::lookup_table_channels_linear_image(
                 self.stream_context,
                 &source,
@@ -124,23 +124,22 @@ where
     }
 
     /// Maps each processed channel through its own lookup table using cubic interpolation.
-    /// `levels` contains source-domain breakpoints and `values` contains mapped outputs in
-    /// device memory, with one table pair per processed channel: three for C3 and AC4, four
-    /// for C4. The provided integer-image implementations use `i32` tables; `f32` images use
-    /// `f32` tables. Ordering, coefficient values, and native domain coverage are not checked.
+    /// `levels` contains source-domain breakpoints and `values` contains mapped outputs in device memory, with one table pair per processed channel: three for C3 and AC4, four for C4.
+    /// The provided integer-image implementations use `i32` tables; `f32` images use `f32` tables.
+    /// Ordering, coefficient values, and native domain coverage are not checked.
     /// Always allocates a new owned image with the source pixel dimensions.
     /// Preserves AC4 alpha from the source image.
-    /// All table buffers must belong to the selected CUDA context and be ready before
-    /// native execution. This packed dispatch does not check their contexts or wait for
-    /// their producers. Prepares image regions and waits for image producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// All table buffers must belong to the selected CUDA context and be ready before native execution.
+    /// This packed dispatch does not check their contexts or wait for their producers.
+    /// Prepares image regions and waits for image producers on other streams.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Each channel must have equal value and level counts, at least two levels, and a count
-    /// representable as `i32`. Additional native table constraints can cause NPP errors.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Each channel must have equal value and level counts, at least two levels, and a count representable as `i32`.
+    /// Additional native table constraints can cause NPP errors.
     /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn lookup_table_channels_cubic<const CHANNELS: usize>(
         self,
@@ -162,6 +161,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source)?;
             }
+
             <Self as PackedLookupTableImage<T, L, CHANNELS>>::lookup_table_channels_cubic_image(
                 self.stream_context,
                 &source,

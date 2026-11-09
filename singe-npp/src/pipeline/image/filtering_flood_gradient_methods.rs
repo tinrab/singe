@@ -14,27 +14,22 @@ where
 {
     /// Fills a seed-connected image region with `new_value`.
     ///
-    /// Eligible original samples lie between the original seed value minus `min` and
-    /// the original seed value plus `max`, inclusive, per channel.
-    /// The provided implementations accept C1 or C3 `u8`, `u16`, or `u32` images. C1 uses
-    /// scalar values and C3 uses three-element arrays. `ImageNormalization::L1` selects
-    /// four-way connectivity; `ImageNormalization::Infinity` selects eight-way connectivity.
-    /// The wrapper forwards connectivity and any range parameters without validating their
-    /// native restrictions.
-    /// Reuses an owned pipeline image in place or copies borrowed input into a new owned
-    /// image. Optional `connected_region` receives completed native region information
-    /// in host memory. Its bounding-box fields `x`, `y`, `width`, and `height` contain left,
-    /// top, right, and bottom coordinates respectively.
-    /// Owns temporary device scratch, prepares the image region, waits for its producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Eligible original samples lie between the original seed value minus `min` and the original seed value plus `max`, inclusive, per channel.
+    /// The provided implementations accept C1 or C3 `u8`, `u16`, or `u32` images.
+    /// C1 uses scalar values and C3 uses three-element arrays.
+    /// `ImageNormalization::L1` selects four-way connectivity; `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// The wrapper forwards connectivity and any range parameters without validating their native restrictions.
+    /// Reuses an owned pipeline image in place or copies borrowed input into a new owned image.
+    /// Optional `connected_region` receives completed native region information in host memory.
+    /// Its bounding-box fields `x`, `y`, `width`, and `height` contain left, top, right, and bottom coordinates respectively.
+    /// Owns temporary device scratch, prepares the image region, waits for its producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image-region
-    /// preparation, producer waits, scratch-size queries, allocation, native flood filling,
-    /// or synchronization fail. Image dimensions must be positive and `seed` must lie
-    /// inside the image. Copying borrowed input or image view construction can also fail.
+    /// Returns an error if capture checks, CUDA context binding or image-region preparation, producer waits, scratch-size queries, allocation, native flood filling, or synchronization fail.
+    /// Image dimensions must be positive and `seed` must lie inside the image.
+    /// Copying borrowed input or image view construction can also fail.
     /// NPP may reject connectivity, range, or fill parameters.
     pub fn flood_fill_gradient(
         self,
@@ -78,28 +73,23 @@ where
 
     /// Fills a seed-connected image region with `new_value`.
     ///
-    /// Eligible original samples lie between the original seed value minus `min` and
-    /// the original seed value plus `max`, inclusive, per channel.
+    /// Eligible original samples lie between the original seed value minus `min` and the original seed value plus `max`, inclusive, per channel.
     /// Colors the filled region's boundary with `boundary_value`.
-    /// The provided implementations accept C1 or C3 `u8`, `u16`, or `u32` images. C1 uses
-    /// scalar values and C3 uses three-element arrays. `ImageNormalization::L1` selects
-    /// four-way connectivity; `ImageNormalization::Infinity` selects eight-way connectivity.
-    /// The wrapper forwards connectivity and any range parameters without validating their
-    /// native restrictions.
-    /// Reuses an owned pipeline image in place or copies borrowed input into a new owned
-    /// image. Optional `connected_region` receives completed native region information
-    /// in host memory. Its bounding-box fields `x`, `y`, `width`, and `height` contain left,
-    /// top, right, and bottom coordinates respectively.
-    /// Owns temporary device scratch, prepares the image region, waits for its producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// The provided implementations accept C1 or C3 `u8`, `u16`, or `u32` images.
+    /// C1 uses scalar values and C3 uses three-element arrays.
+    /// `ImageNormalization::L1` selects four-way connectivity; `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// The wrapper forwards connectivity and any range parameters without validating their native restrictions.
+    /// Reuses an owned pipeline image in place or copies borrowed input into a new owned image.
+    /// Optional `connected_region` receives completed native region information in host memory.
+    /// Its bounding-box fields `x`, `y`, `width`, and `height` contain left, top, right, and bottom coordinates respectively.
+    /// Owns temporary device scratch, prepares the image region, waits for its producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image-region
-    /// preparation, producer waits, scratch-size queries, allocation, native flood filling,
-    /// or synchronization fail. Image dimensions must be positive and `seed` must lie
-    /// inside the image. Copying borrowed input or image view construction can also fail.
+    /// Returns an error if capture checks, CUDA context binding or image-region preparation, producer waits, scratch-size queries, allocation, native flood filling, or synchronization fail.
+    /// Image dimensions must be positive and `seed` must lie inside the image.
+    /// Copying borrowed input or image view construction can also fail.
     /// NPP may reject connectivity, range, or fill parameters.
     pub fn flood_fill_gradient_boundary(
         self,

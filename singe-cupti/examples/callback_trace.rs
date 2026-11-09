@@ -1,5 +1,4 @@
-//! Port of the CUPTI callback samples: subscribe to the CUDA driver API domain and
-//! count the driver functions entered while a small transfer runs.
+//! Port of the CUPTI callback samples: subscribe to the CUDA driver API domain and count the driver functions entered while a small transfer runs.
 
 use std::{
     collections::BTreeMap,

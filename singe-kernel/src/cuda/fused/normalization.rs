@@ -229,8 +229,7 @@ macro_rules! rms_norm_gated_silu_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive output access in the stream's
-        /// context through completion on every path and throughout replay.
+        /// Retain input allocations and exclusive output access in the stream's context through completion on every path and throughout replay.
         /// Order prior accesses before launch and keep output disjoint from inputs.
         pub unsafe fn $name(
             stream: &Stream,

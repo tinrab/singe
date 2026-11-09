@@ -342,6 +342,7 @@ pub fn validate_histogram_output(
     if histogram.context() != stream_context.cuda_context() {
         return Err(Error::StreamContextMismatch);
     }
+
     let expected_bins = validate_histogram_levels(levels)?;
     if histogram.len() != expected_bins {
         return Err(Error::LengthMismatch {
@@ -363,6 +364,7 @@ pub fn validate_histogram_outputs<const C: usize>(
             return Err(Error::StreamContextMismatch);
         }
     }
+
     for (index, (&level, histogram)) in levels.iter().zip(histograms.iter()).enumerate() {
         let expected_bins = validate_histogram_levels(level)?;
         if histogram.len() != expected_bins {
@@ -401,6 +403,7 @@ pub fn validate_histogram_range_output<T>(
     if histogram.context() != stream_context.cuda_context() {
         return Err(Error::StreamContextMismatch);
     }
+
     let raw_levels = validate_histogram_range_levels(levels)?;
     let expected_bins = levels.len() - 1;
     if histogram.len() != expected_bins {
@@ -423,6 +426,7 @@ pub fn validate_histogram_range_outputs<T, const C: usize>(
             return Err(Error::StreamContextMismatch);
         }
     }
+
     let raw_levels = validate_histogram_range_level_arrays(levels)?;
     for (index, (histogram, level)) in histograms.iter().zip(levels.iter()).enumerate() {
         let expected_bins = level.len() - 1;

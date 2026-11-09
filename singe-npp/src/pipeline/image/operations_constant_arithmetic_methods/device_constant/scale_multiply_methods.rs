@@ -21,18 +21,17 @@ where
     Self: MultiplyDeviceConstantScaleImage<T, L>,
 {
     /// Multiplies each processed sample by the corresponding constant.
-    /// Reads constants from device memory. Uses the first one, three, or four elements for C1,
-    /// C3/AC4, or C4 respectively; additional elements are ignored.
+    /// Reads constants from device memory.
+    /// Uses the first one, three, or four elements for C1, C3/AC4, or C4 respectively; additional elements are ignored.
     /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
-    /// Writes active channels in the supplied destination. AC4 destination alpha retains its
-    /// previous initialization state; this call does not initialize alpha.
-    /// Prepares participating images and device constants, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Writes active channels in the supplied destination.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating images and device constants, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// The device buffer must contain at least one constant per processed channel.
     /// Source and destination image dimensions must match.
     pub fn multiply_device_constant_scale_into(
@@ -50,17 +49,17 @@ where
     }
 
     /// Multiplies each processed sample by the corresponding constant.
-    /// Reads constants from device memory. Uses the first one, three, or four elements for C1,
-    /// C3/AC4, or C4 respectively; additional elements are ignored.
+    /// Reads constants from device memory.
+    /// Uses the first one, three, or four elements for C1, C3/AC4, or C4 respectively; additional elements are ignored.
     /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
-    /// Updates the supplied image in place. AC4 alpha remains unchanged.
-    /// Prepares participating images and device constants, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Updates the supplied image in place.
+    /// AC4 alpha remains unchanged.
+    /// Prepares participating images and device constants, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// The device buffer must contain at least one constant per processed channel.
     pub fn multiply_device_constant_scale_in_place(
         stream_context: &StreamContext,
@@ -82,18 +81,17 @@ where
     Self: MultiplyDeviceConstantScaleImage<T, L>,
 {
     /// Multiplies each processed sample by the corresponding constant.
-    /// Reads constants from device memory. Uses the first one, three, or four elements for C1,
-    /// C3/AC4, or C4 respectively; additional elements are ignored.
+    /// Reads constants from device memory.
+    /// Uses the first one, three, or four elements for C1, C3/AC4, or C4 respectively; additional elements are ignored.
     /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
     /// Reuses owned backing; borrowed input produces a new owned image.
     /// Preserves alpha from the pipeline image for AC4.
-    /// Prepares participating images and device constants, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating images and device constants, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// The device buffer must contain at least one constant per processed channel.
     /// Allocation or image view construction, including alpha preservation copies, can also fail.
     pub fn multiply_device_constant_scale(
@@ -137,6 +135,7 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 operation(self.stream_context, source, constant, &mut destination_view)?;
                 // SAFETY: the completed operation above wrote every element.
                 self.backing = ImageBacking::Owned(unsafe { destination.assume_init() });

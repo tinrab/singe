@@ -1,0 +1,1961 @@
+extension abs U16 scalar
+extension abs U16 empty
+extension abs U16 odd
+extension abs U16 matrix
+extension abs U16 transposed
+extension abs U16 sliced
+extension abs U16 expanded
+extension abs U16 special
+extension abs U32 scalar
+extension abs U32 empty
+extension abs U32 odd
+extension abs U32 matrix
+extension abs U32 transposed
+extension abs U32 sliced
+extension abs U32 expanded
+extension abs U32 special
+extension abs U64 scalar
+extension abs U64 empty
+extension abs U64 odd
+extension abs U64 matrix
+extension abs U64 transposed
+extension abs U64 sliced
+extension abs U64 expanded
+extension abs U64 special
+extension acos F8E4M3 scalar
+extension acos F8E4M3 empty
+extension acos F8E4M3 odd
+extension acos F8E4M3 matrix
+extension acos F8E4M3 transposed
+extension acos F8E4M3 sliced
+extension acos F8E4M3 expanded
+extension acos F8E4M3 special
+extension acos F8E5M2 scalar
+extension acos F8E5M2 empty
+extension acos F8E5M2 odd
+extension acos F8E5M2 matrix
+extension acos F8E5M2 transposed
+extension acos F8E5M2 sliced
+extension acos F8E5M2 expanded
+extension acos F8E5M2 special
+extension acosh F8E4M3 scalar
+extension acosh F8E4M3 empty
+extension acosh F8E4M3 odd
+extension acosh F8E4M3 matrix
+extension acosh F8E4M3 transposed
+extension acosh F8E4M3 sliced
+extension acosh F8E4M3 expanded
+extension acosh F8E4M3 special
+extension acosh F8E5M2 scalar
+extension acosh F8E5M2 empty
+extension acosh F8E5M2 odd
+extension acosh F8E5M2 matrix
+extension acosh F8E5M2 transposed
+extension acosh F8E5M2 sliced
+extension acosh F8E5M2 expanded
+extension acosh F8E5M2 special
+extension asin F8E4M3 scalar
+extension asin F8E4M3 empty
+extension asin F8E4M3 odd
+extension asin F8E4M3 matrix
+extension asin F8E4M3 transposed
+extension asin F8E4M3 sliced
+extension asin F8E4M3 expanded
+extension asin F8E4M3 special
+extension asin F8E5M2 scalar
+extension asin F8E5M2 empty
+extension asin F8E5M2 odd
+extension asin F8E5M2 matrix
+extension asin F8E5M2 transposed
+extension asin F8E5M2 sliced
+extension asin F8E5M2 expanded
+extension asin F8E5M2 special
+extension asinh F8E4M3 scalar
+extension asinh F8E4M3 empty
+extension asinh F8E4M3 odd
+extension asinh F8E4M3 matrix
+extension asinh F8E4M3 transposed
+extension asinh F8E4M3 sliced
+extension asinh F8E4M3 expanded
+extension asinh F8E4M3 special
+extension asinh F8E5M2 scalar
+extension asinh F8E5M2 empty
+extension asinh F8E5M2 odd
+extension asinh F8E5M2 matrix
+extension asinh F8E5M2 transposed
+extension asinh F8E5M2 sliced
+extension asinh F8E5M2 expanded
+extension asinh F8E5M2 special
+extension atan F8E4M3 scalar
+extension atan F8E4M3 empty
+extension atan F8E4M3 odd
+extension atan F8E4M3 matrix
+extension atan F8E4M3 transposed
+extension atan F8E4M3 sliced
+extension atan F8E4M3 expanded
+extension atan F8E4M3 special
+extension atan F8E5M2 scalar
+extension atan F8E5M2 empty
+extension atan F8E5M2 odd
+extension atan F8E5M2 matrix
+extension atan F8E5M2 transposed
+extension atan F8E5M2 sliced
+extension atan F8E5M2 expanded
+extension atan F8E5M2 special
+extension bitwise_not U16 scalar
+extension bitwise_not U16 empty
+extension bitwise_not U16 odd
+extension bitwise_not U16 matrix
+extension bitwise_not U16 transposed
+extension bitwise_not U16 sliced
+extension bitwise_not U16 expanded
+extension bitwise_not U16 special
+extension bitwise_not U32 scalar
+extension bitwise_not U32 empty
+extension bitwise_not U32 odd
+extension bitwise_not U32 matrix
+extension bitwise_not U32 transposed
+extension bitwise_not U32 sliced
+extension bitwise_not U32 expanded
+extension bitwise_not U32 special
+extension bitwise_not U64 scalar
+extension bitwise_not U64 empty
+extension bitwise_not U64 odd
+extension bitwise_not U64 matrix
+extension bitwise_not U64 transposed
+extension bitwise_not U64 sliced
+extension bitwise_not U64 expanded
+extension bitwise_not U64 special
+extension atanh F8E4M3 scalar
+extension atanh F8E4M3 empty
+extension atanh F8E4M3 odd
+extension atanh F8E4M3 matrix
+extension atanh F8E4M3 transposed
+extension atanh F8E4M3 sliced
+extension atanh F8E4M3 expanded
+extension atanh F8E4M3 special
+extension atanh F8E5M2 scalar
+extension atanh F8E5M2 empty
+extension atanh F8E5M2 odd
+extension atanh F8E5M2 matrix
+extension atanh F8E5M2 transposed
+extension atanh F8E5M2 sliced
+extension atanh F8E5M2 expanded
+extension atanh F8E5M2 special
+extension ceil F8E4M3 scalar
+extension ceil F8E4M3 empty
+extension ceil F8E4M3 odd
+extension ceil F8E4M3 matrix
+extension ceil F8E4M3 transposed
+extension ceil F8E4M3 sliced
+extension ceil F8E4M3 expanded
+extension ceil F8E4M3 special
+extension ceil F8E5M2 scalar
+extension ceil F8E5M2 empty
+extension ceil F8E5M2 odd
+extension ceil F8E5M2 matrix
+extension ceil F8E5M2 transposed
+extension ceil F8E5M2 sliced
+extension ceil F8E5M2 expanded
+extension ceil F8E5M2 special
+extension cos F8E4M3 scalar
+extension cos F8E4M3 empty
+extension cos F8E4M3 odd
+extension cos F8E4M3 matrix
+extension cos F8E4M3 transposed
+extension cos F8E4M3 sliced
+extension cos F8E4M3 expanded
+extension cos F8E4M3 special
+extension cos F8E5M2 scalar
+extension cos F8E5M2 empty
+extension cos F8E5M2 odd
+extension cos F8E5M2 matrix
+extension cos F8E5M2 transposed
+extension cos F8E5M2 sliced
+extension cos F8E5M2 expanded
+extension cos F8E5M2 special
+extension cosh F8E4M3 scalar
+extension cosh F8E4M3 empty
+extension cosh F8E4M3 odd
+extension cosh F8E4M3 matrix
+extension cosh F8E4M3 transposed
+extension cosh F8E4M3 sliced
+extension cosh F8E4M3 expanded
+extension cosh F8E4M3 special
+extension cosh F8E5M2 scalar
+extension cosh F8E5M2 empty
+extension cosh F8E5M2 odd
+extension cosh F8E5M2 matrix
+extension cosh F8E5M2 transposed
+extension cosh F8E5M2 sliced
+extension cosh F8E5M2 expanded
+extension cosh F8E5M2 special
+extension erf F8E4M3 scalar
+extension erf F8E4M3 empty
+extension erf F8E4M3 odd
+extension erf F8E4M3 matrix
+extension erf F8E4M3 transposed
+extension erf F8E4M3 sliced
+extension erf F8E4M3 expanded
+extension erf F8E4M3 special
+extension erf F8E5M2 scalar
+extension erf F8E5M2 empty
+extension erf F8E5M2 odd
+extension erf F8E5M2 matrix
+extension erf F8E5M2 transposed
+extension erf F8E5M2 sliced
+extension erf F8E5M2 expanded
+extension erf F8E5M2 special
+extension log1p F8E4M3 scalar
+extension log1p F8E4M3 empty
+extension log1p F8E4M3 odd
+extension log1p F8E4M3 matrix
+extension log1p F8E4M3 transposed
+extension log1p F8E4M3 sliced
+extension log1p F8E4M3 expanded
+extension log1p F8E4M3 special
+extension log1p F8E5M2 scalar
+extension log1p F8E5M2 empty
+extension log1p F8E5M2 odd
+extension log1p F8E5M2 matrix
+extension log1p F8E5M2 transposed
+extension log1p F8E5M2 sliced
+extension log1p F8E5M2 expanded
+extension log1p F8E5M2 special
+extension expm1 F8E4M3 scalar
+extension expm1 F8E4M3 empty
+extension expm1 F8E4M3 odd
+extension expm1 F8E4M3 matrix
+extension expm1 F8E4M3 transposed
+extension expm1 F8E4M3 sliced
+extension expm1 F8E4M3 expanded
+extension expm1 F8E4M3 special
+extension expm1 F8E5M2 scalar
+extension expm1 F8E5M2 empty
+extension expm1 F8E5M2 odd
+extension expm1 F8E5M2 matrix
+extension expm1 F8E5M2 transposed
+extension expm1 F8E5M2 sliced
+extension expm1 F8E5M2 expanded
+extension expm1 F8E5M2 special
+extension round F8E4M3 scalar
+extension round F8E4M3 empty
+extension round F8E4M3 odd
+extension round F8E4M3 matrix
+extension round F8E4M3 transposed
+extension round F8E4M3 sliced
+extension round F8E4M3 expanded
+extension round F8E4M3 special
+extension round F8E5M2 scalar
+extension round F8E5M2 empty
+extension round F8E5M2 odd
+extension round F8E5M2 matrix
+extension round F8E5M2 transposed
+extension round F8E5M2 sliced
+extension round F8E5M2 expanded
+extension round F8E5M2 special
+extension exp F8E4M3 scalar
+extension exp F8E4M3 empty
+extension exp F8E4M3 odd
+extension exp F8E4M3 matrix
+extension exp F8E4M3 transposed
+extension exp F8E4M3 sliced
+extension exp F8E4M3 expanded
+extension exp F8E4M3 special
+extension exp F8E5M2 scalar
+extension exp F8E5M2 empty
+extension exp F8E5M2 odd
+extension exp F8E5M2 matrix
+extension exp F8E5M2 transposed
+extension exp F8E5M2 sliced
+extension exp F8E5M2 expanded
+extension exp F8E5M2 special
+extension floor F8E4M3 scalar
+extension floor F8E4M3 empty
+extension floor F8E4M3 odd
+extension floor F8E4M3 matrix
+extension floor F8E4M3 transposed
+extension floor F8E4M3 sliced
+extension floor F8E4M3 expanded
+extension floor F8E4M3 special
+extension floor F8E5M2 scalar
+extension floor F8E5M2 empty
+extension floor F8E5M2 odd
+extension floor F8E5M2 matrix
+extension floor F8E5M2 transposed
+extension floor F8E5M2 sliced
+extension floor F8E5M2 expanded
+extension floor F8E5M2 special
+extension gelu F8E4M3 scalar
+extension gelu F8E4M3 empty
+extension gelu F8E4M3 odd
+extension gelu F8E4M3 matrix
+extension gelu F8E4M3 transposed
+extension gelu F8E4M3 sliced
+extension gelu F8E4M3 expanded
+extension gelu F8E4M3 special
+extension gelu F8E5M2 scalar
+extension gelu F8E5M2 empty
+extension gelu F8E5M2 odd
+extension gelu F8E5M2 matrix
+extension gelu F8E5M2 transposed
+extension gelu F8E5M2 sliced
+extension gelu F8E5M2 expanded
+extension gelu F8E5M2 special
+extension gelu_exact F8E4M3 scalar
+extension gelu_exact F8E4M3 empty
+extension gelu_exact F8E4M3 odd
+extension gelu_exact F8E4M3 matrix
+extension gelu_exact F8E4M3 transposed
+extension gelu_exact F8E4M3 sliced
+extension gelu_exact F8E4M3 expanded
+extension gelu_exact F8E4M3 special
+extension gelu_exact F8E5M2 scalar
+extension gelu_exact F8E5M2 empty
+extension gelu_exact F8E5M2 odd
+extension gelu_exact F8E5M2 matrix
+extension gelu_exact F8E5M2 transposed
+extension gelu_exact F8E5M2 sliced
+extension gelu_exact F8E5M2 expanded
+extension gelu_exact F8E5M2 special
+extension log F8E4M3 scalar
+extension log F8E4M3 empty
+extension log F8E4M3 odd
+extension log F8E4M3 matrix
+extension log F8E4M3 transposed
+extension log F8E4M3 sliced
+extension log F8E4M3 expanded
+extension log F8E4M3 special
+extension log F8E5M2 scalar
+extension log F8E5M2 empty
+extension log F8E5M2 odd
+extension log F8E5M2 matrix
+extension log F8E5M2 transposed
+extension log F8E5M2 sliced
+extension log F8E5M2 expanded
+extension log F8E5M2 special
+extension logical_not U16 scalar
+extension logical_not U16 empty
+extension logical_not U16 odd
+extension logical_not U16 matrix
+extension logical_not U16 transposed
+extension logical_not U16 sliced
+extension logical_not U16 expanded
+extension logical_not U16 special
+extension logical_not U32 scalar
+extension logical_not U32 empty
+extension logical_not U32 odd
+extension logical_not U32 matrix
+extension logical_not U32 transposed
+extension logical_not U32 sliced
+extension logical_not U32 expanded
+extension logical_not U32 special
+extension logical_not U64 scalar
+extension logical_not U64 empty
+extension logical_not U64 odd
+extension logical_not U64 matrix
+extension logical_not U64 transposed
+extension logical_not U64 sliced
+extension logical_not U64 expanded
+extension logical_not U64 special
+extension logical_not F8E4M3 scalar
+extension logical_not F8E4M3 empty
+extension logical_not F8E4M3 odd
+extension logical_not F8E4M3 matrix
+extension logical_not F8E4M3 transposed
+extension logical_not F8E4M3 sliced
+extension logical_not F8E4M3 expanded
+extension logical_not F8E4M3 special
+extension logical_not F8E5M2 scalar
+extension logical_not F8E5M2 empty
+extension logical_not F8E5M2 odd
+extension logical_not F8E5M2 matrix
+extension logical_not F8E5M2 transposed
+extension logical_not F8E5M2 sliced
+extension logical_not F8E5M2 expanded
+extension logical_not F8E5M2 special
+extension neg U16 scalar
+extension neg U16 empty
+extension neg U16 odd
+extension neg U16 matrix
+extension neg U16 transposed
+extension neg U16 sliced
+extension neg U16 expanded
+extension neg U16 special
+extension neg U32 scalar
+extension neg U32 empty
+extension neg U32 odd
+extension neg U32 matrix
+extension neg U32 transposed
+extension neg U32 sliced
+extension neg U32 expanded
+extension neg U32 special
+extension neg U64 scalar
+extension neg U64 empty
+extension neg U64 odd
+extension neg U64 matrix
+extension neg U64 transposed
+extension neg U64 sliced
+extension neg U64 expanded
+extension neg U64 special
+extension neg F8E4M3 scalar
+extension neg F8E4M3 empty
+extension neg F8E4M3 odd
+extension neg F8E4M3 matrix
+extension neg F8E4M3 transposed
+extension neg F8E4M3 sliced
+extension neg F8E4M3 expanded
+extension neg F8E4M3 special
+extension neg F8E5M2 scalar
+extension neg F8E5M2 empty
+extension neg F8E5M2 odd
+extension neg F8E5M2 matrix
+extension neg F8E5M2 transposed
+extension neg F8E5M2 sliced
+extension neg F8E5M2 expanded
+extension neg F8E5M2 special
+extension reciprocal F8E4M3 scalar
+extension reciprocal F8E4M3 empty
+extension reciprocal F8E4M3 odd
+extension reciprocal F8E4M3 matrix
+extension reciprocal F8E4M3 transposed
+extension reciprocal F8E4M3 sliced
+extension reciprocal F8E4M3 expanded
+extension reciprocal F8E4M3 special
+extension reciprocal F8E5M2 scalar
+extension reciprocal F8E5M2 empty
+extension reciprocal F8E5M2 odd
+extension reciprocal F8E5M2 matrix
+extension reciprocal F8E5M2 transposed
+extension reciprocal F8E5M2 sliced
+extension reciprocal F8E5M2 expanded
+extension reciprocal F8E5M2 special
+extension relu U16 scalar
+extension relu U16 empty
+extension relu U16 odd
+extension relu U16 matrix
+extension relu U16 transposed
+extension relu U16 sliced
+extension relu U16 expanded
+extension relu U16 special
+extension relu U32 scalar
+extension relu U32 empty
+extension relu U32 odd
+extension relu U32 matrix
+extension relu U32 transposed
+extension relu U32 sliced
+extension relu U32 expanded
+extension relu U32 special
+extension relu U64 scalar
+extension relu U64 empty
+extension relu U64 odd
+extension relu U64 matrix
+extension relu U64 transposed
+extension relu U64 sliced
+extension relu U64 expanded
+extension relu U64 special
+extension relu F8E4M3 scalar
+extension relu F8E4M3 empty
+extension relu F8E4M3 odd
+extension relu F8E4M3 matrix
+extension relu F8E4M3 transposed
+extension relu F8E4M3 sliced
+extension relu F8E4M3 expanded
+extension relu F8E4M3 special
+extension relu F8E5M2 scalar
+extension relu F8E5M2 empty
+extension relu F8E5M2 odd
+extension relu F8E5M2 matrix
+extension relu F8E5M2 transposed
+extension relu F8E5M2 sliced
+extension relu F8E5M2 expanded
+extension relu F8E5M2 special
+extension rsqrt F8E4M3 scalar
+extension rsqrt F8E4M3 empty
+extension rsqrt F8E4M3 odd
+extension rsqrt F8E4M3 matrix
+extension rsqrt F8E4M3 transposed
+extension rsqrt F8E4M3 sliced
+extension rsqrt F8E4M3 expanded
+extension rsqrt F8E4M3 special
+extension rsqrt F8E5M2 scalar
+extension rsqrt F8E5M2 empty
+extension rsqrt F8E5M2 odd
+extension rsqrt F8E5M2 matrix
+extension rsqrt F8E5M2 transposed
+extension rsqrt F8E5M2 sliced
+extension rsqrt F8E5M2 expanded
+extension rsqrt F8E5M2 special
+extension sigmoid F8E4M3 scalar
+extension sigmoid F8E4M3 empty
+extension sigmoid F8E4M3 odd
+extension sigmoid F8E4M3 matrix
+extension sigmoid F8E4M3 transposed
+extension sigmoid F8E4M3 sliced
+extension sigmoid F8E4M3 expanded
+extension sigmoid F8E4M3 special
+extension sigmoid F8E5M2 scalar
+extension sigmoid F8E5M2 empty
+extension sigmoid F8E5M2 odd
+extension sigmoid F8E5M2 matrix
+extension sigmoid F8E5M2 transposed
+extension sigmoid F8E5M2 sliced
+extension sigmoid F8E5M2 expanded
+extension sigmoid F8E5M2 special
+extension silu F8E4M3 scalar
+extension silu F8E4M3 empty
+extension silu F8E4M3 odd
+extension silu F8E4M3 matrix
+extension silu F8E4M3 transposed
+extension silu F8E4M3 sliced
+extension silu F8E4M3 expanded
+extension silu F8E4M3 special
+extension silu F8E5M2 scalar
+extension silu F8E5M2 empty
+extension silu F8E5M2 odd
+extension silu F8E5M2 matrix
+extension silu F8E5M2 transposed
+extension silu F8E5M2 sliced
+extension silu F8E5M2 expanded
+extension silu F8E5M2 special
+extension sin F8E4M3 scalar
+extension sin F8E4M3 empty
+extension sin F8E4M3 odd
+extension sin F8E4M3 matrix
+extension sin F8E4M3 transposed
+extension sin F8E4M3 sliced
+extension sin F8E4M3 expanded
+extension sin F8E4M3 special
+extension sin F8E5M2 scalar
+extension sin F8E5M2 empty
+extension sin F8E5M2 odd
+extension sin F8E5M2 matrix
+extension sin F8E5M2 transposed
+extension sin F8E5M2 sliced
+extension sin F8E5M2 expanded
+extension sin F8E5M2 special
+extension sinh F8E4M3 scalar
+extension sinh F8E4M3 empty
+extension sinh F8E4M3 odd
+extension sinh F8E4M3 matrix
+extension sinh F8E4M3 transposed
+extension sinh F8E4M3 sliced
+extension sinh F8E4M3 expanded
+extension sinh F8E4M3 special
+extension sinh F8E5M2 scalar
+extension sinh F8E5M2 empty
+extension sinh F8E5M2 odd
+extension sinh F8E5M2 matrix
+extension sinh F8E5M2 transposed
+extension sinh F8E5M2 sliced
+extension sinh F8E5M2 expanded
+extension sinh F8E5M2 special
+extension sqrt F8E4M3 scalar
+extension sqrt F8E4M3 empty
+extension sqrt F8E4M3 odd
+extension sqrt F8E4M3 matrix
+extension sqrt F8E4M3 transposed
+extension sqrt F8E4M3 sliced
+extension sqrt F8E4M3 expanded
+extension sqrt F8E4M3 special
+extension sqrt F8E5M2 scalar
+extension sqrt F8E5M2 empty
+extension sqrt F8E5M2 odd
+extension sqrt F8E5M2 matrix
+extension sqrt F8E5M2 transposed
+extension sqrt F8E5M2 sliced
+extension sqrt F8E5M2 expanded
+extension sqrt F8E5M2 special
+extension square U16 scalar
+extension square U16 empty
+extension square U16 odd
+extension square U16 matrix
+extension square U16 transposed
+extension square U16 sliced
+extension square U16 expanded
+extension square U16 special
+extension square U32 scalar
+extension square U32 empty
+extension square U32 odd
+extension square U32 matrix
+extension square U32 transposed
+extension square U32 sliced
+extension square U32 expanded
+extension square U32 special
+extension square U64 scalar
+extension square U64 empty
+extension square U64 odd
+extension square U64 matrix
+extension square U64 transposed
+extension square U64 sliced
+extension square U64 expanded
+extension square U64 special
+extension square F8E4M3 scalar
+extension square F8E4M3 empty
+extension square F8E4M3 odd
+extension square F8E4M3 matrix
+extension square F8E4M3 transposed
+extension square F8E4M3 sliced
+extension square F8E4M3 expanded
+extension square F8E4M3 special
+extension square F8E5M2 scalar
+extension square F8E5M2 empty
+extension square F8E5M2 odd
+extension square F8E5M2 matrix
+extension square F8E5M2 transposed
+extension square F8E5M2 sliced
+extension square F8E5M2 expanded
+extension square F8E5M2 special
+extension tan F8E4M3 scalar
+extension tan F8E4M3 empty
+extension tan F8E4M3 odd
+extension tan F8E4M3 matrix
+extension tan F8E4M3 transposed
+extension tan F8E4M3 sliced
+extension tan F8E4M3 expanded
+extension tan F8E4M3 special
+extension tan F8E5M2 scalar
+extension tan F8E5M2 empty
+extension tan F8E5M2 odd
+extension tan F8E5M2 matrix
+extension tan F8E5M2 transposed
+extension tan F8E5M2 sliced
+extension tan F8E5M2 expanded
+extension tan F8E5M2 special
+extension tanh F8E4M3 scalar
+extension tanh F8E4M3 empty
+extension tanh F8E4M3 odd
+extension tanh F8E4M3 matrix
+extension tanh F8E4M3 transposed
+extension tanh F8E4M3 sliced
+extension tanh F8E4M3 expanded
+extension tanh F8E4M3 special
+extension tanh F8E5M2 scalar
+extension tanh F8E5M2 empty
+extension tanh F8E5M2 odd
+extension tanh F8E5M2 matrix
+extension tanh F8E5M2 transposed
+extension tanh F8E5M2 sliced
+extension tanh F8E5M2 expanded
+extension tanh F8E5M2 special
+extension trunc F8E4M3 scalar
+extension trunc F8E4M3 empty
+extension trunc F8E4M3 odd
+extension trunc F8E4M3 matrix
+extension trunc F8E4M3 transposed
+extension trunc F8E4M3 sliced
+extension trunc F8E4M3 expanded
+extension trunc F8E4M3 special
+extension trunc F8E5M2 scalar
+extension trunc F8E5M2 empty
+extension trunc F8E5M2 odd
+extension trunc F8E5M2 matrix
+extension trunc F8E5M2 transposed
+extension trunc F8E5M2 sliced
+extension trunc F8E5M2 expanded
+extension trunc F8E5M2 special
+extension add U16 scalar
+extension add U16 empty
+extension add U16 matrix
+extension add U16 row broadcast
+extension add U16 outer broadcast
+extension add U16 scalar operand
+extension add U16 transposed
+extension add U16 special
+extension add U32 scalar
+extension add U32 empty
+extension add U32 matrix
+extension add U32 row broadcast
+extension add U32 outer broadcast
+extension add U32 scalar operand
+extension add U32 transposed
+extension add U32 special
+extension add U64 scalar
+extension add U64 empty
+extension add U64 matrix
+extension add U64 row broadcast
+extension add U64 outer broadcast
+extension add U64 scalar operand
+extension add U64 transposed
+extension add U64 special
+extension add F8E4M3 scalar
+extension add F8E4M3 empty
+extension add F8E4M3 matrix
+extension add F8E4M3 row broadcast
+extension add F8E4M3 outer broadcast
+extension add F8E4M3 scalar operand
+extension add F8E4M3 transposed
+extension add F8E4M3 special
+extension add F8E5M2 scalar
+extension add F8E5M2 empty
+extension add F8E5M2 matrix
+extension add F8E5M2 row broadcast
+extension add F8E5M2 outer broadcast
+extension add F8E5M2 scalar operand
+extension add F8E5M2 transposed
+extension add F8E5M2 special
+extension atan2 F8E4M3 scalar
+extension atan2 F8E4M3 empty
+extension atan2 F8E4M3 matrix
+extension atan2 F8E4M3 row broadcast
+extension atan2 F8E4M3 outer broadcast
+extension atan2 F8E4M3 scalar operand
+extension atan2 F8E4M3 transposed
+extension atan2 F8E4M3 special
+extension atan2 F8E5M2 scalar
+extension atan2 F8E5M2 empty
+extension atan2 F8E5M2 matrix
+extension atan2 F8E5M2 row broadcast
+extension atan2 F8E5M2 outer broadcast
+extension atan2 F8E5M2 scalar operand
+extension atan2 F8E5M2 transposed
+extension atan2 F8E5M2 special
+extension bitwise_left_shift U16 scalar
+extension bitwise_left_shift U16 empty
+extension bitwise_left_shift U16 matrix
+extension bitwise_left_shift U16 row broadcast
+extension bitwise_left_shift U16 outer broadcast
+extension bitwise_left_shift U16 scalar operand
+extension bitwise_left_shift U16 transposed
+extension bitwise_left_shift U16 special
+extension bitwise_left_shift U32 scalar
+extension bitwise_left_shift U32 empty
+extension bitwise_left_shift U32 matrix
+extension bitwise_left_shift U32 row broadcast
+extension bitwise_left_shift U32 outer broadcast
+extension bitwise_left_shift U32 scalar operand
+extension bitwise_left_shift U32 transposed
+extension bitwise_left_shift U32 special
+extension bitwise_left_shift U64 scalar
+extension bitwise_left_shift U64 empty
+extension bitwise_left_shift U64 matrix
+extension bitwise_left_shift U64 row broadcast
+extension bitwise_left_shift U64 outer broadcast
+extension bitwise_left_shift U64 scalar operand
+extension bitwise_left_shift U64 transposed
+extension bitwise_left_shift U64 special
+extension bitwise_right_shift U16 scalar
+extension bitwise_right_shift U16 empty
+extension bitwise_right_shift U16 matrix
+extension bitwise_right_shift U16 row broadcast
+extension bitwise_right_shift U16 outer broadcast
+extension bitwise_right_shift U16 scalar operand
+extension bitwise_right_shift U16 transposed
+extension bitwise_right_shift U16 special
+extension bitwise_right_shift U32 scalar
+extension bitwise_right_shift U32 empty
+extension bitwise_right_shift U32 matrix
+extension bitwise_right_shift U32 row broadcast
+extension bitwise_right_shift U32 outer broadcast
+extension bitwise_right_shift U32 scalar operand
+extension bitwise_right_shift U32 transposed
+extension bitwise_right_shift U32 special
+extension bitwise_right_shift U64 scalar
+extension bitwise_right_shift U64 empty
+extension bitwise_right_shift U64 matrix
+extension bitwise_right_shift U64 row broadcast
+extension bitwise_right_shift U64 outer broadcast
+extension bitwise_right_shift U64 scalar operand
+extension bitwise_right_shift U64 transposed
+extension bitwise_right_shift U64 special
+extension div F8E4M3 scalar
+extension div F8E4M3 empty
+extension div F8E4M3 matrix
+extension div F8E4M3 row broadcast
+extension div F8E4M3 outer broadcast
+extension div F8E4M3 scalar operand
+extension div F8E4M3 transposed
+extension div F8E4M3 special
+extension div F8E5M2 scalar
+extension div F8E5M2 empty
+extension div F8E5M2 matrix
+extension div F8E5M2 row broadcast
+extension div F8E5M2 outer broadcast
+extension div F8E5M2 scalar operand
+extension div F8E5M2 transposed
+extension div F8E5M2 special
+extension greater U16 scalar
+extension greater U16 empty
+extension greater U16 matrix
+extension greater U16 row broadcast
+extension greater U16 outer broadcast
+extension greater U16 scalar operand
+extension greater U16 transposed
+extension greater U16 special
+extension greater U32 scalar
+extension greater U32 empty
+extension greater U32 matrix
+extension greater U32 row broadcast
+extension greater U32 outer broadcast
+extension greater U32 scalar operand
+extension greater U32 transposed
+extension greater U32 special
+extension greater U64 scalar
+extension greater U64 empty
+extension greater U64 matrix
+extension greater U64 row broadcast
+extension greater U64 outer broadcast
+extension greater U64 scalar operand
+extension greater U64 transposed
+extension greater U64 special
+extension greater F8E4M3 scalar
+extension greater F8E4M3 empty
+extension greater F8E4M3 matrix
+extension greater F8E4M3 row broadcast
+extension greater F8E4M3 outer broadcast
+extension greater F8E4M3 scalar operand
+extension greater F8E4M3 transposed
+extension greater F8E4M3 special
+extension greater F8E5M2 scalar
+extension greater F8E5M2 empty
+extension greater F8E5M2 matrix
+extension greater F8E5M2 row broadcast
+extension greater F8E5M2 outer broadcast
+extension greater F8E5M2 scalar operand
+extension greater F8E5M2 transposed
+extension greater F8E5M2 special
+extension greater_equal U16 scalar
+extension greater_equal U16 empty
+extension greater_equal U16 matrix
+extension greater_equal U16 row broadcast
+extension greater_equal U16 outer broadcast
+extension greater_equal U16 scalar operand
+extension greater_equal U16 transposed
+extension greater_equal U16 special
+extension greater_equal U32 scalar
+extension greater_equal U32 empty
+extension greater_equal U32 matrix
+extension greater_equal U32 row broadcast
+extension greater_equal U32 outer broadcast
+extension greater_equal U32 scalar operand
+extension greater_equal U32 transposed
+extension greater_equal U32 special
+extension greater_equal U64 scalar
+extension greater_equal U64 empty
+extension greater_equal U64 matrix
+extension greater_equal U64 row broadcast
+extension greater_equal U64 outer broadcast
+extension greater_equal U64 scalar operand
+extension greater_equal U64 transposed
+extension greater_equal U64 special
+extension greater_equal F8E4M3 scalar
+extension greater_equal F8E4M3 empty
+extension greater_equal F8E4M3 matrix
+extension greater_equal F8E4M3 row broadcast
+extension greater_equal F8E4M3 outer broadcast
+extension greater_equal F8E4M3 scalar operand
+extension greater_equal F8E4M3 transposed
+extension greater_equal F8E4M3 special
+extension greater_equal F8E5M2 scalar
+extension greater_equal F8E5M2 empty
+extension greater_equal F8E5M2 matrix
+extension greater_equal F8E5M2 row broadcast
+extension greater_equal F8E5M2 outer broadcast
+extension greater_equal F8E5M2 scalar operand
+extension greater_equal F8E5M2 transposed
+extension greater_equal F8E5M2 special
+extension less U16 scalar
+extension less U16 empty
+extension less U16 matrix
+extension less U16 row broadcast
+extension less U16 outer broadcast
+extension less U16 scalar operand
+extension less U16 transposed
+extension less U16 special
+extension less U32 scalar
+extension less U32 empty
+extension less U32 matrix
+extension less U32 row broadcast
+extension less U32 outer broadcast
+extension less U32 scalar operand
+extension less U32 transposed
+extension less U32 special
+extension less U64 scalar
+extension less U64 empty
+extension less U64 matrix
+extension less U64 row broadcast
+extension less U64 outer broadcast
+extension less U64 scalar operand
+extension less U64 transposed
+extension less U64 special
+extension less F8E4M3 scalar
+extension less F8E4M3 empty
+extension less F8E4M3 matrix
+extension less F8E4M3 row broadcast
+extension less F8E4M3 outer broadcast
+extension less F8E4M3 scalar operand
+extension less F8E4M3 transposed
+extension less F8E4M3 special
+extension less F8E5M2 scalar
+extension less F8E5M2 empty
+extension less F8E5M2 matrix
+extension less F8E5M2 row broadcast
+extension less F8E5M2 outer broadcast
+extension less F8E5M2 scalar operand
+extension less F8E5M2 transposed
+extension less F8E5M2 special
+extension less_equal U16 scalar
+extension less_equal U16 empty
+extension less_equal U16 matrix
+extension less_equal U16 row broadcast
+extension less_equal U16 outer broadcast
+extension less_equal U16 scalar operand
+extension less_equal U16 transposed
+extension less_equal U16 special
+extension less_equal U32 scalar
+extension less_equal U32 empty
+extension less_equal U32 matrix
+extension less_equal U32 row broadcast
+extension less_equal U32 outer broadcast
+extension less_equal U32 scalar operand
+extension less_equal U32 transposed
+extension less_equal U32 special
+extension less_equal U64 scalar
+extension less_equal U64 empty
+extension less_equal U64 matrix
+extension less_equal U64 row broadcast
+extension less_equal U64 outer broadcast
+extension less_equal U64 scalar operand
+extension less_equal U64 transposed
+extension less_equal U64 special
+extension less_equal F8E4M3 scalar
+extension less_equal F8E4M3 empty
+extension less_equal F8E4M3 matrix
+extension less_equal F8E4M3 row broadcast
+extension less_equal F8E4M3 outer broadcast
+extension less_equal F8E4M3 scalar operand
+extension less_equal F8E4M3 transposed
+extension less_equal F8E4M3 special
+extension less_equal F8E5M2 scalar
+extension less_equal F8E5M2 empty
+extension less_equal F8E5M2 matrix
+extension less_equal F8E5M2 row broadcast
+extension less_equal F8E5M2 outer broadcast
+extension less_equal F8E5M2 scalar operand
+extension less_equal F8E5M2 transposed
+extension less_equal F8E5M2 special
+extension logical_and U16 scalar
+extension logical_and U16 empty
+extension logical_and U16 matrix
+extension logical_and U16 row broadcast
+extension logical_and U16 outer broadcast
+extension logical_and U16 scalar operand
+extension logical_and U16 transposed
+extension logical_and U16 special
+extension logical_and U32 scalar
+extension logical_and U32 empty
+extension logical_and U32 matrix
+extension logical_and U32 row broadcast
+extension logical_and U32 outer broadcast
+extension logical_and U32 scalar operand
+extension logical_and U32 transposed
+extension logical_and U32 special
+extension logical_and U64 scalar
+extension logical_and U64 empty
+extension logical_and U64 matrix
+extension logical_and U64 row broadcast
+extension logical_and U64 outer broadcast
+extension logical_and U64 scalar operand
+extension logical_and U64 transposed
+extension logical_and U64 special
+extension logical_and F8E4M3 scalar
+extension logical_and F8E4M3 empty
+extension logical_and F8E4M3 matrix
+extension logical_and F8E4M3 row broadcast
+extension logical_and F8E4M3 outer broadcast
+extension logical_and F8E4M3 scalar operand
+extension logical_and F8E4M3 transposed
+extension logical_and F8E4M3 special
+extension logical_and F8E5M2 scalar
+extension logical_and F8E5M2 empty
+extension logical_and F8E5M2 matrix
+extension logical_and F8E5M2 row broadcast
+extension logical_and F8E5M2 outer broadcast
+extension logical_and F8E5M2 scalar operand
+extension logical_and F8E5M2 transposed
+extension logical_and F8E5M2 special
+extension logical_or U16 scalar
+extension logical_or U16 empty
+extension logical_or U16 matrix
+extension logical_or U16 row broadcast
+extension logical_or U16 outer broadcast
+extension logical_or U16 scalar operand
+extension logical_or U16 transposed
+extension logical_or U16 special
+extension logical_or U32 scalar
+extension logical_or U32 empty
+extension logical_or U32 matrix
+extension logical_or U32 row broadcast
+extension logical_or U32 outer broadcast
+extension logical_or U32 scalar operand
+extension logical_or U32 transposed
+extension logical_or U32 special
+extension logical_or U64 scalar
+extension logical_or U64 empty
+extension logical_or U64 matrix
+extension logical_or U64 row broadcast
+extension logical_or U64 outer broadcast
+extension logical_or U64 scalar operand
+extension logical_or U64 transposed
+extension logical_or U64 special
+extension logical_or F8E4M3 scalar
+extension logical_or F8E4M3 empty
+extension logical_or F8E4M3 matrix
+extension logical_or F8E4M3 row broadcast
+extension logical_or F8E4M3 outer broadcast
+extension logical_or F8E4M3 scalar operand
+extension logical_or F8E4M3 transposed
+extension logical_or F8E4M3 special
+extension logical_or F8E5M2 scalar
+extension logical_or F8E5M2 empty
+extension logical_or F8E5M2 matrix
+extension logical_or F8E5M2 row broadcast
+extension logical_or F8E5M2 outer broadcast
+extension logical_or F8E5M2 scalar operand
+extension logical_or F8E5M2 transposed
+extension logical_or F8E5M2 special
+extension maximum U16 scalar
+extension maximum U16 empty
+extension maximum U16 matrix
+extension maximum U16 row broadcast
+extension maximum U16 outer broadcast
+extension maximum U16 scalar operand
+extension maximum U16 transposed
+extension maximum U16 special
+extension maximum U32 scalar
+extension maximum U32 empty
+extension maximum U32 matrix
+extension maximum U32 row broadcast
+extension maximum U32 outer broadcast
+extension maximum U32 scalar operand
+extension maximum U32 transposed
+extension maximum U32 special
+extension maximum U64 scalar
+extension maximum U64 empty
+extension maximum U64 matrix
+extension maximum U64 row broadcast
+extension maximum U64 outer broadcast
+extension maximum U64 scalar operand
+extension maximum U64 transposed
+extension maximum U64 special
+extension maximum F8E4M3 scalar
+extension maximum F8E4M3 empty
+extension maximum F8E4M3 matrix
+extension maximum F8E4M3 row broadcast
+extension maximum F8E4M3 outer broadcast
+extension maximum F8E4M3 scalar operand
+extension maximum F8E4M3 transposed
+extension maximum F8E4M3 special
+extension maximum F8E5M2 scalar
+extension maximum F8E5M2 empty
+extension maximum F8E5M2 matrix
+extension maximum F8E5M2 row broadcast
+extension maximum F8E5M2 outer broadcast
+extension maximum F8E5M2 scalar operand
+extension maximum F8E5M2 transposed
+extension maximum F8E5M2 special
+extension minimum U16 scalar
+extension minimum U16 empty
+extension minimum U16 matrix
+extension minimum U16 row broadcast
+extension minimum U16 outer broadcast
+extension minimum U16 scalar operand
+extension minimum U16 transposed
+extension minimum U16 special
+extension minimum U32 scalar
+extension minimum U32 empty
+extension minimum U32 matrix
+extension minimum U32 row broadcast
+extension minimum U32 outer broadcast
+extension minimum U32 scalar operand
+extension minimum U32 transposed
+extension minimum U32 special
+extension minimum U64 scalar
+extension minimum U64 empty
+extension minimum U64 matrix
+extension minimum U64 row broadcast
+extension minimum U64 outer broadcast
+extension minimum U64 scalar operand
+extension minimum U64 transposed
+extension minimum U64 special
+extension minimum F8E4M3 scalar
+extension minimum F8E4M3 empty
+extension minimum F8E4M3 matrix
+extension minimum F8E4M3 row broadcast
+extension minimum F8E4M3 outer broadcast
+extension minimum F8E4M3 scalar operand
+extension minimum F8E4M3 transposed
+extension minimum F8E4M3 special
+extension minimum F8E5M2 scalar
+extension minimum F8E5M2 empty
+extension minimum F8E5M2 matrix
+extension minimum F8E5M2 row broadcast
+extension minimum F8E5M2 outer broadcast
+extension minimum F8E5M2 scalar operand
+extension minimum F8E5M2 transposed
+extension minimum F8E5M2 special
+extension modulo U16 scalar
+extension modulo U16 empty
+extension modulo U16 matrix
+extension modulo U16 row broadcast
+extension modulo U16 outer broadcast
+extension modulo U16 scalar operand
+extension modulo U16 transposed
+extension modulo U32 scalar
+extension modulo U32 empty
+extension modulo U32 matrix
+extension modulo U32 row broadcast
+extension modulo U32 outer broadcast
+extension modulo U32 scalar operand
+extension modulo U32 transposed
+extension modulo U64 scalar
+extension modulo U64 empty
+extension modulo U64 matrix
+extension modulo U64 row broadcast
+extension modulo U64 outer broadcast
+extension modulo U64 scalar operand
+extension modulo U64 transposed
+extension modulo F8E4M3 scalar
+extension modulo F8E4M3 empty
+extension modulo F8E4M3 matrix
+extension modulo F8E4M3 row broadcast
+extension modulo F8E4M3 outer broadcast
+extension modulo F8E4M3 scalar operand
+extension modulo F8E4M3 transposed
+extension modulo F8E4M3 special
+extension modulo F8E5M2 scalar
+extension modulo F8E5M2 empty
+extension modulo F8E5M2 matrix
+extension modulo F8E5M2 row broadcast
+extension modulo F8E5M2 outer broadcast
+extension modulo F8E5M2 scalar operand
+extension modulo F8E5M2 transposed
+extension modulo F8E5M2 special
+extension mul F8E4M3 scalar
+extension mul F8E4M3 scalar operand
+extension mul F8E5M2 scalar
+extension mul F8E5M2 scalar operand
+extension pow U16 scalar
+extension pow U16 empty
+extension pow U16 matrix
+extension pow U16 row broadcast
+extension pow U16 outer broadcast
+extension pow U16 scalar operand
+extension pow U16 transposed
+extension pow U16 special
+extension pow U32 scalar
+extension pow U32 empty
+extension pow U32 matrix
+extension pow U32 row broadcast
+extension pow U32 outer broadcast
+extension pow U32 scalar operand
+extension pow U32 transposed
+extension pow U32 special
+extension pow U64 scalar
+extension pow U64 empty
+extension pow U64 matrix
+extension pow U64 row broadcast
+extension pow U64 outer broadcast
+extension pow U64 scalar operand
+extension pow U64 transposed
+extension pow U64 special
+extension pow F8E4M3 scalar
+extension pow F8E4M3 empty
+extension pow F8E4M3 matrix
+extension pow F8E4M3 row broadcast
+extension pow F8E4M3 outer broadcast
+extension pow F8E4M3 scalar operand
+extension pow F8E4M3 transposed
+extension pow F8E4M3 special
+extension pow F8E5M2 scalar
+extension pow F8E5M2 empty
+extension pow F8E5M2 matrix
+extension pow F8E5M2 row broadcast
+extension pow F8E5M2 outer broadcast
+extension pow F8E5M2 scalar operand
+extension pow F8E5M2 transposed
+extension pow F8E5M2 special
+extension remainder U16 scalar
+extension remainder U16 empty
+extension remainder U16 matrix
+extension remainder U16 row broadcast
+extension remainder U16 outer broadcast
+extension remainder U16 scalar operand
+extension remainder U16 transposed
+extension remainder U32 scalar
+extension remainder U32 empty
+extension remainder U32 matrix
+extension remainder U32 row broadcast
+extension remainder U32 outer broadcast
+extension remainder U32 scalar operand
+extension remainder U32 transposed
+extension remainder U64 scalar
+extension remainder U64 empty
+extension remainder U64 matrix
+extension remainder U64 row broadcast
+extension remainder U64 outer broadcast
+extension remainder U64 scalar operand
+extension remainder U64 transposed
+extension remainder F8E4M3 scalar
+extension remainder F8E4M3 empty
+extension remainder F8E4M3 matrix
+extension remainder F8E4M3 row broadcast
+extension remainder F8E4M3 outer broadcast
+extension remainder F8E4M3 scalar operand
+extension remainder F8E4M3 transposed
+extension remainder F8E4M3 special
+extension remainder F8E5M2 scalar
+extension remainder F8E5M2 empty
+extension remainder F8E5M2 matrix
+extension remainder F8E5M2 row broadcast
+extension remainder F8E5M2 outer broadcast
+extension remainder F8E5M2 scalar operand
+extension remainder F8E5M2 transposed
+extension remainder F8E5M2 special
+extension sub U16 scalar
+extension sub U16 empty
+extension sub U16 matrix
+extension sub U16 row broadcast
+extension sub U16 outer broadcast
+extension sub U16 scalar operand
+extension sub U16 transposed
+extension sub U16 special
+extension sub U32 scalar
+extension sub U32 empty
+extension sub U32 matrix
+extension sub U32 row broadcast
+extension sub U32 outer broadcast
+extension sub U32 scalar operand
+extension sub U32 transposed
+extension sub U32 special
+extension sub U64 scalar
+extension sub U64 empty
+extension sub U64 matrix
+extension sub U64 row broadcast
+extension sub U64 outer broadcast
+extension sub U64 scalar operand
+extension sub U64 transposed
+extension sub U64 special
+extension sub F8E4M3 scalar
+extension sub F8E4M3 empty
+extension sub F8E4M3 matrix
+extension sub F8E4M3 row broadcast
+extension sub F8E4M3 outer broadcast
+extension sub F8E4M3 scalar operand
+extension sub F8E4M3 transposed
+extension sub F8E4M3 special
+extension sub F8E5M2 scalar
+extension sub F8E5M2 empty
+extension sub F8E5M2 matrix
+extension sub F8E5M2 row broadcast
+extension sub F8E5M2 outer broadcast
+extension sub F8E5M2 scalar operand
+extension sub F8E5M2 transposed
+extension sub F8E5M2 special
+extension swiglu F8E4M3 scalar
+extension swiglu F8E4M3 empty
+extension swiglu F8E4M3 matrix
+extension swiglu F8E4M3 row broadcast
+extension swiglu F8E4M3 outer broadcast
+extension swiglu F8E4M3 scalar operand
+extension swiglu F8E4M3 transposed
+extension swiglu F8E4M3 special
+extension swiglu F8E5M2 scalar
+extension swiglu F8E5M2 empty
+extension swiglu F8E5M2 matrix
+extension swiglu F8E5M2 row broadcast
+extension swiglu F8E5M2 outer broadcast
+extension swiglu F8E5M2 scalar operand
+extension swiglu F8E5M2 transposed
+extension swiglu F8E5M2 special
+extension add_scalar U16 int matrix
+extension add_scalar U16 int scalar
+extension add_scalar U16 int empty
+extension add_scalar U16 int transposed
+extension add_scalar U16 int special
+extension add_scalar U16 bool matrix
+extension add_scalar U16 bool scalar
+extension add_scalar U16 bool empty
+extension add_scalar U16 bool transposed
+extension add_scalar U16 bool special
+extension add_scalar U32 int matrix
+extension add_scalar U32 int scalar
+extension add_scalar U32 int empty
+extension add_scalar U32 int transposed
+extension add_scalar U32 int special
+extension add_scalar U32 bool matrix
+extension add_scalar U32 bool scalar
+extension add_scalar U32 bool empty
+extension add_scalar U32 bool transposed
+extension add_scalar U32 bool special
+extension add_scalar U64 int matrix
+extension add_scalar U64 int scalar
+extension add_scalar U64 int empty
+extension add_scalar U64 int transposed
+extension add_scalar U64 int special
+extension add_scalar U64 bool matrix
+extension add_scalar U64 bool scalar
+extension add_scalar U64 bool empty
+extension add_scalar U64 bool transposed
+extension add_scalar U64 bool special
+extension add_scalar F8E4M3 float matrix
+extension add_scalar F8E4M3 float scalar
+extension add_scalar F8E4M3 float empty
+extension add_scalar F8E4M3 float transposed
+extension add_scalar F8E4M3 float special
+extension add_scalar F8E4M3 int matrix
+extension add_scalar F8E4M3 int scalar
+extension add_scalar F8E4M3 int empty
+extension add_scalar F8E4M3 int transposed
+extension add_scalar F8E4M3 int special
+extension add_scalar F8E4M3 bool matrix
+extension add_scalar F8E4M3 bool scalar
+extension add_scalar F8E4M3 bool empty
+extension add_scalar F8E4M3 bool transposed
+extension add_scalar F8E4M3 bool special
+extension add_scalar F8E5M2 float matrix
+extension add_scalar F8E5M2 float scalar
+extension add_scalar F8E5M2 float empty
+extension add_scalar F8E5M2 float transposed
+extension add_scalar F8E5M2 float special
+extension add_scalar F8E5M2 int matrix
+extension add_scalar F8E5M2 int scalar
+extension add_scalar F8E5M2 int empty
+extension add_scalar F8E5M2 int transposed
+extension add_scalar F8E5M2 int special
+extension add_scalar F8E5M2 bool matrix
+extension add_scalar F8E5M2 bool scalar
+extension add_scalar F8E5M2 bool empty
+extension add_scalar F8E5M2 bool transposed
+extension add_scalar F8E5M2 bool special
+extension sub_scalar U16 int matrix
+extension sub_scalar U16 int scalar
+extension sub_scalar U16 int empty
+extension sub_scalar U16 int transposed
+extension sub_scalar U16 int special
+extension sub_scalar U32 int matrix
+extension sub_scalar U32 int scalar
+extension sub_scalar U32 int empty
+extension sub_scalar U32 int transposed
+extension sub_scalar U32 int special
+extension sub_scalar U64 int matrix
+extension sub_scalar U64 int scalar
+extension sub_scalar U64 int empty
+extension sub_scalar U64 int transposed
+extension sub_scalar U64 int special
+extension sub_scalar F8E4M3 float matrix
+extension sub_scalar F8E4M3 float scalar
+extension sub_scalar F8E4M3 float empty
+extension sub_scalar F8E4M3 float transposed
+extension sub_scalar F8E4M3 float special
+extension sub_scalar F8E4M3 int matrix
+extension sub_scalar F8E4M3 int scalar
+extension sub_scalar F8E4M3 int empty
+extension sub_scalar F8E4M3 int transposed
+extension sub_scalar F8E4M3 int special
+extension sub_scalar F8E5M2 float matrix
+extension sub_scalar F8E5M2 float scalar
+extension sub_scalar F8E5M2 float empty
+extension sub_scalar F8E5M2 float transposed
+extension sub_scalar F8E5M2 float special
+extension sub_scalar F8E5M2 int matrix
+extension sub_scalar F8E5M2 int scalar
+extension sub_scalar F8E5M2 int empty
+extension sub_scalar F8E5M2 int transposed
+extension sub_scalar F8E5M2 int special
+extension rsub_scalar U16 int matrix
+extension rsub_scalar U16 int scalar
+extension rsub_scalar U16 int empty
+extension rsub_scalar U16 int transposed
+extension rsub_scalar U16 int special
+extension rsub_scalar U32 int matrix
+extension rsub_scalar U32 int scalar
+extension rsub_scalar U32 int empty
+extension rsub_scalar U32 int transposed
+extension rsub_scalar U32 int special
+extension rsub_scalar U64 int matrix
+extension rsub_scalar U64 int scalar
+extension rsub_scalar U64 int empty
+extension rsub_scalar U64 int transposed
+extension rsub_scalar U64 int special
+extension rsub_scalar F8E4M3 float matrix
+extension rsub_scalar F8E4M3 float scalar
+extension rsub_scalar F8E4M3 float empty
+extension rsub_scalar F8E4M3 float transposed
+extension rsub_scalar F8E4M3 float special
+extension rsub_scalar F8E4M3 int matrix
+extension rsub_scalar F8E4M3 int scalar
+extension rsub_scalar F8E4M3 int empty
+extension rsub_scalar F8E4M3 int transposed
+extension rsub_scalar F8E4M3 int special
+extension rsub_scalar F8E5M2 float matrix
+extension rsub_scalar F8E5M2 float scalar
+extension rsub_scalar F8E5M2 float empty
+extension rsub_scalar F8E5M2 float transposed
+extension rsub_scalar F8E5M2 float special
+extension rsub_scalar F8E5M2 int matrix
+extension rsub_scalar F8E5M2 int scalar
+extension rsub_scalar F8E5M2 int empty
+extension rsub_scalar F8E5M2 int transposed
+extension rsub_scalar F8E5M2 int special
+extension scale F8E4M3 float matrix
+extension scale F8E4M3 float scalar
+extension scale F8E4M3 float empty
+extension scale F8E4M3 float transposed
+extension scale F8E4M3 float special
+extension scale F8E4M3 int matrix
+extension scale F8E4M3 int scalar
+extension scale F8E4M3 int empty
+extension scale F8E4M3 int transposed
+extension scale F8E4M3 int special
+extension scale F8E4M3 bool matrix
+extension scale F8E4M3 bool scalar
+extension scale F8E4M3 bool empty
+extension scale F8E4M3 bool transposed
+extension scale F8E4M3 bool special
+extension scale F8E5M2 float matrix
+extension scale F8E5M2 float scalar
+extension scale F8E5M2 float empty
+extension scale F8E5M2 float transposed
+extension scale F8E5M2 float special
+extension scale F8E5M2 int matrix
+extension scale F8E5M2 int scalar
+extension scale F8E5M2 int empty
+extension scale F8E5M2 int transposed
+extension scale F8E5M2 int special
+extension scale F8E5M2 bool matrix
+extension scale F8E5M2 bool scalar
+extension scale F8E5M2 bool empty
+extension scale F8E5M2 bool transposed
+extension scale F8E5M2 bool special
+extension rdiv_scalar F8E4M3 float matrix
+extension rdiv_scalar F8E4M3 float scalar
+extension rdiv_scalar F8E4M3 float empty
+extension rdiv_scalar F8E4M3 float transposed
+extension rdiv_scalar F8E4M3 float special
+extension rdiv_scalar F8E4M3 int matrix
+extension rdiv_scalar F8E4M3 int scalar
+extension rdiv_scalar F8E4M3 int empty
+extension rdiv_scalar F8E4M3 int transposed
+extension rdiv_scalar F8E4M3 int special
+extension rdiv_scalar F8E4M3 bool matrix
+extension rdiv_scalar F8E4M3 bool scalar
+extension rdiv_scalar F8E4M3 bool empty
+extension rdiv_scalar F8E4M3 bool transposed
+extension rdiv_scalar F8E4M3 bool special
+extension rdiv_scalar F8E5M2 float matrix
+extension rdiv_scalar F8E5M2 float scalar
+extension rdiv_scalar F8E5M2 float empty
+extension rdiv_scalar F8E5M2 float transposed
+extension rdiv_scalar F8E5M2 float special
+extension rdiv_scalar F8E5M2 int matrix
+extension rdiv_scalar F8E5M2 int scalar
+extension rdiv_scalar F8E5M2 int empty
+extension rdiv_scalar F8E5M2 int transposed
+extension rdiv_scalar F8E5M2 int special
+extension rdiv_scalar F8E5M2 bool matrix
+extension rdiv_scalar F8E5M2 bool scalar
+extension rdiv_scalar F8E5M2 bool empty
+extension rdiv_scalar F8E5M2 bool transposed
+extension rdiv_scalar F8E5M2 bool special
+extension pow_scalar U16 int matrix
+extension pow_scalar U16 int scalar
+extension pow_scalar U16 int empty
+extension pow_scalar U16 int transposed
+extension pow_scalar U16 int special
+extension pow_scalar U32 int matrix
+extension pow_scalar U32 int scalar
+extension pow_scalar U32 int empty
+extension pow_scalar U32 int transposed
+extension pow_scalar U32 int special
+extension pow_scalar U64 int matrix
+extension pow_scalar U64 int scalar
+extension pow_scalar U64 int empty
+extension pow_scalar U64 int transposed
+extension pow_scalar U64 int special
+extension pow_scalar F8E4M3 float matrix
+extension pow_scalar F8E4M3 float scalar
+extension pow_scalar F8E4M3 float empty
+extension pow_scalar F8E4M3 float transposed
+extension pow_scalar F8E4M3 float special
+extension pow_scalar F8E4M3 int matrix
+extension pow_scalar F8E4M3 int scalar
+extension pow_scalar F8E4M3 int empty
+extension pow_scalar F8E4M3 int transposed
+extension pow_scalar F8E4M3 int special
+extension pow_scalar F8E5M2 float matrix
+extension pow_scalar F8E5M2 float scalar
+extension pow_scalar F8E5M2 float empty
+extension pow_scalar F8E5M2 float transposed
+extension pow_scalar F8E5M2 float special
+extension pow_scalar F8E5M2 int matrix
+extension pow_scalar F8E5M2 int scalar
+extension pow_scalar F8E5M2 int empty
+extension pow_scalar F8E5M2 int transposed
+extension pow_scalar F8E5M2 int special
+extension sum F8E4M3 matrix rows
+extension sum F8E4M3 matrix columns keepdim
+extension sum F8E4M3 matrix all
+extension sum F8E4M3 matrix both keepdim
+extension sum F8E4M3 scalar
+extension sum F8E4M3 transposed
+extension sum F8E4M3 expanded
+extension sum F8E4M3 special
+extension sum F8E5M2 matrix rows
+extension sum F8E5M2 matrix columns keepdim
+extension sum F8E5M2 matrix all
+extension sum F8E5M2 matrix both keepdim
+extension sum F8E5M2 scalar
+extension sum F8E5M2 transposed
+extension sum F8E5M2 expanded
+extension sum F8E5M2 special
+extension mean F8E4M3 matrix rows
+extension mean F8E4M3 matrix columns keepdim
+extension mean F8E4M3 matrix all
+extension mean F8E4M3 matrix both keepdim
+extension mean F8E4M3 rank3 outer
+extension mean F8E4M3 scalar
+extension mean F8E4M3 empty rows
+extension mean F8E4M3 empty columns
+extension mean F8E4M3 transposed
+extension mean F8E4M3 expanded
+extension mean F8E4M3 special
+extension mean F8E5M2 matrix rows
+extension mean F8E5M2 matrix columns keepdim
+extension mean F8E5M2 matrix all
+extension mean F8E5M2 matrix both keepdim
+extension mean F8E5M2 rank3 outer
+extension mean F8E5M2 scalar
+extension mean F8E5M2 empty rows
+extension mean F8E5M2 empty columns
+extension mean F8E5M2 transposed
+extension mean F8E5M2 expanded
+extension mean F8E5M2 special
+extension max U16 matrix rows
+extension max U16 matrix columns keepdim
+extension max U16 matrix all
+extension max U16 matrix both keepdim
+extension max U16 rank3 outer
+extension max U16 scalar
+extension max U16 transposed
+extension max U16 expanded
+extension max U16 special
+extension max U32 matrix rows
+extension max U32 matrix columns keepdim
+extension max U32 matrix all
+extension max U32 matrix both keepdim
+extension max U32 rank3 outer
+extension max U32 scalar
+extension max U32 transposed
+extension max U32 expanded
+extension max U32 special
+extension max U64 matrix rows
+extension max U64 matrix columns keepdim
+extension max U64 matrix all
+extension max U64 matrix both keepdim
+extension max U64 rank3 outer
+extension max U64 scalar
+extension max U64 transposed
+extension max U64 expanded
+extension max U64 special
+extension max F8E4M3 matrix rows
+extension max F8E4M3 matrix columns keepdim
+extension max F8E4M3 matrix all
+extension max F8E4M3 matrix both keepdim
+extension max F8E4M3 rank3 outer
+extension max F8E4M3 scalar
+extension max F8E4M3 transposed
+extension max F8E4M3 expanded
+extension max F8E4M3 special
+extension max F8E5M2 matrix rows
+extension max F8E5M2 matrix columns keepdim
+extension max F8E5M2 matrix all
+extension max F8E5M2 matrix both keepdim
+extension max F8E5M2 rank3 outer
+extension max F8E5M2 scalar
+extension max F8E5M2 transposed
+extension max F8E5M2 expanded
+extension max F8E5M2 special
+extension min U16 matrix rows
+extension min U16 matrix columns keepdim
+extension min U16 matrix all
+extension min U16 matrix both keepdim
+extension min U16 rank3 outer
+extension min U16 scalar
+extension min U16 transposed
+extension min U16 expanded
+extension min U16 special
+extension min U32 matrix rows
+extension min U32 matrix columns keepdim
+extension min U32 matrix all
+extension min U32 matrix both keepdim
+extension min U32 rank3 outer
+extension min U32 scalar
+extension min U32 transposed
+extension min U32 expanded
+extension min U32 special
+extension min U64 matrix rows
+extension min U64 matrix columns keepdim
+extension min U64 matrix all
+extension min U64 matrix both keepdim
+extension min U64 rank3 outer
+extension min U64 scalar
+extension min U64 transposed
+extension min U64 expanded
+extension min U64 special
+extension min F8E4M3 matrix rows
+extension min F8E4M3 matrix columns keepdim
+extension min F8E4M3 matrix all
+extension min F8E4M3 matrix both keepdim
+extension min F8E4M3 rank3 outer
+extension min F8E4M3 scalar
+extension min F8E4M3 transposed
+extension min F8E4M3 expanded
+extension min F8E4M3 special
+extension min F8E5M2 matrix rows
+extension min F8E5M2 matrix columns keepdim
+extension min F8E5M2 matrix all
+extension min F8E5M2 matrix both keepdim
+extension min F8E5M2 rank3 outer
+extension min F8E5M2 scalar
+extension min F8E5M2 transposed
+extension min F8E5M2 expanded
+extension min F8E5M2 special
+extension product F8E4M3 matrix rows
+extension product F8E4M3 matrix columns keepdim
+extension product F8E4M3 matrix all
+extension product F8E4M3 matrix both keepdim
+extension product F8E4M3 rank3 outer
+extension product F8E4M3 scalar
+extension product F8E4M3 transposed
+extension product F8E4M3 expanded
+extension product F8E4M3 special
+extension product F8E5M2 matrix rows
+extension product F8E5M2 matrix columns keepdim
+extension product F8E5M2 matrix all
+extension product F8E5M2 matrix both keepdim
+extension product F8E5M2 rank3 outer
+extension product F8E5M2 scalar
+extension product F8E5M2 transposed
+extension product F8E5M2 expanded
+extension product F8E5M2 special
+extension argmax U16 matrix first
+extension argmax U16 matrix last
+extension argmax U16 odd
+extension argmax U16 scalar
+extension argmax U16 transposed
+extension argmax U16 special
+extension argmax U32 matrix first
+extension argmax U32 matrix last
+extension argmax U32 odd
+extension argmax U32 scalar
+extension argmax U32 transposed
+extension argmax U32 special
+extension argmax U64 matrix first
+extension argmax U64 matrix last
+extension argmax U64 odd
+extension argmax U64 scalar
+extension argmax U64 transposed
+extension argmax U64 special
+extension argmax F8E4M3 matrix first
+extension argmax F8E4M3 matrix last
+extension argmax F8E4M3 odd
+extension argmax F8E4M3 scalar
+extension argmax F8E4M3 transposed
+extension argmax F8E4M3 special
+extension argmax F8E5M2 matrix first
+extension argmax F8E5M2 matrix last
+extension argmax F8E5M2 odd
+extension argmax F8E5M2 scalar
+extension argmax F8E5M2 transposed
+extension argmax F8E5M2 special
+extension argmin U16 matrix first
+extension argmin U16 matrix last
+extension argmin U16 odd
+extension argmin U16 scalar
+extension argmin U16 transposed
+extension argmin U16 special
+extension argmin U32 matrix first
+extension argmin U32 matrix last
+extension argmin U32 odd
+extension argmin U32 scalar
+extension argmin U32 transposed
+extension argmin U32 special
+extension argmin U64 matrix first
+extension argmin U64 matrix last
+extension argmin U64 odd
+extension argmin U64 scalar
+extension argmin U64 transposed
+extension argmin U64 special
+extension argmin F8E4M3 matrix first
+extension argmin F8E4M3 matrix last
+extension argmin F8E4M3 odd
+extension argmin F8E4M3 scalar
+extension argmin F8E4M3 transposed
+extension argmin F8E4M3 special
+extension argmin F8E5M2 matrix first
+extension argmin F8E5M2 matrix last
+extension argmin F8E5M2 odd
+extension argmin F8E5M2 scalar
+extension argmin F8E5M2 transposed
+extension argmin F8E5M2 special
+extension cumsum F8E4M3 matrix first
+extension cumsum F8E4M3 matrix last
+extension cumsum F8E4M3 odd
+extension cumsum F8E4M3 transposed
+extension cumsum F8E4M3 special
+extension cumsum F8E5M2 matrix first
+extension cumsum F8E5M2 matrix last
+extension cumsum F8E5M2 odd
+extension cumsum F8E5M2 transposed
+extension cumsum F8E5M2 special
+extension cumprod F8E4M3 matrix first
+extension cumprod F8E4M3 matrix last
+extension cumprod F8E4M3 odd
+extension cumprod F8E4M3 transposed
+extension cumprod F8E4M3 special
+extension cumprod F8E5M2 matrix first
+extension cumprod F8E5M2 matrix last
+extension cumprod F8E5M2 odd
+extension cumprod F8E5M2 transposed
+extension cumprod F8E5M2 special
+extension topk U16 rows largest
+extension topk U16 rows smallest
+extension topk U16 columns
+extension topk U16 transposed
+extension topk U16 zero k
+extension topk_values U16 rows largest
+extension topk_values U16 rows smallest
+extension topk_values U16 columns
+extension topk_values U16 transposed
+extension topk_values U16 zero k
+extension topk_indices U16 rows largest
+extension topk_indices U16 rows smallest
+extension topk_indices U16 columns
+extension topk_indices U16 transposed
+extension topk_indices U16 zero k
+extension where U16 matrix
+extension where U16 broadcast
+extension where U16 transposed
+extension where U16 empty
+extension matmul U16 matrix
+extension matmul U16 batched lhs
+extension matmul U16 batched
+extension matmul U16 broadcast batch
+extension matmul U16 vector lhs
+extension matmul U16 vector rhs
+extension matmul U16 dot
+extension matmul U16 transposed
+extension gather U16 rows
+extension gather U16 columns
+extension gather U16 smaller
+extension index_put U16 rows
+extension index_put U16 accumulate
+extension index_put U16 columns
+extension nonzero U16 matrix
+extension nonzero U16 scalar
+extension nonzero U16 empty
+extension nonzero U16 transposed
+extension masked_select U16 matrix
+extension masked_select U16 broadcast mask
+extension masked_select U16 broadcast values
+extension flip U16 both
+extension triu U16 main
+extension triu U16 above
+extension triu U16 below
+extension tril U16 main
+extension tril U16 above
+extension sign U16 matrix
+extension sign U16 special
+extension topk U32 rows largest
+extension topk U32 rows smallest
+extension topk U32 columns
+extension topk U32 transposed
+extension topk U32 zero k
+extension topk_values U32 rows largest
+extension topk_values U32 rows smallest
+extension topk_values U32 columns
+extension topk_values U32 transposed
+extension topk_values U32 zero k
+extension topk_indices U32 rows largest
+extension topk_indices U32 rows smallest
+extension topk_indices U32 columns
+extension topk_indices U32 transposed
+extension topk_indices U32 zero k
+extension where U32 matrix
+extension where U32 broadcast
+extension where U32 transposed
+extension where U32 empty
+extension matmul U32 matrix
+extension matmul U32 batched lhs
+extension matmul U32 batched
+extension matmul U32 broadcast batch
+extension matmul U32 vector lhs
+extension matmul U32 vector rhs
+extension matmul U32 dot
+extension matmul U32 transposed
+extension gather U32 rows
+extension gather U32 columns
+extension gather U32 smaller
+extension index_put U32 rows
+extension index_put U32 accumulate
+extension index_put U32 columns
+extension nonzero U32 matrix
+extension nonzero U32 scalar
+extension nonzero U32 empty
+extension nonzero U32 transposed
+extension masked_select U32 matrix
+extension masked_select U32 broadcast mask
+extension masked_select U32 broadcast values
+extension flip U32 both
+extension triu U32 main
+extension triu U32 above
+extension triu U32 below
+extension tril U32 main
+extension tril U32 above
+extension sign U32 matrix
+extension sign U32 special
+extension topk U64 rows largest
+extension topk U64 rows smallest
+extension topk U64 columns
+extension topk U64 transposed
+extension topk U64 zero k
+extension topk_values U64 rows largest
+extension topk_values U64 rows smallest
+extension topk_values U64 columns
+extension topk_values U64 transposed
+extension topk_values U64 zero k
+extension topk_indices U64 rows largest
+extension topk_indices U64 rows smallest
+extension topk_indices U64 columns
+extension topk_indices U64 transposed
+extension topk_indices U64 zero k
+extension where U64 matrix
+extension where U64 broadcast
+extension where U64 transposed
+extension where U64 empty
+extension matmul U64 matrix
+extension matmul U64 batched lhs
+extension matmul U64 batched
+extension matmul U64 broadcast batch
+extension matmul U64 vector lhs
+extension matmul U64 vector rhs
+extension matmul U64 dot
+extension matmul U64 transposed
+extension gather U64 rows
+extension gather U64 columns
+extension gather U64 smaller
+extension index_put U64 rows
+extension index_put U64 accumulate
+extension index_put U64 columns
+extension nonzero U64 matrix
+extension nonzero U64 scalar
+extension nonzero U64 empty
+extension nonzero U64 transposed
+extension masked_select U64 matrix
+extension masked_select U64 broadcast mask
+extension masked_select U64 broadcast values
+extension flip U64 both
+extension triu U64 main
+extension triu U64 above
+extension triu U64 below
+extension tril U64 main
+extension tril U64 above
+extension sign U64 matrix
+extension sign U64 special
+extension argsort F8E4M3 rows
+extension argsort F8E4M3 rows descending
+extension argsort F8E4M3 columns
+extension argsort F8E4M3 transposed
+extension argsort F8E4M3 empty
+extension argsort F8E4M3 special
+extension topk F8E4M3 rows largest
+extension topk F8E4M3 rows smallest
+extension topk F8E4M3 columns
+extension topk F8E4M3 transposed
+extension topk F8E4M3 zero k
+extension topk_values F8E4M3 rows largest
+extension topk_values F8E4M3 rows smallest
+extension topk_values F8E4M3 columns
+extension topk_values F8E4M3 transposed
+extension topk_values F8E4M3 zero k
+extension topk_indices F8E4M3 rows largest
+extension topk_indices F8E4M3 rows smallest
+extension topk_indices F8E4M3 columns
+extension topk_indices F8E4M3 transposed
+extension topk_indices F8E4M3 zero k
+extension clamp F8E4M3 matrix
+extension clamp F8E4M3 scalar
+extension clamp F8E4M3 transposed
+extension clamp F8E4M3 special
+extension lerp F8E4M3 matrix
+extension lerp F8E4M3 broadcast
+extension lerp F8E4M3 transposed
+extension lerp F8E4M3 special
+extension matmul F8E4M3 batched
+extension matmul F8E4M3 broadcast batch
+extension matmul F8E4M3 vector rhs
+extension matmul F8E4M3 dot
+extension gather F8E4M3 rows
+extension gather F8E4M3 columns
+extension gather F8E4M3 smaller
+extension nonzero F8E4M3 matrix
+extension nonzero F8E4M3 scalar
+extension nonzero F8E4M3 empty
+extension nonzero F8E4M3 transposed
+extension flip F8E4M3 both
+extension triu F8E4M3 main
+extension triu F8E4M3 above
+extension triu F8E4M3 below
+extension tril F8E4M3 main
+extension tril F8E4M3 above
+extension sign F8E4M3 matrix
+extension sign F8E4M3 special
+extension argsort F8E5M2 rows
+extension argsort F8E5M2 rows descending
+extension argsort F8E5M2 columns
+extension argsort F8E5M2 transposed
+extension argsort F8E5M2 empty
+extension argsort F8E5M2 special
+extension topk F8E5M2 rows largest
+extension topk F8E5M2 rows smallest
+extension topk F8E5M2 columns
+extension topk F8E5M2 transposed
+extension topk F8E5M2 zero k
+extension topk_values F8E5M2 rows largest
+extension topk_values F8E5M2 rows smallest
+extension topk_values F8E5M2 columns
+extension topk_values F8E5M2 transposed
+extension topk_values F8E5M2 zero k
+extension topk_indices F8E5M2 rows largest
+extension topk_indices F8E5M2 rows smallest
+extension topk_indices F8E5M2 columns
+extension topk_indices F8E5M2 transposed
+extension topk_indices F8E5M2 zero k
+extension clamp F8E5M2 matrix
+extension clamp F8E5M2 scalar
+extension clamp F8E5M2 transposed
+extension clamp F8E5M2 special
+extension lerp F8E5M2 matrix
+extension lerp F8E5M2 broadcast
+extension lerp F8E5M2 transposed
+extension lerp F8E5M2 special
+extension matmul F8E5M2 batched
+extension matmul F8E5M2 broadcast batch
+extension matmul F8E5M2 vector rhs
+extension matmul F8E5M2 dot
+extension gather F8E5M2 rows
+extension gather F8E5M2 columns
+extension gather F8E5M2 smaller
+extension nonzero F8E5M2 matrix
+extension nonzero F8E5M2 scalar
+extension nonzero F8E5M2 empty
+extension nonzero F8E5M2 transposed
+extension flip F8E5M2 both
+extension triu F8E5M2 main
+extension triu F8E5M2 above
+extension triu F8E5M2 below
+extension tril F8E5M2 main
+extension tril F8E5M2 above
+extension sign F8E5M2 matrix
+extension sign F8E5M2 special

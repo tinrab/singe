@@ -23,11 +23,9 @@ use crate::{
 #[repr(u32)]
 #[non_exhaustive]
 pub enum LossNormalizationMode {
-    /// The input probabilities are expected to be normalized probabilities, and output gradients
-    /// are with respect to the unnormalized probabilities.
+    /// The input probabilities are expected to be normalized probabilities, and output gradients are with respect to the unnormalized probabilities.
     None = sys::cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_NONE as _,
-    /// The input probabilities are expected to be unnormalized activations from the previous
-    /// layer, and output gradients are with respect to the activations.
+    /// The input probabilities are expected to be unnormalized activations from the previous layer, and output gradients are with respect to the activations.
     /// Internally the probability is computed by softmax normalization.
     Softmax = sys::cudnnLossNormalizationMode_t::CUDNN_LOSS_NORMALIZATION_SOFTMAX as _,
 }
@@ -108,9 +106,11 @@ impl CtcLossDescriptor {
         unsafe {
             try_ffi!(sys::cudnnCreateCTCLossDescriptor(&raw mut handle))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let descriptor = Self { handle, config };
         // SAFETY: `cudnnSetCTCLossDescriptor_v9` receives only plain values.
         unsafe {
@@ -167,9 +167,8 @@ impl CtcLossDescriptor {
     /// # Safety
     ///
     /// `handle` must be a valid `cudnnCTCLossDescriptor_t` created by cuDNN.
-    /// The returned wrapper takes ownership and will destroy it with
-    /// `cudnnDestroyCTCLossDescriptor`; no other owner may destroy or keep
-    /// using it. `config` must accurately describe the descriptor.
+    /// The returned wrapper takes ownership and will destroy it with `cudnnDestroyCTCLossDescriptor`; no other owner may destroy or keep using it.
+    /// `config` must accurately describe the descriptor.
     ///
     /// # Errors
     ///
@@ -202,8 +201,10 @@ impl Drop for CtcLossDescriptor {
         // SAFETY: `cudnnDestroyCTCLossDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudnnDestroyCTCLossDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudnn ctc loss descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cudnn ctc loss descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -225,6 +226,7 @@ fn validate_labels(
     {
         return Err(Error::InvalidDataShape);
     }
+
     let (steps, batch, classes) = (dims[0], dims[1] as usize, dims[2]);
     if label_lengths.len() != batch
         || input_lengths.len() != batch
@@ -232,6 +234,7 @@ fn validate_labels(
     {
         return Err(Error::InvalidDataShape);
     }
+
     let required = label_lengths.iter().try_fold(0usize, |sum, &n| {
         if n < 0 || n > descriptor.max_label_length() {
             return Err(Error::InvalidDataShape);
@@ -244,16 +247,11 @@ fn validate_labels(
     Ok(())
 }
 
-/// Returns the amount of GPU workspace memory needed by [`ctc_loss`] with the specified
-/// algorithm and descriptors.
+/// Returns the amount of GPU workspace memory needed by [`ctc_loss`] with the specified algorithm and descriptors.
 ///
 /// # Errors
 ///
-/// Returns an error if the probability and gradient descriptors are
-/// incompatible, if `input_lengths` does not agree with the first probability
-/// dimension, if any label length exceeds cuDNN's supported range, if the
-/// workspace size cannot be represented as `usize`, or if cuDNN does not support
-/// the selected data type, compute type, or algorithm.
+/// Returns an error if the probability and gradient descriptors are incompatible, if `input_lengths` does not agree with the first probability dimension, if any label length exceeds cuDNN's supported range, if the workspace size cannot be represented as `usize`, or if cuDNN does not support the selected data type, compute type, or algorithm.
 pub fn ctc_loss_workspace_size(
     context: &Context,
     algorithm: CtcLossAlgorithm,
@@ -297,12 +295,10 @@ pub fn ctc_loss_workspace_size(
 /// Enqueues f32 CTC costs and gradients using host label metadata.
 ///
 /// # Safety
-/// Retain the context, descriptors, host slices and all device ranges through
-/// completion and failed submission. Order allocation readiness and initialized
-/// probabilities before use; keep costs, gradients and workspace exclusive.
-/// Gradient elements skipped by the configured out-of-bounds policy, padding
-/// and tails are not initialized by this operation. Host-label CTC is not graph
-/// capture compatible; use the public native v8 entry point for device labels.
+/// Retain the context, descriptors, host slices and all device ranges through completion and failed submission.
+/// Order allocation readiness and initialized probabilities before use; keep costs, gradients and workspace exclusive.
+/// Gradient elements skipped by the configured out-of-bounds policy, padding and tails are not initialized by this operation.
+/// Host-label CTC is not graph capture compatible; use the public native v8 entry point for device labels.
 ///
 /// # Errors
 ///
@@ -333,6 +329,7 @@ pub unsafe fn ctc_loss(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     if probabilities.region().byte_len() < probabilities_descriptor.byte_len()?
         || gradients.region().byte_len() < gradients_descriptor.byte_len()?
         || costs.len() < label_lengths.len()

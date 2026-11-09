@@ -25,14 +25,12 @@ pub struct Frame<T> {
 impl<T: SupportedImage<C1>> Frame<T> {
     /// Allocates exact stored-sample extents for each video plane without initializing samples.
     ///
-    /// The logical frame uses `format` and pixel `size`; plane widths count stored `T` samples
-    /// and exclude native pitch padding. Packed pixel groups may contain several pixels.
+    /// The logical frame uses `format` and pixel `size`; plane widths count stored `T` samples and exclude native pitch padding.
+    /// Packed pixel groups may contain several pixels.
     ///
     /// # Errors
     ///
-    /// Returns an error if the format, dimensions, sample size, or chroma divisibility is invalid,
-    /// calculating plane sizes overflows, plane dimensions do not fit native integers,
-    /// row bytes are not divisible by the sample size, or a plane allocation fails.
+    /// Returns an error if the format, dimensions, sample size, or chroma divisibility is invalid, calculating plane sizes overflows, plane dimensions do not fit native integers, row bytes are not divisible by the sample size, or a plane allocation fails.
     pub fn create_uninit(
         context: &Arc<Context>,
         format: VideoFormat,
@@ -44,6 +42,7 @@ impl<T: SupportedImage<C1>> Frame<T> {
             if !row_bytes.is_multiple_of(size_of::<T>()) {
                 return Err(Error::out_of_range("video sample size"));
             }
+
             let width = i32::try_from(row_bytes / size_of::<T>())
                 .map_err(|_| Error::out_of_range("video plane width"))?;
             let height =
@@ -64,14 +63,12 @@ impl<T: SupportedImage<C1>> Frame<T> {
 impl<T> Frame<T> {
     /// Adopts owned planes after validating the logical video format and pixel dimensions.
     ///
-    /// Does not copy samples or synchronize pending producers. Planes may have larger stored
-    /// extents than the minimum required by the logical frame.
+    /// Does not copy samples or synchronize pending producers.
+    /// Planes may have larger stored extents than the minimum required by the logical frame.
     ///
     /// # Errors
     ///
-    /// Returns an error if constructing an image view fails, frame geometry or sample-size
-    /// requirements are invalid, the plane count or plane extents do not satisfy the format,
-    /// a plane byte pitch is too small, or planes belong to different CUDA contexts.
+    /// Returns an error if constructing an image view fails, frame geometry or sample-size requirements are invalid, the plane count or plane extents do not satisfy the format, a plane byte pitch is too small, or planes belong to different CUDA contexts.
     pub fn from_planes(format: VideoFormat, size: Size, planes: Vec<Image<T, C1>>) -> Result<Self> {
         let _ = VideoView::create(
             format,
@@ -111,13 +108,12 @@ impl<T> Frame<T> {
 
     /// Borrows one stored sample plane for native reads and writes.
     ///
-    /// The index selects the format-specific stored plane, whose dimensions may differ from
-    /// the logical frame dimensions. Does not synchronize pending producers.
+    /// The index selects the format-specific stored plane, whose dimensions may differ from the logical frame dimensions.
+    /// Does not synchronize pending producers.
     ///
     /// # Errors
     ///
-    /// Returns an error if `index` is outside the plane list or constructing a mutable image
-    /// view fails.
+    /// Returns an error if `index` is outside the plane list or constructing a mutable image view fails.
     pub fn plane_mut(&mut self, index: usize) -> Result<ImageViewMut<'_, T, C1>> {
         self.planes
             .get_mut(index)
@@ -137,9 +133,7 @@ impl<T> Frame<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if constructing an image view fails, frame geometry or sample-size
-    /// requirements are invalid, the plane count or plane extents do not satisfy the format,
-    /// a plane byte pitch is too small, or planes belong to different CUDA contexts.
+    /// Returns an error if constructing an image view fails, frame geometry or sample-size requirements are invalid, the plane count or plane extents do not satisfy the format, a plane byte pitch is too small, or planes belong to different CUDA contexts.
     pub fn view(&self) -> Result<VideoView<'_, T>> {
         VideoView::create(
             self.format,
@@ -152,9 +146,7 @@ impl<T> Frame<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if constructing an image view fails, frame geometry or sample-size
-    /// requirements are invalid, the plane count or plane extents do not satisfy the format,
-    /// a plane byte pitch is too small, or planes belong to different CUDA contexts.
+    /// Returns an error if constructing an image view fails, frame geometry or sample-size requirements are invalid, the plane count or plane extents do not satisfy the format, a plane byte pitch is too small, or planes belong to different CUDA contexts.
     pub fn view_mut(&mut self) -> Result<VideoViewMut<'_, T>> {
         VideoViewMut::create(
             self.format,
@@ -170,9 +162,7 @@ impl<T> Frame<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if constructing an image view fails, frame geometry or sample-size
-    /// requirements are invalid, the plane count or plane extents do not satisfy the format,
-    /// a plane byte pitch is too small, or planes belong to different CUDA contexts.
+    /// Returns an error if constructing an image view fails, frame geometry or sample-size requirements are invalid, the plane count or plane extents do not satisfy the format, a plane byte pitch is too small, or planes belong to different CUDA contexts.
     pub fn output_view(&mut self) -> Result<VideoOutputView<'_, T>> {
         VideoOutputView::create(
             self.format,
@@ -190,6 +180,7 @@ impl<T> Frame<T> {
                 .stream()
                 .defer_drop_until_capture_end(Arc::clone(plane.allocation()))?;
         }
+
         context.stream().ensure_not_capturing()?;
         for plane in &self.planes {
             context.prepare_region(plane)?;
@@ -205,9 +196,7 @@ impl<T> Frame<MaybeUninit<T>> {
     ///
     /// # Errors
     ///
-    /// Returns an error if constructing an image view fails, frame geometry or sample-size
-    /// requirements are invalid, the plane count or plane extents do not satisfy the format,
-    /// a plane byte pitch is too small, or planes belong to different CUDA contexts.
+    /// Returns an error if constructing an image view fails, frame geometry or sample-size requirements are invalid, the plane count or plane extents do not satisfy the format, a plane byte pitch is too small, or planes belong to different CUDA contexts.
     pub fn output(&mut self) -> Result<VideoOutputView<'_, T>> {
         VideoOutputView::create(
             self.format,
@@ -223,8 +212,8 @@ impl<T> Frame<MaybeUninit<T>> {
     ///
     /// # Safety
     ///
-    /// Every stored sample in every plane must contain a valid `T`, and producing work must be
-    /// complete. This includes every byte of packed pixel groups but excludes native pitch padding.
+    /// Every stored sample in every plane must contain a valid `T`, and producing work must be complete.
+    /// This includes every byte of packed pixel groups but excludes native pitch padding.
     #[must_use]
     pub unsafe fn assume_init(self) -> Frame<T> {
         Frame {

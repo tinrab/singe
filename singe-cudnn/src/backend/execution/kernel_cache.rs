@@ -85,6 +85,7 @@ impl KernelCache {
         if !self.is_finalized() {
             return Err(Error::DescriptorRequiredFinalized);
         }
+
         bind_context(config.cuda_context())?;
         let mut raw = config.descriptor().as_raw();
         let mut count = 0;
@@ -151,7 +152,8 @@ impl KernelCache {
     ///
     /// # Errors
     ///
-    /// Returns an error if the graph’s retained CUDA context cannot be bound or cuDNN rejects graph association or cache finalization. An already finalized cache returns successfully without rebinding or changing attributes.
+    /// Returns an error if the graph’s retained CUDA context cannot be bound or cuDNN rejects graph association or cache finalization.
+    /// An already finalized cache returns successfully without rebinding or changing attributes.
     pub fn build(&mut self, operation_graph: Option<&OperationGraph>) -> Result<()> {
         if self.descriptor.is_finalized() {
             return Ok(());

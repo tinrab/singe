@@ -22,8 +22,7 @@ pub struct Relocation {
     pub target: GlobalId,
     pub offset: i64,
     pub generic: bool,
-    /// Mask selecting one byte of the relocated address, which is then shifted down to
-    /// the low bits.
+    /// Mask selecting one byte of the relocated address, which is then shifted down to the low bits.
     pub mask: Option<u64>,
 }
 
@@ -56,8 +55,9 @@ impl Constant {
     pub(crate) fn bits(self, ty: ScalarType, span: Span) -> Result<u128> {
         use ScalarType::{B32, B64, Bf16, F16, F16x2, F32, F64, Tf32};
         match self {
+            // PTX constants are 64-bit, so a negative one has its 64-bit two's-complement bits.
             Self::Signed(value) if !matches!(ty, F16 | F16x2 | Bf16 | F32 | F64 | Tf32) => {
-                Ok(value as u128)
+                Ok(u128::from(value.cast_unsigned()))
             }
             Self::Unsigned(value) if !matches!(ty, F16 | F16x2 | Bf16 | F32 | F64 | Tf32) => {
                 Ok(u128::from(value))
@@ -124,6 +124,7 @@ pub fn evaluate(value: &Initializer, symbols: &BTreeMap<String, GlobalId>) -> Re
                     if address.mask.is_some() {
                         return Err(error(*span, "nested address masks are unsupported"));
                     }
+
                     address.mask = Some(*mask);
                     Ok(Constant::Address(address))
                 }
@@ -261,8 +262,7 @@ fn binary(lhs: Constant, op: Binary, rhs: Constant, span: Span) -> Result<Consta
     }
 }
 
-/// Evaluates symbol-address arithmetic: a displacement, or the difference of two addresses
-/// of the same symbol.
+/// Evaluates symbol-address arithmetic: a displacement, or the difference of two addresses of the same symbol.
 fn address_binary(
     mut address: Relocation,
     op: Binary,

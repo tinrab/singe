@@ -99,19 +99,17 @@ where
     /// Resizes the selected source ROI into the destination ROI.
     ///
     /// `resize` supplies both ROIs and the interpolation method.
-    /// Pixels outside the transformed source intersection, ignored alpha, and padding can
-    /// remain unwritten. Initialize uncovered locations before reading a complete image.
-    /// Prepares all participating image regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Pixels outside the transformed source intersection, ignored alpha, and padding can remain unwritten.
+    /// Initialize uncovered locations before reading a complete image.
+    /// Prepares all participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source ROI must have positive dimensions and representable endpoints. The
-    /// destination ROI must fit within the destination image. NPP may reject geometry
-    /// or interpolation parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints.
+    /// The destination ROI must fit within the destination image.
+    /// NPP may reject geometry or interpolation parameters.
     pub fn resize_into(
         stream_context: &StreamContext,
         resize: &Resize,
@@ -124,20 +122,17 @@ where
     /// Resizes the selected source ROI into the destination ROI.
     ///
     /// `resize` supplies both ROIs and the interpolation method.
-    /// Takes ownership of the supplied initialized `destination` and returns it in the
-    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
-    /// destination values.
-    /// Prepares all participating image regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the resulting pipeline.
+    /// Pixels outside native writes and ignored alpha retain their destination values.
+    /// Prepares all participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source ROI must have positive dimensions and representable endpoints. The
-    /// destination ROI must fit within the destination image. NPP may reject geometry
-    /// or interpolation parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints.
+    /// The destination ROI must fit within the destination image.
+    /// NPP may reject geometry or interpolation parameters.
     /// Image view construction or capture-time destination retention can also fail.
     pub fn resize_with(self, resize: Resize, mut destination: Image<T, L>) -> Result<Self> {
         self.stream_context
@@ -166,20 +161,17 @@ where
     /// Resizes the full source into an initialized image of the desired dimensions.
     ///
     /// Builds a `Resize` request using both full-image ROIs and `interpolation`.
-    /// Takes ownership of the supplied initialized `destination` and returns it in the
-    /// resulting pipeline. Pixels outside native writes and ignored alpha retain their
-    /// destination values.
-    /// Prepares all participating image regions, waits for their producers
-    /// on other streams, rejects capture, and returns after successful stream completion.
+    /// Takes ownership of the supplied initialized `destination` and returns it in the resulting pipeline.
+    /// Pixels outside native writes and ignored alpha retain their destination values.
+    /// Prepares all participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source ROI must have positive dimensions and representable endpoints. The
-    /// destination ROI must fit within the destination image. NPP may reject geometry
-    /// or interpolation parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source ROI must have positive dimensions and representable endpoints.
+    /// The destination ROI must fit within the destination image.
+    /// NPP may reject geometry or interpolation parameters.
     /// Image view construction or capture-time destination retention can also fail.
     pub fn resize(
         self,

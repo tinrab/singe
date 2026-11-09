@@ -20,9 +20,8 @@ pub mod sealed {
 
 /// Element type of a [`Buffer`](super::Buffer), transferred as little-endian bytes.
 ///
-/// Implemented for `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, `f64`,
-/// [`F16`](crate::emulator::F16), and [`Bf16`](crate::emulator::Bf16). This trait is
-/// sealed.
+/// Implemented for `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`, `u64`, `f32`, `f64`, [`F16`](crate::emulator::F16), and [`Bf16`](crate::emulator::Bf16).
+/// This trait is sealed.
 pub trait PtxScalar: sealed::Scalar {}
 
 macro_rules! scalar {

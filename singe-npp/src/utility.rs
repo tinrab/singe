@@ -39,6 +39,7 @@ fn validate_batch_lengths(left_len: usize, right_len: usize) -> Result<()> {
             actual: right_len,
         });
     }
+
     if left_len <= 1 {
         return Err(Error::out_of_range("batch size"));
     }

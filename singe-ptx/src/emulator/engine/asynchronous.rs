@@ -1,9 +1,7 @@
 //! Deferred per-lane copies, group boundaries, and `sm_80` shared barriers.
 //!
-//! A copy completes only once a wait requests it, a barrier tracks it, or its issuing
-//! lane exits, and each scheduler turn completes at most one copy or arrival. This
-//! completes copies as late as PTX allows, which is deterministic and does not model
-//! hardware latency.
+//! A copy completes only once a wait requests it, a barrier tracks it, or its issuing lane exits, and each scheduler turn completes at most one copy or arrival.
+//! This completes copies as late as PTX allows, which is deterministic and does not model hardware latency.
 
 use std::{
     collections::BTreeMap,
@@ -117,6 +115,7 @@ impl Engine {
         if source_size > size {
             return Err(invalid("asynchronous copy source size exceeds copy size"));
         }
+
         let destination = self.address(lane, *destination, Some(StateSpace::Shared))?;
         memory.validate_write(
             destination,
@@ -145,6 +144,7 @@ impl Engine {
                 return Err(invalid("overlapping asynchronous copies in one group"));
             }
         }
+
         let mut bytes = [0; 16];
         if source_size != 0 {
             let source = self.address(lane, *source, Some(StateSpace::Global))?;
@@ -156,6 +156,7 @@ impl Engine {
                 Some(self.actor(lane)),
             )?);
         }
+
         self.push_async(
             memory,
             lane,
@@ -181,6 +182,7 @@ impl Engine {
                 })
                 .ok_or(ExecutionError::ExecutionStateLimit)?;
         }
+
         let issued = self.lanes[lane]
             .asynchronous
             .issued
@@ -211,6 +213,7 @@ impl Engine {
                 through: state.last_copy,
             });
         }
+
         state.committed = id;
         state.last_commit = state.last_copy;
         Ok(())
@@ -232,9 +235,11 @@ impl Engine {
                 break;
             }
         }
+
         if through <= state.completed {
             return Ok(false);
         }
+
         self.request_async(lane, through);
         self.lanes[lane].waiting = Some(Waiting::Async { through });
         Ok(true)
@@ -246,12 +251,14 @@ impl Engine {
         if state.scheduled || state.requested <= state.completed {
             return;
         }
+
         state.scheduled = true;
         if let Some(last) = self.asynchronous.last_ready {
             self.lanes[last].asynchronous.next_ready = Some(lane);
         } else {
             self.asynchronous.ready = Some(lane);
         }
+
         self.asynchronous.last_ready = Some(lane);
     }
 
@@ -267,6 +274,7 @@ impl Engine {
             if self.asynchronous.ready.is_none() {
                 self.asynchronous.last_ready = None;
             }
+
             state.scheduled = false;
             let event = state
                 .pending
@@ -309,6 +317,7 @@ impl Engine {
                 state.groups.pop_front();
                 memory.release_execution(self.grid, GROUP_CHARGE);
             }
+
             let completed = state.completed;
             let requested = state.requested;
             self.request_async(lane, requested);
@@ -373,11 +382,13 @@ impl Engine {
         if !(1..=MAX_ARRIVALS).contains(&count) {
             return Err(invalid("mbarrier arrival count must be in 1..=1048575"));
         }
+
         if self.asynchronous.barriers.contains_key(&address) {
             return Err(invalid(
                 "mbarrier must be invalidated before reinitialization",
             ));
         }
+
         let current = self.barrier_token()?;
         memory.reserve_execution(self.grid, BARRIER_CHARGE)?;
         memory.write(
@@ -406,6 +417,7 @@ impl Engine {
         if self.barrier_mut(memory, address)?.tracked != 0 {
             return Err(invalid("mbarrier still tracks asynchronous operations"));
         }
+
         self.asynchronous.barriers.remove(&address);
         memory.release_execution(self.grid, BARRIER_CHARGE);
         Ok(())
@@ -416,11 +428,13 @@ impl Engine {
         if !barrier.observed {
             return Err(invalid("previous mbarrier phase was not observed complete"));
         }
+
         if barrier.pending <= barrier.tracked {
             return Err(invalid(
                 "mbarrier arrival count is reserved for asynchronous operations",
             ));
         }
+
         let state = barrier.current;
         barrier.pending -= 1;
         self.complete_barrier(memory, address)?;
@@ -431,6 +445,7 @@ impl Engine {
         if self.asynchronous.barriers[&address].pending != 0 {
             return Ok(());
         }
+
         let token = self.barrier_token()?;
         let barrier = self.barrier_mut(memory, address)?;
         barrier.previous = Some(barrier.current);
@@ -458,14 +473,17 @@ impl Engine {
         if !barrier.observed {
             return Err(invalid("previous mbarrier phase was not observed complete"));
         }
+
         if no_increment && barrier.pending <= barrier.tracked {
             return Err(invalid(
                 "mbarrier has no arrival available for asynchronous operations",
             ));
         }
+
         if !no_increment && barrier.pending == MAX_ARRIVALS {
             return Err(invalid("mbarrier pending arrival count exceeds 1048575"));
         }
+
         // Reserve the marker before changing the barrier's pending count.
         self.push_async(memory, lane, Event::Arrive { address })?;
         let barrier = self.barrier_mut(memory, address)?;
@@ -473,6 +491,7 @@ impl Engine {
         if !no_increment {
             barrier.pending += 1;
         }
+
         self.request_async(lane, self.lanes[lane].asynchronous.issued);
         Ok(())
     }

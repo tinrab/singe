@@ -76,9 +76,7 @@ pub const CUDA_DISCOVERY_ENV_VARS: [&str; 69] = [
 
 /// Emits Cargo rebuild directives for environment variables used by CUDA discovery.
 ///
-/// Build scripts should call this before using the discovery helpers so Cargo
-/// reruns them when CUDA, NVIDIA library, compiler, or linker environment
-/// variables change.
+/// Build scripts should call this before using the discovery helpers so Cargo reruns them when CUDA, NVIDIA library, compiler, or linker environment variables change.
 pub fn emit_rerun_if_env_changed() {
     for var_name in CUDA_DISCOVERY_ENV_VARS {
         println!("cargo:rerun-if-env-changed={var_name}");

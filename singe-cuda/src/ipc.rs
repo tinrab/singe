@@ -37,7 +37,8 @@ impl IpcEventHandle {
     ///
     /// # Safety
     ///
-    /// Any subsequent event import must use an unchanged token exported by CUDA for a live IPC-capable event. Coordinate the exporting event's lifetime with every process importing or using it.
+    /// Any subsequent event import must use an unchanged token exported by CUDA for a live IPC-capable event.
+    /// Coordinate the exporting event's lifetime with every process importing or using it.
     #[must_use]
     pub const unsafe fn from_raw(handle: runtime::cudaIpcEventHandle_t) -> Self {
         Self(handle)
@@ -70,7 +71,8 @@ impl IpcMemoryHandle {
     ///
     /// # Safety
     ///
-    /// Any subsequent mapping must use an unchanged token exported by CUDA for a live IPC-capable allocation. Keep that allocation live until every imported mapping has been closed and prevent conflicting accesses across processes.
+    /// Any subsequent mapping must use an unchanged token exported by CUDA for a live IPC-capable allocation.
+    /// Keep that allocation live until every imported mapping has been closed and prevent conflicting accesses across processes.
     #[must_use]
     pub const unsafe fn from_raw(handle: runtime::cudaIpcMemHandle_t) -> Self {
         Self(handle)
@@ -104,13 +106,10 @@ impl IpcMemoryHandle {
     ///
     /// Memory returned from [`IpcMemoryHandle::create_mapping`] must be freed with [`OpenedIpcMemory::close`].
     ///
-    /// Calling [`DeviceMemory::free`](crate::memory::DeviceMemory::free) on an
-    /// exported memory region before calling [`OpenedIpcMemory::close`] in the
-    /// importing context results in undefined behavior.
+    /// Calling [`DeviceMemory::free`](crate::memory::DeviceMemory::free) on an exported memory region before calling [`OpenedIpcMemory::close`] in the importing context results in undefined behavior.
     ///
     /// IPC is restricted to devices with support for unified addressing on Linux and Windows operating systems.
-    /// IPC on Windows is supported for compatibility, but is not recommended
-    /// because it has a performance cost.
+    /// IPC on Windows is supported for compatibility, but is not recommended because it has a performance cost.
     /// Check device IPC support through the device properties exposed by this crate, for example [`DeviceProperties::ipc_event_supported`](crate::device::DeviceProperties::ipc_event_supported).
     ///
     /// Additional CUDA diagnostics:
@@ -123,9 +122,7 @@ impl IpcMemoryHandle {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA Runtime cannot open the IPC handle, if the
-    /// current device cannot access the allocation, or if CUDA returns a null
-    /// mapped pointer.
+    /// Returns an error if CUDA Runtime cannot open the IPC handle, if the current device cannot access the allocation, or if CUDA returns a null mapped pointer.
     pub fn create_mapping<T>(self, flags: IpcMemoryFlags) -> Result<OpenedIpcMemory<T>> {
         let mut dev_ptr = ptr::null_mut();
         // SAFETY: `cudaIpcOpenMemHandle` receives live handles owned by the wrappers and valid output locations.
@@ -136,6 +133,7 @@ impl IpcMemoryHandle {
                 flags.bits()
             ))?;
         }
+
         if dev_ptr.is_null() {
             return Err(Error::NullHandle);
         }
@@ -148,7 +146,9 @@ impl IpcMemoryHandle {
 
 /// An imported device mapping of another process's CUDA allocation.
 ///
-/// Dropping this wrapper attempts to close the mapping. It does not own the allocation in the exporting process. Finish every use of this mapping before closing or dropping it; the exporting process must keep its allocation alive until all imports close.
+/// Dropping this wrapper attempts to close the mapping.
+/// It does not own the allocation in the exporting process.
+/// Finish every use of this mapping before closing or dropping it; the exporting process must keep its allocation alive until all imports close.
 #[derive(Debug)]
 pub struct OpenedIpcMemory<T> {
     ptr: *mut T,
@@ -163,17 +163,13 @@ impl<T> OpenedIpcMemory<T> {
         self.ptr
     }
 
-    /// Decrements the reference count of the memory returned by [`IpcMemoryHandle::create_mapping`] by 1.
-    /// When the reference count reaches 0, this unmaps the memory.
-    /// The original allocation in the exporting process and imported mappings
-    /// in other processes are unaffected.
+    /// Decrements the reference count of the memory returned by [`IpcMemoryHandle::create_mapping`] by 1. When the reference count reaches 0, this unmaps the memory.
+    /// The original allocation in the exporting process and imported mappings in other processes are unaffected.
     ///
-    /// Resources used to enable peer access are freed if this is the last
-    /// mapping using them.
+    /// Resources used to enable peer access are freed if this is the last mapping using them.
     ///
     /// IPC is restricted to devices with support for unified addressing on Linux and Windows operating systems.
-    /// IPC on Windows is supported for compatibility, but is not recommended
-    /// because it has a performance cost.
+    /// IPC on Windows is supported for compatibility, but is not recommended because it has a performance cost.
     /// Check device IPC support through the device properties exposed by this crate, for example [`DeviceProperties::ipc_event_supported`](crate::device::DeviceProperties::ipc_event_supported).
     ///
     /// Additional CUDA diagnostics:
@@ -205,8 +201,10 @@ impl<T> Drop for OpenedIpcMemory<T> {
         // SAFETY: `cudaIpcCloseMemHandle` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(runtime::cudaIpcCloseMemHandle(self.ptr.cast())) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to close cuda ipc memory handle: {error}");
+                eprintln!(
+                    "failed to close cuda ipc memory handle: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

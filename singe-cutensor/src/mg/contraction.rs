@@ -110,9 +110,8 @@ impl ContractionFind {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg contraction find handle associated
-    /// with `context` and `algorithm`. The returned value takes ownership of
-    /// `handle` and destroys it on drop.
+    /// `handle` must be a valid cuTENSORMg contraction find handle associated with `context` and `algorithm`.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -252,10 +251,9 @@ impl ContractionDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg contraction descriptor associated
-    /// with `context`. Pointer counts must match the tensors used to create the
-    /// descriptor. The returned value takes ownership of `handle` and destroys
-    /// it on drop.
+    /// `handle` must be a valid cuTENSORMg contraction descriptor associated with `context`.
+    /// Pointer counts must match the tensors used to create the descriptor.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -377,10 +375,9 @@ impl ContractionPlan {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg contraction plan associated with
-    /// `context` and `workspace`. Pointer counts must match the descriptors
-    /// used to create the plan. The returned value takes ownership of `handle`
-    /// and destroys it on drop.
+    /// `handle` must be a valid cuTENSORMg contraction plan associated with `context` and `workspace`.
+    /// Pointer counts must match the descriptors used to create the plan.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -426,7 +423,11 @@ impl ContractionPlan {
 
     /// Submits `D = alpha * A * B + beta * C` using distributed device allocations.
     ///
-    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan. The wrapper validates pointer counts, contexts, and workspace capacity. Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan.
+    /// The wrapper validates pointer counts, contexts, and workspace capacity.
+    /// Tensor pointer arrays follow their respective descriptor device order.
+    /// Device workspace pointers and streams follow context device order.
+    /// Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
     ///
     /// # Errors
     ///
@@ -480,7 +481,11 @@ impl ContractionPlan {
 
     /// Submits a contraction with the accumulated C tensor and output D sharing storage.
     ///
-    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan. The wrapper validates pointer counts, contexts, and workspace capacity. Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan.
+    /// The wrapper validates pointer counts, contexts, and workspace capacity.
+    /// Tensor pointer arrays follow their respective descriptor device order.
+    /// Device workspace pointers and streams follow context device order.
+    /// Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
     ///
     /// # Errors
     ///
@@ -532,7 +537,11 @@ impl ContractionPlan {
 
     /// Submits an in-place contraction on every context device's default stream.
     ///
-    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan. The wrapper validates pointer counts, contexts, and workspace capacity. Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    /// Element and scalar representations, partition capacities, and layouts must match the descriptors used to create the plan.
+    /// The wrapper validates pointer counts, contexts, and workspace capacity.
+    /// Tensor pointer arrays follow their respective descriptor device order.
+    /// Device workspace pointers and streams follow context device order.
+    /// Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
     ///
     /// # Errors
     ///
@@ -584,10 +593,12 @@ impl ContractionPlan {
     ///
     /// # Safety
     ///
-    /// Pointer arrays must match the descriptors used for plan creation. Scalars must
-    /// have the type expected by the cuTENSORMg data-type combination.
+    /// Pointer arrays must match the descriptors used for plan creation.
+    /// Scalars must have the type expected by the cuTENSORMg data-type combination.
     ///
-    /// Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    /// Tensor pointer arrays follow their respective descriptor device order.
+    /// Device workspace pointers and streams follow context device order.
+    /// Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
     ///
     /// # Errors
     ///
@@ -620,6 +631,7 @@ impl ContractionPlan {
                 return Err(Error::StreamContextMismatch);
             }
         }
+
         let mut streams: Vec<_> = streams.iter().map(StreamBinding::as_raw).collect();
         // SAFETY: `cutensorMgContraction` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -644,10 +656,12 @@ impl ContractionPlan {
     ///
     /// # Safety
     ///
-    /// Pointer arrays must match the descriptors used for plan creation. Scalars must
-    /// have the type expected by the cuTENSORMg data-type combination.
+    /// Pointer arrays must match the descriptors used for plan creation.
+    /// Scalars must have the type expected by the cuTENSORMg data-type combination.
     ///
-    /// Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    /// Tensor pointer arrays follow their respective descriptor device order.
+    /// Device workspace pointers and streams follow context device order.
+    /// Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
     ///
     /// # Errors
     ///
@@ -736,8 +750,10 @@ impl Drop for ContractionFind {
         // SAFETY: `cutensorMgDestroyContractionFind` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroyContractionFind(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg contraction find: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg contraction find: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -748,8 +764,10 @@ impl Drop for ContractionDescriptor {
         // SAFETY: `cutensorMgDestroyContractionDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroyContractionDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg contraction descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg contraction descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -760,8 +778,10 @@ impl Drop for ContractionPlan {
         // SAFETY: `cutensorMgDestroyContractionPlan` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroyContractionPlan(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg contraction plan: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg contraction plan: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

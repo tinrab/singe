@@ -5,7 +5,7 @@ use std::{
     os::raw::c_char,
     path::Path,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, PoisonError,
         atomic::{AtomicU64, Ordering},
     },
 };
@@ -15,7 +15,10 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::{impl_enum_display, path_to_cstring};
 use singe_cudss_sys as sys;
 
-use crate::{error::Result, try_ffi};
+use crate::{
+    error::{Error, Result},
+    try_ffi,
+};
 
 /// cuDSS logger verbosity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
@@ -180,42 +183,39 @@ static CALLBACK_GENERATION: AtomicU64 = AtomicU64::new(1);
 
 /// Sets a custom callback function to receive log messages.
 ///
-/// The callback is invoked synchronously from the calling thread. It must
-/// not call cuDSS APIs because doing so may deadlock.
+/// The callback is invoked synchronously from the calling thread.
+/// It must not call cuDSS APIs because doing so may deadlock.
 ///
-/// Logger state is process-wide. In MGMN mode, each process has independent
-/// logger state and must install its own callback if needed.
+/// Logger state is process-wide.
+/// In MGMN mode, each process has independent logger state and must install its own callback if needed.
 ///
 /// # Errors
 ///
 /// Returns an error if cuDSS cannot install the callback.
-///
-/// # Panics
-///
-/// Panics if the mutex protecting the process-wide callback has been poisoned.
 pub fn set_callback(
     callback: impl for<'a> Fn(LogRecord<'a>) + Send + Sync + 'static,
 ) -> Result<CallbackGuard> {
     let generation = CALLBACK_GENERATION.fetch_add(1, Ordering::Relaxed);
     {
-        let mut current = CALLBACK
-            .lock()
-            .expect("cudss logger callback lock poisoned");
+        let mut current = CALLBACK.lock().map_err(|_| Error::LockPoisoned {
+            name: "cudss logger callback",
+        })?;
         *current = Some((generation, Arc::new(callback)));
     }
 
     // SAFETY: `cudssLoggerSetCallback` receives only plain values.
     unsafe {
         if let Err(error) = try_ffi!(sys::cudssLoggerSetCallback(Some(callback_trampoline))) {
-            let mut current = CALLBACK
-                .lock()
-                .expect("cudss logger callback lock poisoned");
+            let mut current = CALLBACK.lock().map_err(|_| Error::LockPoisoned {
+                name: "cudss logger callback",
+            })?;
             if current
                 .as_ref()
                 .is_some_and(|(current_generation, _)| *current_generation == generation)
             {
                 *current = None;
             }
+
             drop(current);
             return Err(error);
         }
@@ -226,21 +226,17 @@ pub fn set_callback(
 
 /// Clears the currently installed logger callback.
 ///
-/// Logger state is process-wide. In MGMN mode, this only clears the
-/// callback in the current process.
+/// Logger state is process-wide.
+/// In MGMN mode, this only clears the callback in the current process.
 ///
 /// # Errors
 ///
 /// Returns an error if cuDSS cannot clear the callback.
-///
-/// # Panics
-///
-/// Panics if the mutex protecting the process-wide callback has been poisoned.
 pub fn clear_callback() -> Result<()> {
     {
-        let mut current = CALLBACK
-            .lock()
-            .expect("cudss logger callback lock poisoned");
+        let mut current = CALLBACK.lock().map_err(|_| Error::LockPoisoned {
+            name: "cudss logger callback",
+        })?;
         *current = None;
     }
 
@@ -254,16 +250,15 @@ pub fn clear_callback() -> Result<()> {
 /// Opens a file and redirects log output to it.
 ///
 /// The file is opened in write mode, truncating any existing content.
-/// Multiple calls close the previous file. Parent directories must already
-/// exist.
+/// Multiple calls close the previous file.
+/// Parent directories must already exist.
 ///
-/// In MGMN mode, each process should open a different file. Multiple
-/// processes writing to the same file concurrently is not safe.
+/// In MGMN mode, each process should open a different file.
+/// Multiple processes writing to the same file concurrently is not safe.
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be converted to a C string or if cuDSS
-/// cannot open the file.
+/// Returns an error if `path` cannot be converted to a C string or if cuDSS cannot open the file.
 pub fn open_file(path: impl AsRef<Path>) -> Result<()> {
     let path = path_to_cstring(path.as_ref())?;
     // SAFETY: `cudssLoggerOpenFile` receives pointers into buffers borrowed for the call.
@@ -301,10 +296,8 @@ pub fn set_mask(mask: LogMask) -> Result<()> {
 
 /// Permanently and irreversibly disables all logging for the entire process.
 ///
-/// Once called, logging cannot be re-enabled for the lifetime of the
-/// process. Existing file sinks and registered callbacks are disabled
-/// immediately, and this takes precedence over every other logging
-/// configuration.
+/// Once called, logging cannot be re-enabled for the lifetime of the process.
+/// Existing file sinks and registered callbacks are disabled immediately, and this takes precedence over every other logging configuration.
 ///
 /// # Errors
 ///
@@ -339,9 +332,8 @@ impl CallbackGuard {
 impl Drop for CallbackGuard {
     fn drop(&mut self) {
         let should_clear = {
-            let current = CALLBACK
-                .lock()
-                .expect("cudss logger callback lock poisoned");
+            // Cleanup must stop native code calling a dropped callback whatever a panic left here.
+            let current = CALLBACK.lock().unwrap_or_else(PoisonError::into_inner);
             current
                 .as_ref()
                 .is_some_and(|(generation, _)| *generation == self.generation)
@@ -355,9 +347,8 @@ impl Drop for CallbackGuard {
 
 fn clear_callback_generation(generation: u64) -> Result<()> {
     let should_clear = {
-        let mut current = CALLBACK
-            .lock()
-            .expect("cudss logger callback lock poisoned");
+        // Only `Drop` calls this, for the same cleanup.
+        let mut current = CALLBACK.lock().unwrap_or_else(PoisonError::into_inner);
         if current
             .as_ref()
             .is_some_and(|(current_generation, _)| *current_generation == generation)
@@ -383,12 +374,12 @@ extern "C" fn callback_trampoline(
     function_name: *const c_char,
     message: *const c_char,
 ) {
-    let callback = {
-        let current = CALLBACK
-            .lock()
-            .expect("cudss logger callback lock poisoned");
-        current.as_ref().map(|(_, callback)| Arc::clone(callback))
+    // A panic must not unwind into native code, so a poisoned callback loses this record.
+    let Ok(current) = CALLBACK.lock() else {
+        return;
     };
+    let callback = current.as_ref().map(|(_, callback)| Arc::clone(callback));
+    drop(current);
 
     if let Some(callback) = callback {
         callback(LogRecord {

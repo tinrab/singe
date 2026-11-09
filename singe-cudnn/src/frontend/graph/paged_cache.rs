@@ -121,6 +121,7 @@ pub fn infer_paged_cache_dimensions(
             actual: page_table_dims.to_vec(),
         });
     }
+
     if sequence_dims
         .iter()
         .skip(1)

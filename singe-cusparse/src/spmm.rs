@@ -23,9 +23,8 @@ use crate::{
 /// * `C` is a dense matrix of size $m \times n$.
 /// * $\alpha$ and $\beta$ are scalars.
 ///
-/// This can also multiply a dense matrix and a sparse matrix by switching the
-/// dense matrix layouts. `B_C` and `C_C` indicate column-major layout, while
-/// `B_R` and `C_R` indicate row-major layout.
+/// This can also multiply a dense matrix and a sparse matrix by switching the dense matrix layouts.
+/// `B_C` and `C_C` indicate column-major layout, while `B_R` and `C_R` indicate row-major layout.
 ///
 /// `op(A)` is selected by `op_a` and may be `A`, `A^T`, or `A^H`.
 /// `op(B)` is selected by `op_b` and may be `B`, `B^T`, or `B^H`.
@@ -36,8 +35,7 @@ use crate::{
 ///
 /// Calling [`spmm_preprocess`] is optional.
 /// It may accelerate subsequent calls to [`spmm`].
-/// Useful when [`spmm`] is called multiple times with the same sparsity
-/// pattern (`matrix_a`).
+/// Useful when [`spmm`] is called multiple times with the same sparsity pattern (`matrix_a`).
 /// It provides performance advantages with [`SpMmAlgorithm::Csr1`] or [`SpMmAlgorithm::Csr3`].
 /// It has no effect for all other formats and algorithms.
 ///
@@ -47,8 +45,7 @@ use crate::{
 /// Importantly, the buffer contents must be unmodified since the call to [`spmm_preprocess`].
 /// When [`spmm`] is called with `matrix_a` and its active buffer, it may read acceleration data from the buffer.
 ///
-/// Calling [`spmm_preprocess`] again with `matrix_a` and a new buffer makes the
-/// new buffer active and makes the previously active buffer inactive.
+/// Calling [`spmm_preprocess`] again with `matrix_a` and a new buffer makes the new buffer active and makes the previously active buffer inactive.
 /// For [`spmm`], there can only be one active buffer per sparse matrix at a time.
 /// To get the effect of multiple active buffers for a single sparse matrix, create multiple matrix handles that all point to the same index and value buffers, and call [`spmm_preprocess`] once per handle with different workspace buffers.
 ///
@@ -101,18 +98,28 @@ use crate::{
 /// [`spmm`] supports the following algorithms:
 ///
 /// * [`SpMmAlgorithm::Default`]: default algorithm for any sparse matrix format.
-/// * [`SpMmAlgorithm::Coo1`]: algorithm 1 for COO sparse matrix format. May provide better performance for a small number of nonzero values, provides the best performance with column-major layout, supports batched computation, and may produce slightly different results across runs with the same input parameters.
-/// * [`SpMmAlgorithm::Coo2`]: algorithm 2 for COO sparse matrix format. Provides deterministic results and the best performance with column-major layout. In general, it is slower than algorithm 1, supports batched computation, requires additional memory, and is identical to [`SpMmAlgorithm::Coo1`] if `op_a` is not [`Operation::NonTranspose`].
-/// * [`SpMmAlgorithm::Coo3`]: algorithm 3 for COO sparse matrix format. May provide better performance for a large number of nonzero values and may produce slightly different results across runs with the same input parameters.
-/// * [`SpMmAlgorithm::Coo4`]: algorithm 4 for COO sparse matrix format. Provides better performance with row-major layout, supports batched computation, and may produce slightly different results across runs with the same input parameters.
-/// * [`SpMmAlgorithm::Csr1`]: algorithm 1 for CSR/CSC sparse matrix format. Provides the best performance with column-major layout, supports batched computation, requires additional memory, and may produce slightly different results across runs with the same input parameters.
-/// * [`SpMmAlgorithm::Csr2`]: algorithm 2 for CSR/CSC sparse matrix format. Provides the best performance with row-major layout, supports batched computation, requires additional memory, and may produce slightly different results across runs with the same input parameters.
-/// * [`SpMmAlgorithm::Csr3`]: algorithm 3 for CSR sparse matrix format. Provides deterministic results and requires additional memory. It supports only CSR matrices with `op_a` set to [`Operation::NonTranspose`]; `op_b` cannot be [`Operation::ConjugateTranspose`], and the data type cannot be [`DataType::ComplexF16`](singe_cuda::data_type::DataType::ComplexF16) or [`DataType::ComplexBf16`](singe_cuda::data_type::DataType::ComplexBf16).
-/// * [`SpMmAlgorithm::Bsr1`]: algorithm 1 for BSR sparse matrix format. Provides deterministic results and requires no additional memory. It supports only `op_a` set to [`Operation::NonTranspose`]; the data type cannot be [`DataType::ComplexF16`](singe_cuda::data_type::DataType::ComplexF16) or [`DataType::ComplexBf16`](singe_cuda::data_type::DataType::ComplexBf16), and blocks in `A` cannot be column-major.
+/// * [`SpMmAlgorithm::Coo1`]: algorithm 1 for COO sparse matrix format.
+///   May provide better performance for a small number of nonzero values, provides the best performance with column-major layout, supports batched computation, and may produce slightly different results across runs with the same input parameters.
+/// * [`SpMmAlgorithm::Coo2`]: algorithm 2 for COO sparse matrix format.
+///   Provides deterministic results and the best performance with column-major layout.
+///   In general, it is slower than algorithm 1, supports batched computation, requires additional memory, and is identical to [`SpMmAlgorithm::Coo1`] if `op_a` is not [`Operation::NonTranspose`].
+/// * [`SpMmAlgorithm::Coo3`]: algorithm 3 for COO sparse matrix format.
+///   May provide better performance for a large number of nonzero values and may produce slightly different results across runs with the same input parameters.
+/// * [`SpMmAlgorithm::Coo4`]: algorithm 4 for COO sparse matrix format.
+///   Provides better performance with row-major layout, supports batched computation, and may produce slightly different results across runs with the same input parameters.
+/// * [`SpMmAlgorithm::Csr1`]: algorithm 1 for CSR/CSC sparse matrix format.
+///   Provides the best performance with column-major layout, supports batched computation, requires additional memory, and may produce slightly different results across runs with the same input parameters.
+/// * [`SpMmAlgorithm::Csr2`]: algorithm 2 for CSR/CSC sparse matrix format.
+///   Provides the best performance with row-major layout, supports batched computation, requires additional memory, and may produce slightly different results across runs with the same input parameters.
+/// * [`SpMmAlgorithm::Csr3`]: algorithm 3 for CSR sparse matrix format.
+///   Provides deterministic results and requires additional memory.
+///   It supports only CSR matrices with `op_a` set to [`Operation::NonTranspose`]; `op_b` cannot be [`Operation::ConjugateTranspose`], and the data type cannot be [`DataType::ComplexF16`](singe_cuda::data_type::DataType::ComplexF16) or [`DataType::ComplexBf16`](singe_cuda::data_type::DataType::ComplexBf16).
+/// * [`SpMmAlgorithm::Bsr1`]: algorithm 1 for BSR sparse matrix format.
+///   Provides deterministic results and requires no additional memory.
+///   It supports only `op_a` set to [`Operation::NonTranspose`]; the data type cannot be [`DataType::ComplexF16`](singe_cuda::data_type::DataType::ComplexF16) or [`DataType::ComplexBf16`](singe_cuda::data_type::DataType::ComplexBf16), and blocks in `A` cannot be column-major.
 ///
 /// When using [`spmm`] for mixed-precision computation on COO or CSR matrices, it defaults to algorithms [`SpMmAlgorithm::Coo2`] and [`SpMmAlgorithm::Csr3`], respectively.
-/// If the required computation is not supported by those algorithms, the
-/// mixed-precision operation fails.
+/// If the required computation is not supported by those algorithms, the mixed-precision operation fails.
 ///
 /// **Performance notes:**
 ///
@@ -180,15 +187,10 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if the cuSPARSE context cannot be bound, the scalar pointer
-/// modes do not match the handle configuration, the descriptors or selected
-/// algorithm are incompatible, a required workspace buffer is missing or
-/// invalid, the data type combination is unsupported, or cuSPARSE rejects the
-/// operation.
+/// Returns an error if the cuSPARSE context cannot be bound, the scalar pointer modes do not match the handle configuration, the descriptors or selected algorithm are incompatible, a required workspace buffer is missing or invalid, the data type combination is unsupported, or cuSPARSE rejects the operation.
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 pub unsafe fn spmm<Compute: DataTypeLike>(
     context: &Context,
     op_a: Operation,
@@ -232,8 +234,7 @@ pub unsafe fn spmm<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -281,8 +282,7 @@ pub unsafe fn spmm_buffer_size<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -334,12 +334,12 @@ pub unsafe fn spmm_preprocess<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
-/// Returns `Error::PlanContextMismatch` unless `context` is the exact context owned by `plan`. Also propagates workspace-context, insufficient workspace, context-binding, and native execution errors from [`SpMmOpPlan::execute`].
+/// Returns `Error::PlanContextMismatch` unless `context` is the exact context owned by `plan`.
+/// Also propagates workspace-context, insufficient workspace, context-binding, and native execution errors from [`SpMmOpPlan::execute`].
 pub unsafe fn spmm_op(
     context: &Context,
     plan: &SpMmOpPlan<'_>,

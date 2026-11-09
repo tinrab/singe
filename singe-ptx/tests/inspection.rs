@@ -1,13 +1,12 @@
 //! Read-only observations through the breakpoint control path.
 
+mod support;
+
 use anyhow::Result;
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, FrameSnapshot, LaneSnapshot, LaunchConfig,
     ParsedModule, RegisterSnapshot, ShutdownMode, SubmitError,
 };
-
-mod support;
-
 use support::Observe;
 
 const NESTED: &str = ".version 9.4 .target sm_80 .address_size 64

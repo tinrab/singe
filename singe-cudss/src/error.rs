@@ -53,8 +53,19 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cudss_sys::LoadError),
+
+    /// A lock was poisoned by a thread that panicked while holding it.
+    #[error("`{name}` lock is poisoned")]
+    LockPoisoned {
+        /// What the lock guards.
+        name: &'static str,
+    },
+
     /// CUDA wrapper error.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// cuDSS returned a non-success status.
@@ -130,8 +141,7 @@ pub enum Error {
         actual: usize,
     },
 
-    /// A numeric value returned by cuDSS could not be represented by the target
-    /// Rust type.
+    /// A numeric value returned by cuDSS could not be represented by the target Rust type.
     #[error("integer conversion failed for `{0}`")]
     IntegerConversion(String),
 
@@ -171,6 +181,12 @@ impl Error {
 
 impl From<sys::cudssStatus_t> for Error {
     fn from(status: sys::cudssStatus_t) -> Self {
+        if status == sys::cudssStatus_t::CUDSS_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cudss_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let code = Status::from(status);
         Self::Cudss {
             code,

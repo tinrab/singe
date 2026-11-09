@@ -112,7 +112,7 @@ impl Default for nvtxMessageValue_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Force initialization (optional).
     ///
     /// Force NVTX library to initialize. The first call to any NVTX API function will automatically initialize the entire API. This can make the first call much slower than subsequent calls. In applications where the first call to NVTX may be in a performance-critical section, calling nvtxInitialize before any performance-critical sections will ensure NVTX initialization occurs at an acceptable time. Since nvtxInitialize takes no parameters and has no expected behavior besides initialization, it is convenient to add a call to nvtxInitialize in NVTX-instrumented applications that need to force earlier initialization without changing any other code. For example, if an app's first NVTX call is nvtxDomainCreate, and it is difficult to move that call earlier because the domain handle must be stored in an object only created at that point, adding a call to nvtxInitialize at the top of main() will ensure the later call to nvtxDomainCreate is as fast as possible.
@@ -356,7 +356,7 @@ impl Default for nvtxEventAttributes_v2 {
 ///
 /// See also: ::nvtxDomainMarkEx ::nvtxDomainRangeStartEx ::nvtxDomainRangePushEx
 pub type nvtxEventAttributes_t = nvtxEventAttributes_v2;
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Marks an instantaneous event in the application.
     ///
     /// A marker can contain a text message or specify additional information using the event attributes structure. These attributes include a text message, color, category, and a payload. Each of the attributes is optional and can only be sent out using the [`nvtxDomainMarkEx`] function.
@@ -372,7 +372,7 @@ unsafe extern "C" {
         eventAttrib: *const nvtxEventAttributes_t,
     );
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Marks an instantaneous event in the application.
     ///
     /// A marker can contain a text message or specify additional information using the event attributes structure. These attributes include a text message, color, category, and a payload. Each of the attributes is optional and can only be sent out using the [`nvtxMarkEx`] function. If [`nvtxMarkA`] or nvtxMarkW are used to specify the marker or if an attribute is unspecified then a default value will be used.
@@ -382,7 +382,7 @@ unsafe extern "C" {
     /// - `eventAttrib`: The event attribute structure defining the marker's attribute types and attribute values.
     pub fn nvtxMarkEx(eventAttrib: *const nvtxEventAttributes_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Marks an instantaneous event in the application.
     ///
     /// A marker created using [`nvtxMarkA`] or nvtxMarkW contains only a text message.
@@ -392,7 +392,7 @@ unsafe extern "C" {
     /// - `message`: The message associated to this marker event.
     pub fn nvtxMarkA(message: *const ::core::ffi::c_char);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Marks an instantaneous event with a wide-character message.
     ///
     /// Wide-character form of [`nvtxMarkA`].
@@ -402,7 +402,7 @@ unsafe extern "C" {
     /// - `message`: Null-terminated wide-character string.
     pub fn nvtxMarkW(message: *const wchar_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a process range in a domain.
     ///
     /// # Parameters
@@ -414,7 +414,7 @@ unsafe extern "C" {
         eventAttrib: *const nvtxEventAttributes_t,
     ) -> nvtxRangeId_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a process range.
     ///
     /// # Parameters
@@ -422,7 +422,7 @@ unsafe extern "C" {
     /// - `eventAttrib`: The event attribute structure defining the range's attribute types and attribute values.
     pub fn nvtxRangeStartEx(eventAttrib: *const nvtxEventAttributes_t) -> nvtxRangeId_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a process range.
     ///
     /// # Parameters
@@ -430,7 +430,7 @@ unsafe extern "C" {
     /// - `message`: The event message associated to this range event.
     pub fn nvtxRangeStartA(message: *const ::core::ffi::c_char) -> nvtxRangeId_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a process range with a wide-character message and returns its range identifier.
     ///
     /// Wide-character form of [`nvtxRangeStartA`].
@@ -440,7 +440,7 @@ unsafe extern "C" {
     /// - `message`: Null-terminated wide-character string.
     pub fn nvtxRangeStartW(message: *const wchar_t) -> nvtxRangeId_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Ends a process range.
     ///
     /// # Parameters
@@ -449,7 +449,7 @@ unsafe extern "C" {
     /// - `id`: The correlation ID returned from a nvtxRangeStart call.
     pub fn nvtxDomainRangeEnd(domain: nvtxDomainHandle_t, id: nvtxRangeId_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Ends a process range.
     ///
     /// # Parameters
@@ -457,7 +457,7 @@ unsafe extern "C" {
     /// - `id`: The correlation ID returned from an nvtxRangeStart call.
     pub fn nvtxRangeEnd(id: nvtxRangeId_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a nested thread range.
     ///
     /// # Parameters
@@ -469,7 +469,7 @@ unsafe extern "C" {
         eventAttrib: *const nvtxEventAttributes_t,
     ) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a nested thread range.
     ///
     /// # Parameters
@@ -479,7 +479,7 @@ unsafe extern "C" {
         eventAttrib: *const nvtxEventAttributes_t,
     ) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a nested thread range.
     ///
     /// # Parameters
@@ -487,7 +487,7 @@ unsafe extern "C" {
     /// - `message`: The event message associated to this range event.
     pub fn nvtxRangePushA(message: *const ::core::ffi::c_char) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Starts a nested thread range with a wide-character message.
     ///
     /// Wide-character form of [`nvtxRangePushA`].
@@ -497,11 +497,11 @@ unsafe extern "C" {
     /// - `message`: Null-terminated wide-character string.
     pub fn nvtxRangePushW(message: *const wchar_t) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Ends a nested thread range.
     pub fn nvtxDomainRangePop(domain: nvtxDomainHandle_t) -> ::core::ffi::c_int;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Ends a nested thread range.
     pub fn nvtxRangePop() -> ::core::ffi::c_int;
 }
@@ -729,7 +729,7 @@ pub struct nvtxResourceHandle {
 }
 /// Opaque handle identifying a named resource within an NVTX domain.
 pub type nvtxResourceHandle_t = *mut nvtxResourceHandle;
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Create a resource object to track and associate data with OS and middleware objects.
     ///
     /// Allows users to associate an API handle or pointer with a user-provided name.
@@ -743,7 +743,7 @@ unsafe extern "C" {
         attribs: *mut nvtxResourceAttributes_t,
     ) -> nvtxResourceHandle_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Destroy a resource object to track and associate data with OS and middleware objects.
     ///
     /// Allows users to associate an API handle or pointer with a user-provided name.
@@ -753,7 +753,7 @@ unsafe extern "C" {
     /// - `resource`: Handle to the resource in which to operate.
     pub fn nvtxDomainResourceDestroy(resource: nvtxResourceHandle_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Annotate an NVTX category used within a domain.
     ///
     /// Categories are used to group sets of events. Each category is identified through a unique ID and that ID is passed into any of the marker/range events to assign that event to a specific category. The nvtxDomainNameCategory function calls allow the user to assign a name to a category ID that is specific to the domain.
@@ -771,7 +771,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     );
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Names a category in an NVTX domain using a wide-character string.
     ///
     /// Wide-character form of [`nvtxDomainNameCategoryA`].
@@ -785,7 +785,7 @@ unsafe extern "C" {
         name: *const wchar_t,
     );
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Annotate an NVTX category.
     ///
     /// Categories are used to group sets of events. Each category is identified through a unique ID and that ID is passed into any of the marker/range events to assign that event to a specific category. The nvtxNameCategory function calls allow the user to assign a name to a category ID.
@@ -796,7 +796,7 @@ unsafe extern "C" {
     /// - `name`: The name of the category.
     pub fn nvtxNameCategoryA(category: u32, name: *const ::core::ffi::c_char);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Names a category in the default NVTX domain using a wide-character string.
     ///
     /// Wide-character form of [`nvtxNameCategoryA`].
@@ -806,7 +806,7 @@ unsafe extern "C" {
     /// - `name`: Null-terminated wide-character string.
     pub fn nvtxNameCategoryW(category: u32, name: *const wchar_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Annotate an OS thread.
     ///
     /// Allows the user to name an active thread of the current process. If an invalid thread ID is provided or a thread ID from a different process is used the behavior of the tool is implementation dependent.
@@ -873,7 +873,7 @@ unsafe extern "C" {
     /// - `name`: The name of the thread.
     pub fn nvtxNameOsThreadA(threadId: u32, name: *const ::core::ffi::c_char);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Names an active OS thread of this process using a wide-character string.
     ///
     /// Wide-character form of [`nvtxNameOsThreadA`].
@@ -883,7 +883,7 @@ unsafe extern "C" {
     /// - `name`: Null-terminated wide-character string.
     pub fn nvtxNameOsThreadW(threadId: u32, name: *const wchar_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Register a string.
     ///
     /// Registers an immutable string with NVTX. Once registered the pointer used to register the domain name can be used in nvtxEventAttributes_t [MESSAGE_FIELD](https://nvidia.github.io/NVTX/doxygen/structnvtx_event_attributes__v2.html#MESSAGE_FIELD). This allows NVTX implementation to skip copying the contents of the message on each event invocation.
@@ -901,7 +901,7 @@ unsafe extern "C" {
         string: *const ::core::ffi::c_char,
     ) -> nvtxStringHandle_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Registers an immutable wide-character string in an NVTX domain.
     ///
     /// Wide-character form of [`nvtxDomainRegisterStringA`].
@@ -914,7 +914,7 @@ unsafe extern "C" {
         string: *const wchar_t,
     ) -> nvtxStringHandle_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Register a NVTX domain.
     ///
     /// Domains are used to scope annotations. All NVTX_VERSION_0 and NVTX_VERSION_1 annotations are scoped to the global domain. The function nvtxDomainCreate creates a new named domain.
@@ -926,7 +926,7 @@ unsafe extern "C" {
     /// - `name`: A unique string representing the domain.
     pub fn nvtxDomainCreateA(name: *const ::core::ffi::c_char) -> nvtxDomainHandle_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Registers a named NVTX annotation domain using a wide-character string.
     ///
     /// Wide-character form of [`nvtxDomainCreateA`].
@@ -936,7 +936,7 @@ unsafe extern "C" {
     /// - `name`: Null-terminated wide-character string.
     pub fn nvtxDomainCreateW(name: *const wchar_t) -> nvtxDomainHandle_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVTX;
     /// Unregister a NVTX domain.
     ///
     /// Unregisters the domain handle and frees all domain specific resources.

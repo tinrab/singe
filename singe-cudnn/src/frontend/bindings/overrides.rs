@@ -44,7 +44,8 @@ impl RuntimeOverrides {
         overrides
     }
 
-    /// Returns a caller-specified layout. Inherited capture layouts are resolved by the plan.
+    /// Returns a caller-specified layout.
+    /// Inherited capture layouts are resolved by the plan.
     #[must_use]
     pub fn get(&self, tensor: TensorId) -> Option<&Shape> {
         self.overrides.get(&tensor)
@@ -75,12 +76,14 @@ impl RuntimeOverrides {
         if self.is_empty() {
             return Ok(Vec::new());
         }
+
         let mut layouts = BTreeMap::new();
         for (&id, shape) in &self.overrides {
             validate_runtime_override(tensors, constraints, id, shape)?;
             validate_override_identity(tensors, replacements, id)?;
             layouts.insert(id, shape.clone());
         }
+
         loop {
             let mut changed = false;
             for replacement in replacements
@@ -91,6 +94,7 @@ impl RuntimeOverrides {
                 if layouts.contains_key(&replacement.target_id) {
                     continue;
                 }
+
                 let Some(shape) = layouts.get(&replacement.source_id) else {
                     continue;
                 };
@@ -99,6 +103,7 @@ impl RuntimeOverrides {
                         name: "captured tensor byte offset".into(),
                     });
                 }
+
                 let source = tensors
                     .get(&replacement.source_id)
                     .ok_or(FrontendError::TensorNotFound(replacement.source_id))?;
@@ -177,6 +182,7 @@ fn validate_runtime_override(
             actual: shape.rank(),
         });
     }
+
     if record.tensor.is_by_value()
         && (!shape.has_single_element()
             || record
@@ -190,11 +196,13 @@ fn validate_runtime_override(
         }
         .into());
     }
+
     if record.requires_vector_alignment {
         record
             .tensor
             .validate_vector_stride_alignment(tensor_id, shape)?;
     }
+
     if record.requires_int32_filter_offsets {
         ConvolutionOperation::validate_forward_filter_size(
             tensor_id,
@@ -202,6 +210,7 @@ fn validate_runtime_override(
             record.tensor.vectorization()?.map_or(1, |(count, _)| count),
         )?;
     }
+
     if let Some(constraints) = constraints.get(&tensor_id)
         && !constraints.contains(shape.dimensions())
     {
@@ -221,10 +230,12 @@ fn validate_override_identity(
         if !seen.insert(id) {
             continue;
         }
+
         let record = tensors.get(&id).ok_or(FrontendError::TensorNotFound(id))?;
         if record.access.is_some() {
             return Ok(());
         }
+
         pending.extend(replacements.iter().filter_map(|replacement| {
             (replacement.kind == AliasTensorKind::CapturedTensor && replacement.source_id == id)
                 .then_some(replacement.target_id)
@@ -239,6 +250,7 @@ fn captured_layout(source: &TensorRecord, target: &TensorRecord, shape: &Shape) 
     if source_shape.rank() == target_shape.rank() {
         return Ok(shape.clone());
     }
+
     if source_shape.rank() == 1
         && target_shape.dimensions() == [source_shape.dimensions()[0], 1, 1, 1]
         && target_shape.strides() == [source_shape.strides()[0], 1, 1, 1]
@@ -248,6 +260,7 @@ fn captured_layout(source: &TensorRecord, target: &TensorRecord, shape: &Shape) 
             vec![shape.strides()[0], 1, 1, 1],
         );
     }
+
     if source.tensor.is_by_value() && target.tensor.is_by_value() {
         return Shape::contiguous(vec![1; target_shape.rank()]);
     }

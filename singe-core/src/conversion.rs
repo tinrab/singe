@@ -1,7 +1,6 @@
 /// Declares crate-local checked integer conversions that report `Error::out_of_range`.
 ///
-/// Each generated function converts with [`TryInto`] and maps failure to
-/// `$error::out_of_range(name)`, so every crate reports overflow the same way.
+/// Each generated function converts with [`TryInto`] and maps failure to `$error::out_of_range(name)`, so every crate reports overflow the same way.
 #[macro_export]
 macro_rules! checked_conversions {
     ($error:ty { $($name:ident -> $ty:ty),* $(,)? }) => {
@@ -15,8 +14,7 @@ macro_rules! checked_conversions {
 
 /// Declares crate-local checked arithmetic helpers that report `Error::out_of_range`.
 ///
-/// Each listed helper is generated with a fixed signature, so wrapper crates report
-/// size overflow the same way:
+/// Each listed helper is generated with a fixed signature, so wrapper crates report size overflow the same way:
 ///
 /// - `checked_add(lhs, rhs, name)` and `checked_mul(lhs, rhs, name)` over `usize`;
 /// - `checked_byte_len::<T>(count, name)` for `count * size_of::<T>()`;

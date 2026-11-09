@@ -8,11 +8,11 @@ use nom::{
 use crate::{
     ast::{AddressSize, Module, Span, TargetDirective, VersionDirective},
     parser::{
-        common::{
+        directive::top_level_item,
+        lexical::{
             Input, PResult, SyntaxError, comma_sep, decimal, identifier, keyword, lexeme,
             with_span, ws,
         },
-        directive::top_level_item,
     },
 };
 

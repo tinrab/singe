@@ -22,6 +22,7 @@ pub fn expand(input: TokenStream, representation: Representation) -> Result<Toke
                 if !meta.path.is_ident("crate") {
                     return Err(meta.error("expected `crate = path`"));
                 }
+
                 cuda = meta.value()?.parse()?;
                 Ok(())
             })?;
@@ -41,12 +42,14 @@ pub fn expand(input: TokenStream, representation: Representation) -> Result<Toke
             })?;
         }
     }
+
     if !stable_layout {
         return Err(Error::new_spanned(
             &input.ident,
             "device representations require `#[repr(C)]` or `#[repr(transparent)]`",
         ));
     }
+
     let Data::Struct(data) = &input.data else {
         return Err(Error::new_spanned(
             &input.ident,
@@ -79,6 +82,7 @@ pub fn expand(input: TokenStream, representation: Representation) -> Result<Toke
     for field in &field_types {
         predicates.push(parse_quote!(#field: #trait_name));
     }
+
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
     let body = if matches!(representation, Representation::Transfer) {
         let field_checks = field_types.iter().map(|ty| {

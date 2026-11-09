@@ -49,8 +49,7 @@ impl Batch {
     /// Takes ownership of a native batch handle; dropping the batch destroys it.
     ///
     /// # Safety
-    /// `raw.handle` must be a live batch handle created by `cuFileBatchIOSetUp` with
-    /// `raw.capacity` entries in the session kept open by `raw.driver`, with no other owner.
+    /// `raw.handle` must be a live batch handle created by `cuFileBatchIOSetUp` with `raw.capacity` entries in the session kept open by `raw.driver`, with no other owner.
     ///
     /// # Errors
     ///
@@ -94,11 +93,13 @@ impl Batch {
         if capacity == 0 {
             return Err(Error::RequestBatchTooBig);
         }
+
         let mut handle = ptr::null_mut();
         // SAFETY: `cuFileBatchIOSetUp` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuFileBatchIOSetUp(&raw mut handle, capacity))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -156,15 +157,18 @@ impl Batch {
                 {
                     return Err(CudaError::MemoryContextMismatch.into());
                 }
+
                 context = Some(current);
             }
             if let Some(region) = request.region {
                 region.synchronize()?;
             }
         }
+
         if let Some(context) = context {
             context.bind()?;
         }
+
         if requests.is_empty() {
             return Ok(BatchSubmission {
                 batch: self,
@@ -173,6 +177,7 @@ impl Batch {
                 completed: 0,
             });
         }
+
         let mut raw_requests: Vec<_> = requests.iter().map(|request| request.handle).collect();
         // cuFile documents unsuccessful API calls as having no application or filesystem side effects.
         // SAFETY: `cuFileBatchIOSubmit` receives live handles owned by the wrappers and valid output locations.
@@ -214,6 +219,7 @@ impl Batch {
                 timeout_ptr,
             ))?;
         }
+
         events.truncate(count as usize);
         Ok(events.into_iter().map(BatchEvent::from).collect())
     }
@@ -297,6 +303,7 @@ impl BatchSubmission<'_, '_> {
         if min_count > max_count {
             return Err(Error::out_of_range("min_count"));
         }
+
         let events = self.batch.status(min_count, max_count, timeout)?;
         self.completed += events.len();
         Ok(events)
@@ -347,7 +354,6 @@ impl Drop for BatchSubmission<'_, '_> {
         }
 
         if let Err(error) = self.batch.cancel() {
-            #[cfg(debug_assertions)]
             {
                 let remaining = self.remaining_count();
                 eprintln!(
@@ -365,23 +371,23 @@ impl Drop for BatchSubmission<'_, '_> {
             ) {
                 Ok(events) if !events.is_empty() => {}
                 Ok(_) => {
-                    #[cfg(debug_assertions)]
                     {
                         let remaining = self.remaining_count();
                         eprintln!(
                             "cufile batch status made no progress with {remaining} pending requests after cancellation"
                         );
                     }
+
                     process::abort();
                 }
                 Err(error) => {
-                    #[cfg(debug_assertions)]
                     {
                         let remaining = self.remaining_count();
                         eprintln!(
                             "failed to drain cancelled cufile batch submission with {remaining} pending requests: {error}"
                         );
                     }
+
                     process::abort();
                 }
             }
@@ -396,6 +402,7 @@ impl Drop for Batch {
             if !self.handle.is_null() {
                 sys::cuFileBatchIODestroy(self.handle);
             }
+
             self.handle = ptr::null_mut();
         }
     }

@@ -1,8 +1,8 @@
 /// Asserts that two numeric values or numeric slices are equal within a tolerance.
 ///
-/// Slice forms compare lengths first and then compare each element using an
-/// absolute difference. Scalar forms accept a label that is included in the panic
-/// message. The default tolerance is `1.0e-5`.
+/// Slice forms compare lengths first and then compare each element using an absolute difference.
+/// Scalar forms accept a label that is included in the panic message.
+/// The default tolerance is `1.0e-5`.
 #[macro_export]
 macro_rules! assert_close {
     ($actual:expr, $expected:expr $(,)?) => {
@@ -50,10 +50,9 @@ macro_rules! assert_close {
 
 /// Asserts that two complex numeric values are equal within a tolerance.
 ///
-/// The compared values must expose `re` and `im` numeric fields. This keeps the
-/// helper independent of any particular complex-number crate while covering the
-/// CUDA complex wrapper types used in examples and tests. The default tolerance
-/// is `1.0e-5`.
+/// The compared values must expose `re` and `im` numeric fields.
+/// This keeps the helper independent of any particular complex-number crate while covering the CUDA complex wrapper types used in examples and tests.
+/// The default tolerance is `1.0e-5`.
 #[macro_export]
 macro_rules! assert_complex_close {
     ($actual:expr, $expected:expr $(,)?) => {

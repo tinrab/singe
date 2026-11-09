@@ -1,5 +1,4 @@
-//! Integer instruction semantics, computed at the declared operand width so that Rust's
-//! overflow and shift rules never apply.
+//! Integer instruction semantics, computed at the declared operand width so that Rust's overflow and shift rules never apply.
 
 use crate::{
     ast::{MulMode, ScalarType},
@@ -49,6 +48,7 @@ pub fn carryless(a: u64, b: u64, c: u64, half: Half) -> u128 {
             product ^= u128::from(b) << i;
         }
     }
+
     let part = match half {
         Half::Low => product,
         Half::High => product >> 64,
@@ -60,6 +60,7 @@ pub fn find_set(mask: u32, base: u32, offset: i32) -> Result<u32, ExecutionError
     if base >= 32 {
         return Err(ExecutionError::Indeterminate("fns base exceeds 31".into()));
     }
+
     if offset == 0 {
         return Ok(if mask & (1 << base) != 0 {
             base
@@ -67,6 +68,7 @@ pub fn find_set(mask: u32, base: u32, offset: i32) -> Result<u32, ExecutionError
             u32::MAX
         });
     }
+
     let mut remaining = i64::from(offset).abs() - 1;
     let mut position = i64::from(base);
     while (0..32).contains(&position) {
@@ -74,8 +76,10 @@ pub fn find_set(mask: u32, base: u32, offset: i32) -> Result<u32, ExecutionError
             if remaining == 0 {
                 return Ok(u32::try_from(position).expect("selected bit position is in 0..32"));
             }
+
             remaining -= 1;
         }
+
         position += if offset > 0 { 1 } else { -1 };
     }
     Ok(u32::MAX)
@@ -288,7 +292,8 @@ pub fn permute(mode: Permute, a: u32, b: u32, control: u32) -> u32 {
     })
 }
 
-/// Returns the result type of `mul` or `mad` on `ty` in `mode`. `.wide` doubles the width.
+/// Returns the result type of `mul` or `mad` on `ty` in `mode`.
+/// `.wide` doubles the width.
 pub fn product_type(ty: ScalarType, mode: MulMode) -> ScalarType {
     if mode != MulMode::Wide {
         return ty;

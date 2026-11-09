@@ -48,6 +48,7 @@ impl Parameter {
         unsafe {
             try_ffi!(sys::ncclParamBind(&raw mut handle, key.as_ptr()))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -77,6 +78,7 @@ impl Parameter {
         unsafe {
             try_ffi!(sys::ncclParamGetStr(self.handle, &raw mut value))?;
         }
+
         if value.is_null() {
             return Err(Error::NullPointer);
         }
@@ -103,10 +105,12 @@ pub fn keys() -> Result<Vec<CString>> {
             &raw mut len
         ))?;
     }
+
     let len = to_usize(len, "parameter count")?;
     if len == 0 {
         return Ok(Vec::new());
     }
+
     if table.is_null() {
         return Err(Error::NullPointer);
     }

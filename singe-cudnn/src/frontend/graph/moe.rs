@@ -38,7 +38,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown operands or routing tensors, non-3D token or weight layouts, incompatible contracted dimensions, unsupported integer routing encodings or ranks, an invalid scatter top-k count, or an output-dimension mismatch. Inferred output strides must also fit the native layout representation.
+    /// Returns an error for unknown operands or routing tensors, non-3D token or weight layouts, incompatible contracted dimensions, unsupported integer routing encodings or ranks, an invalid scatter top-k count, or an output-dimension mismatch.
+    /// Inferred output strides must also fit the native layout representation.
     pub fn moe_grouped_matmul(
         &mut self,
         inputs: MoeGroupedMatmulInputs,
@@ -94,6 +95,7 @@ impl Graph {
             )?;
             self.validate_tensor_min_rank(token_index, 2, "moe grouped matmul token index rank")?;
         }
+
         let output_tokens = match routing {
             MoeGroupedMatmulRouting::Gather { token_index } => {
                 self.tensor_spec(token_index)?.shape.dimensions()[1]
@@ -143,7 +145,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensors, invalid activation, gradient, or offset ranks, unsupported offset encoding, mismatched token counts, a nonpositive expert count, or a weight-gradient shape mismatch. Inferred column-major gradient strides must also be representable.
+    /// Returns an error for unknown tensors, invalid activation, gradient, or offset ranks, unsupported offset encoding, mismatched token counts, a nonpositive expert count, or a weight-gradient shape mismatch.
+    /// Inferred column-major gradient strides must also be representable.
     pub fn moe_grouped_matmul_backward(
         &mut self,
         inputs: MoeGroupedMatmulBackwardInputs,

@@ -76,9 +76,8 @@ pub unsafe fn integral_i32_with_scratch(
 /// Native dispatch for the corresponding named NPP operation.
 ///
 /// # Safety
-/// Implementations must match the native ABI, access roles, written ranges,
-/// and status semantics. Successful completed execution must initialize its
-/// documented outputs; metadata queries must return the required capacity.
+/// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+/// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
 pub unsafe trait Integral: DataTypeLike {
     /// Returns the scratch capacity, in bytes, for a cumulative sum with one extra output element.
     ///

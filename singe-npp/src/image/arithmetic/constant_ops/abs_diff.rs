@@ -13,26 +13,22 @@ use crate::{
 
 macro_rules! impl_absolute_difference_constant {
     ($name:ident, $ty:ty, $ffi:ident) => {
-        /// Writes the absolute difference between each `source` pixel and the
-        /// scalar `constant` to `destination`.
-        ///
+        /// Writes the absolute difference between each `source` pixel and the scalar `constant` to `destination`.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -64,28 +60,23 @@ macro_rules! impl_absolute_difference_constant {
 
 macro_rules! impl_absolute_difference_device_constant {
     ($name:ident, $ty:ty, $ffi:ident) => {
-        /// Writes the absolute difference between each `source` pixel and the
-        /// first value in the device `constant` buffer to `destination`.
-        ///
+        /// Writes the absolute difference between each `source` pixel and the first value in the device `constant` buffer to `destination`.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, an image or the constant buffer belongs
-        /// to another CUDA context, or the constant buffer contains no element.
+        /// Returns an error if CUDA context binding fails, an image or the constant buffer belongs to another CUDA context, or the constant buffer contains no element.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
         /// The device constant must also be ready and remain read-only through completion.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images, device constants, and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images, device constants, and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,

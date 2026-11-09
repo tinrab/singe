@@ -165,6 +165,7 @@ impl Graph {
         if let Some(value) = constant {
             return Ok(self.tensor(sdpa_scalar_tensor(compute_type, value.recip())?));
         }
+
         let one = self.tensor(sdpa_scalar_tensor(compute_type, 1.0)?);
         self.sdpa_binary(
             PointwiseMode::Div,

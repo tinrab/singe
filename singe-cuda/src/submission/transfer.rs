@@ -68,7 +68,8 @@ impl<T: DeviceRepr> DeviceValue<T> {
     ///
     /// # Errors
     ///
-    /// Propagates errors from synchronizing the declared region, including producer readiness, conflicting tracked work, context validation, or failed access tracking. No initialized memory wrapper is returned on failure.
+    /// Propagates errors from synchronizing the declared region, including producer readiness, conflicting tracked work, context validation, or failed access tracking.
+    /// No initialized memory wrapper is returned on failure.
     pub fn complete(self) -> Result<DeviceMemory<T>> {
         self.region().synchronize()?;
         // SAFETY: construction establishes full value validity; synchronization establishes completion.
@@ -79,7 +80,8 @@ impl<T: DeviceRepr> DeviceValue<T> {
     ///
     /// # Errors
     ///
-    /// Propagates errors from allocating pinned host staging through [`Readback::create`]. No transfer is submitted by this method.
+    /// Propagates errors from allocating pinned host staging through [`Readback::create`].
+    /// No transfer is submitted by this method.
     pub fn readback(self) -> Result<Readback<T>>
     where
         T: AnyBitPatternDeviceRepr,
@@ -170,7 +172,8 @@ pub struct Readback<T: AnyBitPatternDeviceRepr> {
 impl<T: AnyBitPatternDeviceRepr> Readback<T> {
     /// Retains `source` and allocates pinned host staging for a deferred device-to-host transfer.
     ///
-    /// Submission orders the transfer after the source's producer. Host values become available only after successful completion and resolution.
+    /// Submission orders the transfer after the source's producer.
+    /// Host values become available only after successful completion and resolution.
     ///
     /// # Errors
     ///

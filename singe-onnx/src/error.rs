@@ -9,13 +9,13 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum Error {
     /// Failed to read ONNX data from an input stream or file.
-    #[error("io error: {0}")]
+    #[error(transparent)]
     Io(#[from] io::Error),
     /// Failed to decode ONNX protobuf bytes.
-    #[error("protobuf decode error: {0}")]
+    #[error(transparent)]
     Decode(#[from] DecodeError),
     /// Failed to convert decoded protobuf into Singe's typed ONNX model.
-    #[error("format error: {0}")]
+    #[error(transparent)]
     Format(#[from] RequestError),
 }
 

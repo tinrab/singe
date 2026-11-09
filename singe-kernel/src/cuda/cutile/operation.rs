@@ -53,6 +53,7 @@ impl<O: DeviceOp, T> TileOperation<O, T> {
         if stream.context().as_ref() != context {
             return Err(CudaError::StreamContextMismatch);
         }
+
         let foreign = stream.to_cuda_core()?;
         // SAFETY: the caller upholds this function's safety contract.
         unsafe { operation.async_on(&foreign) }

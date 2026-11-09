@@ -47,6 +47,7 @@ pub fn validate_filter_kernel_any<T>(kernel: &[T], anchor: i32) -> Result<()> {
     if mask_size <= 0 {
         return Err(Error::out_of_range("kernel length"));
     }
+
     if (0..mask_size).contains(&anchor) {
         return Ok(());
     }
@@ -66,6 +67,7 @@ pub fn validate_filter_axis_mask(mask_size: i32, anchor: i32) -> Result<()> {
     if mask_size <= 0 {
         return Err(Error::out_of_range("mask size"));
     }
+
     if (0..mask_size).contains(&anchor) {
         return Ok(());
     }
@@ -99,15 +101,19 @@ pub fn validate_bilateral_gauss_parameters(
     if !(1..=32).contains(&radius) {
         return Err(Error::out_of_range("radius"));
     }
+
     if step_between_source_pixels <= 0 {
         return Err(Error::out_of_range("step between source pixels"));
     }
+
     if value_square_sigma.partial_cmp(&0.0) != Some(Ordering::Greater) {
         return Err(Error::out_of_range("value square sigma"));
     }
+
     if position_square_sigma.partial_cmp(&0.0) != Some(Ordering::Greater) {
         return Err(Error::out_of_range("position square sigma"));
     }
+
     if border_type != BorderType::Replicate {
         return Err(Error::out_of_range("border type"));
     }
@@ -119,6 +125,7 @@ pub fn validate_unsharp_parameters(radius: f32, sigma: f32) -> Result<()> {
     if radius.partial_cmp(&0.0) != Some(Ordering::Greater) {
         return Err(Error::out_of_range("radius"));
     }
+
     if sigma.partial_cmp(&0.0) != Some(Ordering::Greater) {
         return Err(Error::out_of_range("sigma"));
     }
@@ -138,6 +145,7 @@ pub fn validate_source_offset(source: Size, source_offset: Point) -> Result<()> 
     if source_offset.x < 0 || source_offset.y < 0 {
         return Err(Error::out_of_range("source offset"));
     }
+
     if source_offset.x >= source.width || source_offset.y >= source.height {
         return Err(Error::out_of_range("source offset"));
     }
@@ -158,6 +166,7 @@ pub fn validate_filter_mask(mask_size: Size, anchor: Point) -> Result<()> {
     if mask_size.width <= 0 || mask_size.height <= 0 {
         return Err(Error::out_of_range("mask size"));
     }
+
     if anchor.x < 0 || anchor.y < 0 || anchor.x >= mask_size.width || anchor.y >= mask_size.height {
         return Err(Error::out_of_range("anchor"));
     }
@@ -210,6 +219,7 @@ pub fn validate_canny_thresholds(low_threshold: i16, high_threshold: i16) -> Res
     if low_threshold < 0 || high_threshold < 0 {
         return Err(Error::out_of_range("threshold"));
     }
+
     if low_threshold <= high_threshold {
         return Ok(());
     }
@@ -231,12 +241,14 @@ pub fn validate_harris_corners_border_parameters(
             return Err(Error::out_of_range("mask size"));
         }
     }
+
     match average_window_size {
         MaskSize::Mask3x3 | MaskSize::Mask5x5 => {}
         _ => {
             return Err(Error::out_of_range("average window size"));
         }
     }
+
     if border_type == BorderType::Replicate {
         return Ok(());
     }
@@ -247,9 +259,11 @@ pub fn validate_hough_line_parameters(delta: PointPolar, max_line_count: i32) ->
     if !(delta.rho > 0.0 && delta.rho < 3.0) {
         return Err(Error::out_of_range("delta rho"));
     }
+
     if !(delta.theta > 0.25 && delta.theta < 3.0) {
         return Err(Error::out_of_range("delta theta"));
     }
+
     if max_line_count > 0 {
         return Ok(());
     }
@@ -269,6 +283,7 @@ pub fn validate_hough_line_io(
     {
         return Err(Error::StreamContextMismatch);
     }
+
     let max_line_count =
         i32::try_from(lines.len()).map_err(|_| Error::out_of_range("max line count"))?;
     validate_positive_size(roi)?;
@@ -276,6 +291,7 @@ pub fn validate_hough_line_io(
     if threshold <= 0 {
         return Err(Error::out_of_range("threshold"));
     }
+
     if line_count.len() == 1 {
         return Ok(());
     }
@@ -476,6 +492,7 @@ pub fn validate_u32_list_output(
             actual: output_dev.len(),
         });
     }
+
     if output_host.len() < expected {
         return Err(Error::LengthMismatch {
             name: name.to_owned().into(),
@@ -537,6 +554,7 @@ pub fn validate_geometry_list_buffers(
             actual: output_dev.len().min(output_host.len()),
         });
     }
+
     if output_dev.len() == output_host.len() {
         return Ok(());
     }
@@ -728,6 +746,7 @@ pub fn compress_marker_labels_uf_batch_advanced_buffers(
         largest_per_image_bytes = largest_per_image_bytes.max(per_image_bytes);
         buffer_sizes.push(per_image_bytes);
     }
+
     let (buffers, descriptors) = create_buffer_descriptors(allocation_context, buffer_sizes)?;
 
     Ok((largest_per_image_bytes, buffers, descriptors))

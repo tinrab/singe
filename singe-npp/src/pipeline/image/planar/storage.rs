@@ -18,6 +18,7 @@ impl<T> SubsampledPlanarImage<T> {
                 .stream()
                 .defer_drop_until_capture_end(Arc::clone(image.allocation()))?;
         }
+
         stream_context.stream().ensure_not_capturing()?;
         for image in [&self.y, &self.cb, &self.cr] {
             stream_context.prepare_region(image)?;

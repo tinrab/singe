@@ -13,13 +13,10 @@ impl Communicator {
     /// Creates a reduction operator that pre-multiplies input values by `scalar` before reducing them with peer values via summation.
     /// Both the input values and `scalar` use the data type `T`.
     /// Use the returned operator only with collectives launched on this communicator and with the same `T`.
-    /// `residence` indicates whether `scalar` is dereferenced immediately by the
-    /// host before this method returns ([`ScalarResidence::HostImmediate`]) or
-    /// later by the device during collective execution ([`ScalarResidence::Device`]).
+    /// `residence` indicates whether `scalar` is dereferenced immediately by the host before this method returns ([`ScalarResidence::HostImmediate`]) or later by the device during collective execution ([`ScalarResidence::Device`]).
     /// # Safety
-    /// The pointer must match the residence and remain readable for every native
-    /// use. Device scalars must belong to this context and outlive all queued
-    /// collectives and graph replay that use the returned operator.
+    /// The pointer must match the residence and remain readable for every native use.
+    /// Device scalars must belong to this context and outlive all queued collectives and graph replay that use the returned operator.
     ///
     /// # Errors
     ///
@@ -67,8 +64,7 @@ impl Communicator {
     }
 
     /// # Safety
-    /// Retain the scalar allocation and order its reads through completion of
-    /// every collective and graph replay using this operator.
+    /// Retain the scalar allocation and order its reads through completion of every collective and graph replay using this operator.
     ///
     /// # Errors
     ///
@@ -83,6 +79,7 @@ impl Communicator {
                 name: "custom reduction scalar buffer".into(),
             });
         }
+
         self.ensure_buffer_context(scalar.context())?;
         // SAFETY: the caller retains the initialized device scalar through all uses.
         unsafe {
@@ -91,9 +88,4 @@ impl Communicator {
     }
 }
 
-// NCCL dynamic operator values are outside the generated Rust enum's variants.
-// Preserve the native C enum ABI as an integer when passing a dynamic handle.
-unsafe extern "C" {
-    #[link_name = "ncclRedOpDestroy"]
-    pub(crate) fn destroy_dynamic_operator(op: i32, comm: sys::ncclComm_t) -> sys::ncclResult_t;
-}
+pub use sys::dynamic::ncclRedOpDestroy as destroy_dynamic_operator;

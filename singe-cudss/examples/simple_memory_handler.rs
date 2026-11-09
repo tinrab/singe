@@ -90,6 +90,7 @@ fn main() -> Result<()> {
     unsafe {
         context.clear_device_memory_handler()?;
     }
+
     cuda.synchronize()?;
 
     drop(x);

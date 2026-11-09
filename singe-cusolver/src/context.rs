@@ -16,8 +16,8 @@ use crate::{
 
 /// A stateful cuSOLVER handle.
 ///
-/// Use one context per host thread or concurrent task. The handle is movable
-/// between threads, but it is intentionally not `Clone` or `Sync`.
+/// Use one context per host thread or concurrent task.
+/// The handle is movable between threads, but it is intentionally not `Clone` or `Sync`.
 #[derive(Debug)]
 pub struct Context {
     handle: Handle,
@@ -77,7 +77,8 @@ pub struct RawContext {
     pub handle: sys::cusolverDnHandle_t,
     /// Actual CUDA context required for native use and destruction.
     pub cuda_context: Arc<CudaContext>,
-    /// Retained installed stream, if one was selected through this wrapper. External stream ownership remains a caller obligation.
+    /// Retained installed stream, if one was selected through this wrapper.
+    /// External stream ownership remains a caller obligation.
     pub stream: Option<Stream>,
 }
 
@@ -88,14 +89,12 @@ impl Context {
     /// Creates a cuSOLVER dense handle for the given CUDA context.
     /// Call this before invoking other cuSOLVER operations through this wrapper.
     ///
-    /// cuSOLVER allocates the GPU-side resources it needs here. On the first
-    /// application-defined stream passed to [`Context::set_stream`], cuSOLVER may also
-    /// allocate an internal workspace.
+    /// cuSOLVER allocates the GPU-side resources it needs here.
+    /// On the first application-defined stream passed to [`Context::set_stream`], cuSOLVER may also allocate an internal workspace.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, if cuSOLVER cannot
-    /// create a handle, or if cuSOLVER returns a null handle.
+    /// Returns an error if the CUDA context cannot be bound, if cuSOLVER cannot create a handle, or if cuSOLVER returns a null handle.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
         cuda_context.bind()?;
 
@@ -122,11 +121,9 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuSOLVER dense handle associated with
-    /// `cuda_context`. Ownership of `handle` is transferred to the returned
-    /// context, and the handle must not be destroyed elsewhere after calling
-    /// this function. Retain any externally bound stream until the handle is
-    /// destroyed or a replacement stream is installed through [`Self::set_stream`].
+    /// `handle` must be a valid cuSOLVER dense handle associated with `cuda_context`.
+    /// Ownership of `handle` is transferred to the returned context, and the handle must not be destroyed elsewhere after calling this function.
+    /// Retain any externally bound stream until the handle is destroyed or a replacement stream is installed through [`Self::set_stream`].
     ///
     /// # Errors
     ///
@@ -139,12 +136,14 @@ impl Context {
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         if stream
             .as_ref()
             .is_some_and(|stream| stream.context() != &cuda_context)
         {
             return Err(Error::StreamContextMismatch);
         }
+
         let mut context = Self {
             handle: Handle {
                 raw: handle,
@@ -188,8 +187,8 @@ impl Context {
     }
 
     /// Completes borrowed solver work on the installed stream on every path.
-    /// Capture is rejected before `f` runs. If CUDA cannot establish completion,
-    /// the process aborts before returning borrowed resources to their callers.
+    /// Capture is rejected before `f` runs.
+    /// If CUDA cannot establish completion, the process aborts before returning borrowed resources to their callers.
     ///
     /// # Errors
     ///
@@ -241,8 +240,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// cannot report the current stream.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER cannot report the current stream.
     pub fn stream(&self) -> Result<StreamBinding> {
         self.bind()?;
 
@@ -273,8 +271,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to another CUDA context, if the CUDA
-    /// context cannot be bound, or if cuSOLVER rejects the stream.
+    /// Returns an error if `stream` belongs to another CUDA context, if the CUDA context cannot be bound, or if cuSOLVER rejects the stream.
     pub fn set_stream(&mut self, stream: Option<&Stream>) -> Result<()> {
         if let Some(stream) = stream {
             self.ensure_stream(stream)?;
@@ -289,6 +286,7 @@ impl Context {
                 stream.map_or_else(ptr::null_mut, Stream::as_raw),
             ))?;
         }
+
         self.handle.stream = stream.cloned();
         Ok(())
     }
@@ -297,8 +295,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// cannot report the deterministic mode.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER cannot report the deterministic mode.
     pub fn deterministic_mode(&self) -> Result<DeterministicMode> {
         self.bind()?;
 
@@ -315,13 +312,11 @@ impl Context {
 
     /// Sets the deterministic mode for operations executed through this handle.
     ///
-    /// Allowing non-deterministic results may improve performance for some
-    /// operations, including [`xgeqrf`](crate::dense::legacy::qr::xgeqrf), [`Gesvd`](crate::svd::Gesvd), [`Gesvdr`](crate::svd::Gesvdr), and [`Gesvdp`](crate::svd::Gesvdp).
+    /// Allowing non-deterministic results may improve performance for some operations, including [`xgeqrf`](crate::dense::legacy::qr::xgeqrf), [`Gesvd`](crate::svd::Gesvd), [`Gesvdr`](crate::svd::Gesvdr), and [`Gesvdp`](crate::svd::Gesvdp).
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// rejects the deterministic mode.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER rejects the deterministic mode.
     pub fn set_deterministic_mode(&self, mode: DeterministicMode) -> Result<()> {
         self.bind()?;
         // SAFETY: `cusolverDnSetDeterministicMode` receives live handles owned by the wrappers.
@@ -340,8 +335,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// cannot report the math mode.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER cannot report the math mode.
     pub fn math_mode(&self) -> Result<MathMode> {
         self.bind()?;
 
@@ -359,8 +353,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// rejects the math mode.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER rejects the math mode.
     pub fn set_math_mode(&self, mode: MathMode) -> Result<()> {
         self.bind()?;
         // SAFETY: `cusolverDnSetMathMode` receives live handles owned by the wrappers.
@@ -372,13 +365,11 @@ impl Context {
 
     /// Returns the emulation strategy configured on this handle.
     ///
-    /// This only affects operations that use one of the emulated math modes
-    /// described by [`MathMode`].
+    /// This only affects operations that use one of the emulated math modes described by [`MathMode`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// cannot report the emulation strategy.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER cannot report the emulation strategy.
     pub fn emulation_strategy(&self) -> Result<EmulationStrategy> {
         self.bind()?;
 
@@ -395,13 +386,11 @@ impl Context {
 
     /// Sets the emulation strategy for operations executed through this handle.
     ///
-    /// This only affects operations that use one of the emulated math modes
-    /// described by [`MathMode`].
+    /// This only affects operations that use one of the emulated math modes described by [`MathMode`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER
-    /// rejects the emulation strategy.
+    /// Returns an error if the CUDA context cannot be bound or if cuSOLVER rejects the emulation strategy.
     pub fn set_emulation_strategy(&self, strategy: EmulationStrategy) -> Result<()> {
         self.bind()?;
         // SAFETY: `cusolverDnSetEmulationStrategy` receives live handles owned by the wrappers.
@@ -416,8 +405,7 @@ impl Context {
 
     /// Returns the raw cuSOLVER dense handle.
     ///
-    /// The returned handle is borrowed and remains valid only while this
-    /// context and its underlying CUDA context are alive.
+    /// The returned handle is borrowed and remains valid only while this context and its underlying CUDA context are alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cusolverDnHandle_t {
         self.handle.raw
@@ -438,6 +426,7 @@ impl Context {
         if raw.handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         if raw
             .stream
             .as_ref()
@@ -471,16 +460,21 @@ impl Drop for Handle {
         if self.raw.is_null() {
             return;
         }
+
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cusolver handle: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying cusolver handle: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cusolverDnDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver context: {error}");
+                eprintln!(
+                    "failed to destroy cusolver context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

@@ -108,6 +108,7 @@ impl<T: 'static> FrontendExecution<T> {
         if context.cuda_context() != stream.context() {
             return Err(CudaError::StreamContextMismatch);
         }
+
         let invocation = self
             .invocation
             .lock()

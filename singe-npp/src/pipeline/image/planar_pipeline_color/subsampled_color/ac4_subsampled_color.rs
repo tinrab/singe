@@ -14,14 +14,15 @@ impl ImagePipeline<'_, u8, AC4>
 where
     u8: SupportedImage<C1>,
 {
-    /// 4 channel packed BGR with alpha to 3 channel planar YUV420 color conversion. Input alpha is ignored.
+    /// 4 channel packed BGR with alpha to 3 channel planar YUV420 color conversion.
+    /// Input alpha is ignored.
     ///
     /// Uses [`bgr_to_yuv420_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_yuv420_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -42,11 +43,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`rgb_to_ycrcb420_u8_ac4_to_p3`](crate::image::raw::color::rgb_to_ycrcb420_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -67,11 +68,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycbcr420_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycbcr420_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -92,11 +93,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycrcb420_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycrcb420_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -117,11 +118,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycbcr420_709csc_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycbcr420_709csc_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -142,11 +143,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycbcr420_709hdtv_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycbcr420_709hdtv_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -167,11 +168,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycrcb420_709csc_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycrcb420_709csc_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 2. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 2. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -192,11 +193,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`rgb_to_ycbcr411_u8_ac4_to_p3`](crate::image::raw::color::rgb_to_ycbcr411_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 4 and height divided by 1. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -217,11 +218,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycbcr411_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycbcr411_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 4 and height divided by 1. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 4 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -242,11 +243,11 @@ where
     /// Each plane's byte stride is passed independently.
     ///
     /// Uses [`bgr_to_ycbcr422_u8_ac4_to_p3`](crate::image::raw::color::bgr_to_ycbcr422_u8_ac4_to_p3).
-    /// Allocates three owned planes: a full-resolution first plane and two chroma planes
-    /// with width divided by 2 and height divided by 1. Full-resolution dimensions
-    /// must be divisible by these factors. Input alpha is not used.
+    /// Allocates three owned planes: a full-resolution first plane and two chroma planes with width divided by 2 and height divided by 1. Full-resolution dimensions must be divisible by these factors.
+    /// Input alpha is not used.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

@@ -718,6 +718,7 @@ fn create_twiddle_tables(
         real.push(angle.cos());
         imag.push(angle.sin());
     }
+
     let real = DeviceMemory::from_slice(context, &real)?;
     let imag = DeviceMemory::from_slice(context, &imag)?;
     Ok((real, imag))
@@ -729,9 +730,8 @@ fn create_twiddle_tables(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 pub unsafe fn copy_c2c_f32_interleaved(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -761,9 +761,8 @@ pub unsafe fn copy_c2c_f32_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_c2c_f32_interleaved(
     stream: &Stream,
@@ -802,9 +801,8 @@ pub unsafe fn fft_c2c_f32_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_c2c_f16_interleaved(
     stream: &Stream,
@@ -847,9 +845,8 @@ pub unsafe fn fft_c2c_f16_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_c2c_bf16_interleaved(
     stream: &Stream,
@@ -892,9 +889,8 @@ pub unsafe fn fft_c2c_bf16_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_f32_interleaved(
     stream: &Stream,
@@ -912,9 +908,8 @@ pub unsafe fn fft_f32_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_f32_interleaved_with_workspace<W>(
     stream: &Stream,
@@ -966,9 +961,8 @@ unsafe fn fft_f32_interleaved_inner(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_r2c_f32_interleaved(
     stream: &Stream,
@@ -986,9 +980,8 @@ pub unsafe fn fft_r2c_f32_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn fft_r2c_f32_interleaved_with_workspace<W>(
     stream: &Stream,
@@ -1039,9 +1032,8 @@ unsafe fn fft_r2c_f32_interleaved_inner(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn ifft_c2r_f32_interleaved(
     stream: &Stream,
@@ -1059,9 +1051,8 @@ pub unsafe fn ifft_c2r_f32_interleaved(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 /// Only logical output elements are initialized; padding and trailing capacity are excluded.
 pub unsafe fn ifft_c2r_f32_interleaved_with_workspace<W>(
     stream: &Stream,
@@ -1113,9 +1104,8 @@ unsafe fn ifft_c2r_f32_interleaved_inner(
 /// # Safety
 ///
 /// Inputs and read-write data must be valid when read in the stream's context.
-/// Order preceding producers before use. Retain all buffers and plan tables,
-/// and exclusive writable access,
-/// until completion on every path and throughout captured graph replay.
+/// Order preceding producers before use.
+/// Retain all buffers and plan tables, and exclusive writable access, until completion on every path and throughout captured graph replay.
 pub unsafe fn normalize_c2r_f32_interleaved(
     stream: &Stream,
     data: &mut impl DeviceSliceMut<f32>,
@@ -1145,9 +1135,8 @@ pub unsafe fn normalize_c2r_f32_interleaved(
 ///
 /// # Safety
 ///
-/// Data must be initialized and belong to the stream's context. Retain the
-/// buffer and exclusive access until completion on every path and throughout
-/// captured graph replay.
+/// Data must be initialized and belong to the stream's context.
+/// Retain the buffer and exclusive access until completion on every path and throughout captured graph replay.
 pub unsafe fn scale_real_f32(
     stream: &Stream,
     data: &mut impl DeviceSliceMut<f32>,
@@ -1166,9 +1155,8 @@ pub unsafe fn scale_real_f32(
 ///
 /// # Safety
 ///
-/// Data must be initialized and belong to the stream's context. Retain the
-/// buffer and exclusive access until completion on every path and throughout
-/// captured graph replay.
+/// Data must be initialized and belong to the stream's context.
+/// Retain the buffer and exclusive access until completion on every path and throughout captured graph replay.
 pub unsafe fn scale_c2c_f32_interleaved(
     stream: &Stream,
     data: &mut impl DeviceSliceMut<f32>,

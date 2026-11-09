@@ -39,8 +39,7 @@ impl LaunchCompletionEvent {
 }
 
 /// A single vendor-specific option expressed as a key-value pair.
-/// The official NCCL library ignores every extension; a vendor library
-/// should assign a unique value to `vendor_id` to avoid collision among vendor libraries.
+/// The official NCCL library ignores every extension; a vendor library should assign a unique value to `vendor_id` to avoid collision among vendor libraries.
 #[derive(Debug, Clone, Copy)]
 pub struct Extension<'a> {
     vendor_id: i32,
@@ -79,8 +78,7 @@ impl<'a> Extension<'a> {
     /// Opaque pointer-sized value.
     ///
     /// # Safety
-    /// The pointer must satisfy the vendor option's validity and lifetime requirements
-    /// for every collective call that uses this extension.
+    /// The pointer must satisfy the vendor option's validity and lifetime requirements for every collective call that uses this extension.
     pub unsafe fn raw(vendor_id: i32, option_id: i32, value: *mut ffi::c_void) -> Self {
         Self {
             vendor_id,
@@ -90,8 +88,8 @@ impl<'a> Extension<'a> {
     }
 }
 
-/// Per-collective configuration. Users assign values to attributes to customize an
-/// individual collective call issued through one of the configured entry points.
+/// Per-collective configuration.
+/// Users assign values to attributes to customize an individual collective call issued through one of the configured entry points.
 /// The same configuration must be set on every rank; NCCL validates it only locally.
 #[derive(Debug, Clone)]
 pub struct CollectiveConfig<'a> {
@@ -101,8 +99,8 @@ pub struct CollectiveConfig<'a> {
     pub max_ctas: Option<i32>,
     /// NVLS-pool-specific channel cap.
     pub nvls_ctas: Option<i32>,
-    /// CUDA thread-block-cluster size (Hopper+), should be the same for all
-    /// collectives in the same group. Inconsistent sizes in a group are undefined behavior.
+    /// CUDA thread-block-cluster size (Hopper+), should be the same for all collectives in the same group.
+    /// Inconsistent sizes in a group are undefined behavior.
     pub cluster_size: Option<i32>,
     /// Selection string; `None` or an empty string means automatic.
     pub algorithm: Option<&'a CStr>,
@@ -111,11 +109,13 @@ pub struct CollectiveConfig<'a> {
     /// Inherit the communicator-level CTA policy when unset.
     pub cta_policy: Option<CtaPolicy>,
     /// An opaque value delivered verbatim to profiler plugins with this call's profiler events.
-    /// It does not affect execution. Applications should use values with the MSB clear.
+    /// It does not affect execution.
+    /// Applications should use values with the MSB clear.
     pub profiler_tag: u64,
     /// At most one non-null event per communicator is supported in a group.
     pub launch_completion_event: Option<&'a LaunchCompletionEvent>,
-    /// Vendor-specific extension options. The list is unordered and must not contain duplicate keys.
+    /// Vendor-specific extension options.
+    /// The list is unordered and must not contain duplicate keys.
     pub extensions: &'a [Extension<'a>],
 }
 
@@ -157,6 +157,7 @@ impl CollectiveConfig<'_> {
         {
             return Err(Error::out_of_range("collective configuration"));
         }
+
         let mut extensions = Vec::with_capacity(self.extensions.len());
         for (index, extension) in self.extensions.iter().enumerate() {
             if !(1..1 << 24).contains(&extension.vendor_id)
@@ -166,6 +167,7 @@ impl CollectiveConfig<'_> {
             {
                 return Err(Error::out_of_range("vendor extension key"));
             }
+
             extensions.push(sys::ncclConfigExt_t {
                 next: ptr::null_mut(),
                 key: sys::ncclConfigExt__bindgen_ty_1 {
@@ -179,13 +181,16 @@ impl CollectiveConfig<'_> {
                 },
             });
         }
+
         for index in 1..extensions.len() {
             extensions[index - 1].next = &raw mut extensions[index];
         }
+
         let event = if let Some(event) = self.launch_completion_event {
             if event.event().context() != communicator.cuda_context() {
                 return Err(Error::StreamContextMismatch);
             }
+
             let mut retained = communicator.handle.launch_events.borrow_mut();
             if !retained.iter().any(|old| Arc::ptr_eq(old, &event.0)) {
                 retained.push(Arc::clone(&event.0));

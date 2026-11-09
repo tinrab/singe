@@ -28,11 +28,13 @@ pub unsafe trait SignedDistanceTransformPbaToF32C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f32` values.
+    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses `f32` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -95,11 +97,13 @@ unsafe impl SignedDistanceTransformPbaToF32C1 for f32 {
     }
 }
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f32` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f32` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -155,11 +159,13 @@ pub unsafe trait SignedDistanceTransformAbsPbaToF32C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f32` values.
+    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses `f32` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -222,11 +228,13 @@ unsafe impl SignedDistanceTransformAbsPbaToF32C1 for f32 {
     }
 }
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f32` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f32` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -282,11 +290,13 @@ pub unsafe trait SignedDistanceTransformPbaToF64C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -317,12 +327,14 @@ pub unsafe trait SignedDistanceTransformPbaToF64C1: DataTypeLike {
         destination_transform: Option<&mut ImageOutputView<'_, f64, C1>>,
     ) -> Result<()>;
 
-    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
     /// Allocates additional antialiasing workspace and enables antialiasing for the double-precision transform.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -434,11 +446,13 @@ impl_signed_distance_transform_pba_to_f64!(
     signed_distance_transform_pba_f64_c1_antialiasing
 );
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -484,12 +498,14 @@ pub unsafe fn signed_distance_transform_pba_to_f64<T: SignedDistanceTransformPba
     }
 }
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Allocates additional antialiasing workspace and enables antialiasing for the double-precision transform.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -547,11 +563,13 @@ pub unsafe trait SignedDistanceTransformAbsPbaToF64C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -582,12 +600,14 @@ pub unsafe trait SignedDistanceTransformAbsPbaToF64C1: DataTypeLike {
         destination_transform: Option<&mut ImageOutputView<'_, f64, C1>>,
     ) -> Result<()>;
 
-    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
     /// Allocates additional antialiasing workspace and enables antialiasing for the double-precision transform.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -699,11 +719,13 @@ impl_signed_distance_transform_abs_pba_to_f64!(
     signed_distance_transform_abs_pba_f64_c1_antialiasing
 );
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -749,12 +771,14 @@ pub unsafe fn signed_distance_transform_abs_pba_to_f64<T: SignedDistanceTransfor
     }
 }
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Allocates additional antialiasing workspace and enables antialiasing for the double-precision transform.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -822,7 +846,8 @@ where
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -913,7 +938,8 @@ impl_signed_distance_transform_pba_c1!(
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -963,12 +989,14 @@ where
     }
 }
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Allocates additional antialiasing workspace and enables antialiasing for the double-precision transform.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -1037,7 +1065,8 @@ where
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-    /// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+    /// `cutoff_value` classifies source pixels.
+    /// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -1128,7 +1157,8 @@ impl_signed_distance_transform_abs_pba_c1!(
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -1178,12 +1208,14 @@ where
     }
 }
 
-/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+/// Computes a signed PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
 /// Allocates additional antialiasing workspace and enables antialiasing for the double-precision transform.
-/// `cutoff_value` classifies source pixels. The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
+/// `cutoff_value` classifies source pixels.
+/// The horizontal and vertical offsets shift the final transform by the supplied subpixel fractions.
 /// Row padding remains unwritten.
 ///
 /// # Errors

@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/singe-cublas/badge.svg)](https://docs.rs/singe-cublas)
 ![License](https://img.shields.io/crates/l/singe-cublas.svg)
 
-Rust wrappers for NVIDIA cuBLAS dense linear algebra on the GPU: the classic BLAS API, cuBLASLt for configurable matrix multiplication, and cuBLASXt for BLAS3 across several GPUs.
+Safe Rust wrappers for NVIDIA cuBLAS dense linear algebra on the GPU: the classic BLAS API, cuBLASLt for configurable matrix multiplication, and cuBLASXt for BLAS3 across several GPUs.
 The low-level asynchronous functions are public too.
 When you call them, you must keep every buffer alive until the stream has used it.
 

@@ -16,7 +16,7 @@ use crate::{
     cuda::{
         autotune::KernelCompileConfig,
         cutile::{
-            DeviceOpExt, TileKernel, adapter::TensorAdapter, kernel::common as kernel_common,
+            DeviceOpExt, TileKernel, adapter::TensorAdapter, kernel::vector as vector_kernels,
             utility::checked_device_pointer,
         },
     },
@@ -39,6 +39,7 @@ impl BlockArgmax {
         if len == 0 {
             return Err(Error::InvalidLength);
         }
+
         let blocks = len.div_ceil(BLOCK_ARGMAX_TILE_WIDTH);
         Ok(Self {
             len: checked_i32_value(len)?,
@@ -107,9 +108,11 @@ fn reduction_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -590,12 +593,12 @@ macro_rules! integer_reduction_fns {
         $max_kernel:ident,
         $min_kernel:ident
     ) => {
-        integer_reduction_fn!($sum, $ty, kernel_common::$sum_kernel);
-        integer_reduction_tuned_fn!($sum_tuned, $ty, kernel_common::$sum_kernel);
-        integer_reduction_fn!($max, $ty, kernel_common::$max_kernel);
-        integer_reduction_tuned_fn!($max_tuned, $ty, kernel_common::$max_kernel);
-        integer_reduction_fn!($min, $ty, kernel_common::$min_kernel);
-        integer_reduction_tuned_fn!($min_tuned, $ty, kernel_common::$min_kernel);
+        integer_reduction_fn!($sum, $ty, vector_kernels::$sum_kernel);
+        integer_reduction_tuned_fn!($sum_tuned, $ty, vector_kernels::$sum_kernel);
+        integer_reduction_fn!($max, $ty, vector_kernels::$max_kernel);
+        integer_reduction_tuned_fn!($max_tuned, $ty, vector_kernels::$max_kernel);
+        integer_reduction_fn!($min, $ty, vector_kernels::$min_kernel);
+        integer_reduction_tuned_fn!($min_tuned, $ty, vector_kernels::$min_kernel);
     };
 }
 
@@ -1534,7 +1537,7 @@ macro_rules! integer_arg_reduction_fns {
         arg_reduction_fn!(
             $argmax,
             $ty,
-            kernel_common,
+            vector_kernels,
             [
                 $argmax_kernel,
                 $argmax_kernel,
@@ -1548,7 +1551,7 @@ macro_rules! integer_arg_reduction_fns {
         arg_reduction_tuned_fn!(
             $argmax_tuned,
             $ty,
-            kernel_common,
+            vector_kernels,
             [
                 $argmax_kernel,
                 $argmax_kernel,
@@ -1562,7 +1565,7 @@ macro_rules! integer_arg_reduction_fns {
         arg_reduction_fn!(
             $argmin,
             $ty,
-            kernel_common,
+            vector_kernels,
             [
                 $argmin_kernel,
                 $argmin_kernel,
@@ -1576,7 +1579,7 @@ macro_rules! integer_arg_reduction_fns {
         arg_reduction_tuned_fn!(
             $argmin_tuned,
             $ty,
-            kernel_common,
+            vector_kernels,
             [
                 $argmin_kernel,
                 $argmin_kernel,
@@ -1853,7 +1856,7 @@ macro_rules! block_argmax_fn {
             checked_device_pointer(&block_idx)?;
             checked_device_pointer(&input)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(block_max, block_idx, input, params.len) }
+            unsafe { vector_kernels::$kernel_fn(block_max, block_idx, input, params.len) }
                 .grid(params.grid)
                 .enqueue_on(stream)?;
             Ok(params.blocks)
@@ -1897,7 +1900,7 @@ macro_rules! reduce_block_argmax_fn {
             checked_device_pointer(&block_idx)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$kernel_fn(out, block_max, block_idx, params.blocks)
+                vector_kernels::$kernel_fn(out, block_max, block_idx, params.blocks)
                     .grid(params.grid)
                     .enqueue_on(stream)
             }?;

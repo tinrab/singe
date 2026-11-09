@@ -4,14 +4,12 @@
 
 #![allow(
     deprecated,
-    warnings,
     dead_code,
     non_camel_case_types,
     non_snake_case,
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -72,6 +70,40 @@ pub use self::{
     cublasSetPointerMode_v2 as cublasSetPointerMode, cublasSetStream_v2 as cublasSetStream,
     cublasSetWorkspace_v2 as cublasSetWorkspace,
 };
+
+pub use singe_loader::LoadError;
+
+// cuBLAS accepts bitwise combinations of `cublasMath_t`, including values absent from bindgen's Rust enum.
+// This declaration passes the enum's 32-bit integer ABI, so no invalid Rust enum value is constructed, and the generated one stays intact.
+#[cfg(feature = "cublas_13_8")]
+pub mod flags {
+    use super::{cublasHandle_t, cublasStatus_t};
+
+    singe_loader::functions! { crate::LIBRARY;
+        pub fn cublasSetMathMode(handle: cublasHandle_t, mode: u32) -> cublasStatus_t;
+    }
+}
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::cublas();
+
+// Loads cuBLAS, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+static LT: singe_loader::Library = singe_loader::Library::cublas_lt();
+
+// Loads cuBLASLt, which each of its functions otherwise does on first call.
+pub fn load_lt() -> Result<(), LoadError> {
+    LT.load()
+}
+
+#[cfg(feature = "cublas_13_8")]
+singe_loader::missing_status!(
+    cublasStatus_t,
+    library: cublasStatus_t::CUBLAS_STATUS_NOT_INITIALIZED,
+    symbol: cublasStatus_t::CUBLAS_STATUS_NOT_SUPPORTED,
+);
 
 #[cfg(test)]
 mod tests {

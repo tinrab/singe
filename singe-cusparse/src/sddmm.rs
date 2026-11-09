@@ -16,8 +16,7 @@ use crate::{
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -65,8 +64,7 @@ pub unsafe fn sddmm_buffer_size<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -117,8 +115,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 }
 
 /// Multiplies `matrix_a` and `matrix_b`, then applies the sparsity pattern of `matrix_c`.
-/// Formally, it computes $C = \alpha (op(A) op(B)) \circ spy(C) + \beta C$,
-/// where:
+/// Formally, it computes $C = \alpha (op(A) op(B)) \circ spy(C) + \beta C$, where:
 ///
 /// * `op(A)` is a dense matrix of size $m \times k$.
 /// * `op(B)` is a dense matrix of size $k \times n$.
@@ -133,8 +130,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 ///
 /// Calling [`sddmm_preprocess`] is optional.
 /// It may accelerate subsequent calls to [`sddmm`].
-/// Useful when [`sddmm`] is called multiple times with the same sparsity
-/// pattern (`matrix_c`).
+/// Useful when [`sddmm`] is called multiple times with the same sparsity pattern (`matrix_c`).
 ///
 /// Calling [`sddmm_preprocess`] with `buffer` makes that buffer active for `matrix_c` SDDMM calls.
 /// Subsequent calls to [`sddmm`] with `matrix_c` and the active buffer must use the same values for all parameters as the call to [`sddmm_preprocess`].
@@ -142,8 +138,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 /// Importantly, the buffer contents must be unmodified since the call to [`sddmm_preprocess`].
 /// When [`sddmm`] is called with `matrix_c` and its active buffer, it may read acceleration data from the buffer.
 ///
-/// Calling [`sddmm_preprocess`] again with `matrix_c` and a new buffer makes the
-/// new buffer active and makes the previously active buffer inactive.
+/// Calling [`sddmm_preprocess`] again with `matrix_c` and a new buffer makes the new buffer active and makes the previously active buffer inactive.
 /// For [`sddmm`], there can only be one active buffer per sparse matrix at a time.
 /// To get the effect of multiple active buffers for a single sparse matrix, create multiple matrix handles that all point to the same index and value buffers, and call [`sddmm_preprocess`] once per handle with different workspace buffers.
 ///
@@ -244,8 +239,7 @@ pub unsafe fn sddmm_preprocess<Compute: DataTypeLike>(
 /// * Hardware Memory Compression.
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///

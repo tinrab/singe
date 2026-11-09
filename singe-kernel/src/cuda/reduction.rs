@@ -217,6 +217,7 @@ fn validate_reduction<T: DeviceRepr>(
     if config.columns == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.columns > 1024 {
         return Err(Error::UnsupportedWidth {
             op: "reduction".into(),
@@ -238,6 +239,7 @@ fn validate_arg_reduction<T: DeviceRepr>(
     if config.columns == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.columns > 1024 {
         return Err(Error::UnsupportedWidth {
             op: "arg reduction".into(),
@@ -273,6 +275,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))

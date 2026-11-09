@@ -218,6 +218,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))

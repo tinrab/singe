@@ -74,6 +74,7 @@ impl MoeAlignBlockSizeConfig {
         if self.element_count == 0 || self.expert_count == 0 {
             return Err(Error::InvalidLength);
         }
+
         let padding = self.block_size.checked_sub(1).ok_or(Error::InvalidLength)?;
         let length = self
             .element_count
@@ -282,17 +283,14 @@ impl FusedMoeConfig {
 }
 
 /// Groups top-k assignments by expert, with block padding and sentinel token IDs.
-/// Produces the full `max_num_tokens_padded()` sorted prefix, `expert_count + 1`
-/// cumulative offsets, and one element in each scalar destination.
-/// Only `num_tokens_post_pad[0] / block_size` expert IDs are produced; unused
-/// expert capacity and every destination tail remain untouched.
+/// Produces the full `max_num_tokens_padded()` sorted prefix, `expert_count + 1` cumulative offsets, and one element in each scalar destination.
+/// Only `num_tokens_post_pad[0] / block_size` expert IDs are produced; unused expert capacity and every destination tail remain untouched.
 ///
 /// # Safety
 ///
-/// Top-k IDs must be valid expert indices when read. Order preceding producers
-/// before use and retain all buffers in the stream's context through completion
-/// on every path and throughout replay. Output ranges must be mutually disjoint,
-/// exclusive, and disjoint from the input.
+/// Top-k IDs must be valid expert indices when read.
+/// Order preceding producers before use and retain all buffers in the stream's context through completion on every path and throughout replay.
+/// Output ranges must be mutually disjoint, exclusive, and disjoint from the input.
 pub unsafe fn moe_align_block_size_i32(
     stream: &Stream,
     sorted_token_ids: &mut impl DeviceOutput<i32>,
@@ -348,18 +346,16 @@ pub unsafe fn moe_align_block_size_i32(
 }
 
 /// Writes routed expert products into the assignment rows selected by the token IDs.
-/// Only `columns` elements of each selected row are produced; row padding and
-/// unselected rows remain untouched. Complete logical output requires every
-/// assignment to occur once in the active routing prefix.
+/// Only `columns` elements of each selected row are produced; row padding and unselected rows remain untouched.
+/// Complete logical output requires every assignment to occur once in the active routing prefix.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read and their producers ordered before use.
-/// The padded count must be a block multiple within the sorted buffer. Active
-/// token IDs must be distinct and in `0..element_count`, or equal the padding
-/// sentinel `element_count`; active expert IDs must be in `0..experts`.
-/// Retain every allocation in the stream's context through completion on every
-/// path and throughout replay. The output must be exclusive and disjoint from inputs.
+/// The padded count must be a block multiple within the sorted buffer.
+/// Active token IDs must be distinct and in `0..element_count`, or equal the padding sentinel `element_count`; active expert IDs must be in `0..experts`.
+/// Retain every allocation in the stream's context through completion on every path and throughout replay.
+/// The output must be exclusive and disjoint from inputs.
 /// Routing weights are not read when `mul_routed_weight` is false and may be empty.
 pub unsafe fn fused_moe_f32(
     stream: &Stream,
@@ -410,18 +406,16 @@ pub unsafe fn fused_moe_f32(
 
 #[cfg(feature = "dtype_f16")]
 /// Writes routed expert products into the assignment rows selected by the token IDs.
-/// Only `columns` elements of each selected row are produced; row padding and
-/// unselected rows remain untouched. Complete logical output requires every
-/// assignment to occur once in the active routing prefix.
+/// Only `columns` elements of each selected row are produced; row padding and unselected rows remain untouched.
+/// Complete logical output requires every assignment to occur once in the active routing prefix.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read and their producers ordered before use.
-/// The padded count must be a block multiple within the sorted buffer. Active
-/// token IDs must be distinct and in `0..element_count`, or equal the padding
-/// sentinel `element_count`; active expert IDs must be in `0..experts`.
-/// Retain every allocation in the stream's context through completion on every
-/// path and throughout replay. The output must be exclusive and disjoint from inputs.
+/// The padded count must be a block multiple within the sorted buffer.
+/// Active token IDs must be distinct and in `0..element_count`, or equal the padding sentinel `element_count`; active expert IDs must be in `0..experts`.
+/// Retain every allocation in the stream's context through completion on every path and throughout replay.
+/// The output must be exclusive and disjoint from inputs.
 /// Routing weights are not read when `mul_routed_weight` is false and may be empty.
 pub unsafe fn fused_moe_f16(
     stream: &Stream,
@@ -472,18 +466,16 @@ pub unsafe fn fused_moe_f16(
 
 #[cfg(feature = "dtype_bf16")]
 /// Writes routed expert products into the assignment rows selected by the token IDs.
-/// Only `columns` elements of each selected row are produced; row padding and
-/// unselected rows remain untouched. Complete logical output requires every
-/// assignment to occur once in the active routing prefix.
+/// Only `columns` elements of each selected row are produced; row padding and unselected rows remain untouched.
+/// Complete logical output requires every assignment to occur once in the active routing prefix.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read and their producers ordered before use.
-/// The padded count must be a block multiple within the sorted buffer. Active
-/// token IDs must be distinct and in `0..element_count`, or equal the padding
-/// sentinel `element_count`; active expert IDs must be in `0..experts`.
-/// Retain every allocation in the stream's context through completion on every
-/// path and throughout replay. The output must be exclusive and disjoint from inputs.
+/// The padded count must be a block multiple within the sorted buffer.
+/// Active token IDs must be distinct and in `0..element_count`, or equal the padding sentinel `element_count`; active expert IDs must be in `0..experts`.
+/// Retain every allocation in the stream's context through completion on every path and throughout replay.
+/// The output must be exclusive and disjoint from inputs.
 /// Routing weights are not read when `mul_routed_weight` is false and may be empty.
 pub unsafe fn fused_moe_bf16(
     stream: &Stream,
@@ -534,18 +526,16 @@ pub unsafe fn fused_moe_bf16(
 
 #[cfg(feature = "dtype_f8")]
 /// Writes routed expert products into the assignment rows selected by the token IDs.
-/// Only `columns` elements of each selected row are produced; row padding and
-/// unselected rows remain untouched. Complete logical output requires every
-/// assignment to occur once in the active routing prefix.
+/// Only `columns` elements of each selected row are produced; row padding and unselected rows remain untouched.
+/// Complete logical output requires every assignment to occur once in the active routing prefix.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read and their producers ordered before use.
-/// The padded count must be a block multiple within the sorted buffer. Active
-/// token IDs must be distinct and in `0..element_count`, or equal the padding
-/// sentinel `element_count`; active expert IDs must be in `0..experts`.
-/// Retain every allocation in the stream's context through completion on every
-/// path and throughout replay. The output must be exclusive and disjoint from inputs.
+/// The padded count must be a block multiple within the sorted buffer.
+/// Active token IDs must be distinct and in `0..element_count`, or equal the padding sentinel `element_count`; active expert IDs must be in `0..experts`.
+/// Retain every allocation in the stream's context through completion on every path and throughout replay.
+/// The output must be exclusive and disjoint from inputs.
 /// Routing weights are not read when `mul_routed_weight` is false and may be empty.
 pub unsafe fn fused_moe_f8e4m3_block_scaled_f32(
     stream: &Stream,
@@ -606,6 +596,7 @@ fn validate_moe_align_block_size_config(config: MoeAlignBlockSizeConfig) -> Resu
     if config.element_count == 0 || config.expert_count == 0 || config.block_size == 0 {
         return Err(Error::InvalidLength);
     }
+
     config.max_num_tokens_padded()?;
     config.max_num_blocks()?;
     Ok(())
@@ -626,6 +617,7 @@ fn validate_fused_moe_config(config: FusedMoeConfig) -> Result<()> {
     {
         return Err(Error::InvalidLength);
     }
+
     let output_span = (config.element_count - 1)
         .checked_mul(config.output_row_stride)
         .and_then(|value| value.checked_add(config.columns))
@@ -663,6 +655,7 @@ fn validate_fused_moe_block_scaled_config(config: FusedMoeBlockScaledConfig) -> 
     if config.group_n == 0 || config.group_k == 0 {
         return Err(Error::InvalidLength);
     }
+
     config.k_groups()?;
     config.n_groups()?;
     Ok(())

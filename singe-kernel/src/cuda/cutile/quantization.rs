@@ -22,7 +22,7 @@ use crate::{
         cutile::{
             DeviceOpExt, TileKernel,
             adapter::TensorAdapter,
-            kernel::common as kernel_common,
+            kernel::vector as vector_kernels,
             utility::{VectorLaunch, checked_device_pointer, vector_tile_size},
         },
         quantization::Int4Packing,
@@ -36,9 +36,11 @@ fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -84,6 +86,7 @@ impl BlockDequant {
         if rows == 0 || columns == 0 || block_size == 0 {
             return Err(Error::InvalidLength);
         }
+
         let len = checked_element_count(rows, columns)?;
         let launch = VectorLaunch::create(len)?;
         Ok(Self {
@@ -121,6 +124,7 @@ impl BlockScaledFp8Matmul {
         if rows == 0 || columns == 0 || reduction == 0 || group_n == 0 || group_k == 0 {
             return Err(Error::InvalidLength);
         }
+
         let output_len = checked_element_count(rows, columns)?;
         let launch = VectorLaunch::create(output_len)?;
         Ok(Self {
@@ -182,6 +186,7 @@ impl RopeQuantizeFp8 {
         {
             return Err(Error::InvalidLength);
         }
+
         let len = checked_element_count(checked_element_count(tokens, heads)?, rope_dim)?;
         let launch = VectorLaunch::create(len)?;
         Ok(Self {
@@ -218,6 +223,7 @@ impl QkRopeQuantizeFp8 {
         {
             return Err(Error::InvalidLength);
         }
+
         let q_rope_len = checked_element_count(checked_element_count(tokens, q_heads)?, rope_dim)?;
         let k_rope_len = checked_element_count(checked_element_count(tokens, kv_heads)?, rope_dim)?;
         let query_nonrotary_len =
@@ -394,6 +400,7 @@ pub unsafe fn quantize_f32_to_f8e4m3_block(
     if len == 0 {
         return Ok(());
     }
+
     validate_block_quant(out, scales, input, len, block_size, blocks)?;
     // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let out = unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(out.cu_deviceptr()) };
@@ -696,6 +703,7 @@ pub unsafe fn qk_rope_quantize_f8e4m3_f32_interleaved_single_kernel(
         checked_device_pointer(&q_nope)?;
         checked_device_pointer(&k_nope)?;
     }
+
     // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
     let q_rope_out =
         unsafe { DevicePointer::<f8e4m3fn>::from_cu_deviceptr(q_rope_out.cu_deviceptr()) };
@@ -819,9 +827,11 @@ pub unsafe fn quantize_f32_to_f8e4m3_scaled(
     if len == 0 {
         return Ok(());
     }
+
     if !quant_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     let launch = VectorLaunch::create(len)?;
@@ -849,7 +859,7 @@ pub unsafe fn unpack_u4_u8(
     let launch = VectorLaunch::create(len)?;
     let high_first = packing.kernel_high_first();
     // SAFETY: the caller upholds this function's safety contract.
-    unsafe { kernel_common::unpack_u4_u8(out, packed, launch.len_i32, high_first) }
+    unsafe { vector_kernels::unpack_u4_u8(out, packed, launch.len_i32, high_first) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok(())
@@ -870,7 +880,7 @@ pub unsafe fn unpack_i4_i8(
     let launch = VectorLaunch::create(len)?;
     let high_first = packing.kernel_high_first();
     // SAFETY: the caller upholds this function's safety contract.
-    unsafe { kernel_common::unpack_i4_i8(out, packed, launch.len_i32, high_first) }
+    unsafe { vector_kernels::unpack_i4_i8(out, packed, launch.len_i32, high_first) }
         .grid(launch.grid)
         .enqueue_on(stream)?;
     Ok(())
@@ -1230,6 +1240,7 @@ pub unsafe fn matmul_i8_i8_f32(
     if !output_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&activations)?;
     checked_device_pointer(&weights)?;
@@ -1329,6 +1340,7 @@ fn validate_per_token_group_quant(
     if groups == 0 || group_size == 0 || group_size > 128 || !eps.is_finite() || eps <= 0.0 {
         return Err(Error::InvalidLength);
     }
+
     checked_i32_value(groups)?;
     checked_i32_value(group_size)?;
     checked_device_pointer(&out)?;
@@ -1373,6 +1385,7 @@ fn validate_per_token_group_quant_f8(
     if groups == 0 || group_size == 0 || group_size > 128 || !eps.is_finite() || eps <= 0.0 {
         return Err(Error::InvalidLength);
     }
+
     checked_i32_value(groups)?;
     checked_i32_value(group_size)?;
     checked_device_pointer(&out)?;
@@ -1423,6 +1436,7 @@ fn validate_per_token_group_quant_column_major_shape(
     {
         return Err(Error::InvalidLength);
     }
+
     checked_i32_value(rows)?;
     checked_i32_value(columns)?;
     checked_i32_value(group_size)?;
@@ -1442,6 +1456,7 @@ fn validate_grouped_dequant<T>(
     if len == 0 || group_size == 0 || groups == 0 {
         return Err(Error::InvalidLength);
     }
+
     ensure_grouped_dequant_shape(len, group_size, groups)?;
     checked_device_pointer(&out)?;
     checked_device_pointer(input)?;
@@ -1470,10 +1485,12 @@ fn validate_block_quant(
     if block_size == 0 || block_size > 128 || blocks == 0 {
         return Err(Error::InvalidLength);
     }
+
     let expected_blocks = len.div_ceil(block_size);
     if blocks != expected_blocks {
         return Err(Error::LengthMismatch);
     }
+
     checked_i32_value(block_size)?;
     checked_i32_value(len)?;
     checked_i32_value(blocks)?;
@@ -1491,6 +1508,7 @@ fn validate_unpack_int4<T>(
     if len == 0 {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(out)?;
     checked_device_pointer(&packed)?;
     Ok(())

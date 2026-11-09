@@ -77,6 +77,7 @@ pub fn matmul_i8_i8_f32(
                 sum += (i32::from(activation) - config.activation_zero_point)
                     * (i32::from(weight) - config.weight_zero_point);
             }
+
             out[row * config.columns + column] = sum as f32 * config.output_scale;
         }
     }
@@ -101,6 +102,7 @@ pub fn matmul_f32_i8_dequantize_f32(
                 let weight = (f32::from(weight) - zero_points[column]) * scales[column];
                 sum = activation.mul_add(weight, sum);
             }
+
             out[row * config.columns + column] = sum;
         }
     }
@@ -232,6 +234,7 @@ pub fn matmul_f8e4m3_block_scaled_f32(
                     * activation_scale)
                     .mul_add(weight_scale, sum);
             }
+
             out[row * columns + column] = sum;
         }
     }

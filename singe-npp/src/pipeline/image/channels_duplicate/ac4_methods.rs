@@ -22,14 +22,12 @@ where
     /// For AC4, destination alpha remains unwritten.
     /// Source and destination pixel dimensions must match.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// Source and destination pixel dimensions must match.
     pub fn duplicate_to_ac4_into(
         stream_context: &StreamContext,
@@ -51,20 +49,17 @@ where
 {
     /// Duplicates each C1 source sample into the three AC4 color channels.
     ///
-    /// Initializes the fourth storage channel to the supplied `alpha` value after
-    /// duplicating the three color channels.
+    /// Initializes the fourth storage channel to the supplied `alpha` value after duplicating the three color channels.
     /// Allocates a new source-sized owned image in the destination layout.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
-    /// Output allocation or image view construction can also fail. Alpha channel fill or
-    /// layout conversion can fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
+    /// Output allocation or image view construction can also fail.
+    /// Alpha channel fill or layout conversion can fail.
     pub fn duplicate_to_ac4(self, alpha: T) -> Result<ImagePipeline<'a, T, AC4>>
     where
         ImagePipeline<'a, T, C4>: SetChannelImage<T, C4>,

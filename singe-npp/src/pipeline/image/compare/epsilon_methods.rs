@@ -19,18 +19,16 @@ where
     Self: CompareEqualEpsilonImage<L>,
 {
     /// Compares corresponding pixels in two images for equality within `epsilon`.
-    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison,
-    /// and `0` otherwise. AC4 input alpha is excluded.
-    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded
-    /// to NPP without validation.
+    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison, and `0` otherwise.
+    /// AC4 input alpha is excluded.
+    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded to NPP without validation.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn compare_equal_epsilon_into(
         stream_context: &StreamContext,
@@ -56,18 +54,16 @@ where
     Self: CompareEqualEpsilonImage<L>,
 {
     /// Compares corresponding pixels in two images for equality within `epsilon`.
-    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison,
-    /// and `0` otherwise. AC4 input alpha is excluded.
-    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded
-    /// to NPP without validation.
+    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison, and `0` otherwise.
+    /// AC4 input alpha is excluded.
+    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded to NPP without validation.
     /// Allocates a new owned C1 byte mask with the source dimensions.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation or image view construction can also fail.
     pub fn compare_equal_epsilon(
@@ -107,20 +103,17 @@ where
     Self: CompareEqualEpsilonConstantImage<L>,
 {
     /// Compares source pixels with the supplied constant for equality within `epsilon`.
-    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison,
-    /// and `0` otherwise. AC4 input alpha is excluded.
-    /// The provided implementations use a scalar constant for C1, three constants for C3
-    /// and AC4, and four constants for C4.
-    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded
-    /// to NPP without validation.
+    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison, and `0` otherwise.
+    /// AC4 input alpha is excluded.
+    /// The provided implementations use a scalar constant for C1, three constants for C3 and AC4, and four constants for C4.
+    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded to NPP without validation.
     /// Writes every logical sample of the supplied destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn compare_equal_epsilon_constant_into(
         stream_context: &StreamContext,
@@ -146,20 +139,17 @@ where
     Self: CompareEqualEpsilonConstantImage<L>,
 {
     /// Compares source pixels with the supplied constant for equality within `epsilon`.
-    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison,
-    /// and `0` otherwise. AC4 input alpha is excluded.
-    /// The provided implementations use a scalar constant for C1, three constants for C3
-    /// and AC4, and four constants for C4.
-    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded
-    /// to NPP without validation.
+    /// Writes a C1 byte mask: `255` when every processed channel satisfies the comparison, and `0` otherwise.
+    /// AC4 input alpha is excluded.
+    /// The provided implementations use a scalar constant for C1, three constants for C3 and AC4, and four constants for C4.
+    /// `epsilon` is the tolerance applied to absolute sample differences and is forwarded to NPP without validation.
     /// Allocates a new owned C1 byte mask with the source dimensions.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation or image view construction can also fail.
     pub fn compare_equal_epsilon_constant(

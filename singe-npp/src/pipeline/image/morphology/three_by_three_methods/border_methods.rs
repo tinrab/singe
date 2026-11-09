@@ -21,17 +21,14 @@ where
     /// `source_offset` locates the output ROI in the full source image.
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// The destination dimensions select the output ROI extent.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     pub fn dilate_3x3_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -55,17 +52,14 @@ where
     /// `source_offset` locates the output ROI in the full source image.
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// The destination dimensions select the output ROI extent.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     pub fn erode_3x3_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -97,15 +91,13 @@ where
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// Allocates a new owned image spanning from `source_offset` to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn dilate_3x3_border(self, source_offset: Point, border_type: BorderType) -> Result<Self> {
         self.ensure_eager()?;
@@ -119,6 +111,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as Morphology3x3BorderImage<T, L>>::dilate_3x3_border_image(
                 self.stream_context,
                 &source,
@@ -141,15 +134,13 @@ where
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// Allocates a new owned image spanning from `source_offset` to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn erode_3x3_border(self, source_offset: Point, border_type: BorderType) -> Result<Self> {
         self.ensure_eager()?;
@@ -163,6 +154,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as Morphology3x3BorderImage<T, L>>::erode_3x3_border_image(
                 self.stream_context,
                 &source,

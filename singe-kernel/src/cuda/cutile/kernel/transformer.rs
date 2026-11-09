@@ -54,6 +54,7 @@ mod kernels {
             start = tile_to_scalar(p.reshape(const_shape![]));
             trig_start = start;
         }
+
         let table_row = trig_start + pid.1;
         let cache_row = start + pid.1;
         let shape = const_shape![D];
@@ -132,6 +133,7 @@ mod kernels {
                 reduce_sum(w * h.broadcast(const_shape![64, 32]), 1i32);
             acc = acc + partial;
         }
+
         let indices: Tile<i32, { [64] }> =
             iota(const_shape![64]) + broadcast_scalar(pid.0 * 64i32, const_shape![64]);
         let valid: Tile<bool, { [64] }> =

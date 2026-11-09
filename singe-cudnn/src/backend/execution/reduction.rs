@@ -149,6 +149,7 @@ impl ReductionOperation {
                 offset.descriptor(),
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {
@@ -215,11 +216,10 @@ impl<T> ReducerAccumulator<T> {
 
 impl ReductionOperation {
     /// Creates a reduction whose finalized subgraph combines accumulator and current values.
-    /// Dimensions must be ascending and distinct. Each output has an identity value and
-    /// corresponding accumulator, current-element and output native UIDs in the subgraph.
+    /// Dimensions must be ascending and distinct.
+    /// Each output has an identity value and corresponding accumulator, current-element and output native UIDs in the subgraph.
     ///
-    /// Returns the native `NotSupported` status when the loaded cuDNN runtime does
-    /// not implement the user-defined reducer attributes declared by its headers.
+    /// Returns the native `NotSupported` status when the loaded cuDNN runtime does not implement the user-defined reducer attributes declared by its headers.
     ///
     /// # Errors
     ///
@@ -241,11 +241,13 @@ impl ReductionOperation {
         {
             return Err(Error::InvalidDataShape);
         }
+
         for (output, accumulator) in outputs.iter().zip(accumulators) {
             if output.data_type() != accumulator.initial_value.data_type() {
                 return Err(Error::UnsupportedDataType);
             }
         }
+
         let initial_values = accumulators
             .iter()
             .map(|a| ScalarStorage::new(a.initial_value))

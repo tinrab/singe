@@ -12,8 +12,7 @@ use crate::{
 impl Graph {
     /// Adds a generate-stats operation with explicit output tensors.
     ///
-    /// `GenStats` computes per-channel sum and sum-of-squares tensors consumed by
-    /// batch normalization finalize.
+    /// `GenStats` computes per-channel sum and sum-of-squares tensors consumed by batch normalization finalize.
     /// Explicit output types and strides are passed through to cuDNN.
     /// Math precision follows the operation override, graph policy and then input encoding.
     ///

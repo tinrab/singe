@@ -21,7 +21,8 @@ impl PlanarImage<f32, 3> {
     /// Uses [`color_twist_f32_p3`](crate::image::raw::color::color_twist_f32_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -68,7 +69,8 @@ impl PlanarImage<u16, 3> {
     /// Uses [`color_twist_u16_p3`](crate::image::raw::color::color_twist_u16_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -90,10 +92,11 @@ impl PlanarImage<u16, 3> {
     /// Destination plane strides are passed independently.
     ///
     /// Uses [`rgb_to_nv12_u16_color_twist_p3`](crate::image::raw::color::rgb_to_nv12_u16_color_twist_p3).
-    /// Allocates a full-resolution Y plane and an interleaved UV plane with half the width
-    /// and half the height. Both full-resolution dimensions must be even.
+    /// Allocates a full-resolution Y plane and an interleaved UV plane with half the width and half the height.
+    /// Both full-resolution dimensions must be even.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -143,9 +146,10 @@ impl PlanarImage<i8, 3> {
     /// 3 channel 8-bit signed planar color twist.
     ///
     /// Uses [`color_twist_i8_p3`](crate::image::raw::color::color_twist_i8_p3).
-    /// Writes converted values into the supplied destination planes. Prepares both source and
-    /// destination regions, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Writes converted values into the supplied destination planes.
+    /// Prepares both source and destination regions, waiting for producers on other streams.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -162,6 +166,7 @@ impl PlanarImage<i8, 3> {
         for plane in source.planes() {
             stream_context.prepare_region(plane)?;
         }
+
         for plane in destination.planes() {
             stream_context.prepare_region(plane)?;
         }
@@ -178,7 +183,8 @@ impl PlanarImage<i16, 3> {
     /// Uses [`color_twist_i16_p3`](crate::image::raw::color::color_twist_i16_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

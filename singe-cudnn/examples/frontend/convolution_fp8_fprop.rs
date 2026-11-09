@@ -76,6 +76,7 @@ fn run() -> Result<()> {
             .with_name(name),
         )?;
     }
+
     let y = graph.pointwise(
         PointwiseOperation::binary(
             PointwiseMode::Mul,

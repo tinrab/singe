@@ -9,18 +9,25 @@ use crate::{
 
 /// Lanes per warp.
 pub const WARP_SIZE: usize = 32;
+
 /// Upper bound reported by `%nwarpid`.
 pub const WARP_IDENTIFIER_COUNT: u32 = 64;
+
 /// Maximum CTA extent along x, y, and z.
 pub const MAX_BLOCK_DIMENSIONS: [u32; 3] = [1024, 1024, 64];
+
 /// Maximum threads in one CTA.
 pub const MAX_BLOCK_THREADS: u32 = 1024;
+
 /// Maximum grid extent along x, y, and z.
 pub const MAX_GRID_DIMENSIONS: [u32; 3] = [i32::MAX.cast_unsigned(), 65_535, 65_535];
+
 /// Warps in the largest CTA.
 pub const WARPS_PER_CTA: usize = MAX_BLOCK_THREADS as usize / WARP_SIZE;
+
 /// Named CTA barriers available to `bar` and `barrier`.
 pub const NAMED_BARRIERS: usize = 16;
+
 /// Register slots one function may declare; a frontend limit, not an architectural one.
 pub const MAX_FUNCTION_REGISTERS: usize = 65_536;
 
@@ -60,6 +67,7 @@ pub fn validate_module(module: &Module) -> Result<()> {
             format!("PTX version {version}"),
         ));
     }
+
     if module.target.specifiers != ["sm_80"] {
         return Err(CompileError::unsupported(
             module.target.span,

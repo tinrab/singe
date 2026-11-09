@@ -66,6 +66,7 @@ impl FusedMoeBlockScaled {
         if group_n == 0 || group_k == 0 {
             return Err(Error::InvalidLength);
         }
+
         let k_groups = ceil_div(reduction, group_k)?;
         Ok(Self {
             base: FusedMoe::create(
@@ -115,6 +116,7 @@ impl FusedMoe {
         {
             return Err(Error::InvalidLength);
         }
+
         checked_i32_value(checked_element_count(sorted_token_ids_len, columns)?)?;
         Ok(Self {
             element_count: checked_i32_value(element_count)?,
@@ -157,6 +159,7 @@ pub unsafe fn moe_align_block_size_i32(
     {
         return Err(Error::InvalidLength);
     }
+
     for pointer in [
         sorted_token_ids,
         expert_ids,
@@ -168,6 +171,7 @@ pub unsafe fn moe_align_block_size_i32(
     ] {
         checked_device_pointer(&pointer)?;
     }
+
     let assignments = checked_i32_value(element_count)?;
     let experts = checked_i32_value(expert_count)?;
     let block = checked_i32_value(block_size)?;
@@ -245,6 +249,7 @@ pub unsafe fn fused_moe_f32(
     if mul_routed_weight {
         checked_device_pointer(&routed_weight)?;
     }
+
     checked_device_pointer(&sorted_token_ids)?;
     checked_device_pointer(&expert_ids)?;
     checked_device_pointer(&num_tokens_post_pad)?;
@@ -437,6 +442,7 @@ pub unsafe fn fused_moe_f8e4m3_block_scaled_f32(
     if mul_routed_weight {
         checked_device_pointer(&routed_weight)?;
     }
+
     checked_device_pointer(&sorted_token_ids)?;
     checked_device_pointer(&expert_ids)?;
     checked_device_pointer(&num_tokens_post_pad)?;

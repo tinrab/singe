@@ -9,8 +9,8 @@ pub enum ParseErrorKind {
     /// Syntax nesting or constructed expression depth exceeds the parser limit of 128.
     #[error("syntax or expression depth exceeds 128")]
     DepthLimitExceeded,
-    /// A token does not match the PTX grammar at this position. Holds up to 20
-    /// characters of the input starting at the token.
+    /// A token does not match the PTX grammar at this position.
+    /// Holds up to 20 characters of the input starting at the token.
     #[error("unexpected token: {0}")]
     UnexpectedToken(String),
     /// The input ends before the current PTX construct is complete.

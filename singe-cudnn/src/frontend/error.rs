@@ -40,7 +40,7 @@ pub enum Error {
     },
 
     /// Writing frontend log output failed.
-    #[error("logging i/o failed: {source}")]
+    #[error("logging i/o failed")]
     LoggingIo {
         /// Underlying error that caused this failure.
         source: IoError,
@@ -130,7 +130,7 @@ pub enum Error {
 
     /// A serialized native execution plan could not be restored by the current cuDNN runtime.
     #[error(
-        "failed to restore native plan {position} from cudnn {serialized_cudnn_version} with runtime {runtime_cudnn_version}: {source}"
+        "failed to restore native plan {position} from cudnn {serialized_cudnn_version} with runtime {runtime_cudnn_version}"
     )]
     NativePlanRestoreFailed {
         /// Zero-based position of the native plan being restored.
@@ -200,7 +200,7 @@ pub enum Error {
     },
 
     /// An error aborted the autotuning session.
-    #[error("autotune session aborted: {source}")]
+    #[error("autotune session aborted")]
     AutotuneAborted {
         /// Underlying error that caused this failure.
         source: Arc<CudnnError>,
@@ -1128,6 +1128,14 @@ fn on_sm(sm_version: Option<i32>) -> String {
         .unwrap_or_default()
 }
 
+fn plan_report_details(reports: &[PlanBuildReport]) -> String {
+    let mut output = String::new();
+    for report in reports {
+        write!(output, "\n{report}").expect("formatting into a string cannot fail");
+    }
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1171,12 +1179,4 @@ mod tests {
             "sdpa paged attention requires query and key/value sequence lengths"
         );
     }
-}
-
-fn plan_report_details(reports: &[PlanBuildReport]) -> String {
-    let mut output = String::new();
-    for report in reports {
-        write!(output, "\n{report}").expect("formatting into a string cannot fail");
-    }
-    output
 }

@@ -96,10 +96,10 @@ impl MaskReductionTuning {
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_not_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -118,10 +118,10 @@ pub unsafe fn mask_not_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_and_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -144,10 +144,10 @@ pub unsafe fn mask_and_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_or_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -170,10 +170,10 @@ pub unsafe fn mask_or_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_xor_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -196,10 +196,10 @@ pub unsafe fn mask_xor_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn logical_not_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -213,10 +213,10 @@ pub unsafe fn logical_not_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn logical_and_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -231,10 +231,10 @@ pub unsafe fn logical_and_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn logical_or_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -249,10 +249,10 @@ pub unsafe fn logical_or_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn logical_xor_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -267,10 +267,10 @@ pub unsafe fn logical_xor_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_any_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -298,10 +298,10 @@ pub unsafe fn mask_any_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn tune_mask_any_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -327,10 +327,10 @@ pub unsafe fn tune_mask_any_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_all_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -358,10 +358,10 @@ pub unsafe fn mask_all_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn tune_mask_all_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -387,10 +387,10 @@ pub unsafe fn tune_mask_all_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn mask_count_nonzero_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u32>,
@@ -418,10 +418,10 @@ pub unsafe fn mask_count_nonzero_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn tune_mask_count_nonzero_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u32>,
@@ -447,10 +447,10 @@ pub unsafe fn tune_mask_count_nonzero_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn tril_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -475,10 +475,10 @@ pub unsafe fn tril_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn triu_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -503,10 +503,10 @@ pub unsafe fn triu_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn lower_triangular_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -522,10 +522,10 @@ pub unsafe fn lower_triangular_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn upper_triangular_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -541,10 +541,10 @@ pub unsafe fn upper_triangular_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn causal_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -564,10 +564,10 @@ macro_rules! causal_mask_fill_fn {
         ///
         /// # Safety
         ///
-        /// Retain all allocations until completion on every path and throughout captured
-        /// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-        /// accesses before launch. Inputs must be initialized when read. Output shape and
-        /// storage must match the operation's layout on the stream's actual context.
+        /// Retain all allocations until completion on every path and throughout captured replay.
+        /// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+        /// Inputs must be initialized when read.
+        /// Output shape and storage must match the operation's layout on the stream's actual context.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -599,10 +599,10 @@ macro_rules! causal_mask_zero_fn {
         ///
         /// # Safety
         ///
-        /// Retain all allocations until completion on every path and throughout captured
-        /// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-        /// accesses before launch. Inputs must be initialized when read. Output shape and
-        /// storage must match the operation's layout on the stream's actual context.
+        /// Retain all allocations until completion on every path and throughout captured replay.
+        /// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+        /// Inputs must be initialized when read.
+        /// Output shape and storage must match the operation's layout on the stream's actual context.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -648,10 +648,10 @@ causal_mask_zero_fn!(causal_mask_zero_bf16, bf16);
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -679,10 +679,10 @@ pub unsafe fn sequence_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn tril_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -709,10 +709,10 @@ pub unsafe fn tril_sequence_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn triu_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -739,10 +739,10 @@ pub unsafe fn triu_sequence_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn lower_triangular_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -759,10 +759,10 @@ pub unsafe fn lower_triangular_sequence_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn upper_triangular_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -779,10 +779,10 @@ pub unsafe fn upper_triangular_sequence_mask_u8(
 ///
 /// # Safety
 ///
-/// Retain all allocations until completion on every path and throughout captured
-/// replay. Keep the output exclusive and disjoint from inputs, and order earlier
-/// accesses before launch. Inputs must be initialized when read. Output shape and
-/// storage must match the operation's layout on the stream's actual context.
+/// Retain all allocations until completion on every path and throughout captured replay.
+/// Keep the output exclusive and disjoint from inputs, and order earlier accesses before launch.
+/// Inputs must be initialized when read.
+/// Output shape and storage must match the operation's layout on the stream's actual context.
 pub unsafe fn causal_sequence_mask_u8(
     stream: &Stream,
     out: &mut impl DeviceOutput<u8>,
@@ -815,6 +815,7 @@ fn validate_causal_score_mask(
     if seq_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     let matrix_len = checked_element_count(seq_len, seq_len)?;
     let len = checked_element_count(batch, matrix_len)?;
     ensure_len(out_len, len)?;
@@ -848,102 +849,6 @@ where
         input_pointer(rhs),
         len,
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_causal_score_mask_validation_accepts_exact_lengths() -> Result<()> {
-        validate_causal_score_mask(72, 72, 2, 6)
-    }
-
-    #[test]
-    fn test_causal_score_mask_validation_rejects_short_output() {
-        assert!(matches!(
-            validate_causal_score_mask(71, 72, 2, 6),
-            Err(Error::LengthMismatch
-                | Error::LengthMismatchFor { .. }
-                | Error::LengthTooShort { .. }
-                | Error::RankReachMismatch { .. })
-        ));
-    }
-
-    #[test]
-    fn test_causal_score_mask_validation_rejects_short_input() {
-        assert!(matches!(
-            validate_causal_score_mask(72, 71, 2, 6),
-            Err(Error::LengthMismatch
-                | Error::LengthMismatchFor { .. }
-                | Error::LengthTooShort { .. }
-                | Error::RankReachMismatch { .. })
-        ));
-    }
-
-    #[test]
-    fn test_causal_score_mask_validation_rejects_zero_sequence() {
-        assert!(matches!(
-            validate_causal_score_mask(0, 0, 1, 0),
-            Err(Error::InvalidLength)
-        ));
-    }
-
-    #[test]
-    fn test_mask_reduction_config_builders_preserve_tuning_choice() {
-        let tuning = MaskReductionTuning::tile_width(32);
-        let config = MaskReductionConfig::create(3, 17);
-        assert_eq!(
-            config.explicit_tuning(tuning).tuning,
-            TuningChoice::Explicit(tuning)
-        );
-        assert_eq!(config.cached_tuning().tuning, TuningChoice::Cached);
-        assert!(matches!(
-            config.tune(TuneOptions::default()).tuning,
-            TuningChoice::Tune(_)
-        ));
-        assert!(matches!(
-            config.retune(TuneOptions::default()).tuning,
-            TuningChoice::Retune(_)
-        ));
-    }
-
-    #[test]
-    fn test_mask_reduction_candidates_include_launchable_widths() {
-        let widths = mask_reduction_candidates(17)
-            .into_iter()
-            .map(|tuning| tuning.tile_width)
-            .collect::<Vec<_>>();
-        assert_eq!(widths, vec![32, 64, 128, 256, 512, 1024]);
-    }
-
-    #[test]
-    fn test_mask_reduction_validation_accepts_exact_lengths() -> Result<()> {
-        validate_mask_reduction_lengths(3, 51, MaskReductionConfig::create(3, 17))
-    }
-
-    #[test]
-    fn test_mask_reduction_validation_rejects_short_input() {
-        assert!(matches!(
-            validate_mask_reduction_lengths(3, 50, MaskReductionConfig::create(3, 17)),
-            Err(Error::LengthMismatch
-                | Error::LengthMismatchFor { .. }
-                | Error::LengthTooShort { .. }
-                | Error::RankReachMismatch { .. })
-        ));
-    }
-
-    #[test]
-    fn test_mask_reduction_validation_rejects_zero_or_wide_columns() {
-        assert!(matches!(
-            validate_mask_reduction_lengths(0, 0, MaskReductionConfig::create(3, 0)),
-            Err(Error::InvalidLength)
-        ));
-        assert!(matches!(
-            validate_mask_reduction_lengths(3, 3075, MaskReductionConfig::create(3, 1025)),
-            Err(Error::UnsupportedWidth { .. })
-        ));
-    }
 }
 
 fn mask_reduction_tune_key(
@@ -981,12 +886,14 @@ fn validate_mask_reduction_lengths(
     if config.columns == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.columns > 1024 {
         return Err(Error::UnsupportedWidth {
             op: "mask reduction".into(),
             width: config.columns,
         });
     }
+
     let len = checked_element_count(config.rows, config.columns)?;
     ensure_len(out_len, config.rows)?;
     ensure_len(input_len, len)
@@ -1018,6 +925,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))
@@ -1250,4 +1158,100 @@ where
         cols,
         diagonal,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_causal_score_mask_validation_accepts_exact_lengths() -> Result<()> {
+        validate_causal_score_mask(72, 72, 2, 6)
+    }
+
+    #[test]
+    fn test_causal_score_mask_validation_rejects_short_output() {
+        assert!(matches!(
+            validate_causal_score_mask(71, 72, 2, 6),
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn test_causal_score_mask_validation_rejects_short_input() {
+        assert!(matches!(
+            validate_causal_score_mask(72, 71, 2, 6),
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn test_causal_score_mask_validation_rejects_zero_sequence() {
+        assert!(matches!(
+            validate_causal_score_mask(0, 0, 1, 0),
+            Err(Error::InvalidLength)
+        ));
+    }
+
+    #[test]
+    fn test_mask_reduction_config_builders_preserve_tuning_choice() {
+        let tuning = MaskReductionTuning::tile_width(32);
+        let config = MaskReductionConfig::create(3, 17);
+        assert_eq!(
+            config.explicit_tuning(tuning).tuning,
+            TuningChoice::Explicit(tuning)
+        );
+        assert_eq!(config.cached_tuning().tuning, TuningChoice::Cached);
+        assert!(matches!(
+            config.tune(TuneOptions::default()).tuning,
+            TuningChoice::Tune(_)
+        ));
+        assert!(matches!(
+            config.retune(TuneOptions::default()).tuning,
+            TuningChoice::Retune(_)
+        ));
+    }
+
+    #[test]
+    fn test_mask_reduction_candidates_include_launchable_widths() {
+        let widths = mask_reduction_candidates(17)
+            .into_iter()
+            .map(|tuning| tuning.tile_width)
+            .collect::<Vec<_>>();
+        assert_eq!(widths, vec![32, 64, 128, 256, 512, 1024]);
+    }
+
+    #[test]
+    fn test_mask_reduction_validation_accepts_exact_lengths() -> Result<()> {
+        validate_mask_reduction_lengths(3, 51, MaskReductionConfig::create(3, 17))
+    }
+
+    #[test]
+    fn test_mask_reduction_validation_rejects_short_input() {
+        assert!(matches!(
+            validate_mask_reduction_lengths(3, 50, MaskReductionConfig::create(3, 17)),
+            Err(Error::LengthMismatch
+                | Error::LengthMismatchFor { .. }
+                | Error::LengthTooShort { .. }
+                | Error::RankReachMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn test_mask_reduction_validation_rejects_zero_or_wide_columns() {
+        assert!(matches!(
+            validate_mask_reduction_lengths(0, 0, MaskReductionConfig::create(3, 0)),
+            Err(Error::InvalidLength)
+        ));
+        assert!(matches!(
+            validate_mask_reduction_lengths(3, 3075, MaskReductionConfig::create(3, 1025)),
+            Err(Error::UnsupportedWidth { .. })
+        ));
+    }
 }

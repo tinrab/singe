@@ -17,7 +17,8 @@ use crate::{
 
 /// A file-backed guard serializing cooperating tests for one device ID.
 ///
-/// Dropping the guard removes the lock file when possible. The lock directory is selected by `SINGE_CUDA_TEST_LOCK_DIR`, falling back to the operating system's temporary directory.
+/// Dropping the guard removes the lock file when possible.
+/// The lock directory is selected by `SINGE_CUDA_TEST_LOCK_DIR`, falling back to the operating system's temporary directory.
 #[derive(Debug)]
 pub struct DeviceLock {
     _file: File,
@@ -52,11 +53,14 @@ impl DeviceLock {
 
 /// Waits for and acquires the test lock for `device_id`.
 ///
-/// Polls existing locks every 25 milliseconds. On Linux, a lock naming a process that has exited is removed. This function does not validate the device ID or initialize CUDA.
+/// Polls existing locks every 25 milliseconds.
+/// On Linux, a lock naming a process that has exited is removed.
+/// This function does not validate the device ID or initialize CUDA.
 ///
 /// # Errors
 ///
-/// Returns an error if the lock file cannot be created or written, or a stale lock cannot be removed. An existing lock held by another process is waited on without a timeout.
+/// Returns an error if the lock file cannot be created or written, or a stale lock cannot be removed.
+/// An existing lock held by another process is waited on without a timeout.
 pub fn device_lock(device_id: i32) -> Result<DeviceLock> {
     DeviceLock::acquire(device_id)
 }
@@ -74,24 +78,26 @@ pub fn bootstrap() -> Result<(DeviceLock, Arc<Context>)> {
 
 /// Acquires the test lock for `device_id` and creates a CUDA context for that device.
 ///
-/// The new context becomes current on this thread. Keep the returned lock alive for the test's device work.
+/// The new context becomes current on this thread.
+/// Keep the returned lock alive for the test's device work.
 ///
 /// # Errors
 ///
-/// Propagates errors from acquiring the device lock or creating the CUDA context. The lock is released if context creation fails.
+/// Propagates errors from acquiring the device lock or creating the CUDA context.
+/// The lock is released if context creation fails.
 pub fn bootstrap_for_device(device_id: i32) -> Result<(DeviceLock, Arc<Context>)> {
     let lock = device_lock(device_id)?;
     let context = Context::create_for_device(Device::new(device_id))?;
     Ok((lock, context))
 }
 
-/// Returns whether `error` reports that a CUDA stub library was loaded.
+// Whether `error` says there is no CUDA driver to test with: a stub library, or none that loads.
 #[must_use]
-pub fn is_stub_library(error: &Error) -> bool {
+pub fn is_unavailable(error: &Error) -> bool {
     matches!(
         error,
         Error::Cuda { code, .. } if *code == Status::StubLibrary
-    )
+    ) || matches!(error, Error::Load(_))
 }
 
 fn lock_path(device_id: i32) -> PathBuf {

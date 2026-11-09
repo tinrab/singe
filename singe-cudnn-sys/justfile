@@ -103,6 +103,9 @@ generate:
 
     mv bindings.rs ./src/sys_${CUDNN_VERSION}.rs
 
+    # Each declared function loads its symbol at run time, through singe-loader.
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { crate::LIBRARY;/' ./src/sys_*.rs
+
 clean:
     rm -rf ./dist
     rm -f ./src/sys_*.rs

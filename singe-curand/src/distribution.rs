@@ -39,10 +39,13 @@ impl Drop for Owner {
         unsafe {
             drain_stream(&self.context, self.stream);
         }
+
         // SAFETY: `curandDestroyDistribution` receives live handles owned by the wrappers.
         if let Err(error) = unsafe { try_ffi!(sys::curandDestroyDistribution(self.handle)) } {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy curand distribution: {error}");
+            eprintln!(
+                "failed to destroy curand distribution: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
         // SAFETY: native destruction may enqueue stream-ordered frees; the stream is still live.
         unsafe {
@@ -52,18 +55,13 @@ impl Drop for Owner {
 }
 
 impl DiscreteDistribution {
-    /// Creates a completed Poisson histogram for a positive lambda up to 400,000.
-    /// Native construction has no stream parameter and may use the default stream;
-    /// this call completes the actual context before publishing the histogram.
+    /// Creates a completed Poisson histogram for a positive lambda up to 400,000. Native construction has no stream parameter and may use the default stream; this call completes the actual context before publishing the histogram.
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream is being captured, its capture state or
-    /// context cannot be accessed, or context synchronization fails. cuRAND
-    /// errors include a lambda outside `(0, 400_000]`, allocation or GPU
-    /// initialization failure, missing double-precision support, and an earlier
-    /// kernel failure. A null handle returned after successful creation is also
-    /// rejected.
+    /// Returns an error if the stream is being captured, its capture state or context cannot be accessed, or context synchronization fails.
+    /// cuRAND errors include a lambda outside `(0, 400_000]`, allocation or GPU initialization failure, missing double-precision support, and an earlier kernel failure.
+    /// A null handle returned after successful creation is also rejected.
     pub fn create_poisson(lambda: f64, stream: &Arc<Stream>) -> Result<Self> {
         require_eager(stream)?;
         // No new native work exists yet, so prior context errors can return normally.
@@ -93,8 +91,9 @@ impl DiscreteDistribution {
     /// Returns [`Error::NullHandle`] if `handle` is null.
     ///
     /// # Safety
-    /// The handle must be live, exclusively owned, and allocated in this actual
-    /// context. All prior use must have completed. Transfer ownership once.
+    /// The handle must be live, exclusively owned, and allocated in this actual context.
+    /// All prior use must have completed.
+    /// Transfer ownership once.
     pub unsafe fn from_raw(
         handle: sys::curandDiscreteDistribution_t,
         stream: &Arc<Stream>,

@@ -20,6 +20,7 @@ pub fn sparsemax(input: &[f32], rows: usize, cols: usize) -> Vec<f32> {
                 support = rank;
             }
         }
+
         let tau = (sorted[..support].iter().sum::<f32>() - 1.0) / support as f32;
         for col in 0..cols {
             out[row * cols + col] = (values[col] - tau).max(0.0);
@@ -58,6 +59,7 @@ pub fn group_norm(
                     sum_sq = value.mul_add(value, sum_sq);
                 }
             }
+
             let group_len = (channels_per_group * spatial_len) as f32;
             let mean = sum / group_len;
             let variance = mean.mul_add(-mean, sum_sq / group_len);

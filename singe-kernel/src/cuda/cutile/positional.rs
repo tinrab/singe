@@ -17,7 +17,7 @@ use crate::{
         cutile::{
             DeviceOpExt, TileKernel,
             kernel::{
-                common as kernel_common, positional_structured as kernel_positional_structured,
+                common as vector_kernels, positional_structured as kernel_positional_structured,
             },
             utility::{VectorLaunch, checked_device_pointer, raw_vector_grid},
         },
@@ -139,6 +139,7 @@ fn checked_batched_rotary_config(
     if config.trig_batch != 1 && config.trig_batch != output_batch {
         return Err(Error::LengthMismatch);
     }
+
     let head_dim = config.output_dimensions[3];
     if config
         .rotary_pairs
@@ -166,6 +167,7 @@ fn checked_qk_rotary_config(config: QkRotaryEmbeddingConfig) -> Result<QkRotaryC
     {
         return Err(Error::LengthMismatch);
     }
+
     let head_dim = config.q_output_dimensions[3];
     if config
         .rotary_pairs
@@ -202,6 +204,7 @@ fn checked_qk_batched_rotary_config(
     {
         return Err(Error::LengthMismatch);
     }
+
     let q = BatchedRotaryEmbeddingConfig {
         output_dimensions: config.q_output_dimensions,
         input_strides: config.q_input_strides,
@@ -233,6 +236,7 @@ impl BshdRopeLaunch {
         {
             return Err(Error::InvalidLength);
         }
+
         let pair_count = checked_element_count(
             checked_element_count(
                 checked_element_count(config.batch, config.seq_len)?,
@@ -264,6 +268,7 @@ impl BnsdQkRopeLaunch {
         {
             return Err(Error::InvalidLength);
         }
+
         if config
             .rotary_pairs
             .checked_mul(2)
@@ -272,6 +277,7 @@ impl BnsdQkRopeLaunch {
         {
             return Err(Error::LengthMismatch);
         }
+
         let batch_seq = checked_element_count(config.batch, config.seq_len)?;
         let q_len = checked_element_count(
             checked_element_count(batch_seq, config.query_heads)?,
@@ -323,6 +329,7 @@ impl MultiaxisRopeLaunch {
         {
             return Err(Error::InvalidLength);
         }
+
         let head_dim_half = config.head_dim / 2;
         let section_sum = config
             .section_t
@@ -332,6 +339,7 @@ impl MultiaxisRopeLaunch {
         if section_sum != head_dim_half {
             return Err(Error::LengthMismatch);
         }
+
         let query_pairs = checked_element_count(
             checked_element_count(
                 checked_element_count(config.batch, config.seq_len)?,
@@ -374,6 +382,7 @@ impl InterleavedComplexRopeLaunch {
         {
             return Err(Error::InvalidLength);
         }
+
         let head_dim_half = config.head_dim / 2;
         let query_pairs = checked_element_count(
             checked_element_count(
@@ -795,7 +804,7 @@ rotary_embedding_fn!(rotary_embedding_f64, f64, kernel_f64, rotary_embedding_f64
 rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_positioned_f32
 );
 
@@ -803,7 +812,7 @@ rotary_embedding_positioned_fn!(
 rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_positioned_f16
 );
 
@@ -811,7 +820,7 @@ rotary_embedding_positioned_fn!(
 rotary_embedding_positioned_fn!(
     rotary_embedding_positioned_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_positioned_f64
 );
 
@@ -819,7 +828,7 @@ rotary_embedding_positioned_fn!(
 rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_dynpos_f32
 );
 
@@ -827,7 +836,7 @@ rotary_embedding_dynpos_fn!(
 rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_dynpos_f16
 );
 
@@ -835,7 +844,7 @@ rotary_embedding_dynpos_fn!(
 rotary_embedding_dynpos_fn!(
     rotary_embedding_dynpos_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_dynpos_f64
 );
 
@@ -843,7 +852,7 @@ rotary_embedding_dynpos_fn!(
 rotary_embedding_batched_fn!(
     rotary_embedding_batched_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_batched_f32
 );
 
@@ -851,7 +860,7 @@ rotary_embedding_batched_fn!(
 rotary_embedding_batched_fn!(
     rotary_embedding_batched_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_batched_f16
 );
 
@@ -859,7 +868,7 @@ rotary_embedding_batched_fn!(
 rotary_embedding_batched_fn!(
     rotary_embedding_batched_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_batched_f64
 );
 
@@ -867,7 +876,7 @@ rotary_embedding_batched_fn!(
 rotary_embedding_fn!(
     rotary_embedding_chunked_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_f32
 );
 
@@ -875,7 +884,7 @@ rotary_embedding_fn!(
 rotary_embedding_fn!(
     rotary_embedding_chunked_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_f16
 );
 
@@ -883,7 +892,7 @@ rotary_embedding_fn!(
 rotary_embedding_fn!(
     rotary_embedding_chunked_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_f64
 );
 
@@ -891,7 +900,7 @@ rotary_embedding_fn!(
 rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_positioned_f32
 );
 
@@ -899,7 +908,7 @@ rotary_embedding_positioned_fn!(
 rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_positioned_f16
 );
 
@@ -907,7 +916,7 @@ rotary_embedding_positioned_fn!(
 rotary_embedding_positioned_fn!(
     rotary_embedding_chunked_positioned_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_positioned_f64
 );
 
@@ -915,7 +924,7 @@ rotary_embedding_positioned_fn!(
 rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_dynpos_f32
 );
 
@@ -923,7 +932,7 @@ rotary_embedding_dynpos_fn!(
 rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_dynpos_f16
 );
 
@@ -931,7 +940,7 @@ rotary_embedding_dynpos_fn!(
 rotary_embedding_dynpos_fn!(
     rotary_embedding_chunked_dynpos_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_dynpos_f64
 );
 
@@ -939,7 +948,7 @@ rotary_embedding_dynpos_fn!(
 rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_batched_f32
 );
 
@@ -947,7 +956,7 @@ rotary_embedding_batched_fn!(
 rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_batched_f16
 );
 
@@ -955,7 +964,7 @@ rotary_embedding_batched_fn!(
 rotary_embedding_batched_fn!(
     rotary_embedding_chunked_batched_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_chunked_batched_f64
 );
 
@@ -963,7 +972,7 @@ rotary_embedding_batched_fn!(
 rotary_embedding_qk_fn!(
     rotary_embedding_qk_f32,
     f32,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_qk_f32
 );
 
@@ -971,7 +980,7 @@ rotary_embedding_qk_fn!(
 rotary_embedding_qk_fn!(
     rotary_embedding_qk_f16,
     f16,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_qk_f16
 );
 
@@ -979,7 +988,7 @@ rotary_embedding_qk_fn!(
 rotary_embedding_qk_fn!(
     rotary_embedding_qk_f64,
     f64,
-    kernel_common,
+    vector_kernels,
     rotary_embedding_qk_f64
 );
 
@@ -1062,6 +1071,7 @@ pub unsafe fn rope_bshd_f32(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     checked_device_pointer(&cos)?;
@@ -1101,6 +1111,7 @@ pub unsafe fn rope_bshd_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     checked_device_pointer(&cos)?;
@@ -1141,6 +1152,7 @@ pub unsafe fn rope_bshd_dynpos_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     checked_device_pointer(&cos)?;
@@ -1182,6 +1194,7 @@ pub unsafe fn rope_bshd_bf16(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     checked_device_pointer(&cos)?;
@@ -1223,6 +1236,7 @@ pub unsafe fn rotary_embedding_qk_bnsd_bf16(
     if launch.total_len == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&q_out)?;
     checked_device_pointer(&k_out)?;
     checked_device_pointer(&q_input)?;
@@ -1273,6 +1287,7 @@ pub unsafe fn rotary_embedding_qk_bnsd_f32(
     if launch.total_len == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&q_out)?;
     checked_device_pointer(&k_out)?;
     checked_device_pointer(&q_input)?;
@@ -1323,6 +1338,7 @@ pub unsafe fn rotary_embedding_qk_bnsd_f16(
     if launch.total_len == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&q_out)?;
     checked_device_pointer(&k_out)?;
     checked_device_pointer(&q_input)?;
@@ -1371,6 +1387,7 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_f32(
     if launch.total_pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&q)?;
     checked_device_pointer(&k)?;
     checked_device_pointer(&cos)?;
@@ -1414,6 +1431,7 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_f16(
     if launch.total_pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&q)?;
     checked_device_pointer(&k)?;
     checked_device_pointer(&cos)?;
@@ -1457,6 +1475,7 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_bf16(
     if launch.total_pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&q)?;
     checked_device_pointer(&k)?;
     checked_device_pointer(&cos)?;
@@ -1500,6 +1519,7 @@ pub unsafe fn multiaxis_rope_qk_f32(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&query)?;
     checked_device_pointer(&key)?;
     checked_device_pointer(&cos)?;
@@ -1541,6 +1561,7 @@ pub unsafe fn interleaved_complex_rope_qk_f32(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&query)?;
     checked_device_pointer(&key)?;
     checked_device_pointer(&freqs)?;
@@ -1578,6 +1599,7 @@ pub unsafe fn interleaved_complex_rope_qk_f16(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&query)?;
     checked_device_pointer(&key)?;
     checked_device_pointer(&freqs)?;
@@ -1615,6 +1637,7 @@ pub unsafe fn interleaved_complex_rope_qk_bf16(
     if launch.pair_count == 0 {
         return Ok(());
     }
+
     checked_device_pointer(&query)?;
     checked_device_pointer(&key)?;
     checked_device_pointer(&freqs)?;
@@ -1629,6 +1652,92 @@ pub unsafe fn interleaved_complex_rope_qk_bf16(
             launch.query_heads,
             launch.key_heads,
             launch.head_dim,
+            launch.pair_count,
+        )
+    }
+    .grid(launch.grid)
+    .enqueue_on(stream)?;
+    Ok(())
+}
+
+#[cfg(feature = "dtype_f16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn multiaxis_rope_qk_f16(
+    stream: &Arc<Stream>,
+    query: DevicePointer<f16>,
+    key: DevicePointer<f16>,
+    cos: DevicePointer<f32>,
+    sin: DevicePointer<f32>,
+    config: MultiaxisRopeConfig,
+) -> Result<()> {
+    let launch = MultiaxisRopeLaunch::create(config)?;
+    if launch.pair_count == 0 {
+        return Ok(());
+    }
+
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        kernel_positional_structured::multiaxis_rope_qk_f16(
+            query,
+            key,
+            cos,
+            sin,
+            launch.batch,
+            launch.seq_len,
+            launch.query_heads,
+            launch.key_heads,
+            launch.head_dim,
+            launch.section_t,
+            launch.section_h,
+            launch.pair_count,
+        )
+    }
+    .grid(launch.grid)
+    .enqueue_on(stream)?;
+    Ok(())
+}
+
+#[cfg(feature = "dtype_bf16")]
+/// # Safety
+/// Pointers must reference correctly sized buffers on the stream's device.
+/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
+pub unsafe fn multiaxis_rope_qk_bf16(
+    stream: &Arc<Stream>,
+    query: DevicePointer<bf16>,
+    key: DevicePointer<bf16>,
+    cos: DevicePointer<f32>,
+    sin: DevicePointer<f32>,
+    config: MultiaxisRopeConfig,
+) -> Result<()> {
+    let launch = MultiaxisRopeLaunch::create(config)?;
+    if launch.pair_count == 0 {
+        return Ok(());
+    }
+
+    checked_device_pointer(&query)?;
+    checked_device_pointer(&key)?;
+    checked_device_pointer(&cos)?;
+    checked_device_pointer(&sin)?;
+    // SAFETY: the caller upholds this function's safety contract.
+    unsafe {
+        kernel_positional_structured::multiaxis_rope_qk_bf16(
+            query,
+            key,
+            cos,
+            sin,
+            launch.batch,
+            launch.seq_len,
+            launch.query_heads,
+            launch.key_heads,
+            launch.head_dim,
+            launch.section_t,
+            launch.section_h,
             launch.pair_count,
         )
     }
@@ -2721,88 +2830,4 @@ mod tests {
             })
             .collect()
     }
-}
-
-#[cfg(feature = "dtype_f16")]
-/// # Safety
-/// Pointers must reference correctly sized buffers on the stream's device.
-/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
-pub unsafe fn multiaxis_rope_qk_f16(
-    stream: &Arc<Stream>,
-    query: DevicePointer<f16>,
-    key: DevicePointer<f16>,
-    cos: DevicePointer<f32>,
-    sin: DevicePointer<f32>,
-    config: MultiaxisRopeConfig,
-) -> Result<()> {
-    let launch = MultiaxisRopeLaunch::create(config)?;
-    if launch.pair_count == 0 {
-        return Ok(());
-    }
-    checked_device_pointer(&query)?;
-    checked_device_pointer(&key)?;
-    checked_device_pointer(&cos)?;
-    checked_device_pointer(&sin)?;
-    // SAFETY: the caller upholds this function's safety contract.
-    unsafe {
-        kernel_positional_structured::multiaxis_rope_qk_f16(
-            query,
-            key,
-            cos,
-            sin,
-            launch.batch,
-            launch.seq_len,
-            launch.query_heads,
-            launch.key_heads,
-            launch.head_dim,
-            launch.section_t,
-            launch.section_h,
-            launch.pair_count,
-        )
-    }
-    .grid(launch.grid)
-    .enqueue_on(stream)?;
-    Ok(())
-}
-
-#[cfg(feature = "dtype_bf16")]
-/// # Safety
-/// Pointers must reference correctly sized buffers on the stream's device.
-/// Keep allocations alive and order conflicting accesses until completion and throughout graph replay.
-pub unsafe fn multiaxis_rope_qk_bf16(
-    stream: &Arc<Stream>,
-    query: DevicePointer<bf16>,
-    key: DevicePointer<bf16>,
-    cos: DevicePointer<f32>,
-    sin: DevicePointer<f32>,
-    config: MultiaxisRopeConfig,
-) -> Result<()> {
-    let launch = MultiaxisRopeLaunch::create(config)?;
-    if launch.pair_count == 0 {
-        return Ok(());
-    }
-    checked_device_pointer(&query)?;
-    checked_device_pointer(&key)?;
-    checked_device_pointer(&cos)?;
-    checked_device_pointer(&sin)?;
-    // SAFETY: the caller upholds this function's safety contract.
-    unsafe {
-        kernel_positional_structured::multiaxis_rope_qk_bf16(
-            query,
-            key,
-            cos,
-            sin,
-            launch.batch,
-            launch.seq_len,
-            launch.query_heads,
-            launch.key_heads,
-            launch.head_dim,
-            launch.section_t,
-            launch.section_h,
-            launch.pair_count,
-        )
-    }
-    .grid(launch.grid)
-    .enqueue_on(stream)?;
-    Ok(())
 }

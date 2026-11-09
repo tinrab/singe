@@ -10,16 +10,14 @@ use crate::{error::Result, try_ffi};
 /// As of CUDA 12.0, this no longer initializes CUDA.
 /// The purpose of this call is solely to return a compile-time constant stating the CUDA Toolkit version in the above format.
 ///
-/// This may also return [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`],
-/// or [`crate::error::Status::NoDevice`] if the call tries to initialize internal CUDA Runtime state.
+/// This may also return [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`] if the call tries to initialize internal CUDA Runtime state.
 ///
-/// No CUDA function may be called from a [`Stream::add_callback`](crate::stream::Stream::add_callback)
-/// callback. [`crate::error::Status::NotPermitted`] may be returned as a diagnostic in that case, but this is not guaranteed.
+/// No CUDA function may be called from a [`Stream::add_callback`](crate::stream::Stream::add_callback) callback.
+/// [`crate::error::Status::NotPermitted`] may be returned as a diagnostic in that case, but this is not guaranteed.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA Runtime cannot report its version, if a previous asynchronous launch
-/// failed, or if CUDA Runtime reports initialization or driver/device availability errors.
+/// Returns an error if CUDA Runtime cannot report its version, if a previous asynchronous launch failed, or if CUDA Runtime reports initialization or driver/device availability errors.
 pub fn version() -> Result<CudaRuntimeVersion> {
     let mut version = 0;
     // SAFETY: `cudaRuntimeGetVersion` receives valid output locations.

@@ -26,18 +26,16 @@ where
 {
     /// Reorders the three AC4 color channels while preserving destination alpha.
     ///
-    /// Color channel `i` receives source channel `order[i]`. The three order entries
-    /// must be distinct indices in `0..3`.
+    /// Color channel `i` receives source channel `order[i]`.
+    /// The three order entries must be distinct indices in `0..3`.
     /// Source and destination pixel dimensions must match.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// Source and destination pixel dimensions must match.
     /// An out-of-range order index or repeated source index is rejected.
     pub fn swap_channels_ac4_into(
@@ -62,22 +60,19 @@ where
 {
     /// Reorders the three AC4 color channels while preserving destination alpha.
     ///
-    /// Color channel `i` receives source channel `order[i]`. The three order entries
-    /// must be distinct indices in `0..3`.
-    /// Allocates a new source-sized owned image and copies the source before reordering
-    /// to preserve its alpha values.
+    /// Color channel `i` receives source channel `order[i]`.
+    /// The three order entries must be distinct indices in `0..3`.
+    /// Allocates a new source-sized owned image and copies the source before reordering to preserve its alpha values.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// An out-of-range order index or repeated source index is rejected.
-    /// Output allocation or image view construction can also fail. Copying source alpha
-    /// can fail.
+    /// Output allocation or image view construction can also fail.
+    /// Copying source alpha can fail.
     pub fn swap_channels_ac4(self, order: [i32; 3]) -> Result<Self> {
         self.ensure_eager()?;
 

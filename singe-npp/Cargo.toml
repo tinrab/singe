@@ -1,7 +1,7 @@
 [package]
 name = "singe-npp"
-description = "Safe Rust wrappers for NVIDIA Performance Primitives library (NPP)."
-version = "0.1.0-alpha.10"
+description = "Safe Rust wrappers for NVIDIA Performance Primitives (NPP), for image and signal processing on the GPU."
+version = "0.1.0-alpha.11"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
@@ -20,7 +20,6 @@ npp_13_2 = ["singe-cuda/runtime_13_4", "singe-npp-sys/npp_13_2"]
 testing = ["singe-cuda/testing"]
 
 [dependencies]
-libloading.workspace = true
 singe-core.workspace = true
 singe-cuda.workspace = true
 singe-npp-sys.workspace = true

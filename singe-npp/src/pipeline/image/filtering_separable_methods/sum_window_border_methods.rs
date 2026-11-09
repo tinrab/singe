@@ -16,22 +16,19 @@ where
     Self: SumWindowBorderFilterImage<T, L>,
 {
     /// Sums each channel over a vertical window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// The wrapper forwards `border_type` to NPP, which may reject unsupported values.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn sum_window_column_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -53,22 +50,19 @@ where
     }
 
     /// Sums each channel over a horizontal window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// The wrapper forwards `border_type` to NPP, which may reject unsupported values.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn sum_window_row_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -98,22 +92,19 @@ where
     Self: SumWindowBorderFilterImage<T, L>,
 {
     /// Sums each channel over a vertical window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// `source_offset` locates the output ROI in the full source image. Allocates a new
-    /// owned image spanning from that offset to the lower-right source edge.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// Allocates a new owned image spanning from that offset to the lower-right source edge.
     /// The wrapper forwards `border_type` to NPP, which may reject unsupported values.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     /// Image allocation or view construction can also fail.
     pub fn sum_window_column_border(
         self,
@@ -132,22 +123,19 @@ where
     }
 
     /// Sums each channel over a horizontal window into `f32` samples.
-    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based
-    /// origin offset along the filtered axis. The provided C1, C3, and C4 implementations
-    /// write every channel, including the fourth channel in C4.
-    /// `source_offset` locates the output ROI in the full source image. Allocates a new
-    /// owned image spanning from that offset to the lower-right source edge.
+    /// `mask_size` is the number of source samples in the window; `anchor` is its zero-based origin offset along the filtered axis.
+    /// The provided C1, C3, and C4 implementations write every channel, including the fourth channel in C4.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// Allocates a new owned image spanning from that offset to the lower-right source edge.
     /// The wrapper forwards `border_type` to NPP, which may reject unsupported values.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// `mask_size` must be positive and `anchor` must be in `0..mask_size`.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     /// Image allocation or view construction can also fail.
     pub fn sum_window_row_border(
         self,

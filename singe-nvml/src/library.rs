@@ -72,10 +72,9 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the NVIDIA driver is not running, if NVML does not
-    /// have permission to communicate with the driver, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the NVIDIA driver is not running, if NVML does not have permission to communicate with the driver, or if NVML reports an unexpected failure.
     pub fn create() -> Result<Self> {
+        sys::load()?;
         // SAFETY: `nvmlInit_v2` takes no arguments.
         unsafe {
             try_ffi!(sys::nvmlInit_v2())?;
@@ -90,10 +89,9 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the NVIDIA driver is not running, if NVML does not
-    /// have permission to communicate with the driver, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the NVIDIA driver is not running, if NVML does not have permission to communicate with the driver, or if NVML reports an unexpected failure.
     pub fn create_with_flags(flags: InitFlags) -> Result<Self> {
+        sys::load()?;
         // SAFETY: `nvmlInitWithFlags` receives only plain values.
         unsafe {
             try_ffi!(sys::nvmlInitWithFlags(flags.bits()))?;
@@ -111,8 +109,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal version buffer is too small, if NVML
-    /// rejects the output argument, or if NVML has not been initialized.
+    /// Returns an error if the internal version buffer is too small, if NVML rejects the output argument, or if NVML has not been initialized.
     pub fn driver_version(&self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE as usize];
         // SAFETY: `nvmlSystemGetDriverVersion` receives valid output locations.
@@ -129,15 +126,13 @@ impl Library {
     ///
     /// For all products.
     ///
-    /// The version identifier is an alphanumeric string, so this returns a `String` instead of
-    /// the numeric `LibraryVersion` used by other Singe crates.
+    /// The version identifier is an alphanumeric string, so this returns a `String` instead of the numeric `LibraryVersion` used by other Singe crates.
     /// It does not exceed 80 bytes including the terminating NUL byte.
     /// This wrapper allocates the required NVML buffer internally.
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal version buffer is too small or if NVML
-    /// rejects the output argument.
+    /// Returns an error if the internal version buffer is too small or if NVML rejects the output argument.
     pub fn version(&self) -> Result<String> {
         crate::version()
     }
@@ -150,8 +145,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA driver library or version function cannot
-    /// be found, or if NVML rejects the output argument.
+    /// Returns an error if the CUDA driver library or version function cannot be found, or if NVML rejects the output argument.
     pub fn cuda_driver_version(&self) -> Result<CudaDriverVersion> {
         let mut raw = 0;
         // SAFETY: `nvmlSystemGetCudaDriverVersion_v2` receives valid output locations.
@@ -197,9 +191,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the process ID or output buffer, if the
-    /// process does not exist, if the current process lacks permission, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the process ID or output buffer, if the process does not exist, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn process_name_with_capacity(&self, pid: Pid, capacity: usize) -> Result<String> {
         let mut buffer = vec![0i8; capacity];
         // SAFETY: `nvmlSystemGetProcessName` receives valid output locations.
@@ -223,9 +215,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal driver-branch buffer is too small, if
-    /// NVML rejects the query arguments, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if the internal driver-branch buffer is too small, if NVML rejects the query arguments, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn driver_branch(&self) -> Result<String> {
         let mut info = sys::nvmlSystemDriverBranchInfo_t {
             version: struct_version::<sys::nvmlSystemDriverBranchInfo_t>(1),
@@ -250,9 +240,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the requested capability, if the current
-    /// driver state does not support vGPU capability queries, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the requested capability, if the current driver state does not support vGPU capability queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_driver_capability(&self, capability: VgpuDriverCapability) -> Result<bool> {
         let mut result = 0;
         // SAFETY: `nvmlGetVgpuDriverCapabilities` receives valid output locations.
@@ -275,8 +263,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML does not support this query, rejects the output
-    /// buffers, or fails while fetching the version ranges.
+    /// Returns an error if NVML does not support this query, rejects the output buffers, or fails while fetching the version ranges.
     pub fn vgpu_version(&self) -> Result<VgpuVersionRange> {
         let mut supported = sys::nvmlVgpuVersion_t::default();
         let mut current = sys::nvmlVgpuVersion_t::default();
@@ -306,19 +293,14 @@ impl Library {
     ///
     /// 1. The range set by the administrator must be a subset of the preset range that the NVIDIA vGPU Compressor supports.
     ///    Otherwise, an error is returned.
-    /// 2. If the range of supported guest driver versions does not overlap the range set by the administrator,
-    ///    the guest driver fails to load.
-    /// 3. If the range of supported guest driver versions overlaps the range set by the administrator,
-    ///    the guest driver loads with a negotiated vGPU version equal to the
-    ///    maximum value in the overlapping range.
+    /// 2. If the range of supported guest driver versions does not overlap the range set by the administrator, the guest driver fails to load.
+    /// 3. If the range of supported guest driver versions overlaps the range set by the administrator, the guest driver loads with a negotiated vGPU version equal to the maximum value in the overlapping range.
     /// 4. No VMs must be running on the host when setting the version range.
     ///    If a VM is running on the host, the call fails.
     ///
     /// # Errors
     ///
-    /// Returns an error if `version` is invalid or outside the preset supported
-    /// range, if a VM is running on the host, or if the installed vGPU Compressor
-    /// does not support overriding the version range.
+    /// Returns an error if `version` is invalid or outside the preset supported range, if a VM is running on the host, or if the installed vGPU Compressor does not support overriding the version range.
     pub fn set_vgpu_version(&self, version: VgpuVersion) -> Result<()> {
         let mut version: sys::nvmlVgpuVersion_t = version.into();
         // SAFETY: `nvmlSetVgpuVersion` receives valid output locations.
@@ -338,8 +320,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects either metadata blob or reports an
-    /// unexpected compatibility-query failure.
+    /// Returns an error if NVML rejects either metadata blob or reports an unexpected compatibility-query failure.
     pub fn vgpu_compatibility(
         &self,
         vgpu_metadata: &VgpuMetadata,
@@ -364,9 +345,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the CPU number, if topology discovery is
-    /// not supported on this platform, or if NVML fails while collecting the GPU
-    /// set.
+    /// Returns an error if NVML rejects the CPU number, if topology discovery is not supported on this platform, or if NVML fails while collecting the GPU set.
     pub fn topology_gpu_set(&self, cpu_number: u32) -> Result<Vec<Device>> {
         let mut count = 0;
         // SAFETY: `nvmlSystemGetTopologyGpuSet` receives valid output locations.
@@ -376,6 +355,7 @@ impl Library {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -389,6 +369,7 @@ impl Library {
                 devices.as_mut_ptr(),
             ))?;
         }
+
         devices.truncate(count as usize);
         Ok(devices
             .into_iter()
@@ -422,8 +403,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `index` is out of range or NVML rejects the device
-    /// information output.
+    /// Returns an error if `index` is out of range or NVML rejects the device information output.
     pub fn excluded_device(&self, index: u32) -> Result<ExcludedDeviceInfo> {
         let mut info = sys::nvmlExcludedDeviceInfo_t::default();
         // SAFETY: `nvmlGetExcludedDeviceInfoByIndex` receives valid output locations.
@@ -437,7 +417,8 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Propagates NVML errors from the excluded-device count and per-device queries. Enumeration returns no partial list if a query fails.
+    /// Propagates NVML errors from the excluded-device count and per-device queries.
+    /// Enumeration returns no partial list if a query fails.
     pub fn excluded_devices(&self) -> Result<Vec<ExcludedDeviceInfo>> {
         (0..self.excluded_device_count()?)
             .map(|index| self.excluded_device(index))
@@ -456,8 +437,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the count output, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the count output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn device_count(&self) -> Result<u32> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetCount_v2` receives valid output locations.
@@ -473,8 +453,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the count output, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the count output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn unit_count(&self) -> Result<u32> {
         let mut count = 0;
         // SAFETY: `nvmlUnitGetCount` receives valid output locations.
@@ -495,9 +474,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `index` is out of range, if NVML rejects the handle
-    /// output, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if `index` is out of range, if NVML rejects the handle output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn unit(&self, index: u32) -> Result<Unit> {
         let mut handle = ptr::null_mut();
         // SAFETY: `nvmlUnitGetHandleByIndex` receives valid output locations.
@@ -512,7 +489,8 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Propagates NVML errors from the unit count and per-unit queries. Enumeration returns no partial list if a query fails.
+    /// Propagates NVML errors from the unit count and per-unit queries.
+    /// Enumeration returns no partial list if a query fails.
     pub fn units(&self) -> Result<Vec<Unit>> {
         (0..self.unit_count()?)
             .map(|index| self.unit(index))
@@ -532,7 +510,8 @@ impl Library {
     ///
     /// The NVML index may not correlate with other libraries, such as the CUDA device index.
     ///
-    /// Starting from NVML 5, this call causes NVML to initialize the target GPU. NVML may initialize additional GPUs if:
+    /// Starting from NVML 5, this call causes NVML to initialize the target GPU.
+    /// NVML may initialize additional GPUs if:
     ///
     /// * The target GPU is an SLI slave.
     ///
@@ -546,10 +525,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `index` is out of range, if the process cannot access
-    /// the target GPU, if the GPU cannot be initialized because of power,
-    /// interrupt, or bus-access problems, if NVML has not been initialized, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if `index` is out of range, if the process cannot access the target GPU, if the GPU cannot be initialized because of power, interrupt, or bus-access problems, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn device(&self, index: u32) -> Result<Device> {
         let mut handle = ptr::null_mut();
         // SAFETY: `nvmlDeviceGetHandleByIndex_v2` receives valid output locations.
@@ -564,14 +540,12 @@ impl Library {
     ///
     /// For all products.
     ///
-    /// Starting from NVML 5, this call causes NVML to initialize the target GPU. NVML may initialize additional GPUs as it searches for the target GPU.
+    /// Starting from NVML 5, this call causes NVML to initialize the target GPU.
+    /// NVML may initialize additional GPUs as it searches for the target GPU.
     ///
     /// # Errors
     ///
-    /// Returns an error if `uuid` contains an interior NUL byte or does not
-    /// identify a device, if NVML cannot initialize one of the GPUs searched,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if `uuid` contains an interior NUL byte or does not identify a device, if NVML cannot initialize one of the GPUs searched, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn device_by_uuid(&self, uuid: &str) -> Result<Device> {
         // TODO: add a typed nvmlUUID_t-based API for nvmlDeviceGetHandleByUUIDV when we design a clean ASCII/binary UUID abstraction.
         let uuid = CString::new(uuid)?;
@@ -593,7 +567,8 @@ impl Library {
     ///
     /// This value corresponds to the PCI bus ID returned by [`Device::pci_info`].
     ///
-    /// Starting from NVML 5, this call causes NVML to initialize the target GPU. NVML may initialize additional GPUs if:
+    /// Starting from NVML 5, this call causes NVML to initialize the target GPU.
+    /// NVML may initialize additional GPUs if:
     ///
     /// * The target GPU is an SLI slave.
     ///
@@ -601,11 +576,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if `pci_bus_id` contains an interior NUL byte or does
-    /// not identify a device, if the process cannot access the target GPU, if
-    /// NVML cannot initialize it because of power, interrupt, or bus-access
-    /// problems, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if `pci_bus_id` contains an interior NUL byte or does not identify a device, if the process cannot access the target GPU, if NVML cannot initialize it because of power, interrupt, or bus-access problems, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn device_by_pci_bus_id(&self, pci_bus_id: &str) -> Result<Device> {
         let pci_bus_id = CString::new(pci_bus_id)?;
         let mut handle = ptr::null_mut();
@@ -624,7 +595,8 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Propagates device enumeration and serial-number query errors. Returns `Status::NotFound` if no enumerated device has the requested serial number.
+    /// Propagates device enumeration and serial-number query errors.
+    /// Returns `Status::NotFound` if no enumerated device has the requested serial number.
     pub fn device_by_serial(&self, serial: &str) -> Result<Device> {
         for device in self.devices()? {
             if device.serial()? == serial {
@@ -639,7 +611,8 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Propagates NVML errors from the device count and per-device queries. Enumeration returns no partial list if a query fails.
+    /// Propagates NVML errors from the device count and per-device queries.
+    /// Enumeration returns no partial list if a query fails.
     pub fn devices(&self) -> Result<Vec<Device>> {
         (0..self.device_count()?)
             .map(|index| self.device(index))
@@ -653,8 +626,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the event-set output, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the event-set output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn event_set(&self) -> Result<EventSet> {
         let mut set = ptr::null_mut();
         // SAFETY: `nvmlEventSetCreate` receives valid output locations.
@@ -672,9 +644,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the request, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the request, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn system_event_set(&self) -> Result<SystemEventSet> {
         let mut request = sys::nvmlSystemEventSetCreateRequest_t {
             version: struct_version::<sys::nvmlSystemEventSetCreateRequest_t>(1),
@@ -692,9 +662,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the output, if the system does not
-    /// support global `NVLink` bandwidth mode, or if the current process lacks
-    /// the required privileges.
+    /// Returns an error if NVML rejects the output, if the system does not support global `NVLink` bandwidth mode, or if the current process lacks the required privileges.
     pub fn nvlink_bw_mode(&self) -> Result<u32> {
         let mut mode = 0;
         // SAFETY: `nvmlSystemGetNvlinkBwMode` receives valid output locations.
@@ -711,9 +679,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the output, if the system does not
-    /// support this Confidential Computing query, or if NVML has not been
-    /// initialized.
+    /// Returns an error if NVML rejects the output, if the system does not support this Confidential Computing query, or if NVML has not been initialized.
     pub fn conf_compute_capabilities(&self) -> Result<ConfComputeSystemCaps> {
         let mut caps = sys::nvmlConfComputeSystemCaps_t::default();
         // SAFETY: `nvmlSystemGetConfComputeCapabilities` receives valid output locations.
@@ -730,9 +696,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the output, if the system does not
-    /// support this Confidential Computing query, or if NVML has not been
-    /// initialized.
+    /// Returns an error if NVML rejects the output, if the system does not support this Confidential Computing query, or if NVML has not been initialized.
     pub fn conf_compute_state(&self) -> Result<ConfComputeSystemState> {
         let mut state = sys::nvmlConfComputeSystemState_t::default();
         // SAFETY: `nvmlSystemGetConfComputeState` receives valid output locations.
@@ -749,9 +713,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the output, if the system does not
-    /// support this Confidential Computing query, or if NVML has not been
-    /// initialized.
+    /// Returns an error if NVML rejects the output, if the system does not support this Confidential Computing query, or if NVML has not been initialized.
     pub fn conf_compute_gpus_ready_state(&self) -> Result<bool> {
         let mut accepting_work = 0;
         // SAFETY: `nvmlSystemGetConfComputeGpusReadyState` receives valid output locations.
@@ -770,9 +732,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the request, if the system does not
-    /// support this Confidential Computing query, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the request, if the system does not support this Confidential Computing query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn conf_compute_key_rotation_threshold(&self) -> Result<ConfComputeKeyRotationThreshold> {
         let mut info = sys::nvmlConfComputeGetKeyRotationThresholdInfo_t {
             version: struct_version::<sys::nvmlConfComputeGetKeyRotationThresholdInfo_t>(1),
@@ -794,11 +754,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the request, if a target GPU is
-    /// inaccessible, if the system does not support Confidential Computing
-    /// settings, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the request, if a target GPU is inaccessible, if the system does not support Confidential Computing settings, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn conf_compute_settings(&self) -> Result<ConfComputeSystemSettings> {
         let mut settings = sys::nvmlSystemConfComputeSettings_t {
             version: struct_version::<sys::nvmlSystemConfComputeSettings_t>(1),
@@ -820,9 +776,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the number of HIC entries changes while the wrapper
-    /// is fetching them, if NVML rejects the query, or if NVML has not been
-    /// initialized.
+    /// Returns an error if the number of HIC entries changes while the wrapper is fetching them, if NVML rejects the query, or if NVML has not been initialized.
     pub fn hic_versions(&self) -> Result<Vec<HwbcEntry>> {
         let mut count = 0;
         // SAFETY: `nvmlSystemGetHicVersion` receives valid output locations.
@@ -830,6 +784,7 @@ impl Library {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -842,6 +797,7 @@ impl Library {
                 entries.as_mut_ptr(),
             ))?;
         }
+
         entries.truncate(count as usize);
         Ok(entries.into_iter().map(Into::into).collect())
     }
@@ -853,8 +809,7 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the allocation request or if system
-    /// memory is insufficient.
+    /// Returns an error if NVML rejects the allocation request or if system memory is insufficient.
     pub fn gpm_sample(&self) -> Result<GpmSample> {
         let mut sample = ptr::null_mut();
         // SAFETY: `nvmlGpmSampleAlloc` receives valid output locations.
@@ -879,7 +834,8 @@ impl Library {
     ///
     /// # Errors
     ///
-    /// Returns an error if the metric count exceeds the native array capacity or cannot fit in `u32`, or NVML rejects the samples or metric request. Per-metric NVML failures are retained in each returned metric record.
+    /// Returns an error if the metric count exceeds the native array capacity or cannot fit in `u32`, or NVML rejects the samples or metric request.
+    /// Per-metric NVML failures are retained in each returned metric record.
     pub fn gpm_metrics(
         &self,
         sample1: &GpmSample,
@@ -919,8 +875,10 @@ impl Drop for Library {
         // SAFETY: `nvmlShutdown` takes no arguments.
         unsafe {
             if let Err(error) = try_ffi!(sys::nvmlShutdown()) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to shut down nvml: {error}");
+                eprintln!(
+                    "failed to shut down nvml: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -931,8 +889,8 @@ impl GpmSample {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid NVML GPM sample handle. The returned value
-    /// takes ownership of the handle and frees it on drop.
+    /// `handle` must be a valid NVML GPM sample handle.
+    /// The returned value takes ownership of the handle and frees it on drop.
     ///
     /// # Errors
     ///
@@ -966,8 +924,10 @@ impl Drop for GpmSample {
         // SAFETY: `nvmlGpmSampleFree` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::nvmlGpmSampleFree(self.0)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to free nvml gpm sample: {error}");
+                eprintln!(
+                    "failed to free nvml gpm sample: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -978,8 +938,8 @@ impl EventSet {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid NVML event-set handle. The returned value takes
-    /// ownership of the handle and frees it on drop.
+    /// `handle` must be a valid NVML event-set handle.
+    /// The returned value takes ownership of the handle and frees it on drop.
     ///
     /// # Errors
     ///
@@ -1018,15 +978,11 @@ impl EventSet {
     /// Use [`EventSet::wait`] to observe recorded events.
     ///
     /// If NVML reports [`Status::UnknownError`](crate::error::Status::UnknownError), the event set is in an undefined state and must be freed.
-    /// If NVML reports [`Status::NotSupported`](crate::error::Status::NotSupported), the event set can still be
-    /// used, but none of the requested event types are registered.
+    /// If NVML reports [`Status::NotSupported`](crate::error::Status::NotSupported), the event set can still be used, but none of the requested event types are registered.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// event set or event mask, if the platform or requested event types are not
-    /// supported, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the event set or event mask, if the platform or requested event types are not supported, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn register_device(&self, device: Device, event_types: EventTypes) -> Result<()> {
         // SAFETY: `nvmlDeviceRegisterEvents` receives live handles owned by the wrappers.
         unsafe {
@@ -1044,8 +1000,10 @@ impl Drop for EventSet {
         // SAFETY: `nvmlEventSetFree` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::nvmlEventSetFree(self.0)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to free nvml event set: {error}");
+                eprintln!(
+                    "failed to free nvml event set: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -1056,8 +1014,8 @@ impl SystemEventSet {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid NVML system event-set handle. The returned
-    /// value takes ownership of the handle and frees it on drop.
+    /// `handle` must be a valid NVML system event-set handle.
+    /// The returned value takes ownership of the handle and frees it on drop.
     ///
     /// # Errors
     ///
@@ -1094,14 +1052,11 @@ impl SystemEventSet {
     /// Use [`SystemEventSet::wait`] to check whether an event occurred.
     ///
     /// If NVML reports [`Status::UnknownError`](crate::error::Status::UnknownError), the event set is in an undefined state and must be freed.
-    /// If NVML reports [`Status::NotSupported`](crate::error::Status::NotSupported), the event set can still be
-    /// used, but none of the requested event types are registered.
+    /// If NVML reports [`Status::NotSupported`](crate::error::Status::NotSupported), the event set can still be used, but none of the requested event types are registered.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the event registration request, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the event registration request, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn register_events(&self, event_types: SystemEventTypes) -> Result<()> {
         let mut request = sys::nvmlSystemRegisterEventRequest_t {
             version: struct_version::<sys::nvmlSystemRegisterEventRequest_t>(1),
@@ -1125,10 +1080,7 @@ impl SystemEventSet {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the wait request, if no event arrives
-    /// before `timeout_ms`, if NVML has not been initialized, or if NVML reports
-    /// an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the wait request, if no event arrives before `timeout_ms`, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn wait(&self, timeout_ms: u32, max_events: u32) -> Result<Vec<SystemEventNotification>> {
         let mut data = vec![sys::nvmlSystemEventData_v1_t::default(); max_events as usize];
         let mut request = sys::nvmlSystemEventSetWaitRequest_t {
@@ -1143,6 +1095,7 @@ impl SystemEventSet {
         unsafe {
             try_ffi!(sys::nvmlSystemEventSetWait(&raw mut request))?;
         }
+
         data.truncate(request.numEvent as usize);
         Ok(data.into_iter().map(Into::into).collect())
     }
@@ -1157,8 +1110,10 @@ impl Drop for SystemEventSet {
         // SAFETY: `nvmlSystemEventSetFree` receives valid output locations.
         unsafe {
             if let Err(error) = try_ffi!(sys::nvmlSystemEventSetFree(&raw mut request)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to free nvml system event set: {error}");
+                eprintln!(
+                    "failed to free nvml system event set: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

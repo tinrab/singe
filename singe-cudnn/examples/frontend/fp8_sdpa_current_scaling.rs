@@ -224,11 +224,13 @@ fn run() -> Result<()> {
     for descale in [descale_q, descale_k, descale_v] {
         bindings.set_input(descale, &descale_dev.view())?;
     }
+
     bindings.set_input(descale_s, &descale_s_dev.view())?;
     bindings.set_input(attention_scale, &attention_scale_dev.view())?;
     for (id, memory) in &mut output_buffers {
         bindings.set_encoded_bytes(*id, memory)?;
     }
+
     // SAFETY: initialized inputs, encoded output allocations, host scales and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(

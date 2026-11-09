@@ -35,7 +35,8 @@ pub struct SvdLayout {
 impl SvdLayout {
     /// Records the input leading dimension with no singular-vector output layouts.
     ///
-    /// All distances are measured in elements. The solver workspace query validates dimensions and required outputs.
+    /// All distances are measured in elements.
+    /// The solver workspace query validates dimensions and required outputs.
     #[must_use]
     pub const fn new(input_leading_dimension: usize) -> Self {
         Self {
@@ -100,6 +101,7 @@ fn classic_modes(m: usize, n: usize, left: SvdMode, right: SvdMode) -> Result<(b
     if m < n {
         return Err(Error::InvalidMatrixShape);
     }
+
     if matches!(left, SvdMode::Overwrite) && matches!(right, SvdMode::Overwrite) {
         return Err(Error::InvalidSvdMode);
     }
@@ -118,6 +120,7 @@ fn output_parts<T: DataTypeLike>(
     if !enabled {
         return Ok((ptr::null_mut(), 1));
     }
+
     let mut matrix = matrix.ok_or(Error::InvalidMatrixShape)?;
     validate_x_matrix(
         rows,
@@ -207,18 +210,16 @@ pub fn xgesvd_buffer_size<T: SolverElement>(
 
 /// Queues a column-major SVD, returning right vectors as V^H.
 ///
-/// `All` produces square vector matrices; `Some` produces m-by-min(m,n) U and
-/// min(m,n)-by-n V^H. `Overwrite` uses A for the requested vectors.
+/// `All` produces square vector matrices; `Some` produces m-by-min(m,n) U and min(m,n)-by-n V^H. `Overwrite` uses A for the requested vectors.
 ///
 /// # Safety
 ///
-/// Retain A, every output, both workspaces, and both handles through completion
-/// on every path and throughout replay. A must be initialized and ordered before
-/// this call. All ranges must belong to the handle's actual CUDA context and be
-/// disjoint, with exclusive access to writes. A successful enqueue does not
-/// establish completion. Check the first status element after completion before
-/// using the solution. Only min(m,n) singular values, requested logical vector
-/// elements, and the first status element are produced; padding and tails are not.
+/// Retain A, every output, both workspaces, and both handles through completion on every path and throughout replay.
+/// A must be initialized and ordered before this call.
+/// All ranges must belong to the handle's actual CUDA context and be disjoint, with exclusive access to writes.
+/// A successful enqueue does not establish completion.
+/// Check the first status element after completion before using the solution.
+/// Only min(m,n) singular values, requested logical vector elements, and the first status element are produced; padding and tails are not.
 ///
 /// # Errors
 ///
@@ -360,16 +361,16 @@ pub fn xgesvdp_buffer_size<T: SolverElement>(
 
 /// Queues polar-decomposition SVD, returning right vectors as V.
 ///
-/// Vector allocations must accommodate square m-by-m U and n-by-n V as specified
-/// by cuSOLVER. With `econ`, only the first min(m,n) columns are produced.
+/// Vector allocations must accommodate square m-by-m U and n-by-n V as specified by cuSOLVER.
+/// With `econ`, only the first min(m,n) columns are produced.
 /// `err_sigma`, when present, receives the perturbation magnitude.
 ///
 /// # Safety
 ///
-/// Follow [`xgesvd`]'s context, ordering, aliasing, and retention contract. Retain
-/// `err_sigma` through completion as well. Only requested logical vector columns,
-/// min(m,n) singular values, and the first status element are produced. Workspace,
-/// matrix padding, and unused output tails do not become initialized results.
+/// Follow [`xgesvd`]'s context, ordering, aliasing, and retention contract.
+/// Retain `err_sigma` through completion as well.
+/// Only requested logical vector columns, min(m,n) singular values, and the first status element are produced.
+/// Workspace, matrix padding, and unused output tails do not become initialized results.
 ///
 /// # Errors
 ///
@@ -464,6 +465,7 @@ pub fn xgesvdr_buffer_size<T: SolverElement>(
     if k == 0 || k >= minimum || k.checked_add(p).is_none_or(|sum| sum >= minimum) {
         return Err(Error::InvalidMatrixShape);
     }
+
     let left = matches!(job_u, TruncatedSvdMode::Some);
     let right = matches!(job_v, TruncatedSvdMode::Some);
     let (lda, ldu, ldv) = layout_parts(layout, m, n, left, right)?;
@@ -506,15 +508,12 @@ pub fn xgesvdr_buffer_size<T: SolverElement>(
 
 /// Queues truncated SVD, producing the leading k singular vectors and values.
 ///
-/// Storage must accommodate min(m,n) singular values and square m-by-m U and
-/// n-by-n V allocations required by cuSOLVER, although only leading k results
-/// are exposed by this operation's initialization contract.
+/// Storage must accommodate min(m,n) singular values and square m-by-m U and n-by-n V allocations required by cuSOLVER, although only leading k results are exposed by this operation's initialization contract.
 ///
 /// # Safety
 ///
-/// Follow [`xgesvd`]'s context, ordering, aliasing, and lifetime contract. After
-/// completion and a zero first status element, only the leading k singular
-/// values and requested vector columns may be treated as produced results.
+/// Follow [`xgesvd`]'s context, ordering, aliasing, and lifetime contract.
+/// After completion and a zero first status element, only the leading k singular values and requested vector columns may be treated as produced results.
 /// Allocation padding, unused tails, and scratch remain outside that guarantee.
 ///
 /// # Errors

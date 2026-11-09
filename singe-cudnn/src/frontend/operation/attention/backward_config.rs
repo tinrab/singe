@@ -12,9 +12,7 @@ use crate::{
 
 /// High-level configuration for SDPA backward helpers.
 ///
-/// Includes score modifiers, optional score subgraphs for forward and backward
-/// score paths, dropout, attention scale, deterministic mode, and optional
-/// gradients for bias, RNG dump, and sink token.
+/// Includes score modifiers, optional score subgraphs for forward and backward score paths, dropout, attention scale, deterministic mode, and optional gradients for bias, RNG dump, and sink token.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttentionBackwardConfig {
     pub(crate) name: Option<String>,

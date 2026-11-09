@@ -158,8 +158,7 @@ impl MoeGroupedMatmulConfig {
 
 /// Attributes for cuDNN frontend `MoE` grouped matmul backward.
 ///
-/// The native cuDNN node computes grouped weight gradients from routed token
-/// activations, output gradients, and the first-token offset table.
+/// The native cuDNN node computes grouped weight gradients from routed token activations, output gradients, and the first-token offset table.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct MoeGroupedMatmulBackwardConfig {
     name: Option<String>,

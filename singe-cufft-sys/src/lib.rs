@@ -8,7 +8,6 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -30,22 +29,6 @@ use singe_cuda_sys::{
 #[cfg(feature = "cufft_12_4")]
 include!("sys_12400.rs");
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_it_works() {
-        let mut version = 0;
-        // SAFETY: the version query writes only into the local output locations.
-        unsafe {
-            assert_eq!(cufftGetVersion(&mut version), cufftResult::CUFFT_SUCCESS,);
-        }
-        println!("cuFFT version: {}", version);
-        assert_ne!(version, 0);
-    }
-}
-
 /// Experimental device FFT description and code-generation interface.
 #[cfg(feature = "cufft_12_4")]
 pub mod device {
@@ -65,4 +48,36 @@ pub mod xt {
     use super::{cufftHandle, cufftResult, cufftResult_t};
 
     include!("xt_12400.rs");
+}
+
+pub use singe_loader::LoadError;
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::cufft();
+
+// Loads cuFFT, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "cufft_12_4")]
+singe_loader::missing_status!(
+    cufftResult,
+    library: cufftResult::CUFFT_SETUP_FAILED,
+    symbol: cufftResult::CUFFT_NOT_IMPLEMENTED,
+);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_it_works() {
+        let mut version = 0;
+        // SAFETY: the version query writes only into the local output locations.
+        unsafe {
+            assert_eq!(cufftGetVersion(&mut version), cufftResult::CUFFT_SUCCESS,);
+        }
+        println!("cuFFT version: {}", version);
+        assert_ne!(version, 0);
+    }
 }

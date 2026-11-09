@@ -30,9 +30,8 @@ macro_rules! impl_signal_threshold_dispatch {
         /// Native dispatch for the corresponding named NPP operation.
         ///
         /// # Safety
-        /// Implementations must match the native ABI, access roles, written ranges,
-        /// and status semantics. Successful completed execution must initialize its
-        /// documented outputs; metadata queries must return the required capacity.
+        /// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+        /// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
         pub unsafe trait $trait: DataTypeLike {
             /// Scalar type accepted as the threshold level.
             type Level: DataTypeLike;
@@ -121,9 +120,8 @@ macro_rules! impl_signal_threshold_in_place_dispatch {
         /// Native dispatch for the corresponding named NPP operation.
         ///
         /// # Safety
-        /// Implementations must match the native ABI, access roles, written ranges,
-        /// and status semantics. Successful completed execution must initialize its
-        /// documented outputs; metadata queries must return the required capacity.
+        /// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+        /// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
         pub unsafe trait $trait: DataTypeLike {
             /// Scalar type accepted as the threshold level.
             type Level: DataTypeLike;
@@ -203,9 +201,8 @@ macro_rules! impl_signal_threshold_fixed_dispatch {
         /// Native dispatch for the corresponding named NPP operation.
         ///
         /// # Safety
-        /// Implementations must match the native ABI, access roles, written ranges,
-        /// and status semantics. Successful completed execution must initialize its
-        /// documented outputs; metadata queries must return the required capacity.
+        /// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+        /// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
         pub unsafe trait $trait: DataTypeLike {
             /// Scalar type accepted as the threshold level.
             type Level: DataTypeLike;
@@ -291,9 +288,8 @@ macro_rules! impl_signal_threshold_value_dispatch {
         /// Native dispatch for the corresponding named NPP operation.
         ///
         /// # Safety
-        /// Implementations must match the native ABI, access roles, written ranges,
-        /// and status semantics. Successful completed execution must initialize its
-        /// documented outputs; metadata queries must return the required capacity.
+        /// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+        /// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
         pub unsafe trait $trait: DataTypeLike {
             /// Scalar type accepted as the threshold level.
             type Level: DataTypeLike;

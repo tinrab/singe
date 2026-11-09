@@ -27,9 +27,11 @@ use crate::{
 /// Native resource targets used during engine selection and reconstruction.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct EnginePlanningConfig {
-    /// Number of SMs to target. Zero uses every SM; `None` leaves the target unset.
+    /// Number of SMs to target.
+    /// Zero uses every SM; `None` leaves the target unset.
     pub sm_count_target: Option<u32>,
-    /// Dynamic shared-memory budget in bytes. Zero uses the device limit.
+    /// Dynamic shared-memory budget in bytes.
+    /// Zero uses the device limit.
     pub shared_memory_limit: Option<u32>,
 }
 
@@ -168,6 +170,7 @@ impl EngineConfig {
         if let Some(planning) = self.planning.get() {
             return Ok(*planning);
         }
+
         bind_context(self.cuda_context())?;
         let engine = self.engine()?.descriptor();
         let attribute = |name| match engine.attribute_i32(name) {
@@ -207,11 +210,13 @@ impl EngineConfig {
 
     /// Creates an explicit engine configuration for a live context using default resource targets.
     ///
-    /// Obtains device properties from the retained live target. Empty knob choices use engine defaults.
+    /// Obtains device properties from the retained live target.
+    /// Empty knob choices use engine defaults.
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails. cuDNN validates engine and knob support for the selected graph and target.
+    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates engine and knob support for the selected graph and target.
     pub fn create(
         context: &Context,
         operation_graph: &OperationGraph,
@@ -232,7 +237,8 @@ impl EngineConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails. cuDNN validates engine and knob support for the selected graph and target.
+    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates engine and knob support for the selected graph and target.
     pub fn create_with_config(
         context: &Context,
         operation_graph: &OperationGraph,
@@ -255,7 +261,8 @@ impl EngineConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails. cuDNN validates engine and knob support for the selected graph and target.
+    /// Returns an error if live contexts disagree or cannot be bound, target properties cannot be obtained, a resource target does not fit `i32`, knob choices repeat a knob type, or native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates engine and knob support for the selected graph and target.
     pub fn create_deviceless(
         operation_graph: &OperationGraph,
         choice: &EngineChoice,
@@ -287,6 +294,7 @@ impl EngineConfig {
                 });
             }
         }
+
         let engine = Engine::create_with_context(
             context,
             operation_graph,
@@ -320,6 +328,7 @@ impl EngineConfig {
                 &knob_choice_refs,
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {
@@ -353,8 +362,7 @@ impl EngineConfig {
     /// A reported zero-byte requirement is `Some(0)`.
     ///
     /// # Errors
-    /// Returns native query errors other than an unavailable attribute, or an
-    /// error if the reported size cannot be represented as a byte count.
+    /// Returns native query errors other than an unavailable attribute, or an error if the reported size cannot be represented as a byte count.
     pub fn shared_memory_size(&self) -> Result<Option<usize>> {
         bind_context(self.cuda_context())?;
         match self
@@ -421,7 +429,8 @@ impl EngineConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding, native descriptor or attribute queries, or metadata decoding fails, or an intermediate size cannot be represented as `usize`. Missing or unsupported attribute-dependency metadata is returned as `None`.
+    /// Returns an error if context binding, native descriptor or attribute queries, or metadata decoding fails, or an intermediate size cannot be represented as `usize`.
+    /// Missing or unsupported attribute-dependency metadata is returned as `None`.
     pub fn intermediate_infos(&self) -> Result<Vec<IntermediateInfo>> {
         bind_context(self.cuda_context())?;
         // SAFETY: this attribute returns objects of the explicitly selected native class.
@@ -494,6 +503,7 @@ impl EngineConfig {
         if let Some(choice) = self.choice.get() {
             return Ok(choice);
         }
+
         let choice = EngineChoice::new(self.engine_index()?, self.read_native_knob_choices()?);
         Ok(self.choice.get_or_init(|| choice))
     }
@@ -508,6 +518,7 @@ impl EngineConfig {
         if let Some(tag) = self.tag.get() {
             return Ok(tag.as_str());
         }
+
         let tag = self.choice()?.tag();
         Ok(self.tag.get_or_init(|| tag).as_str())
     }
@@ -523,6 +534,7 @@ impl EngineConfig {
         if let Some(engine) = self.engine.get() {
             return Ok(engine);
         }
+
         bind_context(self.cuda_context())?;
         // SAFETY: the named attribute requires the explicitly selected native class.
         let descriptor = unsafe {
@@ -551,7 +563,8 @@ impl<'a> EngineHeuristics<'a> {
     /// Queries native modes in order, preserving successful configurations and every attempted outcome.
     /// Pass a live handle, attached device properties or a graph retaining its live target.
     /// Resource settings apply to each mode and follow the extracted configurations.
-    /// Empty mode lists perform no queries. No engine enumeration or implicit mode fallback is added.
+    /// Empty mode lists perform no queries.
+    /// No engine enumeration or implicit mode fallback is added.
     /// Query construction and result-extraction failures are retained in `statuses`.
     /// `StopOnError` stops on the first failure, rather than on the first successful mode.
     #[must_use]
@@ -606,7 +619,8 @@ impl<'a> EngineHeuristics<'a> {
 
     /// Creates a heuristic query with optional device properties and resource targets.
     ///
-    /// An absent device-property argument queries the live target. Shared-memory limits are measured in bytes; SM-count and shared-memory targets use native zero-value defaults.
+    /// An absent device-property argument queries the live target.
+    /// Shared-memory limits are measured in bytes; SM-count and shared-memory targets use native zero-value defaults.
     ///
     /// # Errors
     ///
@@ -633,7 +647,8 @@ impl<'a> EngineHeuristics<'a> {
 
     /// Creates a heuristic query using explicit device properties without a cuDNN handle.
     ///
-    /// A graph retaining a live CUDA target still supplies that context for native calls. Resource targets follow the extracted configurations.
+    /// A graph retaining a live CUDA target still supplies that context for native calls.
+    /// Resource targets follow the extracted configurations.
     ///
     /// # Errors
     ///
@@ -702,12 +717,14 @@ impl<'a> EngineHeuristics<'a> {
                 to_i32(sm_count_target, "sm_count_target")?,
             )?;
         }
+
         if let Some(limit) = planning.shared_memory_limit {
             descriptor.set_attribute_i32(
                 BackendAttributeName::EngineHeurSharedMemoryLimit,
                 to_i32(limit, "shared_memory_limit")?,
             )?;
         }
+
         {
             static MODE_B_FINALIZATION: Mutex<()> = Mutex::new(());
             let _guard = if mode == BackendHeuristicMode::B {

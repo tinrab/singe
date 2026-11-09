@@ -25,9 +25,8 @@ use crate::{
 
 /// Typed Cholesky factorization operation.
 ///
-/// This is the preferred operation-family API for POTRF. It keeps matrix
-/// metadata grouped in [`MatrixRef`] and [`MatrixMut`] instead of exposing the
-/// cuSOLVER `S`/`D`/`C`/`Z` entry point names and separate `a`/`lda` arguments.
+/// This is the preferred operation-family API for POTRF.
+/// It keeps matrix metadata grouped in [`MatrixRef`] and [`MatrixMut`] instead of exposing the cuSOLVER `S`/`D`/`C`/`Z` entry point names and separate `a`/`lda` arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Potrf<T: DeviceRepr> {
     fill_mode: FillMode,
@@ -99,7 +98,8 @@ pub struct BatchedPotrf<T: DeviceRepr> {
 pub struct BatchedPotrfArgs<'a, T: DeviceRepr> {
     /// Device pointer table for initialized square matrices, each overwritten by its Cholesky factor.
     ///
-    /// The opposite triangle may be used as scratch. The caller must retain and exclusively borrow every pointee through completion.
+    /// The opposite triangle may be used as scratch.
+    /// The caller must retain and exclusively borrow every pointee through completion.
     pub a: BatchedMatrixRef<'a, T>,
     /// Device output capacity for one solver status per matrix; inspect each completed status before using its factor.
     pub info: DeviceOutputView<'a, i32>,
@@ -118,7 +118,8 @@ pub struct BatchedPotrs<T: DeviceRepr> {
 pub struct BatchedPotrsArgs<'a, T: DeviceRepr> {
     /// Device pointer table for initialized Cholesky factors.
     ///
-    /// The opposite triangle may be used as scratch. The caller must retain and exclusively borrow each factor allocation through completion.
+    /// The opposite triangle may be used as scratch.
+    /// The caller must retain and exclusively borrow each factor allocation through completion.
     pub factors: BatchedMatrixRef<'a, T>,
     /// Device pointer table for initialized single right-hand sides, overwritten by solutions.
     ///
@@ -208,7 +209,8 @@ pub struct Sytrs<TA: DeviceRepr, TB: DeviceRepr = TA> {
 pub struct SytrsArgs<'a, TA: DeviceRepr, TB: DeviceRepr = TA> {
     /// Initialized indefinite factorization in the selected triangle.
     pub factor: MatrixRef<'a, TA>,
-    /// Optional initialized native 64-bit pivot data matching the factorization. `None` passes a null pointer.
+    /// Optional initialized native 64-bit pivot data matching the factorization.
+    /// `None` passes a null pointer.
     pub pivots: Option<DeviceView<'a, i64>>,
     /// Initialized right-hand-side columns overwritten by the solution.
     pub rhs: MatrixMut<'a, TB>,
@@ -231,7 +233,8 @@ pub struct Sytrf<T: DeviceRepr> {
 pub struct SytrfArgs<'a, T: DeviceRepr> {
     /// Initialized square matrix overwritten in the selected triangle by its indefinite factorization.
     pub a: MatrixMut<'a, T>,
-    /// Optional device capacity for `n` native 64-bit pivot entries. `None` passes a null pointer.
+    /// Optional device capacity for `n` native 64-bit pivot entries.
+    /// `None` passes a null pointer.
     pub pivots: Option<DeviceOutputView<'a, i64>>,
     /// Exclusive device and host scratch capacities, both measured in bytes.
     pub workspace: ByteWorkspaceMut<'a>,
@@ -507,8 +510,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot
-    /// report the workspace sizes.
+    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(
         &self,
         context: &Context,
@@ -529,8 +531,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, params: &Params, args: PotrfArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -643,8 +644,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot
-    /// report the workspace size.
+    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot report the workspace size.
     pub fn workspace_len(&self, context: &Context, factor: MatrixLayout) -> Result<usize> {
         T::potri_buffer_size(context, self.fill_mode, self.n, factor)
     }
@@ -653,8 +653,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: PotriArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.factor.data)?;
@@ -708,8 +707,7 @@ where
     /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
     /// # Safety
     ///
-    /// Retain every device pointer-table pointee through this completed call,
-    /// and establish its shape, initialization, actual context, and access exclusivity.
+    /// Retain every device pointer-table pointee through this completed call, and establish its shape, initialization, actual context, and access exclusivity.
     pub unsafe fn run(&self, context: &Context, args: BatchedPotrfArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.pointers)?;
@@ -755,8 +753,7 @@ where
     /// Returns an error if inputs are invalid or if cuSOLVER reports a failure.
     /// # Safety
     ///
-    /// Retain every device pointer-table pointee through this completed call,
-    /// and establish its shape, initialization, actual context, and access exclusivity.
+    /// Retain every device pointer-table pointee through this completed call, and establish its shape, initialization, actual context, and access exclusivity.
     pub unsafe fn run(&self, context: &Context, args: BatchedPotrsArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.factors.pointers)?;
@@ -821,8 +818,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot
-    /// report the workspace sizes.
+    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(
         &self,
         context: &Context,
@@ -836,14 +832,14 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, params: &Params, args: GetrfArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
             if let Some(value) = args.pivots.as_ref() {
                 context.prepare_region(value)?;
             }
+
             context.prepare_region(&args.workspace.device)?;
             context.prepare_region(&args.dev_info)?;
             // SAFETY: the prepared bindings remain borrowed until this scope completes.
@@ -969,8 +965,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot
-    /// report the workspace sizes.
+    /// Returns an error if the matrix shape is invalid or cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(&self, context: &Context, a: MatrixLayout) -> Result<WorkspaceSizes> {
         xtrtri_buffer_size::<T>(context, self.fill_mode, self.diagonal_type, self.n, a)
     }
@@ -979,8 +974,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: TrtriArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -1040,8 +1034,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace sizes.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(
         &self,
         context: &Context,
@@ -1062,14 +1055,14 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: SytrsArgs<'_, TA, TB>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.factor.data)?;
             if let Some(value) = args.pivots.as_ref() {
                 context.prepare_region(value)?;
             }
+
             context.prepare_region(&args.rhs.data)?;
             context.prepare_region(&args.workspace.device)?;
             context.prepare_region(&args.dev_info)?;
@@ -1121,8 +1114,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_size(
         &self,
         context: &Context,
@@ -1136,14 +1128,14 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, params: &Params, args: SytrfArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
             if let Some(value) = args.pivots.as_ref() {
                 context.prepare_region(value)?;
             }
+
             context.prepare_region(&args.workspace.device)?;
             context.prepare_region(&args.dev_info)?;
             // SAFETY: the prepared bindings remain borrowed until this scope completes.
@@ -1194,8 +1186,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(&self, context: &Context, a: MatrixLayout) -> Result<usize> {
         T::sytrd_buffer_size(context, self.fill_mode, self.n, a)
     }
@@ -1204,8 +1195,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: SytrdArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -1262,8 +1252,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(&self, context: &Context, a: MatrixLayout) -> Result<usize> {
         T::orgtr_buffer_size(context, self.fill_mode, self.n, a)
     }
@@ -1272,8 +1261,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: OrgtrArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -1353,8 +1341,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(
         &self,
         context: &Context,
@@ -1377,8 +1364,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: OrmtrArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.reflectors.data)?;
@@ -1466,8 +1452,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace sizes.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(
         &self,
         context: &Context,
@@ -1492,8 +1477,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
     pub fn run(
         &self,
         context: &Context,
@@ -1570,8 +1554,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace sizes.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace sizes.
     pub fn workspace_size(
         &self,
         context: &Context,
@@ -1585,8 +1568,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspaces are invalid, or if cuSOLVER reports a failure.
     pub fn run(
         &self,
         context: &Context,
@@ -1673,8 +1655,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(
         &self,
         context: &Context,
@@ -1697,8 +1678,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: OrmqrArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.reflectors.data)?;
@@ -1763,8 +1743,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(&self, context: &Context, a: MatrixLayout) -> Result<usize> {
         T::orgqr_buffer_size(context, self.rows, self.cols, self.reflectors, a)
     }
@@ -1773,8 +1752,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: OrgqrArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -1828,8 +1806,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions are invalid or if cuSOLVER cannot report
-    /// the workspace length.
+    /// Returns an error if dimensions are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(&self, context: &Context) -> Result<usize> {
         T::gebrd_buffer_size(context, self.rows, self.cols)
     }
@@ -1838,8 +1815,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: GebrdArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -1912,8 +1888,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the
-    /// workspace length.
+    /// Returns an error if inputs are invalid or if cuSOLVER cannot report the workspace length.
     pub fn workspace_len(&self, context: &Context, a: MatrixLayout) -> Result<usize> {
         T::orgbr_buffer_size(context, self.side, self.rows, self.cols, self.reflectors, a)
     }
@@ -1922,8 +1897,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER
-    /// reports a failure.
+    /// Returns an error if inputs or workspace are invalid, or if cuSOLVER reports a failure.
     pub fn run(&self, context: &Context, args: OrgbrArgs<'_, T>) -> Result<()> {
         context.sync_scope(|| {
             context.prepare_region(&args.a.data)?;
@@ -2017,8 +1991,7 @@ impl<'a, T: DeviceRepr> TrtriArgs<'a, T> {
 }
 
 impl<'a, TA: DeviceRepr, TB: DeviceRepr> SytrsArgs<'a, TA, TB> {
-    /// Groups the factorized matrix, optional pivots, right-hand sides,
-    /// workspace, and info buffer.
+    /// Groups the factorized matrix, optional pivots, right-hand sides, workspace, and info buffer.
     #[must_use]
     pub const fn new(
         factor: MatrixRef<'a, TA>,
@@ -2038,8 +2011,7 @@ impl<'a, TA: DeviceRepr, TB: DeviceRepr> SytrsArgs<'a, TA, TB> {
 }
 
 impl<'a, T: DeviceRepr> SytrfArgs<'a, T> {
-    /// Groups the factor matrix, optional pivot buffer, workspace, and info
-    /// buffer.
+    /// Groups the factor matrix, optional pivot buffer, workspace, and info buffer.
     #[must_use]
     pub const fn new(
         a: MatrixMut<'a, T>,
@@ -2060,8 +2032,7 @@ impl<'a, T> SytrdArgs<'a, T>
 where
     T: DeviceRepr + SytrdScalar,
 {
-    /// Groups the matrix, tridiagonal outputs, reflectors, workspace, and info
-    /// buffer.
+    /// Groups the matrix, tridiagonal outputs, reflectors, workspace, and info buffer.
     #[must_use]
     pub const fn new(
         a: MatrixMut<'a, T>,
@@ -2101,8 +2072,7 @@ impl<'a, T: DeviceRepr> OrgtrArgs<'a, T> {
 }
 
 impl<'a, T: DeviceRepr> OrmtrArgs<'a, T> {
-    /// Groups the reflector matrix, tau vector, target matrix, workspace, and
-    /// info buffer.
+    /// Groups the reflector matrix, tau vector, target matrix, workspace, and info buffer.
     #[must_use]
     pub const fn new(
         reflectors: MatrixRef<'a, T>,
@@ -2158,8 +2128,7 @@ impl<'a, TA: DeviceRepr, TTau: DeviceRepr> GeqrfArgs<'a, TA, TTau> {
 }
 
 impl<'a, T: DeviceRepr> OrmqrArgs<'a, T> {
-    /// Groups the reflector matrix, tau vector, target matrix, workspace, and
-    /// info buffer.
+    /// Groups the reflector matrix, tau vector, target matrix, workspace, and info buffer.
     #[must_use]
     pub const fn new(
         reflectors: MatrixRef<'a, T>,
@@ -2200,8 +2169,7 @@ impl<'a, T> GebrdArgs<'a, T>
 where
     T: DeviceRepr + GebrdScalar,
 {
-    /// Groups the matrix, bidiagonal outputs, reflectors, workspace, and info
-    /// buffer.
+    /// Groups the matrix, bidiagonal outputs, reflectors, workspace, and info buffer.
     #[must_use]
     pub const fn new(
         a: MatrixMut<'a, T>,

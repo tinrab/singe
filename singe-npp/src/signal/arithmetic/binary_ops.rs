@@ -1581,27 +1581,22 @@ macro_rules! impl_signal_binary_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element ABI and operand order, and uphold
-        /// the method's access, initialization, capacity, and queued-lifetime requirements.
+        /// Implementations must match the native element ABI and operand order, and uphold the method's access, initialization, capacity, and queued-lifetime requirements.
         pub unsafe trait $trait: DataTypeLike {
             #[doc = $doc]
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// to another CUDA context, a length cannot be represented by the native interface,
-            /// or NPP reports a failure. Success reports native submission.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+            /// Success reports native submission.
             /// Participating signal lengths must match; differing lengths return an error.
             ///
             /// # Safety
             ///
             /// Input elements must be initialized and ready when the stream reaches this operation.
-            /// Keep input signals read-only and destination elements exclusively writable and disjoint
-            /// from every input through completion.
-            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-            /// alignment, representation, and operand requirements. Retain signal allocations and
-            /// the stream context through queued completion, including submission errors and every
-            /// captured graph replay.
+            /// Keep input signals read-only and destination elements exclusively writable and disjoint from every input through completion.
+            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+            /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 left: &SignalView<'_, Self>,
@@ -1636,20 +1631,16 @@ macro_rules! impl_signal_binary_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// to another CUDA context, a length cannot be represented by the native interface,
-        /// or NPP reports a failure. Success reports native submission.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+        /// Success reports native submission.
         /// Participating signal lengths must match; differing lengths return an error.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches this operation.
-        /// Keep input signals read-only and destination elements exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain signal allocations and
-        /// the stream context through queued completion, including submission errors and every
-        /// captured graph replay.
+        /// Keep input signals read-only and destination elements exclusively writable and disjoint from every input through completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             left: &SignalView<'_, T>,
@@ -1677,28 +1668,24 @@ macro_rules! impl_signal_binary_in_place_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element ABI and operand order, and uphold
-        /// the method's access, initialization, capacity, and queued-lifetime requirements.
+        /// Implementations must match the native element ABI and operand order, and uphold the method's access, initialization, capacity, and queued-lifetime requirements.
         pub unsafe trait $trait: DataTypeLike {
             #[doc = $doc]
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// to another CUDA context, a length cannot be represented by the native interface,
-            /// or NPP reports a failure. Success reports native submission.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+            /// Success reports native submission.
             /// Participating signal lengths must match; differing lengths return an error.
             ///
             /// # Safety
             ///
             /// Input elements must be initialized and ready when the stream reaches this operation.
-            /// Keep the signal or destination exclusively writable through completion. Any separate
-            /// input signal must remain read-only and disjoint from the writable destination.
+            /// Keep the signal or destination exclusively writable through completion.
+            /// Any separate input signal must remain read-only and disjoint from the writable destination.
             /// Destination elements must also be initialized and ready before the operation.
-            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-            /// alignment, representation, and operand requirements. Retain signal allocations and
-            /// the stream context through queued completion, including submission errors and every
-            /// captured graph replay.
+            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+            /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 signal: &SignalView<'_, Self>,
@@ -1730,21 +1717,18 @@ macro_rules! impl_signal_binary_in_place_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// to another CUDA context, a length cannot be represented by the native interface,
-        /// or NPP reports a failure. Success reports native submission.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+        /// Success reports native submission.
         /// Participating signal lengths must match; differing lengths return an error.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches this operation.
-        /// Keep the signal or destination exclusively writable through completion. Any separate
-        /// input signal must remain read-only and disjoint from the writable destination.
+        /// Keep the signal or destination exclusively writable through completion.
+        /// Any separate input signal must remain read-only and disjoint from the writable destination.
         /// Destination elements must also be initialized and ready before the operation.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain signal allocations and
-        /// the stream context through queued completion, including submission errors and every
-        /// captured graph replay.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             signal: &SignalView<'_, T>,
@@ -1770,27 +1754,22 @@ macro_rules! impl_signal_scaled_binary_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element ABI and operand order, and uphold
-        /// the method's access, initialization, capacity, and queued-lifetime requirements.
+        /// Implementations must match the native element ABI and operand order, and uphold the method's access, initialization, capacity, and queued-lifetime requirements.
         pub unsafe trait $trait: DataTypeLike {
             #[doc = $doc]
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// to another CUDA context, a length cannot be represented by the native interface,
-            /// or NPP reports a failure. Success reports native submission.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+            /// Success reports native submission.
             /// Participating signal lengths must match; differing lengths return an error.
             ///
             /// # Safety
             ///
             /// Input elements must be initialized and ready when the stream reaches this operation.
-            /// Keep input signals read-only and destination elements exclusively writable and disjoint
-            /// from every input through completion.
-            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-            /// alignment, representation, and operand requirements. Retain signal allocations and
-            /// the stream context through queued completion, including submission errors and every
-            /// captured graph replay.
+            /// Keep input signals read-only and destination elements exclusively writable and disjoint from every input through completion.
+            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+            /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 left: &SignalView<'_, Self>,
@@ -1827,20 +1806,16 @@ macro_rules! impl_signal_scaled_binary_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// to another CUDA context, a length cannot be represented by the native interface,
-        /// or NPP reports a failure. Success reports native submission.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+        /// Success reports native submission.
         /// Participating signal lengths must match; differing lengths return an error.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches this operation.
-        /// Keep input signals read-only and destination elements exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain signal allocations and
-        /// the stream context through queued completion, including submission errors and every
-        /// captured graph replay.
+        /// Keep input signals read-only and destination elements exclusively writable and disjoint from every input through completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             left: &SignalView<'_, T>,
@@ -1869,28 +1844,24 @@ macro_rules! impl_signal_scaled_binary_in_place_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element ABI and operand order, and uphold
-        /// the method's access, initialization, capacity, and queued-lifetime requirements.
+        /// Implementations must match the native element ABI and operand order, and uphold the method's access, initialization, capacity, and queued-lifetime requirements.
         pub unsafe trait $trait: DataTypeLike {
             #[doc = $doc]
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// to another CUDA context, a length cannot be represented by the native interface,
-            /// or NPP reports a failure. Success reports native submission.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+            /// Success reports native submission.
             /// Participating signal lengths must match; differing lengths return an error.
             ///
             /// # Safety
             ///
             /// Input elements must be initialized and ready when the stream reaches this operation.
-            /// Keep the signal or destination exclusively writable through completion. Any separate
-            /// input signal must remain read-only and disjoint from the writable destination.
+            /// Keep the signal or destination exclusively writable through completion.
+            /// Any separate input signal must remain read-only and disjoint from the writable destination.
             /// Destination elements must also be initialized and ready before the operation.
-            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-            /// alignment, representation, and operand requirements. Retain signal allocations and
-            /// the stream context through queued completion, including submission errors and every
-            /// captured graph replay.
+            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+            /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 signal: &SignalView<'_, Self>,
@@ -1924,21 +1895,18 @@ macro_rules! impl_signal_scaled_binary_in_place_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// to another CUDA context, a length cannot be represented by the native interface,
-        /// or NPP reports a failure. Success reports native submission.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+        /// Success reports native submission.
         /// Participating signal lengths must match; differing lengths return an error.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches this operation.
-        /// Keep the signal or destination exclusively writable through completion. Any separate
-        /// input signal must remain read-only and disjoint from the writable destination.
+        /// Keep the signal or destination exclusively writable through completion.
+        /// Any separate input signal must remain read-only and disjoint from the writable destination.
         /// Destination elements must also be initialized and ready before the operation.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain signal allocations and
-        /// the stream context through queued completion, including submission errors and every
-        /// captured graph replay.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             signal: &SignalView<'_, T>,
@@ -1965,27 +1933,22 @@ macro_rules! impl_signal_scaled_round_binary_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element ABI and operand order, and uphold
-        /// the method's access, initialization, capacity, and queued-lifetime requirements.
+        /// Implementations must match the native element ABI and operand order, and uphold the method's access, initialization, capacity, and queued-lifetime requirements.
         pub unsafe trait $trait: DataTypeLike {
             #[doc = $doc]
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// to another CUDA context, a length cannot be represented by the native interface,
-            /// or NPP reports a failure. Success reports native submission.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+            /// Success reports native submission.
             /// Participating signal lengths must match; differing lengths return an error.
             ///
             /// # Safety
             ///
             /// Input elements must be initialized and ready when the stream reaches this operation.
-            /// Keep input signals read-only and destination elements exclusively writable and disjoint
-            /// from every input through completion.
-            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-            /// alignment, representation, and operand requirements. Retain signal allocations and
-            /// the stream context through queued completion, including submission errors and every
-            /// captured graph replay.
+            /// Keep input signals read-only and destination elements exclusively writable and disjoint from every input through completion.
+            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+            /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 left: &SignalView<'_, Self>,
@@ -2024,20 +1987,16 @@ macro_rules! impl_signal_scaled_round_binary_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// to another CUDA context, a length cannot be represented by the native interface,
-        /// or NPP reports a failure. Success reports native submission.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+        /// Success reports native submission.
         /// Participating signal lengths must match; differing lengths return an error.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches this operation.
-        /// Keep input signals read-only and destination elements exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain signal allocations and
-        /// the stream context through queued completion, including submission errors and every
-        /// captured graph replay.
+        /// Keep input signals read-only and destination elements exclusively writable and disjoint from every input through completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             left: &SignalView<'_, T>,
@@ -2067,28 +2026,24 @@ macro_rules! impl_signal_scaled_round_binary_in_place_dispatch {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element ABI and operand order, and uphold
-        /// the method's access, initialization, capacity, and queued-lifetime requirements.
+        /// Implementations must match the native element ABI and operand order, and uphold the method's access, initialization, capacity, and queued-lifetime requirements.
         pub unsafe trait $trait: DataTypeLike {
             #[doc = $doc]
             ///
             /// # Errors
             ///
-            /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-            /// to another CUDA context, a length cannot be represented by the native interface,
-            /// or NPP reports a failure. Success reports native submission.
+            /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+            /// Success reports native submission.
             /// Participating signal lengths must match; differing lengths return an error.
             ///
             /// # Safety
             ///
             /// Input elements must be initialized and ready when the stream reaches this operation.
-            /// Keep the signal or destination exclusively writable through completion. Any separate
-            /// input signal must remain read-only and disjoint from the writable destination.
+            /// Keep the signal or destination exclusively writable through completion.
+            /// Any separate input signal must remain read-only and disjoint from the writable destination.
             /// Destination elements must also be initialized and ready before the operation.
-            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-            /// alignment, representation, and operand requirements. Retain signal allocations and
-            /// the stream context through queued completion, including submission errors and every
-            /// captured graph replay.
+            /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+            /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 signal: &SignalView<'_, Self>,
@@ -2124,21 +2079,18 @@ macro_rules! impl_signal_scaled_round_binary_in_place_dispatch {
         ///
         /// # Errors
         ///
-        /// Provided implementations return errors if CUDA context binding fails, a signal belongs
-        /// to another CUDA context, a length cannot be represented by the native interface,
-        /// or NPP reports a failure. Success reports native submission.
+        /// Provided implementations return errors if CUDA context binding fails, a signal belongs to another CUDA context, a length cannot be represented by the native interface, or NPP reports a failure.
+        /// Success reports native submission.
         /// Participating signal lengths must match; differing lengths return an error.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches this operation.
-        /// Keep the signal or destination exclusively writable through completion. Any separate
-        /// input signal must remain read-only and disjoint from the writable destination.
+        /// Keep the signal or destination exclusively writable through completion.
+        /// Any separate input signal must remain read-only and disjoint from the writable destination.
         /// Destination elements must also be initialized and ready before the operation.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain signal allocations and
-        /// the stream context through queued completion, including submission errors and every
-        /// captured graph replay.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $function<T: $trait>(
             stream_context: &StreamContext,
             signal: &SignalView<'_, T>,

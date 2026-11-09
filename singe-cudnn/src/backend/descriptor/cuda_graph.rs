@@ -10,19 +10,11 @@ use crate::{
 };
 
 impl BackendDescriptor {
-    /// Directly builds a CUDA graph (not to be confused with a cuDNN graph)
-    /// representing the given engine.
-    /// Instantiating and executing this CUDA graph executes
-    /// the engine configuration plan on the [`VariantPack`](crate::backend::execution::VariantPack)
-    /// and the finalized [`ExecutionPlan`](crate::backend::execution::ExecutionPlan) on
-    /// the data.
+    /// Directly builds a CUDA graph (not to be confused with a cuDNN graph) representing the given engine.
+    /// Instantiating and executing this CUDA graph executes the engine configuration plan on the [`VariantPack`](crate::backend::execution::VariantPack) and the finalized [`ExecutionPlan`](crate::backend::execution::ExecutionPlan) on the data.
     ///
-    /// The resulting CUDA graph captures the data and workspace addresses in the
-    /// [`VariantPack`](crate::backend::execution::VariantPack) at the time this method is called, but it can
-    /// be run arbitrarily many times with different data at the same addresses.
-    /// The graph can also later be modified in place with different
-    /// [`VariantPack`](crate::backend::execution::VariantPack) addresses by using
-    /// [`BackendDescriptor::update_graph`].
+    /// The resulting CUDA graph captures the data and workspace addresses in the [`VariantPack`](crate::backend::execution::VariantPack) at the time this method is called, but it can be run arbitrarily many times with different data at the same addresses.
+    /// The graph can also later be modified in place with different [`VariantPack`](crate::backend::execution::VariantPack) addresses by using [`BackendDescriptor::update_graph`].
     ///
     /// The initial CUDA graph passed to this method must be empty (having no nodes), and no additional nodes may be appended to the resulting graph.
     /// However, the graph can be embedded as a child node of a larger CUDA graph, for example, by [`Graph::add_child_graph_node`].
@@ -33,20 +25,14 @@ impl BackendDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if required descriptors are not finalized or have the
-    /// wrong type, if required data pointers are invalid, if `graph` is not
-    /// initially empty, if CUDA graph creation fails, if the engine does not
-    /// support the native CUDA graph API, if this cuDNN build uses an
-    /// incompatible CUDA runtime, or if cuDNN reports an internal failure.
+    /// Returns an error if required descriptors are not finalized or have the wrong type, if required data pointers are invalid, if `graph` is not initially empty, if CUDA graph creation fails, if the engine does not support the native CUDA graph API, if this cuDNN build uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
     /// A known graph context must match the supplied cuDNN context.
     ///
     /// # Safety
-    /// All native accesses require live plan code and valid, initialized inputs or writable outputs,
-    /// with compatible layouts, permitted aliases and established producer dependencies.
+    /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
-    /// Retain previous device bindings and workspace through executable snapshots
-    /// and pending launches that still reference them.
+    /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
     pub unsafe fn populate_graph(
         &self,
         context: &Context,
@@ -59,15 +45,18 @@ impl BackendDescriptor {
                 actual: self.descriptor_type,
             });
         }
+
         if !self.finalized {
             return Err(Error::DescriptorRequiredFinalized);
         }
+
         if varpack.descriptor_type() != BackendDescriptorType::VariantPack {
             return Err(Error::InvalidBackendDescriptorType {
                 expected: BackendDescriptorType::VariantPack,
                 actual: varpack.descriptor_type(),
             });
         }
+
         if !varpack.is_finalized() {
             return Err(Error::DescriptorRequiredFinalized);
         }
@@ -87,29 +76,21 @@ impl BackendDescriptor {
         Ok(())
     }
 
-    /// Updates an existing CUDA graph previously populated by [`BackendDescriptor::populate_graph`]
-    /// (or a clone thereof) with a new `varpack`.
+    /// Updates an existing CUDA graph previously populated by [`BackendDescriptor::populate_graph`] (or a clone thereof) with a new `varpack`.
     ///
     /// Only a limited number of engines currently support this method (with more to be added in future releases of cuDNN).
     /// Engines that support it have the behavior note [`BackendBehaviorNote::SupportsCudaGraphNativeApi`](crate::backend::behavior::BackendBehaviorNote::SupportsCudaGraphNativeApi).
     ///
     /// # Errors
     ///
-    /// Returns an error if required descriptors are not finalized or have the
-    /// wrong type, if required data pointers are invalid, if `graph` was not
-    /// populated by [`BackendDescriptor::populate_graph`] for this execution plan
-    /// or contains unexpected additional nodes, if CUDA graph update fails, if
-    /// the engine does not support the native CUDA graph API, if this cuDNN build
-    /// uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
+    /// Returns an error if required descriptors are not finalized or have the wrong type, if required data pointers are invalid, if `graph` was not populated by [`BackendDescriptor::populate_graph`] for this execution plan or contains unexpected additional nodes, if CUDA graph update fails, if the engine does not support the native CUDA graph API, if this cuDNN build uses an incompatible CUDA runtime, or if cuDNN reports an internal failure.
     /// A known graph context must match the supplied cuDNN context.
     ///
     /// # Safety
-    /// All native accesses require live plan code and valid, initialized inputs or writable outputs,
-    /// with compatible layouts, permitted aliases and established producer dependencies.
+    /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
-    /// Retain previous device bindings and workspace through executable snapshots
-    /// and pending launches that still reference them.
+    /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
     pub unsafe fn update_graph(
         &self,
         context: &Context,
@@ -122,15 +103,18 @@ impl BackendDescriptor {
                 actual: self.descriptor_type,
             });
         }
+
         if !self.finalized {
             return Err(Error::DescriptorRequiredFinalized);
         }
+
         if new_varpack.descriptor_type != BackendDescriptorType::VariantPack {
             return Err(Error::InvalidBackendDescriptorType {
                 expected: BackendDescriptorType::VariantPack,
                 actual: new_varpack.descriptor_type,
             });
         }
+
         if !new_varpack.is_finalized() {
             return Err(Error::DescriptorRequiredFinalized);
         }

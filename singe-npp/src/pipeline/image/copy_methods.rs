@@ -17,14 +17,13 @@ where
 {
     /// Copies every logical channel, including alpha, into the supplied destination.
     ///
-    /// Source and destination dimensions must match. Prepares both regions, waits for
-    /// producers on other streams, rejects capture, and completes CUDA row transfers before
-    /// returning successfully. Destination row padding remains unwritten.
+    /// Source and destination dimensions must match.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes CUDA row transfers before returning successfully.
+    /// Destination row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, transfer or native execution, or stream synchronization fail.
     /// Source and destination dimensions must match.
     pub fn copy_into(
         stream_context: &StreamContext,
@@ -36,14 +35,13 @@ where
 
     /// Copies every logical channel, including alpha, into a new owned image.
     ///
-    /// Always allocates a source-sized image. Prepares source and destination regions,
-    /// waits for producers on other streams, rejects capture, and completes CUDA row
-    /// transfers before returning successfully. Row padding remains unwritten.
+    /// Always allocates a source-sized image.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and completes CUDA row transfers before returning successfully.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, transfer or native execution, or stream synchronization fail.
     /// Allocation, copying borrowed input, or image view construction can also fail.
     pub fn copy(self) -> Result<Self> {
         self.ensure_eager()?;
@@ -66,15 +64,14 @@ where
     /// Completes outstanding stream work and returns an initialized owned image.
     ///
     /// For owned input, synchronizes the selected stream and returns the existing image.
-    /// For borrowed input, allocates a source-sized image and completes a copy of every
-    /// logical channel, including alpha. The copy prepares participating regions and waits
-    /// for producers on other streams. Rejects capture. Row padding remains outside the
-    /// initialized logical image.
+    /// For borrowed input, allocates a source-sized image and completes a copy of every logical channel, including alpha.
+    /// The copy prepares participating regions and waits for producers on other streams.
+    /// Rejects capture.
+    /// Row padding remains outside the initialized logical image.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, transfer or native execution, or stream synchronization fail.
     /// Allocation, copying borrowed input, or image view construction can also fail.
     pub fn finish(self) -> Result<Image<T, L>> {
         self.ensure_eager()?;

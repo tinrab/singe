@@ -1,8 +1,8 @@
 //! Execution of `ldmatrix` and `mma.sync.aligned.m16n8k16.row.col.f32.f16.f16.f32`.
 //!
 //! Lane fragments follow PTX 9.4 sections 9.7.16.5.8 and 9.7.16.5.15.
-//! All 32 lanes rendezvous at the same instruction. Inputs are
-//! copied before any destination write, including when D aliases C or A.
+//! All 32 lanes rendezvous at the same instruction.
+//! Inputs are copied before any destination write, including when D aliases C or A.
 
 use std::sync::atomic::AtomicBool;
 
@@ -124,6 +124,7 @@ impl Engine {
                 *value = u16::from_le_bytes(*bytes);
             }
         }
+
         let operation = match layout {
             MatrixLoad::Rows4(destinations) => {
                 MatrixOperation::Rows4(MatrixRows { destinations, row })
@@ -210,6 +211,7 @@ impl Engine {
                             ),
                         ));
                     }
+
                     match (&mut batch, waiting.operation) {
                         (MatrixBatch::Rows4(snapshots), MatrixOperation::Rows4(snapshot)) => {
                             snapshots.push(snapshot);
@@ -227,12 +229,15 @@ impl Engine {
                             ));
                         }
                     }
+
                     participants += 1;
                 }
             }
+
             if participants != 32 {
                 continue;
             }
+
             match batch {
                 MatrixBatch::Rows4(snapshots) => {
                     self.load_matrix_rows(range.start, &snapshots, cancellation)?;
@@ -325,6 +330,7 @@ impl Engine {
                 ));
             }
         }
+
         for (lane, snapshot) in snapshots.iter().enumerate() {
             cancel(cancellation)?;
             for element in 0..4 {
@@ -340,6 +346,7 @@ impl Engine {
                         ARITHMETIC,
                     );
                 }
+
                 self.write(
                     start + lane,
                     snapshot.destinations[element],

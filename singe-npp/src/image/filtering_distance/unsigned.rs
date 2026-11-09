@@ -46,7 +46,8 @@ pub unsafe trait DistanceTransformPbaToU16C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses truncated `u16` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses truncated `u16` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -124,7 +125,8 @@ impl_distance_transform_pba_to_u16!(u16, i16, distance_transform_pba_u16_to_u16_
 
 impl_distance_transform_pba_to_u16!(i16, i16, distance_transform_pba_i16_to_u16_c1);
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses truncated `u16` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses truncated `u16` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -182,7 +184,8 @@ pub unsafe trait DistanceTransformAbsPbaToU16C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses truncated `u16` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses truncated `u16` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -260,7 +263,8 @@ impl_distance_transform_abs_pba_to_u16!(u16, u16, distance_transform_abs_pba_u16
 
 impl_distance_transform_abs_pba_to_u16!(i16, u16, distance_transform_abs_pba_i16_to_u16_c1);
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses truncated `u16` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses truncated `u16` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -318,7 +322,8 @@ pub unsafe trait DistanceTransformPbaToF32C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f32` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses `f32` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -396,7 +401,8 @@ impl_distance_transform_pba_to_f32!(u16, i16, distance_transform_pba_u16_to_f32_
 
 impl_distance_transform_pba_to_f32!(i16, i16, distance_transform_pba_i16_to_f32_c1);
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f32` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f32` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -454,7 +460,8 @@ pub unsafe trait DistanceTransformAbsPbaToF32C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f32` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses `f32` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -532,7 +539,8 @@ impl_distance_transform_abs_pba_to_f32!(u16, u16, distance_transform_abs_pba_u16
 
 impl_distance_transform_abs_pba_to_f32!(i16, u16, distance_transform_abs_pba_i16_to_f32_c1);
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f32` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f32` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -590,7 +598,8 @@ pub unsafe trait DistanceTransformPbaToF64C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -624,7 +633,8 @@ pub unsafe trait DistanceTransformPbaToF64C1: DataTypeLike {
         destination_transform: Option<&mut ImageOutputView<'_, f64, C1>>,
     ) -> Result<()>;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -764,7 +774,8 @@ impl_distance_transform_pba_to_f64!(
     distance_transform_pba_f64_c1_antialiasing
 );
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -812,7 +823,8 @@ pub unsafe fn distance_transform_pba_to_f64<T: DistanceTransformPbaToF64C1>(
     }
 }
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -871,7 +883,8 @@ pub unsafe trait DistanceTransformAbsPbaToF64C1: DataTypeLike {
     /// Component type for the optional two-component Manhattan output.
     type Manhattan: DataTypeLike;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -905,7 +918,8 @@ pub unsafe trait DistanceTransformAbsPbaToF64C1: DataTypeLike {
         destination_transform: Option<&mut ImageOutputView<'_, f64, C1>>,
     ) -> Result<()>;
 
-    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+    /// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+    /// The distance output uses `f64` values.
     ///
     /// `None` disables an output; at least one output must be supplied.
     /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -1045,7 +1059,8 @@ impl_distance_transform_abs_pba_to_f64!(
     distance_transform_abs_pba_f64_c1_antialiasing
 );
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -1093,7 +1108,8 @@ pub unsafe fn distance_transform_abs_pba_to_f64<T: DistanceTransformAbsPbaToF64C
     }
 }
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -1298,7 +1314,8 @@ where
     }
 }
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs. The distance output uses `f64` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and relative Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.
@@ -1506,7 +1523,8 @@ where
     }
 }
 
-/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs. The distance output uses `f64` values.
+/// Computes a PBA Euclidean distance transform with optional Voronoi and absolute Manhattan outputs.
+/// The distance output uses `f64` values.
 ///
 /// `None` disables an output; at least one output must be supplied.
 /// The provided implementations own temporary device scratch, reject stream capture, and return after successful stream completion.

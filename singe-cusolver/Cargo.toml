@@ -1,7 +1,7 @@
 [package]
 name = "singe-cusolver"
-description = "Safe Rust wrappers for the NVIDIA cuSOLVER dense and sparse solver library."
-version = "0.1.0-alpha.7"
+description = "Safe Rust wrappers for NVIDIA cuSOLVER, for dense matrix factorizations and solvers on the GPU."
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true

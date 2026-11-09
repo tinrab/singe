@@ -18,20 +18,17 @@ use crate::{
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element ABI and normalization semantics,
-/// initialize every output element on success, and complete borrowed work on every path.
+/// Implementations must preserve the native element ABI and normalization semantics, initialize every output element on success, and complete borrowed work on every path.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait NormalizeSignal<T> {
     /// Computes `(source - subtrahend) / divisor` for each sample.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     fn normalize_signal(
         stream_context: &StreamContext,
@@ -46,21 +43,18 @@ pub unsafe trait NormalizeSignal<T> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element ABI and normalization semantics,
-/// initialize every output element on success, and complete borrowed work on every path.
+/// Implementations must preserve the native element ABI and normalization semantics, initialize every output element on success, and complete borrowed work on every path.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ComplexNormalizeSignal<T, D> {
     /// Computes `(source - subtrahend) / divisor` for each sample.
     /// Subtracts the complex `subtrahend` and divides both components by the real scalar divisor.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     fn normalize_complex_signal(
         stream_context: &StreamContext,
@@ -75,21 +69,18 @@ pub unsafe trait ComplexNormalizeSignal<T, D> {
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element ABI and normalization semantics,
-/// initialize every output element on success, and complete borrowed work on every path.
+/// Implementations must preserve the native element ABI and normalization semantics, initialize every output element on success, and complete borrowed work on every path.
 /// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledNormalizeSignal<T> {
     /// Computes `(source - subtrahend) / divisor` for each sample.
     /// Applies native fixed-point scaling with `scale_factor` and saturation to the output type.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     fn normalize_signal_scaled(
         stream_context: &StreamContext,
@@ -196,13 +187,11 @@ where
     /// Computes `(source - subtrahend) / divisor` for each sample.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Allocates a new owned signal through the workspace, including for owned input.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Workspace allocation or checking the source producer for capture can also fail.
     pub fn normalize(self, subtrahend: T, divisor: T) -> Result<Self> {
         self.ensure_eager()?;
@@ -226,13 +215,11 @@ where
     /// Computes `(source - subtrahend) / divisor` for each sample.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     pub fn normalize_into(
         stream_context: &StreamContext,
@@ -260,13 +247,11 @@ where
     /// Subtracts the complex `subtrahend` and divides both components by the real scalar divisor.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Allocates a new owned signal through the workspace, including for owned input.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Workspace allocation or checking the source producer for capture can also fail.
     pub fn normalize_complex<D>(self, subtrahend: T, divisor: D) -> Result<Self>
     where
@@ -294,13 +279,11 @@ where
     /// Subtracts the complex `subtrahend` and divides both components by the real scalar divisor.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     pub fn normalize_complex_into<D>(
         stream_context: &StreamContext,
@@ -328,13 +311,11 @@ impl SignalPipeline<'_, i16> {
     /// Applies native fixed-point scaling with `scale_factor` and saturation to the output type.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     pub fn normalize_scaled_into(
         stream_context: &StreamContext,
@@ -358,13 +339,11 @@ impl SignalPipeline<'_, i16> {
     /// Applies native fixed-point scaling with `scale_factor` and saturation to the output type.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Allocates a new owned signal through the workspace, including for owned input.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Workspace allocation or checking the source producer for capture can also fail.
     pub fn normalize_scaled(
         self,
@@ -392,13 +371,11 @@ impl SignalPipeline<'_, ComplexI16> {
     /// Applies native fixed-point scaling with `scale_factor` and saturation to the output type.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Writes into an equally sized `destination`.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Source and destination lengths must match.
     pub fn normalize_scaled_into(
         stream_context: &StreamContext,
@@ -423,13 +400,11 @@ impl SignalPipeline<'_, ComplexI16> {
     /// Applies native fixed-point scaling with `scale_factor` and saturation to the output type.
     /// Scalar operand values are forwarded to NPP without numerical validation.
     /// Allocates a new owned signal through the workspace, including for owned input.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// completes native work before returning successfully.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and completes native work before returning successfully.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native length conversion, normalization, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native length conversion, normalization, or stream synchronization fail.
     /// Workspace allocation or checking the source producer for capture can also fail.
     pub fn normalize_scaled(
         self,
@@ -473,6 +448,7 @@ where
             let mut destination_view = destination.output();
             normalize(self.stream_context, &source, &mut destination_view)?;
         }
+
         // SAFETY: the completed operation above wrote every element.
         self.backing = SignalBacking::Owned(unsafe { destination.assume_init() });
         Ok(self)

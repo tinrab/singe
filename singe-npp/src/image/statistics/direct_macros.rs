@@ -14,8 +14,7 @@ macro_rules! impl_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -47,8 +46,7 @@ macro_rules! impl_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -98,8 +96,7 @@ macro_rules! impl_dot_prod {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -132,8 +129,7 @@ macro_rules! impl_dot_prod {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -189,8 +185,7 @@ macro_rules! impl_every_statistic_in_place {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Both images must contain initialized values ready for the selected stream.
-        /// Keep the source read-only and the destination exclusively writable and disjoint
-        /// through queued completion, including submission errors and captured graph replay.
+        /// Keep the source read-only and the destination exclusively writable and disjoint through queued completion, including submission errors and captured graph replay.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -234,8 +229,7 @@ macro_rules! impl_statistic_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -269,8 +263,7 @@ macro_rules! impl_statistic_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -321,8 +314,7 @@ macro_rules! impl_statistic_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -342,8 +334,7 @@ macro_rules! impl_statistic_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3.
-        /// `output` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `output` must contain exactly 1 element.
         ///
         /// # Errors
         ///
@@ -358,8 +349,7 @@ macro_rules! impl_statistic_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -418,8 +408,7 @@ macro_rules! impl_typed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -451,8 +440,7 @@ macro_rules! impl_typed_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -503,8 +491,7 @@ macro_rules! impl_typed_pair_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -537,8 +524,7 @@ macro_rules! impl_typed_pair_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -593,8 +579,7 @@ macro_rules! impl_typed_indexed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -628,8 +613,7 @@ macro_rules! impl_typed_indexed_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -687,8 +671,7 @@ macro_rules! impl_typed_pair_indexed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -723,8 +706,7 @@ macro_rules! impl_typed_pair_indexed_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -783,8 +765,7 @@ macro_rules! impl_typed_pair_indexed_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -803,8 +784,7 @@ macro_rules! impl_typed_pair_indexed_statistic {
         ///
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
-        /// `channel` is zero-based and must be less than 3.
-        /// `minimum` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `minimum` must contain exactly 1 element.
         /// `maximum` must contain exactly 1 element.
         /// `minimum_index` must contain exactly 1 element.
         /// `maximum_index` must contain exactly 1 element.
@@ -821,8 +801,7 @@ macro_rules! impl_typed_pair_indexed_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -887,8 +866,7 @@ macro_rules! impl_typed_pair_indexed_statistic_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -925,8 +903,7 @@ macro_rules! impl_typed_pair_indexed_statistic_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -990,8 +967,7 @@ macro_rules! impl_typed_pair_indexed_statistic_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1011,8 +987,7 @@ macro_rules! impl_typed_pair_indexed_statistic_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3.
-        /// `minimum` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `minimum` must contain exactly 1 element.
         /// `maximum` must contain exactly 1 element.
         /// `minimum_index` must contain exactly 1 element.
         /// `maximum_index` must contain exactly 1 element.
@@ -1030,8 +1005,7 @@ macro_rules! impl_typed_pair_indexed_statistic_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1101,8 +1075,7 @@ macro_rules! impl_norm_statistic {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1134,8 +1107,7 @@ macro_rules! impl_norm_statistic {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1184,8 +1156,7 @@ macro_rules! impl_norm_statistic_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1219,8 +1190,7 @@ macro_rules! impl_norm_statistic_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1271,8 +1241,7 @@ macro_rules! impl_norm_statistic_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1292,8 +1261,7 @@ macro_rules! impl_norm_statistic_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3.
-        /// `output` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `output` must contain exactly 1 element.
         ///
         /// # Errors
         ///
@@ -1308,8 +1276,7 @@ macro_rules! impl_norm_statistic_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1367,8 +1334,7 @@ macro_rules! impl_error_metric {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1401,8 +1367,7 @@ macro_rules! impl_error_metric {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1457,8 +1422,7 @@ macro_rules! impl_quality_index {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1491,8 +1455,7 @@ macro_rules! impl_quality_index {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1546,8 +1509,7 @@ macro_rules! impl_error_metric_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1582,8 +1544,7 @@ macro_rules! impl_error_metric_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1639,8 +1600,7 @@ macro_rules! impl_error_metric_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1660,8 +1620,7 @@ macro_rules! impl_error_metric_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3.
-        /// `output` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `output` must contain exactly 1 element.
         ///
         /// # Errors
         ///
@@ -1677,8 +1636,7 @@ macro_rules! impl_error_metric_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1740,8 +1698,7 @@ macro_rules! impl_mean_stddev {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1774,8 +1731,7 @@ macro_rules! impl_mean_stddev {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1825,8 +1781,7 @@ macro_rules! impl_mean_stddev {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1845,8 +1800,7 @@ macro_rules! impl_mean_stddev {
         ///
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
-        /// `channel` is zero-based and must be less than 3.
-        /// `mean` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `mean` must contain exactly 1 element.
         /// `standard_deviation` must contain exactly 1 element.
         ///
         /// # Errors
@@ -1861,8 +1815,7 @@ macro_rules! impl_mean_stddev {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -1918,8 +1871,7 @@ macro_rules! impl_mean_stddev_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -1954,8 +1906,7 @@ macro_rules! impl_mean_stddev_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -2010,8 +1961,7 @@ macro_rules! impl_mean_stddev_masked {
         ///
         /// # Errors
         ///
-        /// Returns an error if NPP rejects the ROI or cannot report the scratch size,
-        /// or the returned size cannot be represented as `usize`.
+        /// Returns an error if NPP rejects the ROI or cannot report the scratch size, or the returned size cannot be represented as `usize`.
         pub fn $buffer_size_name(stream_context: &StreamContext, roi: Size) -> Result<usize> {
             let mut bytes = 0;
             // SAFETY: the `buffer_size_ffi` entry point receives live handles owned by the wrappers and valid output locations.
@@ -2031,8 +1981,7 @@ macro_rules! impl_mean_stddev_masked {
         /// Allocates temporary GPU scratch storage and returns after successful stream completion.
         /// This scratch-owning form rejects stream capture.
         /// The mask must have the same ROI size as the source image.
-        /// `channel` is zero-based and must be less than 3.
-        /// `mean` must contain exactly 1 element.
+        /// `channel` is zero-based and must be less than 3. `mean` must contain exactly 1 element.
         /// `standard_deviation` must contain exactly 1 element.
         ///
         /// # Errors
@@ -2048,8 +1997,7 @@ macro_rules! impl_mean_stddev_masked {
         ///
         /// Follow the [raw image execution contract](crate::image::raw).
         /// Source pixels and any mask must be initialized and ready when the selected stream reads them.
-        /// Result storage must be exclusively writable and disjoint from all input and other result ranges
-        /// until this call completes its native work.
+        /// Result storage must be exclusively writable and disjoint from all input and other result ranges until this call completes its native work.
         /// Pixel layout, byte strides, ROI bounds, and address alignment must satisfy the native routine.
         pub unsafe fn $name(
             stream_context: &StreamContext,

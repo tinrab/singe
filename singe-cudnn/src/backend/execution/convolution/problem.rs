@@ -8,15 +8,14 @@ use crate::backend::{
 
 /// Hashable native convolution problem, including its direction and effective scaling.
 ///
-/// Native operations retain this metadata without querying cuDNN. Clone a key for use
-/// with [`crate::backend::execution::ExecutionPlanCache`]. Forward, input-gradient and
-/// filter-gradient operations use distinct keys with the same logical X/W/Y roles.
-/// Tensor identities, layouts, encodings, vectorization, reordering, alignment,
-/// placement, constants and ragged relationships participate in equality.
+/// Native operations retain this metadata without querying cuDNN.
+/// Clone a key for use with [`crate::backend::execution::ExecutionPlanCache`].
+/// Forward, input-gradient and filter-gradient operations use distinct keys with the same logical X/W/Y roles.
+/// Tensor identities, layouts, encodings, vectorization, reordering, alignment, placement, constants and ragged relationships participate in equality.
 ///
-/// Scope the cache to the compatible device/context, complete operation graph and
-/// compilation policy. Additional fused operations and runtime shape overrides
-/// require additional key information. This key describes the declared operation.
+/// Scope the cache to the compatible device/context, complete operation graph and compilation policy.
+/// Additional fused operations and runtime shape overrides require additional key information.
+/// This key describes the declared operation.
 /// It is independent of device buffer addresses and owns no native descriptors.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ConvolutionProblemKey {

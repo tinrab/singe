@@ -110,7 +110,8 @@ impl<'a> AutotuneSession<'a, '_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session has aborted, restoring the saved input baseline fails, or frontend workspace initialization fails. CUDA failures mark the session aborted.
+    /// Returns an error if the session has aborted, restoring the saved input baseline fails, or frontend workspace initialization fails.
+    /// CUDA failures mark the session aborted.
     pub fn prepare_trial(&mut self) -> Result<()> {
         self.ensure_active()?;
         let result = (|| {
@@ -127,7 +128,8 @@ impl<'a> AutotuneSession<'a, '_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session has aborted, the plan is unknown or unavailable, trial-state restoration or workspace initialization fails, or a CUDA operation fails. Recoverable native preparation or execution failures are recorded and returned as an unsuccessful trial.
+    /// Returns an error if the session has aborted, the plan is unknown or unavailable, trial-state restoration or workspace initialization fails, or a CUDA operation fails.
+    /// Recoverable native preparation or execution failures are recorded and returned as an unsuccessful trial.
     pub fn warmup(&mut self, plan: &PlanId) -> Result<bool> {
         self.ensure_active()?;
         let result = self.run_trial(plan, false);
@@ -141,7 +143,8 @@ impl<'a> AutotuneSession<'a, '_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session has aborted, the plan is unknown or unavailable, trial-state restoration or workspace initialization fails, or a CUDA operation fails. Recoverable native preparation or execution failures are recorded and returned as an unsuccessful trial.
+    /// Returns an error if the session has aborted, the plan is unknown or unavailable, trial-state restoration or workspace initialization fails, or a CUDA operation fails.
+    /// Recoverable native preparation or execution failures are recorded and returned as an unsuccessful trial.
     pub fn measure(&mut self, plan: &PlanId) -> Result<Option<f32>> {
         self.ensure_active()?;
         let result = self.run_trial(plan, true);
@@ -154,7 +157,8 @@ impl<'a> AutotuneSession<'a, '_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the session has aborted, the plan is unknown or unavailable, draining the trial stream fails, or the supplied failure is a CUDA error. CUDA failures mark the session aborted.
+    /// Returns an error if the session has aborted, the plan is unknown or unavailable, draining the trial stream fails, or the supplied failure is a CUDA error.
+    /// CUDA failures mark the session aborted.
     pub fn record_failure(
         &mut self,
         plan: &PlanId,
@@ -168,6 +172,7 @@ impl<'a> AutotuneSession<'a, '_> {
         if matches!(error, Error::Cuda(_)) {
             return self.finish_call(Err(error));
         }
+
         self.failures.push(PlanFailure {
             plan: plan.clone(),
             stage,
@@ -218,6 +223,7 @@ impl<'a> AutotuneSession<'a, '_> {
             self.start
                 .record_on(self.stream, EventRecordFlags::DEFAULT)?;
         }
+
         // SAFETY: the enclosing tuning scope retains plans, scratch, scalars and workspace through completion.
         // Preparation and workspace initialization ran before the event without changing the handle's stream.
         let result = unsafe { prepared.execute() };
@@ -225,10 +231,12 @@ impl<'a> AutotuneSession<'a, '_> {
             self.record_failure(plan, stage, error)?;
             return Ok(None);
         }
+
         if !timed {
             self.stream.synchronize()?;
             return Ok(Some(0.0));
         }
+
         self.stop
             .record_on(self.stream, EventRecordFlags::DEFAULT)?;
         self.stop.synchronize()?;
@@ -257,9 +265,11 @@ impl<'a> AutotuneSession<'a, '_> {
                     break;
                 }
             }
+
             if !ready {
                 continue;
             }
+
             let mut samples = TimingSamples::new(config.sampling);
             for _ in 0..sample_limit {
                 if let Some(elapsed_ms) = self.measure(&plan)?

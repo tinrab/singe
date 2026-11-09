@@ -10,9 +10,8 @@ use crate::types::BatchStatus;
 status_enum! {
     /// A cuFile library operation status.
     ///
-    /// [`Error::Cufile`] carries this status and, for [`Self::CudaDriverError`],
-    /// an accompanying CUDA driver status. Data-path errors may instead be
-    /// reported as operating-system I/O errors.
+    /// [`Error::Cufile`] carries this status and, for [`Self::CudaDriverError`], an accompanying CUDA driver status.
+    /// Data-path errors may instead be reported as operating-system I/O errors.
     pub enum Status: u32 => sys::CUfileOpError, unknown = "UNKNOWN_CUFILE_STATUS" {
         /// The cufile is successful.
         Success = CU_FILE_SUCCESS,
@@ -36,7 +35,9 @@ status_enum! {
         DeviceNotSupported = CU_FILE_DEVICE_NOT_SUPPORTED,
         /// An nvidia-fs driver ioctl error.
         NvfsDriverError = CU_FILE_NVFS_DRIVER_ERROR,
-        /// A CUDA Driver API error. This error indicates a CUDA driver-api error. If this is set, a CUDA-specific error code is set in the cu_err field for cuFileError.
+        /// A CUDA Driver API error.
+        /// This error indicates a CUDA driver-api error.
+        /// If this is set, a CUDA-specific error code is set in the cu_err field for cuFileError.
         CudaDriverError = CU_FILE_CUDA_DRIVER_ERROR,
         /// An invalid device pointer.
         CudaPointerInvalid = CU_FILE_CUDA_POINTER_INVALID,
@@ -72,7 +73,8 @@ status_enum! {
         HandleAlreadyRegistered = CU_FILE_HANDLE_ALREADY_REGISTERED,
         /// The GPU device cannot be not found.
         DeviceNotFound = CU_FILE_DEVICE_NOT_FOUND,
-        /// An internal error has occurred. Refer to `cufile.log` for more details.
+        /// An internal error has occurred.
+        /// Refer to `cufile.log` for more details.
         InternalError = CU_FILE_INTERNAL_ERROR,
         /// Failed to obtain a new file descriptor.
         GetNewFileDescriptorFailed = CU_FILE_GETNEWFD_FAILED,
@@ -184,8 +186,19 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cufile_sys::LoadError),
+
+    /// A lock was poisoned by a thread that panicked while holding it.
+    #[error("`{name}` lock is poisoned")]
+    LockPoisoned {
+        /// What the lock guards.
+        name: &'static str,
+    },
+
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// A cuFile operation returned a failure status.
@@ -204,7 +217,7 @@ pub enum Error {
     InteriorNul,
 
     /// An operating-system I/O operation failed.
-    #[error("io error: {0}")]
+    #[error(transparent)]
     Io(#[from] io::Error),
 
     /// A native handle or buffer address is null.
@@ -259,6 +272,12 @@ impl From<NulError> for Error {
 
 impl From<sys::CUfileError_t> for Error {
     fn from(status: sys::CUfileError_t) -> Self {
+        if status.err == sys::CUfileOpError::CU_FILE_DRIVER_NOT_INITIALIZED
+            && let Err(error) = singe_cufile_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let code = Status::from(status.err as u32);
         let cuda_code = if code == Status::CudaDriverError {
             Some(status.cu_err as u32)

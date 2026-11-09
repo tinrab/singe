@@ -2,7 +2,8 @@ use singe_cuda_sys::runtime;
 
 /// Three unsigned 32-bit axis values for CUDA grids, blocks, or clusters.
 ///
-/// The interpretation depends on the receiving API. The default value has all axes set to zero; launch geometry constructors reject zero dimensions.
+/// The interpretation depends on the receiving API.
+/// The default value has all axes set to zero; launch geometry constructors reject zero dimensions.
 #[derive(Debug, Default, Copy, Clone, Hash, PartialOrd, Ord, PartialEq, Eq)]
 pub struct Dim3 {
     /// Value along the x axis.

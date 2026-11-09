@@ -94,6 +94,7 @@ pub fn barrier(
             mask: compiler.source(mask, ScalarType::B32)?,
         }));
     }
+
     head.take("cta");
     require(
         head.take("sync"),
@@ -103,6 +104,7 @@ pub fn barrier(
     if opcode != Opcode::Bar {
         head.take("aligned");
     }
+
     let (barrier, count) = match instruction.operands.as_slice() {
         [barrier] => (barrier, None),
         [barrier, count] => (barrier, Some(compiler.source(count, ScalarType::U32)?)),
@@ -121,6 +123,7 @@ pub fn barrier(
             "barrier id must be less than 16",
         )?;
     }
+
     if let Some(ir::Source::Immediate(count)) = count {
         require(
             count <= u128::from(MAX_BLOCK_THREADS) && count.is_multiple_of(WARP_SIZE as u128),

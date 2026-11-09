@@ -83,6 +83,7 @@ impl BlockScaleOperation {
                     }
                     .into());
                 }
+
                 graph.validate_tensor_dimensions(
                     *output,
                     graph.shape(*input)?.dimensions(),
@@ -136,9 +137,8 @@ impl BlockScaleOperation {
 
 /// Attributes for block scale quantization.
 ///
-/// Block scale quantize produces a quantized output tensor and a scale tensor
-/// from a higher precision tensor. MXFP8 and NVFP4 recipes quantize fixed-size
-/// blocks along an axis.
+/// Block scale quantize produces a quantized output tensor and a scale tensor from a higher precision tensor.
+/// MXFP8 and NVFP4 recipes quantize fixed-size blocks along an axis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockScaleQuantizeConfig {
     name: Option<String>,
@@ -241,6 +241,7 @@ impl BlockScaleQuantizeConfig {
                 .ok_or(Error::InvalidDataShape)?;
             order.rotate_left(rotation);
         }
+
         let output = if self.transpose {
             Shape::packed(input.dimensions(), order.iter().copied())?
         } else {
@@ -271,8 +272,7 @@ impl BlockScaleQuantizeConfig {
 
 /// Attributes for block scale dequantization.
 ///
-/// Block scale dequantize combines quantized values with a block-broadcast scale
-/// tensor to produce a dequantized output.
+/// Block scale dequantize combines quantized values with a block-broadcast scale tensor to produce a dequantized output.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockScaleDequantizeConfig {
     name: Option<String>,
@@ -377,6 +377,7 @@ impl BlockScaleDequantizeConfig {
                 actual: block_rank,
             });
         }
+
         for (dimension, &block_size) in dimensions[rank - block_rank..]
             .iter_mut()
             .zip(&self.block_sizes)

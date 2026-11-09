@@ -348,6 +348,7 @@ pub unsafe fn swa_attention_f16(
     if !causal {
         return Err(Error::InvalidLength);
     }
+
     let features = checked_element_count(heads, head_dim)?;
     let window = if window_size == 0 {
         key_len
@@ -411,6 +412,7 @@ pub unsafe fn swa_attention_bf16(
     if !causal {
         return Err(Error::InvalidLength);
     }
+
     let features = checked_element_count(heads, head_dim)?;
     let window = if window_size == 0 {
         key_len

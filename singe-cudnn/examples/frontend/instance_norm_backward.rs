@@ -52,6 +52,7 @@ fn run() -> Result<()> {
             tensor.with_shape(input_shape)
         })?;
     }
+
     let compiled = graph.compile(
         Some(&example.cudnn),
         &CompileConfig::from_heuristic_modes([HeuristicMode::Instant, HeuristicMode::Fallback]),
@@ -71,6 +72,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     let scale_dev = DeviceMemory::from_slice(
         cuda,
         &vec![f16::from_f32(1.0); graph.shape(scale)?.storage_span()?],
@@ -85,6 +87,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     let output_ids = [
         outputs.input_gradient,
         outputs.scale_gradient,
@@ -98,6 +101,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: bindings retain initialized operands and independent writable results.
     // Scale, plan and workspace remain live through stream completion, including enqueue failure.

@@ -158,7 +158,8 @@ pub unsafe fn copy_replicate_border_u8_c4(
     Ok(())
 }
 
-/// Copies the source image into the destination at pixel offset `(left, top)` and fills the surrounding border by replicating the source edge pixels. The destination alpha channel is not processed.
+/// Copies the source image into the destination at pixel offset `(left, top)` and fills the surrounding border by replicating the source edge pixels.
+/// The destination alpha channel is not processed.
 ///
 /// Calls [`sys::nppiCopyReplicateBorder_8u_AC4R_Ctx`].
 ///
@@ -538,7 +539,8 @@ pub unsafe fn copy_wrap_border_u8_c4(
     Ok(())
 }
 
-/// Copies the source image into the destination at pixel offset `(left, top)` and fills the surrounding border by wrapping the source image periodically. The destination alpha channel is not processed.
+/// Copies the source image into the destination at pixel offset `(left, top)` and fills the surrounding border by wrapping the source image periodically.
+/// The destination alpha channel is not processed.
 ///
 /// Calls [`sys::nppiCopyWrapBorder_8u_AC4R_Ctx`].
 ///

@@ -349,7 +349,8 @@ struct RegisteredBufferInner {
     _driver: Arc<Driver>,
 }
 
-/// A borrowed native registration. Forgetting it requires retaining backing storage until native deregistration.
+/// A borrowed native registration.
+/// Forgetting it requires retaining backing storage until native deregistration.
 #[derive(Debug)]
 pub struct RegisteredBuffer<'a, B: IoBuffer + ?Sized> {
     inner: RegisteredBufferInner,
@@ -507,6 +508,7 @@ impl RegisteredBufferInner {
         if let Some(context) = context {
             context.bind()?;
         }
+
         // SAFETY: `cuFileBufRegister` receives pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::cuFileBufRegister(

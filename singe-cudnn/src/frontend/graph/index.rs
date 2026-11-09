@@ -72,8 +72,7 @@ impl Graph {
     /// Creates a slice result with the requested placement and encoding.
     /// The selected encoding must match the input, as required by C++ and native cuDNN.
     /// Preserves the input vector lanes and vectorized axis.
-    /// Slice ranges and strides use descriptor dimensions, which count vectors
-    /// on the vectorized axis.
+    /// Slice ranges and strides use descriptor dimensions, which count vectors on the vectorized axis.
     /// Omitted stride entries use `1`; extra positive entries are ignored.
     /// A singleton output axis retains its source stride if multiplying by the step would overflow.
     /// Placement selects I/O or intermediate encoding defaults; the result must retain input encoding.
@@ -99,6 +98,7 @@ impl Graph {
         if let Some((count, axis)) = input_tensor.vectorization()? {
             output_spec = output_spec.with_vectorization(count, axis)?;
         }
+
         let checkpoint = self.mutation_checkpoint();
         let output = self.inferred_tensor(output_spec, config.name(), "Y");
         if let Err(error) = self.slice_into(input, output, config) {
@@ -135,8 +135,7 @@ impl Graph {
 
     /// Adds a transpose operation and creates the output tensor.
     ///
-    /// Preserves the input vector lanes and moves the vectorized axis with its
-    /// corresponding dimension in the permutation.
+    /// Preserves the input vector lanes and moves the vectorized axis with its corresponding dimension in the permutation.
     /// Fused scalar geometry uses the permutation rank without changing the input declaration.
     /// Placement selects I/O or intermediate encoding defaults; the result must retain input encoding.
     /// A configured scope names the inferred result `name::Y`.
@@ -166,6 +165,7 @@ impl Graph {
             output_spec = output_spec
                 .with_vectorization(count, to_i64(output_axis, "transpose vector dimension")?)?;
         }
+
         let checkpoint = self.mutation_checkpoint();
         let output = self.inferred_tensor(output_spec, config.name(), "Y");
         if let Err(error) = self.transpose_into(input, output, config) {
@@ -177,10 +177,8 @@ impl Graph {
 
     /// Adds a diagonal band mask operation for attention score masking.
     ///
-    /// Diagonal band masks support causal and sliding-window attention score
-    /// modification in the frontend SDPA API.
-    /// Rank-one sequence-length tensors and their dynamic bounds are promoted to
-    /// native four-dimensional layouts after validation succeeds.
+    /// Diagonal band masks support causal and sliding-window attention score modification in the frontend SDPA API.
+    /// Rank-one sequence-length tensors and their dynamic bounds are promoted to native four-dimensional layouts after validation succeeds.
     ///
     /// # Errors
     ///
@@ -231,8 +229,7 @@ impl Graph {
 
     /// Adds a concatenate operation with an explicit output tensor.
     ///
-    /// Concatenate merges one or more tensors along the selected axis and may
-    /// optionally request in-place behavior through an input index.
+    /// Concatenate merges one or more tensors along the selected axis and may optionally request in-place behavior through an input index.
     /// Fused scalar inputs use unit dimensions at the non-scalar operands' rank during validation.
     /// Their original declarations remain unchanged until graph preparation.
     ///
@@ -259,14 +256,14 @@ impl Graph {
     ///
     /// Preserves the first input's stride order and vectorization.
     /// The concatenation axis and dimensions use descriptor units.
-    /// In-place mode requires the selected input to occupy its final region in
-    /// the output allocation, with strides matching that region.
+    /// In-place mode requires the selected input to occupy its final region in the output allocation, with strides matching that region.
     /// Placement and encoding are selected independently of the in-place request.
     /// Fused scalar dimensions and stride order reflect their native rank promotion.
     ///
     /// # Errors
     ///
-    /// Returns an error for empty or unknown inputs, invalid scalar-rank promotion, an invalid axis or in-place input index, incompatible ranks or non-concatenated dimensions, overflowing output extents, or incompatible output dimensions. Inferred stride layout and vectorization must also be representable.
+    /// Returns an error for empty or unknown inputs, invalid scalar-rank promotion, an invalid axis or in-place input index, incompatible ranks or non-concatenated dimensions, overflowing output extents, or incompatible output dimensions.
+    /// Inferred stride layout and vectorization must also be representable.
     pub fn concat(
         &mut self,
         inputs: &[TensorId],
@@ -287,6 +284,7 @@ impl Graph {
         if let Some((count, axis)) = input_tensors[0].vectorization()? {
             output_spec = output_spec.with_vectorization(count, axis)?;
         }
+
         let checkpoint = self.mutation_checkpoint();
         let output = self.inferred_tensor(output_spec, config.name(), "Y");
         if let Err(error) = self.concat_into(inputs, output, config) {
@@ -370,6 +368,7 @@ impl Graph {
                 promotions.push((id, promoted, constraints));
             }
         }
+
         // Commit only after every reference, promoted layout and bound is valid.
         // Promotion changes shape alone, preserving placement and ragged relationships.
         for (id, tensor, constraints) in promotions {
@@ -404,6 +403,7 @@ impl Graph {
                 if !tensor.is_by_value() {
                     continue;
                 }
+
                 tensor.validate_scalar()?;
 
                 match scalar_target_ranks.insert(tensor_id, target_rank) {

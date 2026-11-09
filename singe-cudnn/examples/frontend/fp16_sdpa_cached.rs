@@ -153,11 +153,13 @@ fn run() -> Result<()> {
         if let Some(plan) = first.plan_ids().pop() {
             first.set_default_plan(&plan)?;
         }
+
         cache
             .lock()
             .map_err(|_| FrontendError::PlanCacheLockPoisoned)?
             .insert(first_key.clone(), first.cached_plan_choices());
     }
+
     println!(
         "preferred engine: {:?}",
         first.engine_metadata().engine_index

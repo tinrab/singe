@@ -276,9 +276,11 @@ impl PointwiseDescriptor {
             }
             _ => {}
         }
+
         if let Some(axis) = config.axis {
             descriptor.set_attribute_i64(BackendAttributeName::PointwiseAxis, axis)?;
         }
+
         descriptor.finalize()?;
         Ok(Self { descriptor, config })
     }
@@ -593,6 +595,7 @@ impl PointwiseOperation {
                 name: "pointwise tensor ports".into(),
             });
         }
+
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::OperationPointwise)?;
         descriptor.set_attribute_descriptor(
             BackendAttributeName::OperationPointwisePwDescriptor,
@@ -601,6 +604,7 @@ impl PointwiseOperation {
         for (attribute, tensor) in ports.into_iter().flatten() {
             descriptor.set_attribute_descriptor(attribute, tensor.descriptor())?;
         }
+
         pointwise.set_operation_scaling(&mut descriptor, alpha1, alpha2)?;
         descriptor.finalize()?;
         Ok(Self {

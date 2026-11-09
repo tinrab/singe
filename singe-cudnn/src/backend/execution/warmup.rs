@@ -34,13 +34,10 @@ impl ExecutionPlan {
     /// A cuDNN rejection inside a completed capture is returned in [`WarmupOutcome::Captured`].
     ///
     /// # Safety
-    /// Host by-value pointers must contain initialized values in their declared native
-    /// encodings and remain live until this call returns. Keep borrowed device buffers
-    /// and workspace valid in the execution context through capture and graph disposal.
-    /// Captured device reads and writes are never launched, so device inputs need not
-    /// be initialized for this call.
-    /// Deviceless plans retain the live context through native plan destruction,
-    /// including when capture or the native warmup execution fails.
+    /// Host by-value pointers must contain initialized values in their declared native encodings and remain live until this call returns.
+    /// Keep borrowed device buffers and workspace valid in the execution context through capture and graph disposal.
+    /// Captured device reads and writes are never launched, so device inputs need not be initialized for this call.
+    /// Deviceless plans retain the live context through native plan destruction, including when capture or the native warmup execution fails.
     pub unsafe fn warmup(
         &self,
         context: &mut Context,
@@ -49,6 +46,7 @@ impl ExecutionPlan {
         if context.stream()?.capture_status()? != StreamCaptureStatus::None {
             return Ok(WarmupOutcome::SkippedActiveCapture);
         }
+
         self.validate_workspace(context, variant_pack)?;
         validate_context_pair(
             Some(context.cuda_context()),
@@ -79,6 +77,7 @@ pub unsafe fn capture_plan_warmup(
     if context.stream()?.capture_status()? != StreamCaptureStatus::None {
         return Ok(WarmupOutcome::SkippedActiveCapture);
     }
+
     validate_context_pair(
         Some(context.cuda_context()),
         plan.cuda_context(),

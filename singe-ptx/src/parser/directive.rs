@@ -16,13 +16,13 @@ use crate::{
         SectionDirective, SectionLine, SectionValue, Span, TopLevelItem, VariableDecl,
     },
     parser::{
-        common::{
+        depth,
+        function::function,
+        lexical::{
             Input, PResult, alignment, comma_sep, decimal, displacement, float_literal, identifier,
             integer_literal, keyword, lexeme, linking_directive, scalar_type, semicolon,
             state_space, string_literal, text, unsigned_literal, vector_size, with_span, ws,
         },
-        depth,
-        function::function,
     },
 };
 
@@ -298,6 +298,7 @@ where
                 if matches!(*token, "&" | "|") && after_op.fragment().starts_with(*token) {
                     continue;
                 }
+
                 matched = Some((after_op, *op));
                 break;
             }

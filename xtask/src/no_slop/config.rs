@@ -1,6 +1,9 @@
 //! Workspace policy lives in Cargo's existing metadata table.
 
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context as _, Result, ensure};
 use globset::{GlobBuilder, GlobSet, GlobSetBuilder};
@@ -16,6 +19,9 @@ pub struct Config {
     pub exclude: Vec<String>,
     #[serde(default)]
     pub rules: BTreeMap<String, Level>,
+    /// Path prefixes a rule applies under, for a rule adopted one crate at a time; a rule not named here applies everywhere.
+    #[serde(default)]
+    pub scopes: BTreeMap<String, Vec<PathBuf>>,
 }
 
 impl Config {
@@ -26,7 +32,7 @@ impl Config {
                 .context("invalid [workspace.metadata.no-slop] configuration")?,
             None => Self::default(),
         };
-        for id in config.rules.keys() {
+        for id in config.rules.keys().chain(config.scopes.keys()) {
             ensure!(rules::is_known(id), "unknown no-slop rule: {id}");
         }
         Ok(config)
@@ -47,6 +53,12 @@ impl Config {
 
     pub fn level(&self, id: &str) -> Level {
         self.rules.get(id).copied().unwrap_or_default()
+    }
+
+    pub fn in_scope(&self, id: &str, path: &Path) -> bool {
+        self.scopes
+            .get(id)
+            .is_none_or(|prefixes| prefixes.iter().any(|prefix| path.starts_with(prefix)))
     }
 }
 

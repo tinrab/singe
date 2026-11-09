@@ -4,16 +4,22 @@
 
 /// Single-GPU library context ownership and native plan or kernel caches.
 pub mod context;
+
 /// Native statuses and typed wrapper validation errors.
 pub mod error;
+
 pub mod execution;
 pub mod logger;
+
 /// Tensor operation descriptors, signatures, and typed scalar parameters.
 pub mod operation;
+
 /// Kernel-selection preferences, workspace estimates, and native execution plans.
 pub mod plan;
+
 /// Dense and block-sparse tensor layout descriptors.
 pub mod tensor;
+
 /// Typed native algorithms, operators, attributes, logging selectors, and mode labels.
 pub mod types;
 

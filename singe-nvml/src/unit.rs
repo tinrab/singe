@@ -31,9 +31,8 @@ impl Unit {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlUnit_t` for the duration of any calls made
-    /// through the returned wrapper. NVML owns the underlying unit handle; this
-    /// wrapper does not destroy it.
+    /// `handle` must be a valid `nvmlUnit_t` for the duration of any calls made through the returned wrapper.
+    /// NVML owns the underlying unit handle; this wrapper does not destroy it.
     pub const unsafe fn from_raw(handle: sys::nvmlUnit_t) -> Self {
         Self(handle)
     }
@@ -58,8 +57,7 @@ impl Unit {
     ///
     /// # Errors
     ///
-    /// Returns an error if the unit handle or output argument is invalid, or if
-    /// NVML has not been initialized.
+    /// Returns an error if the unit handle or output argument is invalid, or if NVML has not been initialized.
     pub fn info(self) -> Result<UnitInfo> {
         let mut info = sys::nvmlUnitInfo_t::default();
         // SAFETY: `nvmlUnitGetUnitInfo` receives a live handle and writes only into the local `info`.
@@ -77,9 +75,7 @@ impl Unit {
     ///
     /// # Errors
     ///
-    /// Returns an error if the unit handle or output argument is invalid, if this
-    /// is not an S-class product, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the unit handle or output argument is invalid, if this is not an S-class product, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn led_state(self) -> Result<LedState> {
         let mut state = sys::nvmlLedState_t::default();
         // SAFETY: `nvmlUnitGetLedState` receives a live handle and writes only into the local `state`.
@@ -97,9 +93,7 @@ impl Unit {
     ///
     /// # Errors
     ///
-    /// Returns an error if the unit handle or output argument is invalid, if this
-    /// is not an S-class product, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the unit handle or output argument is invalid, if this is not an S-class product, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn psu_info(self) -> Result<PsuInfo> {
         let mut info = sys::nvmlPSUInfo_t::default();
         // SAFETY: `nvmlUnitGetPsuInfo` receives a live handle and writes only into the local `info`.
@@ -117,9 +111,7 @@ impl Unit {
     ///
     /// # Errors
     ///
-    /// Returns an error if the unit handle, temperature type, or output argument is
-    /// invalid, if this is not an S-class product, if NVML has not been initialized,
-    /// or if NVML reports an unexpected failure.
+    /// Returns an error if the unit handle, temperature type, or output argument is invalid, if this is not an S-class product, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn temperature(self, kind: UnitTemperatureType) -> Result<UnitTemperature> {
         let mut temperature = 0;
         // SAFETY: `nvmlUnitGetTemperature` receives valid output locations.
@@ -141,15 +133,14 @@ impl Unit {
     ///
     /// # Errors
     ///
-    /// Returns an error if the unit handle or output argument is invalid, if this
-    /// is not an S-class product, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the unit handle or output argument is invalid, if this is not an S-class product, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fan_speeds(self) -> Result<UnitFanSpeeds> {
         let mut fan_speeds = sys::nvmlUnitFanSpeeds_t::default();
         // SAFETY: `nvmlUnitGetFanSpeedInfo` receives valid output locations.
         unsafe {
             try_ffi!(sys::nvmlUnitGetFanSpeedInfo(self.0, &raw mut fan_speeds))?;
         }
+
         let fans = fan_speeds.fans[..fan_speeds.count as usize]
             .iter()
             .copied()
@@ -169,9 +160,7 @@ impl Unit {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal device buffer is too small, if the unit
-    /// handle or query arguments are invalid, if NVML has not been initialized, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if the internal device buffer is too small, if the unit handle or query arguments are invalid, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn devices(self) -> Result<Vec<Device>> {
         let mut count = 0;
         // SAFETY: `nvmlUnitGetDevices` receives valid output locations.
@@ -179,6 +168,7 @@ impl Unit {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -192,6 +182,7 @@ impl Unit {
                 devices.as_mut_ptr()
             ))?;
         }
+
         devices.truncate(count as usize);
         Ok(devices
             .into_iter()

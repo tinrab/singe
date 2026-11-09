@@ -16,7 +16,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error if a 2D or 3D filter’s scalar element count overflows or exceeds the signed 32-bit indexing limit.
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage.
+    /// Also returns an error if a 2D or 3D filter’s scalar element count overflows or exceeds the signed 32-bit indexing limit.
     pub fn convolution_forward_into(
         &mut self,
         x: TensorId,
@@ -33,7 +34,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error for an unrepresentable output layout, a vectorized output extent incompatible with its lane count, or a forward filter exceeding the signed 32-bit indexing limit.
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage.
+    /// Also returns an error for an unrepresentable output layout, a vectorized output extent incompatible with its lane count, or a forward filter exceeding the signed 32-bit indexing limit.
     pub fn convolution_forward(
         &mut self,
         x: TensorId,
@@ -61,6 +63,7 @@ impl Graph {
                 if *dimension % count != 0 {
                     return Err(Error::InvalidDataShape);
                 }
+
                 *dimension /= count;
                 (
                     input
@@ -111,7 +114,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error if the requested gradient dimensions cannot form a valid channels-last layout.
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage.
+    /// Also returns an error if the requested gradient dimensions cannot form a valid channels-last layout.
     pub fn convolution_backward_data(
         &mut self,
         w: TensorId,
@@ -159,7 +163,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage. Also returns an error if the requested gradient dimensions cannot form a valid channels-last layout.
+    /// Returns an error for unknown tensor identities, invalid vector metadata or geometry, incompatible ranks or grouped channels, a response shape mismatch, or a nonzero effective beta with a destination that cannot provide initialized accumulation storage.
+    /// Also returns an error if the requested gradient dimensions cannot form a valid channels-last layout.
     pub fn convolution_backward_filter(
         &mut self,
         x: TensorId,

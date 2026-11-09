@@ -4,6 +4,7 @@ fn validate_span(values: usize, rows: usize, columns: usize, strides: [usize; 2]
     if rows == 0 || columns == 0 {
         return Ok(());
     }
+
     let span = (rows - 1)
         .checked_mul(strides[0])
         .and_then(|row| {
@@ -25,10 +26,11 @@ fn validate_span(values: usize, rows: usize, columns: usize, strides: [usize; 2]
 
 macro_rules! blocked_matmul {
     ($name:ident, $ty:ty) => {
-        /// Portable GEMM over checked allocation-relative strides. Inputs may be
-        /// transposed, broadcast, or padded. Output is contiguous and overwritten.
-        /// Accumulation visits reduction indices in ascending order without
-        /// reassociation or reduced precision. No input packing is required.
+        /// Portable GEMM over checked allocation-relative strides.
+        /// Inputs may be transposed, broadcast, or padded.
+        /// Output is contiguous and overwritten.
+        /// Accumulation visits reduction indices in ascending order without reassociation or reduced precision.
+        /// No input packing is required.
         #[expect(clippy::suboptimal_flops, reason = "the CPU reference keeps separate multiply and add rounding for reproducible comparisons")]
         pub fn $name(
             lhs: &[$ty],

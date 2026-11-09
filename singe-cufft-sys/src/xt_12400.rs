@@ -189,7 +189,7 @@ pub enum cufftXtWorkAreaPolicy_t {
     CUFFT_WORKAREA_PERFORMANCE = 2,
 }
 pub use self::cufftXtWorkAreaPolicy_t as cufftXtWorkAreaPolicy;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetGPUs`] identifies which GPUs are to be used with the plan. As in the single GPU case [`cufftCreate`] creates a plan and `cufftMakePlan*()` does the plan generation. In cuFFT prior to 10.4.0, this call will return an error if a non-default stream has been associated with the plan.
     ///
     /// Note that the call to [`cufftXtSetGPUs`] must occur after the call to [`cufftCreate`] and prior to the call to `cufftMakePlan*()`. Parameter `whichGPUs` of [`cufftXtSetGPUs`] function determines ordering of the GPUs with respect to data decomposition (first data chunk is placed on GPU denoted by first element of `whichGPUs`).
@@ -215,7 +215,7 @@ unsafe extern "C" {
         whichGPUs: *mut ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtMalloc`] allocates a descriptor, and all memory for data in GPUs associated with the plan, and returns a pointer to the descriptor. Note the descriptor contains an array of device pointers so that the application may preprocess or postprocess the data on the GPUs. The enumerated parameter [`cufftXtSubFormat_t`] indicates if the buffer will be used for input or output.
     ///
     /// # Parameters
@@ -238,7 +238,7 @@ unsafe extern "C" {
         format: cufftXtSubFormat,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtMemcpy`] copies data between buffers on the host and GPUs or between GPUs. The enumerated parameter [`cufftXtCopyType_t`] indicates the type and direction of transfer. Calling [`cufftXtMemcpy`] function for multi-GPU batched FFT plans with [`cufftXtCopyType::CUFFT_COPY_DEVICE_TO_DEVICE`] transfer type is not supported.
     ///
     /// Note that starting from CUDA 11.2 (cuFFT 10.4.0), [`cufftSetStream`] is supported on multi-GPU plans. When associating a stream with a plan, [`cufftXtMemcpy`] remains synchronous across the multiple GPUs.
@@ -265,7 +265,7 @@ unsafe extern "C" {
         type_: cufftXtCopyType,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtFree`] frees the descriptor and all memory associated with it. The descriptor and memory must have been returned by a previous call to [`cufftXtMalloc`].
     ///
     /// # Parameters
@@ -278,7 +278,7 @@ unsafe extern "C" {
     /// - [`cufftResult::CUFFT_SUCCESS`]: cuFFT successfully allows user to free descriptor and associated GPU memory.
     pub fn cufftXtFree(descriptor: *mut cudaLibXtDesc) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetWorkArea`] overrides the work areas associated with a plan. If the work area was auto-allocated, cuFFT frees the auto-allocated space. The `cufftXtExec*()` calls assume that each work area is valid, aligned to the complex type of the plan (`cufftComplex` for single precision and `cufftDoubleComplex` for double precision transforms), and that it points to a contiguous region in each device memory that does not overlap with any other work area. If the work area is misaligned, `cufftXtExec*()` fails with [`cufftResult::CUFFT_INVALID_VALUE`]. Other assumption violations yield indeterminate results.
     ///
     /// # Parameters
@@ -298,7 +298,7 @@ unsafe extern "C" {
         workArea: *mut *mut ::core::ffi::c_void,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtExecDescriptorC2C`] ([`cufftXtExecDescriptorZ2Z`]) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.
     ///
     /// # Parameters
@@ -326,7 +326,7 @@ unsafe extern "C" {
         direction: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtExecDescriptorR2C`] ([`cufftXtExecDescriptorD2Z`]) executes a single-precision (double-precision) real-to-complex transform plan. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.
     ///
     /// # Parameters
@@ -352,7 +352,7 @@ unsafe extern "C" {
         output: *mut cudaLibXtDesc,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtExecDescriptorC2R`] ([`cufftXtExecDescriptorZ2D`]) executes a single-precision (double-precision) complex-to-real transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.
     ///
     /// # Parameters
@@ -378,7 +378,7 @@ unsafe extern "C" {
         output: *mut cudaLibXtDesc,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtExecDescriptorC2C`] ([`cufftXtExecDescriptorZ2Z`]) executes a single-precision (double-precision) complex-to-complex transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.
     ///
     /// # Parameters
@@ -406,7 +406,7 @@ unsafe extern "C" {
         direction: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtExecDescriptorR2C`] ([`cufftXtExecDescriptorD2Z`]) executes a single-precision (double-precision) real-to-complex transform plan. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.
     ///
     /// # Parameters
@@ -432,7 +432,7 @@ unsafe extern "C" {
         output: *mut cudaLibXtDesc,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtExecDescriptorC2R`] ([`cufftXtExecDescriptorZ2D`]) executes a single-precision (double-precision) complex-to-real transform plan in the transform direction as specified by `direction` parameter. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` as input data. Since only in-place multiple GPU functionality is supported, this function also stores the result in the `cudaLibXtDesc *input` arrays.
     ///
     /// # Parameters
@@ -458,7 +458,7 @@ unsafe extern "C" {
         output: *mut cudaLibXtDesc,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtQueryPlan`] query plan for internal information. Usage is currently limited to multiple-GPU 1D factorization. See [Multiple-GPU Data Organization for Single 1D Transforms](https://docs.nvidia.com/cuda/archive/13.4.2/cufft/index.html#oned-mgpu-data-organization) for usage examples.
     ///
     /// # Parameters
@@ -507,7 +507,7 @@ pub enum cufftXtCallbackType_t {
     CUFFT_CB_UNDEFINED = 8,
 }
 pub use self::cufftXtCallbackType_t as cufftXtCallbackType;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetCallback`] specifies a load or store legacy callback to be used with the plan. This call is valid only after a call to `cufftMakePlan*()`, which does the plan generation. If there was already a legacy callback of this type associated with the plan, this new callback routine replaces it. If the new callback requires shared memory, you must call [`cufftXtSetCallbackSharedSize`] with the amount of shared memory it needs. cuFFT will not retain the amount of shared memory associated with the previous callback.
     ///
     /// # Parameters
@@ -527,7 +527,7 @@ unsafe extern "C" {
         caller_info: *mut *mut ::core::ffi::c_void,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtClearCallback`] instructs cuFFT to stop invoking the specified legacy callback type when executing the plan. Only the specified callback is cleared. If no callback of this type had been specified, the return code is [`cufftResult::CUFFT_SUCCESS`].
     ///
     /// Note that this method **does not work** with LTO callbacks.
@@ -546,7 +546,7 @@ unsafe extern "C" {
         cbType: cufftXtCallbackType,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetCallbackSharedSize`] instructs cuFFT to dynamically allocate shared memory at launch time, for use by the callback. The maximum allowable amount of shared memory is 16K bytes. cuFFT passes a pointer to this shared memory to the callback routine at execution time. This shared memory is only valid for the life of the load or store callback operation. During execution, cuFFT may overwrite shared memory for its own purposes.
     ///
     /// # Parameters
@@ -566,7 +566,7 @@ unsafe extern "C" {
         sharedSize: size_t,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetJITCallback`] specifies a load or store LTO callback to be used with the plan.
     ///
     /// This call is valid only after a call to [`cufftCreate`], but before calling `cufftMakePlan*()`, which does the plan generation.
@@ -596,7 +596,7 @@ unsafe extern "C" {
         caller_info: *mut *mut ::core::ffi::c_void,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Following a call to [`cufftCreate`] makes an FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.
     ///
     /// Type specifiers `inputtype`, `outputtype` and `executiontype` dictate type and precision of transform to be performed. Not all combinations of parameters are supported. Currently all three parameters need to match precision. Parameters `inputtype` and `outputtype` need to match transform type complex-to-complex, real-to-complex or complex-to-real. Parameter `executiontype` needs to match precision and be of a complex type. Example: for a half-precision real-to-complex transform, parameters `inputtype`, `outputtype` and `executiontype` would have values of `cudaDataType::CUDA_R_16F`, `cudaDataType::CUDA_C_16F` and `cudaDataType::CUDA_C_16F` respectively. Similarly, a bfloat16 complex-to-real transform would use `cudaDataType::CUDA_C_16BF` for `inputtype` and `executiontype`, and `cudaDataType::CUDA_R_16BF` for `outputtype`.
@@ -657,7 +657,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This call gives a more accurate estimate of the work area size required for a plan than `cufftEstimateSizeMany()`, given the specified parameters that match signature of [`cufftXtMakePlanMany`] function, and taking into account any plan settings that may have been made. If a work area size of 0 is returned it means no temporary storage is needed for evaluation.
     ///
     /// For more information about valid combinations of `inputtype`, `outputtype` and `executiontype` parameters please refer to documentation of [`cufftXtMakePlanMany`] function.
@@ -704,7 +704,7 @@ unsafe extern "C" {
         executiontype: cudaDataType,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Function [`cufftXtExec`] executes any cuFFT transform regardless of precision and type. In case of complex-to-real and real-to-complex transforms `direction` parameter is ignored. cuFFT uses the GPU memory pointed to by the `input` parameter as input data. This function stores the Fourier coefficients in the `output` array. If `input` and `output` are the same, this method does an in-place transform.
     ///
     /// # Parameters
@@ -729,7 +729,7 @@ unsafe extern "C" {
         direction: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Function [`cufftXtExecDescriptor`] executes any cuFFT transform regardless of precision and type. In case of complex-to-real and real-to-complex transforms `direction` parameter is ignored. cuFFT uses the GPU memory pointed to by `cudaLibXtDesc *input` descriptor as input data and `cudaLibXtDesc *output` as output data.
     ///
     /// # Parameters
@@ -757,7 +757,7 @@ unsafe extern "C" {
         direction: ::core::ffi::c_int,
     ) -> cufftResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetWorkAreaPolicy`] indicates that the caller intends to change work area size for a given plan handle. cuFFT’s default behavior is to allocate the work area at plan generation time with a default size that depends on the plan type and other parameters. If [`cufftXtSetWorkAreaPolicy`] has been called with the `policy` parameter set to [`cufftXtWorkAreaPolicy_t::CUFFT_WORKAREA_MINIMAL`], cuFFT will attempt to re-plan the handle to use zero bytes of work area memory. If the [`cufftXtSetWorkAreaPolicy`] call is successful the auto-allocated work area memory is released.
     ///
     /// Currently the policies [`cufftXtWorkAreaPolicy_t::CUFFT_WORKAREA_PERFORMANCE`], [`cufftXtWorkAreaPolicy_t::CUFFT_WORKAREA_USER`] and the `workSize` parameter are not supported and reserved for use in future cuFFT releases.

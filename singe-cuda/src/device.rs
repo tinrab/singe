@@ -112,7 +112,6 @@ pub struct StreamPriorityRange {
     pub greatest: i32,
 }
 
-// TODO: use a crate
 /// An opaque 16-byte UUID returned by CUDA device or fabric queries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Uuid {
@@ -147,9 +146,11 @@ pub struct DeviceProperties {
     pub name: String,
     /// 16-byte unique identifier.
     pub uuid: Uuid,
-    /// 8-byte locally unique identifier. Value is undefined on TCC and non-Windows platforms.
+    /// 8-byte locally unique identifier.
+    /// Value is undefined on TCC and non-Windows platforms.
     pub luid: [u8; 8],
-    /// LUID device node mask. Value is undefined on TCC and non-Windows platforms.
+    /// LUID device node mask.
+    /// Value is undefined on TCC and non-Windows platforms.
     pub luid_device_node_mask: u32,
     /// Global memory available on device in bytes.
     pub total_global_mem: usize,
@@ -454,10 +455,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the device count, a previous
-    /// asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics such as [`crate::error::Status::NotInitialized`],
-    /// [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`].
+    /// Returns an error if CUDA cannot query the device count, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`].
     pub fn count() -> Result<i32> {
         let mut count: i32 = 0;
         // SAFETY: `cudaGetDeviceCount` receives valid output locations.
@@ -471,9 +469,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the current device, a previous
-    /// asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot query the current device, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn current() -> Result<Self> {
         let mut device_id: i32 = 0;
         // SAFETY: `cudaGetDevice` receives valid output locations.
@@ -485,8 +481,7 @@ impl Device {
 
     /// Blocks until the device has completed all preceding requested tasks.
     /// [`Device::synchronize`] returns an error if one of the preceding tasks has failed.
-    /// If [`ContextFlags::SCHEDULE_BLOCKING_SYNC`] was set for this device, the
-    /// host thread blocks until the device has finished its work.
+    /// If [`ContextFlags::SCHEDULE_BLOCKING_SYNC`] was set for this device, the host thread blocks until the device has finished its work.
     ///
     /// * Use of [`Device::synchronize`] in device code was deprecated in CUDA 11.6 and removed for `compute_90`+ compilation.
     ///   For compute capability &lt; 9.0, compile-time opt-in with `-D CUDA_FORCE_CDP1_IF_SUPPORTED` is required to continue using [`Device::synchronize`] in device code for now.
@@ -494,9 +489,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if synchronization fails, a previous asynchronous
-    /// launch reports an error, or CUDA reports runtime initialization
-    /// diagnostics.
+    /// Returns an error if synchronization fails, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn synchronize() -> Result<()> {
         // SAFETY: `cudaDeviceSynchronize` takes no arguments.
         unsafe {
@@ -506,8 +499,7 @@ impl Device {
     }
 
     /// Explicitly destroys and cleans up all resources associated with the current device in the current process.
-    /// Accessing these resources or passing them to subsequent API calls after
-    /// reset results in undefined behavior.
+    /// Accessing these resources or passing them to subsequent API calls after reset results in undefined behavior.
     /// These resources include streams, events, arrays, mipmapped arrays, pitched allocations, texture and surface objects, external memory and semaphore objects, and graphics resources owned by the current device state.
     /// These resources also include memory allocations by [`DeviceMemory::alloc`](crate::memory::DeviceMemory::alloc), [`PinnedHostMemory`](crate::memory::PinnedHostMemory), [`DeviceMemory::alloc_managed`](crate::memory::DeviceMemory::alloc_managed), and [`PitchedDeviceMemory`](crate::memory::PitchedDeviceMemory).
     /// Any subsequent call to this device reinitializes it.
@@ -521,8 +513,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if device reset fails, a previous asynchronous launch
-    /// reports an error, or CUDA reports runtime initialization diagnostics.
+    /// Returns an error if device reset fails, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     /// # Safety
     /// All affected resources must have been released and all work completed.
     /// Exclude other host threads and any later use of pre-reset owners or handles.
@@ -548,9 +539,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if `limit` is unsupported, CUDA cannot query the limit,
-    /// a previous asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if `limit` is unsupported, CUDA cannot query the limit, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn limit(limit: Limit) -> Result<usize> {
         let mut value = 0;
         // SAFETY: `cudaDeviceGetLimit` receives valid output locations.
@@ -577,8 +566,7 @@ impl Device {
     /// * [`Limit::DevRuntimeSyncDepth`] controls the maximum nesting depth of a grid at which a thread can safely call [`Device::synchronize`].
     ///   Setting this limit must be performed before any launch of a kernel that uses the device runtime and calls [`Device::synchronize`] above the default sync depth, two levels of grids.
     ///   Calls to [`Device::synchronize`] fail if this limit is violated.
-    ///   This limit can be set smaller than the default or up to the maximum launch depth of 24.
-    ///   Additional sync-depth levels require the runtime to reserve large amounts of device memory that can no longer be used for application allocations.
+    ///   This limit can be set smaller than the default or up to the maximum launch depth of 24. Additional sync-depth levels require the runtime to reserve large amounts of device memory that can no longer be used for application allocations.
     ///   If these device-memory reservations fail, [`Device::set_limit`] returns an error, and the limit can be reset to a lower value.
     ///   This limit is only applicable to devices of compute capability &lt; 9.0.
     ///   Setting this limit on devices with other compute capabilities returns [`crate::error::Status::UnsupportedLimit`].
@@ -601,9 +589,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if `limit` is unsupported, `value` is invalid for that
-    /// limit, CUDA cannot set the limit, a previous asynchronous launch reports
-    /// an error, or CUDA reports runtime initialization diagnostics.
+    /// Returns an error if `limit` is unsupported, `value` is invalid for that limit, CUDA cannot set the limit, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn set_limit(limit: Limit, value: usize) -> Result<()> {
         // SAFETY: `cudaDeviceSetLimit` receives only plain values.
         unsafe {
@@ -624,33 +610,25 @@ impl Device {
     ///   If `C > P`, CUDA yields to other OS threads when waiting for the device; otherwise, CUDA actively spins while waiting for results.
     ///   Additionally, on Tegra devices, [`ContextFlags::SCHEDULE_AUTO`] uses a heuristic based on the power profile of the platform and may choose [`ContextFlags::SCHEDULE_BLOCKING_SYNC`] for low-powered devices.
     /// * [`ContextFlags::SCHEDULE_SPIN`]: Instruct CUDA to actively spin when waiting for results from the device.
-    ///   This can decrease latency when waiting for the
-    ///   device, but may lower the performance of CPU threads if they are performing work in parallel with the CUDA thread.
+    ///   This can decrease latency when waiting for the device, but may lower the performance of CPU threads if they are performing work in parallel with the CUDA thread.
     /// * [`ContextFlags::SCHEDULE_YIELD`]: Instruct CUDA to yield its thread when waiting for results from the device.
-    ///   This can increase latency when waiting for the
-    ///   device, but can increase the performance of CPU threads performing work in parallel with the device.
+    ///   This can increase latency when waiting for the device, but can increase the performance of CPU threads performing work in parallel with the device.
     /// * [`ContextFlags::SCHEDULE_BLOCKING_SYNC`]: Instruct CUDA to block the CPU thread on a synchronization primitive when waiting for the device to finish work.
     ///
     /// This matches the deprecated CUDA runtime blocking-sync behavior now represented by [`ContextFlags::SCHEDULE_BLOCKING_SYNC`].
     /// * [`ContextFlags::MAP_HOST`]: This flag enables allocating pinned host memory that is accessible to the device.
-    ///   It is implicit for the runtime but may
-    ///   be absent if a context is created using the driver API.
+    ///   It is implicit for the runtime but may be absent if a context is created using the driver API.
     ///   If this flag is not set, [`sys::cudaHostGetDevicePointer`](singe_cuda_sys::runtime::cudaHostGetDevicePointer) always returns a failure code.
     /// * [`ContextFlags::LOCAL_MEMORY_RESIZE_TO_MAX`]: Instruct CUDA to not reduce local memory after resizing local memory for a kernel.
-    ///   This can prevent thrashing by local memory
-    ///   allocations when launching many kernels with high local memory usage at the cost of potentially increased memory usage.
+    ///   This can prevent thrashing by local memory allocations when launching many kernels with high local memory usage at the cost of potentially increased memory usage.
     ///
     /// Deprecated: this behavior is now the default and cannot be disabled.
     /// * [`ContextFlags::SYNC_MEMORY_OPERATIONS`]: Ensures that synchronous memory operations initiated on this context always synchronize.
-    ///   See further documentation
-    ///   in the section titled "API Synchronization behavior" to learn more about cases when synchronous memory operations can exhibit
-    ///   asynchronous behavior.
+    ///   See further documentation in the section titled "API Synchronization behavior" to learn more about cases when synchronous memory operations can exhibit asynchronous behavior.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot set the device flags, a previous
-    /// asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot set the device flags, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn set_flags(flags: ContextFlags) -> Result<()> {
         // SAFETY: `cudaSetDeviceFlags` receives only plain values.
         unsafe { try_ffi!(runtime::cudaSetDeviceFlags(flags.bits())) }
@@ -661,9 +639,7 @@ impl Device {
     /// If there is no current device, the flags for the first device are returned, which may be the default flags.
     /// Compare to the behavior of [`Device::set_flags`].
     ///
-    /// Typically, the returned flags match the behavior seen if the calling
-    /// thread uses a device after this call, assuming this thread or another
-    /// thread does not change the flags or current device in between.
+    /// Typically, the returned flags match the behavior seen if the calling thread uses a device after this call, assuming this thread or another thread does not change the flags or current device in between.
     /// If the device is not initialized, another thread can change the flags for the current device before it is initialized.
     /// Additionally, when using exclusive mode, if this thread has not requested a specific device, it may use a device other than the first device, contrary to the assumption made by this query.
     ///
@@ -674,9 +650,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the device flags, a previous
-    /// asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot query the device flags, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn flags() -> Result<ContextFlags> {
         let mut flags_raw: u32 = 0;
         // SAFETY: `cudaGetDeviceFlags` receives valid output locations.
@@ -690,10 +664,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot choose a matching device, the selected
-    /// device cannot be represented by this wrapper, a previous asynchronous
-    /// launch reports an error, or CUDA reports runtime initialization
-    /// diagnostics.
+    /// Returns an error if CUDA cannot choose a matching device, the selected device cannot be represented by this wrapper, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn choose(prop: &DeviceProperties) -> Result<Self> {
         // This function is tricky because cudaChooseDevice takes a *template* prop,
         // and we have a fully filled DeviceProp. We need to construct a template
@@ -728,9 +699,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if `pci_bus_id` contains an interior NUL byte, CUDA
-    /// cannot resolve the bus ID, a previous asynchronous launch reports an
-    /// error, or CUDA reports runtime initialization diagnostics.
+    /// Returns an error if `pci_bus_id` contains an interior NUL byte, CUDA cannot resolve the bus ID, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn by_pci_bus_id(pci_bus_id: &str) -> Result<Self> {
         let c_pci_bus_id = CString::new(pci_bus_id)?;
         let mut device: i32 = -1;
@@ -751,19 +720,14 @@ impl Device {
     /// Sets device as the current device for the calling host thread.
     /// Valid device id's are 0 to ([`Device::count`] - 1).
     ///
-    /// Device memory subsequently allocated from this host thread is physically
-    /// resident on `device`.
-    /// Host memory allocated or registered from this host thread has its
-    /// lifetime associated with `device`.
-    /// Streams and events created from this host thread are associated with
-    /// `device`.
+    /// Device memory subsequently allocated from this host thread is physically resident on `device`.
+    /// Host memory allocated or registered from this host thread has its lifetime associated with `device`.
+    /// Streams and events created from this host thread are associated with `device`.
     /// Kernels launched from this host thread execute on `device`.
     ///
     /// This may be called from any host thread, for any device, at any time.
     /// This performs no synchronization with the previous or new device, and usually only takes significant time when it initializes the runtime's context state.
-    /// This binds the primary context of the specified device to the calling
-    /// thread; subsequent memory allocations, stream and event creations, and
-    /// kernel launches are associated with that primary context.
+    /// This binds the primary context of the specified device to the calling thread; subsequent memory allocations, stream and event creations, and kernel launches are associated with that primary context.
     /// This also immediately initializes the runtime state on the primary context, and the context is current on the device immediately.
     /// It returns an error if the device is in [`ComputeMode::ExclusiveProcess`] and is occupied by another process, or if it is in [`ComputeMode::Prohibited`].
     ///
@@ -771,10 +735,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot set the current device, the device is
-    /// unavailable due to compute mode restrictions, a previous asynchronous
-    /// launch reports an error, or CUDA reports runtime initialization
-    /// diagnostics.
+    /// Returns an error if CUDA cannot set the current device, the device is unavailable due to compute mode restrictions, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn set_current(self) -> Result<()> {
         // SAFETY: `cudaSetDevice` receives only plain values.
         unsafe {
@@ -787,10 +748,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the device properties, the
-    /// returned properties cannot be converted into the safe wrapper type, a
-    /// previous asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot query the device properties, the returned properties cannot be converted into the safe wrapper type, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn properties(self) -> Result<DeviceProperties> {
         let mut prop = runtime::cudaDeviceProp::default();
         // SAFETY: `cudaGetDeviceProperties` writes only into the local `prop`.
@@ -804,9 +762,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the PCI bus ID, a previous
-    /// asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot query the PCI bus ID, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn pci_bus_id(self) -> Result<String> {
         const LEN: usize = 16; // Sufficient for typical PCI IDs like 0000:01:00.0
         let mut pci_bus_id_buf = [0i8; LEN];
@@ -826,9 +782,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query peer accessibility, either device
-    /// is invalid, a previous asynchronous launch reports an error, or CUDA
-    /// reports runtime initialization diagnostics.
+    /// Returns an error if CUDA cannot query peer accessibility, either device is invalid, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn can_access_peer(self, other: Self) -> Result<bool> {
         let mut can_access_peer: i32 = 0;
         // SAFETY: `cudaDeviceCanAccessPeer` receives valid output locations.
@@ -845,7 +799,8 @@ impl Device {
     /// Returns the value of the requested attribute of the link between devices.
     /// Supported attributes are represented by [`PeerToPeerAttribute`]:
     ///
-    /// * [`PeerToPeerAttribute::PerformanceRank`]: relative performance of the link between the two devices. Lower values are better.
+    /// * [`PeerToPeerAttribute::PerformanceRank`]: relative performance of the link between the two devices.
+    ///   Lower values are better.
     /// * [`PeerToPeerAttribute::AccessSupported`]: whether direct peer access is supported.
     /// * [`PeerToPeerAttribute::NativeAtomicSupported`]: whether native atomic operations over the link are supported.
     /// * [`PeerToPeerAttribute::CudaArrayAccessSupported`]: whether CUDA arrays are accessible over the link.
@@ -856,9 +811,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if either device is invalid, `attr` is not accepted by
-    /// CUDA, CUDA cannot query the attribute, a previous asynchronous launch
-    /// reports an error, or CUDA reports runtime initialization diagnostics.
+    /// Returns an error if either device is invalid, `attr` is not accepted by CUDA, CUDA cannot query the attribute, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn p2p_attribute(self, attr: PeerToPeerAttribute, other: Self) -> Result<i32> {
         let mut value: i32 = 0;
         // SAFETY: `cudaDeviceGetP2PAttribute` receives valid output locations.
@@ -888,9 +841,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the cache configuration, a
-    /// previous asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot query the cache configuration, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn cache_config() -> Result<FunctionCache> {
         let mut config = runtime::cudaFuncCache::CU_FUNC_CACHE_PREFER_NONE;
         // SAFETY: `cudaDeviceGetCacheConfig` receives valid output locations.
@@ -919,9 +870,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot set the cache configuration, a previous
-    /// asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot set the cache configuration, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn set_cache_config(config: FunctionCache) -> Result<()> {
         // SAFETY: `cudaDeviceSetCacheConfig` receives only plain values.
         unsafe {
@@ -940,9 +889,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot query the stream-priority range, a
-    /// previous asynchronous launch reports an error, or CUDA reports runtime
-    /// initialization diagnostics.
+    /// Returns an error if CUDA cannot query the stream-priority range, a previous asynchronous launch reports an error, or CUDA reports runtime initialization diagnostics.
     pub fn stream_priority_range() -> Result<StreamPriorityRange> {
         let mut least = 0;
         let mut greatest = 0;
@@ -960,27 +907,6 @@ impl Device {
     #[must_use]
     pub const fn id(self) -> DeviceId {
         self.0
-    }
-}
-
-#[cfg(all(test, feature = "testing"))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_it_works() {
-        match Device::count() {
-            Ok(count) => {
-                println!("Found {} CUDA devices.", count);
-                if count > 0 {
-                    match Device::new(0).properties() {
-                        Ok(props) => println!("Device 0: {}", props.name),
-                        Err(error) => eprintln!("error getting properties for device 0: {error:?}"),
-                    }
-                }
-            }
-            Err(error) => eprintln!("error getting device count: {error:?}"),
-        }
     }
 }
 
@@ -1019,7 +945,8 @@ pub enum DeviceAttribute {
     TextureAlignment = driver::CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT as _,
     /// Device can possibly copy memory and execute a kernel concurrently.
     ///
-    /// Deprecated. Use instead `CUdevice_attribute::CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT`.
+    /// Deprecated.
+    /// Use instead `CUdevice_attribute::CU_DEVICE_ATTRIBUTE_ASYNC_ENGINE_COUNT`.
     GpuOverlap = driver::CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_GPU_OVERLAP as _,
     /// Number of multiprocessors on device.
     MultiprocessorCount = driver::CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT as _,
@@ -1388,18 +1315,21 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if either required driver entry point is unavailable, the native count or clique-information query fails, or the reported count does not fit `usize`. No partial list is returned.
+    /// Returns an error if either required driver entry point is unavailable, the native count or clique-information query fails, or the reported count does not fit `usize`.
+    /// No partial list is returned.
     pub fn cliques(self) -> Result<Vec<CliqueInfo>> {
         let mut count = 0;
         // SAFETY: `cuDeviceGetCliqueCount` receives valid output locations.
         unsafe {
             cuDeviceGetCliqueCount(&raw mut count, self.id() as _)?;
         }
+
         let mut values = vec![driver::CUcliqueInfo::default(); to_usize(count, "clique count")?];
         // SAFETY: `cuDeviceGetCliqueInfo` receives valid output locations.
         unsafe {
             cuDeviceGetCliqueInfo(values.as_mut_ptr(), &raw mut count, self.id() as _)?;
         }
+
         values.truncate(to_usize(count, "clique count")?);
         Ok(values
             .into_iter()
@@ -1416,7 +1346,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates errors from querying the corresponding [`DeviceAttribute`]. Returns `Error::InvalidValue` if the native result is negative or does not fit the return type.
+    /// Propagates errors from querying the corresponding [`DeviceAttribute`].
+    /// Returns `Error::InvalidValue` if the native result is negative or does not fit the return type.
     pub fn locality_domain_count(self) -> Result<u32> {
         self.attribute(DeviceAttribute::LocalityDomainCount)?
             .try_into()
@@ -1427,7 +1358,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates errors from querying the corresponding [`DeviceAttribute`]. Returns `Error::InvalidValue` if the native result is negative or does not fit the return type.
+    /// Propagates errors from querying the corresponding [`DeviceAttribute`].
+    /// Returns `Error::InvalidValue` if the native result is negative or does not fit the return type.
     pub fn locality_domain_multiprocessor_count(self) -> Result<u32> {
         self.attribute(DeviceAttribute::LocalityDomainMultiprocessorCount)?
             .try_into()
@@ -1438,7 +1370,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates errors from querying the corresponding [`DeviceAttribute`]. Returns `Error::InvalidValue` if the native result is negative or does not fit the return type.
+    /// Propagates errors from querying the corresponding [`DeviceAttribute`].
+    /// Returns `Error::InvalidValue` if the native result is negative or does not fit the return type.
     pub fn maximum_oversized_shared_memory_per_block(self) -> Result<usize> {
         self.attribute(DeviceAttribute::MaxOversizedSharedMemoryPerBlock)?
             .try_into()
@@ -1630,3 +1563,24 @@ impl_enum_display!(CliqueType, {
     CliqueType::UnicastLogicalEndpoint => "CU_CLIQUE_TYPE_UNICAST_LOGICAL_ENDPOINT",
     CliqueType::MulticastLogicalEndpoint => "CU_CLIQUE_TYPE_MULTICAST_LOGICAL_ENDPOINT",
 });
+
+#[cfg(all(test, feature = "testing"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_it_works() {
+        match Device::count() {
+            Ok(count) => {
+                println!("Found {} CUDA devices.", count);
+                if count > 0 {
+                    match Device::new(0).properties() {
+                        Ok(props) => println!("Device 0: {}", props.name),
+                        Err(error) => eprintln!("error getting properties for device 0: {error:?}"),
+                    }
+                }
+            }
+            Err(error) => eprintln!("error getting device count: {error:?}"),
+        }
+    }
+}

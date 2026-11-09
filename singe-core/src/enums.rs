@@ -35,11 +35,9 @@ where
 
 /// Implements bidirectional conversions between a raw FFI enum and a typed Rust enum.
 ///
-/// The typed enum must implement `TryFrom<$ty>` and `Into<$ty>`, where `$ty`
-/// matches the raw enum representation. Converting from the raw enum panics if
-/// the raw discriminant is not represented by the typed enum. Converting back to
-/// the raw enum transmutes the typed discriminant, so the raw enum must use the
-/// same integer representation.
+/// The typed enum must implement `TryFrom<$ty>` and `Into<$ty>`, where `$ty` matches the raw enum representation.
+/// Converting from the raw enum panics if the raw discriminant is not represented by the typed enum.
+/// Converting back to the raw enum transmutes the typed discriminant, so the raw enum must use the same integer representation.
 #[macro_export]
 macro_rules! impl_enum_conversion {
     ($ty:ty, $from:ty, $into:ty $(,)?) => {
@@ -66,8 +64,7 @@ macro_rules! impl_enum_conversion {
     };
 }
 
-/// Implements [`Display`](std::fmt::Display) for an enum by mapping variants to
-/// fixed string names.
+/// Implements [`Display`](std::fmt::Display) for an enum by mapping variants to fixed string names.
 #[macro_export]
 macro_rules! impl_enum_display {
     ($enum:ty, { $($variant:path => $name:expr),+ $(,)? } $(,)?) => {

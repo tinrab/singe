@@ -1,13 +1,10 @@
 //! Emits Rust declarations as JSON for documentation review.
 //!
-//! Run `cargo run -p xtask --example doc_items -- <source paths...>` to list
-//! declarations, their documentation, and their source locations. Macro bodies
-//! that contain ordinary Rust items are parsed when possible.
+//! Run `cargo run -p xtask --example doc_items -- <source paths...>` to list declarations, their documentation, and their source locations.
+//! Macro bodies that contain ordinary Rust items are parsed when possible.
 //!
-//! Pass `--tokens` before the paths to emit parsed tokens with documentation
-//! attributes removed and optional trailing commas in argument and field lists
-//! normalized. Comparing these records checks whether an edit changed
-//! declarations, values, bodies, or attributes other than documentation.
+//! Pass `--tokens` before the paths to emit parsed tokens with documentation attributes removed and optional trailing commas in argument and field lists normalized.
+//! Comparing these records checks whether an edit changed declarations, values, bodies, or attributes other than documentation.
 
 use std::{env, fs, path::Path};
 
@@ -151,10 +148,12 @@ impl<'ast> Visit<'ast> for Collector {
                         None,
                     );
                 }
+
                 self.owners.pop();
             }
             _ => (),
         }
+
         visit::visit_item(self, item);
     }
 
@@ -178,6 +177,7 @@ impl<'ast> Visit<'ast> for Collector {
         for variant in &item.variants {
             self.visit_variant(variant);
         }
+
         self.owners.pop();
     }
 
@@ -216,6 +216,7 @@ impl<'ast> Visit<'ast> for Collector {
         if let ImplItem::Const(item) = item {
             self.record("constant", item.ident.to_string(), item, &item.attrs, None);
         }
+
         visit::visit_impl_item(self, item);
     }
 
@@ -248,6 +249,7 @@ impl<'ast> Visit<'ast> for Collector {
             }
             _ => (),
         }
+
         visit::visit_trait_item(self, item);
     }
 
@@ -278,6 +280,7 @@ fn main() -> Result<()> {
             if !path.is_file() || path.extension().is_none_or(|extension| extension != "rs") {
                 continue;
             }
+
             let source = fs::read_to_string(path)?;
             let file =
                 parse_file(&source).with_context(|| format!("cannot parse {}", path.display()))?;
@@ -289,6 +292,7 @@ fn main() -> Result<()> {
                 );
                 continue;
             }
+
             let mut collector = Collector {
                 file: path.display().to_string(),
                 owners: Vec::new(),
@@ -321,6 +325,7 @@ fn audit_tokens(mut file: File) -> TokenStream {
             if signature.variadic.is_none() {
                 let _ = signature.inputs.pop_punct();
             }
+
             visit_mut::visit_signature_mut(self, signature);
         }
 
@@ -350,10 +355,12 @@ fn without_docs(tokens: TokenStream) -> TokenStream {
                 if inner {
                     tokens.next();
                 }
+
                 tokens.next();
                 continue;
             }
         }
+
         let token = if let TokenTree::Group(group) = token {
             TokenTree::Group(Group::new(group.delimiter(), without_docs(group.stream())))
         } else {
@@ -368,6 +375,7 @@ fn is_prose_attribute(group: &Group) -> bool {
     if group.delimiter() != Delimiter::Bracket {
         return false;
     }
+
     let mut tokens = group.stream().into_iter();
     matches!(tokens.next(), Some(TokenTree::Ident(name)) if name == "doc")
         && matches!(tokens.next(), Some(TokenTree::Punct(punct)) if punct.as_char() == '=')
@@ -378,7 +386,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn audit_normalizes_optional_commas_without_changing_tuple_arity() {
+    fn test_audit_normalizes_optional_commas_without_changing_tuple_arity() {
         let a = parse_file(
             "struct S { value: u32, } struct T(u32,); fn f(x: u32,) { g(x,); let t = (x,); }",
         )
@@ -402,7 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn audit_removes_inner_outer_and_macro_docs_but_keeps_other_attributes() {
+    fn test_audit_removes_inner_outer_and_macro_docs_but_keeps_other_attributes() {
         let documented: TokenStream = r#"
             #![doc = "Crate docs"]
             #![allow(non_camel_case_types)]

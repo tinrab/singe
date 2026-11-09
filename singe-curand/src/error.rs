@@ -11,8 +11,12 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_curand_sys::LoadError),
+
     /// CUDA runtime or driver wrapper error.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// cuRAND reported an unsuccessful status.
@@ -47,6 +51,12 @@ impl Error {
 
 impl From<sys::curandStatus_t> for Error {
     fn from(status: sys::curandStatus_t) -> Self {
+        if status == sys::curandStatus_t::CURAND_STATUS_INITIALIZATION_FAILED
+            && let Err(error) = singe_curand_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         Self::from(Status::from(status))
     }
 }
@@ -62,8 +72,8 @@ impl From<Status> for Error {
 
 /// Converts a raw cuRAND status-returning expression into a crate [`Result`].
 ///
-/// The expression is evaluated once. `CURAND_STATUS_SUCCESS` becomes `Ok(())`;
-/// every other status becomes [`Error::Curand`].
+/// The expression is evaluated once.
+/// `CURAND_STATUS_SUCCESS` becomes `Ok(())`; every other status becomes [`Error::Curand`].
 #[macro_export]
 macro_rules! try_ffi {
     ($expr:expr) => {{

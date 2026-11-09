@@ -16,7 +16,8 @@ impl Workspace {
     ///
     /// # Errors
     ///
-    /// Returns an error if any byte count exceeds `i64::MAX`. The device count is validated when used with a context.
+    /// Returns an error if any byte count exceeds `i64::MAX`.
+    /// The device count is validated when used with a context.
     pub fn create(device_sizes: Vec<u64>, host_size: u64) -> Result<Self> {
         Ok(Self {
             device_sizes: device_sizes

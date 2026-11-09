@@ -100,9 +100,8 @@ macro_rules! impl_signal_statistic_to_dispatch {
         /// Native dispatch for the corresponding named NPP operation.
         ///
         /// # Safety
-        /// Implementations must match the native ABI, access roles, written ranges,
-        /// and status semantics. Successful completed execution must initialize its
-        /// documented outputs; metadata queries must return the required capacity.
+        /// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+        /// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
         pub unsafe trait $trait<Destination>: DataTypeLike
         where
             Destination: DataTypeLike,
@@ -111,8 +110,7 @@ macro_rules! impl_signal_statistic_to_dispatch {
             ///
             /// # Errors
             ///
-            /// Provided implementations return an error if CUDA context binding fails, a length or
-            /// queried size cannot be represented, or NPP rejects the scratch-size query.
+            /// Provided implementations return an error if CUDA context binding fails, a length or queried size cannot be represented, or NPP rejects the scratch-size query.
             fn $buffer_method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -124,19 +122,15 @@ macro_rules! impl_signal_statistic_to_dispatch {
             ///
             /// # Errors
             ///
-            /// Provided implementations return an error if CUDA context binding fails, a signal
-            /// belongs to another CUDA context, `destination` does not contain exactly one element,
-            /// a length or scratch-size conversion fails, or NPP reports an error.
+            /// Provided implementations return an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
             /// An undersized scratch buffer also returns an error.
             ///
             /// # Safety
             ///
             /// Follow the [raw signal execution contract](crate::signal::raw).
             /// Inputs must be initialized and ready when the selected stream reads them.
-            /// Retain the source, destination, and stream context through queued completion
-            /// and graph replay, without conflicting access to the written scalar.
-            /// `scratch` must belong to the same CUDA context and remain exclusively writable,
-            /// live, and disjoint from source and destination storage through completion.
+            /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
+            /// `scratch` must belong to the same CUDA context and remain exclusively writable, live, and disjoint from source and destination storage through completion.
             unsafe fn $scratch_method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -151,17 +145,14 @@ macro_rules! impl_signal_statistic_to_dispatch {
             ///
             /// # Errors
             ///
-            /// Provided implementations return an error if CUDA context binding fails, a signal
-            /// belongs to another CUDA context, `destination` does not contain exactly one element,
-            /// a length or scratch-size conversion fails, or NPP reports an error.
+            /// Provided implementations return an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
             /// Scratch allocation errors are propagated.
             ///
             /// # Safety
             ///
             /// Follow the [raw signal execution contract](crate::signal::raw).
             /// Inputs must be initialized and ready when the selected stream reads them.
-            /// Retain the source, destination, and stream context through queued completion
-            /// and graph replay, without conflicting access to the written scalar.
+            /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -216,8 +207,7 @@ macro_rules! impl_signal_statistic_to_dispatch {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a length or
-        /// queried size cannot be represented, or NPP rejects the scratch-size query.
+        /// Returns an error if CUDA context binding fails, a length or queried size cannot be represented, or NPP rejects the scratch-size query.
         pub fn $buffer_function<Source, Destination>(
             stream_context: &StreamContext,
             source: &SignalView<'_, Source>,
@@ -236,19 +226,15 @@ macro_rules! impl_signal_statistic_to_dispatch {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal
-        /// belongs to another CUDA context, `destination` does not contain exactly one element,
-        /// a length or scratch-size conversion fails, or NPP reports an error.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
         /// An undersized scratch buffer also returns an error.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Inputs must be initialized and ready when the selected stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and graph replay, without conflicting access to the written scalar.
-        /// `scratch` must belong to the same CUDA context and remain exclusively writable,
-        /// live, and disjoint from source and destination storage through completion.
+        /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
+        /// `scratch` must belong to the same CUDA context and remain exclusively writable, live, and disjoint from source and destination storage through completion.
         pub unsafe fn $scratch_function<Source, Destination>(
             stream_context: &StreamContext,
             source: &SignalView<'_, Source>,
@@ -276,17 +262,14 @@ macro_rules! impl_signal_statistic_to_dispatch {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal
-        /// belongs to another CUDA context, `destination` does not contain exactly one element,
-        /// a length or scratch-size conversion fails, or NPP reports an error.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
         /// Scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Inputs must be initialized and ready when the selected stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and graph replay, without conflicting access to the written scalar.
+        /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
         pub unsafe fn $function<Source, Destination>(
             stream_context: &StreamContext,
             source: &SignalView<'_, Source>,
@@ -323,9 +306,8 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
         /// Native dispatch for the corresponding named NPP operation.
         ///
         /// # Safety
-        /// Implementations must match the native ABI, access roles, written ranges,
-        /// and status semantics. Successful completed execution must initialize its
-        /// documented outputs; metadata queries must return the required capacity.
+        /// Implementations must match the native ABI, access roles, written ranges, and status semantics.
+        /// Successful completed execution must initialize its documented outputs; metadata queries must return the required capacity.
         pub unsafe trait $trait<Destination>: DataTypeLike
         where
             Destination: DataTypeLike,
@@ -334,8 +316,7 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
             ///
             /// # Errors
             ///
-            /// Provided implementations return an error if CUDA context binding fails, a length or
-            /// queried size cannot be represented, or NPP rejects the scratch-size query.
+            /// Provided implementations return an error if CUDA context binding fails, a length or queried size cannot be represented, or NPP rejects the scratch-size query.
             fn $buffer_method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -348,19 +329,15 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
             ///
             /// # Errors
             ///
-            /// Provided implementations return an error if CUDA context binding fails, a signal
-            /// belongs to another CUDA context, `destination` does not contain exactly one element,
-            /// a length or scratch-size conversion fails, or NPP reports an error.
+            /// Provided implementations return an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
             /// An undersized scratch buffer also returns an error.
             ///
             /// # Safety
             ///
             /// Follow the [raw signal execution contract](crate::signal::raw).
             /// Inputs must be initialized and ready when the selected stream reads them.
-            /// Retain the source, destination, and stream context through queued completion
-            /// and graph replay, without conflicting access to the written scalar.
-            /// `scratch` must belong to the same CUDA context and remain exclusively writable,
-            /// live, and disjoint from source and destination storage through completion.
+            /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
+            /// `scratch` must belong to the same CUDA context and remain exclusively writable, live, and disjoint from source and destination storage through completion.
             unsafe fn $scratch_method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -377,17 +354,14 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
             ///
             /// # Errors
             ///
-            /// Provided implementations return an error if CUDA context binding fails, a signal
-            /// belongs to another CUDA context, `destination` does not contain exactly one element,
-            /// a length or scratch-size conversion fails, or NPP reports an error.
+            /// Provided implementations return an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
             /// Scratch allocation errors are propagated.
             ///
             /// # Safety
             ///
             /// Follow the [raw signal execution contract](crate::signal::raw).
             /// Inputs must be initialized and ready when the selected stream reads them.
-            /// Retain the source, destination, and stream context through queued completion
-            /// and graph replay, without conflicting access to the written scalar.
+            /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
             unsafe fn $method(
                 stream_context: &StreamContext,
                 source: &SignalView<'_, Self>,
@@ -445,8 +419,7 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a length or
-        /// queried size cannot be represented, or NPP rejects the scratch-size query.
+        /// Returns an error if CUDA context binding fails, a length or queried size cannot be represented, or NPP rejects the scratch-size query.
         pub fn $buffer_function<Source, Destination>(
             stream_context: &StreamContext,
             source: &SignalView<'_, Source>,
@@ -466,19 +439,15 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal
-        /// belongs to another CUDA context, `destination` does not contain exactly one element,
-        /// a length or scratch-size conversion fails, or NPP reports an error.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
         /// An undersized scratch buffer also returns an error.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Inputs must be initialized and ready when the selected stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and graph replay, without conflicting access to the written scalar.
-        /// `scratch` must belong to the same CUDA context and remain exclusively writable,
-        /// live, and disjoint from source and destination storage through completion.
+        /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
+        /// `scratch` must belong to the same CUDA context and remain exclusively writable, live, and disjoint from source and destination storage through completion.
         pub unsafe fn $scratch_function<Source, Destination>(
             stream_context: &StreamContext,
             source: &SignalView<'_, Source>,
@@ -508,17 +477,14 @@ macro_rules! impl_signal_scaled_statistic_to_dispatch {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal
-        /// belongs to another CUDA context, `destination` does not contain exactly one element,
-        /// a length or scratch-size conversion fails, or NPP reports an error.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, `destination` does not contain exactly one element, a length or scratch-size conversion fails, or NPP reports an error.
         /// Scratch allocation errors are propagated.
         ///
         /// # Safety
         ///
         /// Follow the [raw signal execution contract](crate::signal::raw).
         /// Inputs must be initialized and ready when the selected stream reads them.
-        /// Retain the source, destination, and stream context through queued completion
-        /// and graph replay, without conflicting access to the written scalar.
+        /// Retain the source, destination, and stream context through queued completion and graph replay, without conflicting access to the written scalar.
         pub unsafe fn $function<Source, Destination>(
             stream_context: &StreamContext,
             source: &SignalView<'_, Source>,

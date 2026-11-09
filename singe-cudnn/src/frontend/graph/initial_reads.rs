@@ -63,6 +63,7 @@ fn collect_uses(
                 pending.push(offset);
             }
         }
+
         let full_write = fully_writes_dense_outputs(operation, graph, &uses);
         for id in &uses.writes {
             let producer = if full_write && !uses.reads.contains(id) {

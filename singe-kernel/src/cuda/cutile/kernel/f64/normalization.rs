@@ -272,6 +272,7 @@ mod kernels {
             let values = select(valid, values, zero);
             sum = sum + if OP == 0 { values } else { values * values };
         }
+
         let n: f64 = convert_scalar(cols);
         let total: Tile<f64, { [] }> = reduce_sum(sum, 0i32);
         let statistic = total / broadcast_scalar(n, const_shape![]);
@@ -294,9 +295,11 @@ mod kernels {
                 );
                 centered_sum = centered_sum + centered * centered;
             }
+
             let total: Tile<f64, { [] }> = reduce_sum(centered_sum, 0i32);
             variance = total / broadcast_scalar(n, const_shape![]);
         }
+
         let inv = constant(1.0f64, const_shape![])
             / sqrt(
                 variance + scalar_to_tile(eps),

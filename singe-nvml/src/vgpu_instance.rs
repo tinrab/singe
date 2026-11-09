@@ -41,9 +41,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output argument, if the
-    /// handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_type(self) -> Result<VgpuTypeId> {
         let mut vgpu_type_id = 0;
         // SAFETY: `nvmlVgpuInstanceGetType` receives valid output locations.
@@ -59,9 +57,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the versioned request, if the vGPU
-    /// instance or query arguments are invalid, if the handle does not match an
-    /// active vGPU instance, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the versioned request, if the vGPU instance or query arguments are invalid, if the handle does not match an active vGPU instance, or if NVML reports an unexpected failure.
     pub fn placement_id(self) -> Result<VgpuPlacementId> {
         let mut placement = sys::nvmlVgpuPlacementId_t {
             version: struct_version::<sys::nvmlVgpuPlacementId_t>(1),
@@ -83,10 +79,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the guest driver is not running, if NVML rejects
-    /// the handle or output argument, if the handle does not match an active
-    /// vGPU instance, if the vGPU does not support accounting, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the guest driver is not running, if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if the vGPU does not support accounting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlVgpuInstanceGetAccountingMode` receives valid output locations.
@@ -113,11 +106,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal PID buffer is too small, if NVML
-    /// rejects the handle or process-count output, if the handle does not match
-    /// an active vGPU instance, if the vGPU does not support accounting or
-    /// accounting is disabled, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the internal PID buffer is too small, if NVML rejects the handle or process-count output, if the handle does not match an active vGPU instance, if the vGPU does not support accounting or accounting is disabled, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_pids(self) -> Result<Vec<Pid>> {
         // SAFETY: `nvmlVgpuInstanceGetAccountingPids` receives only plain values.
         Ok(query_u32_list(|count, values| unsafe {
@@ -148,10 +137,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or stats output, if the
-    /// handle does not match an active vGPU instance or stats are unavailable,
-    /// if the vGPU does not support accounting or accounting is disabled, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or stats output, if the handle does not match an active vGPU instance or stats are unavailable, if the vGPU does not support accounting or accounting is disabled, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_stats(self, pid: Pid) -> Result<AccountingStats> {
         let mut stats = sys::nvmlAccountingStats_t::default();
         // SAFETY: `nvmlVgpuInstanceGetAccountingStats` receives valid output locations.
@@ -168,18 +154,14 @@ impl VgpuInstance {
     /// Returns the UUID of a vGPU instance.
     ///
     /// The UUID is a globally unique identifier associated with the vGPU.
-    /// It is returned as a five-part hexadecimal string that does not exceed 80
-    /// characters including the terminating NUL byte.
+    /// It is returned as a five-part hexadecimal string that does not exceed 80 characters including the terminating NUL byte.
     /// This wrapper allocates the required NVML buffer internally.
     ///
     /// For Kepler or newer fully supported devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if the UUID buffer is too small, if NVML rejects the
-    /// handle or output argument, if the handle does not match an active vGPU
-    /// instance, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the UUID buffer is too small, if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn uuid(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_UUID_BUFFER_SIZE as usize];
         // SAFETY: `nvmlVgpuInstanceGetUUID` receives valid output locations.
@@ -195,8 +177,7 @@ impl VgpuInstance {
 
     /// Returns the VM ID associated with a vGPU instance.
     ///
-    /// The VM ID is returned as a string that does not exceed 80 characters
-    /// including the terminating NUL byte.
+    /// The VM ID is returned as a string that does not exceed 80 characters including the terminating NUL byte.
     /// This wrapper allocates the required NVML buffer internally.
     ///
     /// The VM ID type identifies the platform-specific format of the returned string.
@@ -205,10 +186,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the VM ID buffer is too small, if NVML rejects the
-    /// handle, VM ID, or VM ID type output, if the handle does not match an
-    /// active vGPU instance, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the VM ID buffer is too small, if NVML rejects the handle, VM ID, or VM ID type output, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vm_id(self) -> Result<VgpuVmId> {
         let mut buffer = [0i8; sys::NVML_DEVICE_UUID_BUFFER_SIZE as usize];
         let mut vm_id_type = sys::nvmlVgpuVmIdType_t::NVML_VGPU_VM_ID_DOMAIN_ID;
@@ -230,23 +208,17 @@ impl VgpuInstance {
     /// Returns the NVIDIA driver version installed in the VM associated with a vGPU.
     ///
     /// The version is returned as an alphanumeric string.
-    /// The version string does not exceed 80 bytes including the terminating
-    /// NUL byte.
+    /// The version string does not exceed 80 bytes including the terminating NUL byte.
     /// This wrapper allocates the required NVML buffer internally.
     ///
     /// [`VgpuInstance::vm_driver_version`] may be called at any time for a vGPU instance.
-    /// The guest VM driver version is returned as `Not Available` if no NVIDIA
-    /// driver is installed in the VM, or if the VM has not yet loaded and
-    /// initialized the NVIDIA driver.
+    /// The guest VM driver version is returned as `Not Available` if no NVIDIA driver is installed in the VM, or if the VM has not yet loaded and initialized the NVIDIA driver.
     ///
     /// For Kepler or newer fully supported devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal driver-version buffer is too small, if
-    /// NVML rejects the handle, if the handle does not match an active vGPU
-    /// instance, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the internal driver-version buffer is too small, if NVML rejects the handle, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vm_driver_version(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_SYSTEM_DRIVER_VERSION_BUFFER_SIZE as usize];
         // SAFETY: `nvmlVgpuInstanceGetVmDriverVersion` receives valid output locations.
@@ -262,10 +234,8 @@ impl VgpuInstance {
 
     /// Returns the MDEV UUID of a vGPU instance.
     ///
-    /// The MDEV UUID is a globally unique identifier of the mdev device assigned
-    /// to the VM.
-    /// It is returned as a five-part hexadecimal string that does not exceed 80
-    /// characters including the terminating NUL byte.
+    /// The MDEV UUID is a globally unique identifier of the mdev device assigned to the VM.
+    /// It is returned as a five-part hexadecimal string that does not exceed 80 characters including the terminating NUL byte.
     /// The MDEV UUID is displayed only on KVM.
     /// This wrapper allocates the required NVML buffer internally.
     ///
@@ -273,10 +243,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the mediated-device UUID buffer is too small, if
-    /// NVML rejects the handle or UUID output, if the handle does not match an
-    /// active vGPU instance, if the hypervisor is not KVM, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the mediated-device UUID buffer is too small, if NVML rejects the handle or UUID output, if the handle does not match an active vGPU instance, if the hypervisor is not KVM, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn mdev_uuid(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_UUID_BUFFER_SIZE as usize];
         // SAFETY: `nvmlVgpuInstanceGetMdevUUID` receives valid output locations.
@@ -298,9 +265,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output argument, if the
-    /// handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn framebuffer_usage(self) -> Result<u64> {
         let mut usage = 0;
         // SAFETY: `nvmlVgpuInstanceGetFbUsage` receives valid output locations.
@@ -325,9 +290,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the guest driver is not running, if NVML rejects
-    /// the handle or output argument, if the handle does not match an active
-    /// vGPU instance, or if NVML reports an unexpected failure.
+    /// Returns an error if the guest driver is not running, if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, or if NVML reports an unexpected failure.
     pub fn license_info(self) -> Result<VgpuLicenseInfo> {
         let mut info = sys::nvmlVgpuLicenseInfo_t::default();
         // SAFETY: `nvmlVgpuInstanceGetLicenseInfo_v2` receives valid output locations.
@@ -348,10 +311,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output argument, if the
-    /// handle does not match an active vGPU instance, if the frame-rate limiter
-    /// is disabled for this vGPU type, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if the frame-rate limiter is disabled for this vGPU type, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn frame_rate_limit(self) -> Result<u32> {
         let mut limit = 0;
         // SAFETY: `nvmlVgpuInstanceGetFrameRateLimit` receives valid output locations.
@@ -368,10 +328,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output argument, if the
-    /// handle does not match an active vGPU instance, if the vGPU does not
-    /// support ECC mode, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if the vGPU does not support ECC mode, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn ecc_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlVgpuInstanceGetEccMode` receives valid output locations.
@@ -387,9 +344,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or encoder query, if the
-    /// handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or encoder query, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn encoder_capacity(self) -> Result<u32> {
         let mut capacity = 0;
         // SAFETY: `nvmlVgpuInstanceGetEncoderCapacity` receives valid output locations.
@@ -408,9 +363,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or query arguments, if the
-    /// handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or query arguments, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn encoder_stats(self) -> Result<EncoderStats> {
         let mut session_count = 0;
         let mut average_fps = 0;
@@ -439,10 +392,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal session buffer is too small, if NVML
-    /// rejects the handle or reports an invalid session count, if the handle
-    /// does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the internal session buffer is too small, if NVML rejects the handle or reports an invalid session count, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn encoder_sessions(self) -> Result<Vec<EncoderSessionInfo>> {
         let mut count = 0;
         // SAFETY: `nvmlVgpuInstanceGetEncoderSessions` receives valid output locations.
@@ -452,6 +402,7 @@ impl VgpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -465,6 +416,7 @@ impl VgpuInstance {
                 sessions.as_mut_ptr(),
             ))?;
         }
+
         sessions.truncate(count as usize);
         Ok(sessions.into_iter().map(Into::into).collect())
     }
@@ -475,9 +427,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output argument, if the
-    /// handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fbc_stats(self) -> Result<FbcStats> {
         let mut stats = sys::nvmlFBCStats_t::default();
         // SAFETY: `nvmlVgpuInstanceGetFBCStats` receives valid output locations.
@@ -497,10 +447,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal session buffer is too small, if NVML
-    /// rejects the handle or reports an invalid session count, if the handle
-    /// does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the internal session buffer is too small, if NVML rejects the handle or reports an invalid session count, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fbc_sessions(self) -> Result<Vec<FbcSessionInfo>> {
         let mut count = 0;
         let status =
@@ -509,6 +456,7 @@ impl VgpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -522,6 +470,7 @@ impl VgpuInstance {
                 sessions.as_mut_ptr(),
             ))?;
         }
+
         sessions.truncate(count as usize);
         Ok(sessions.into_iter().map(Into::into).collect())
     }
@@ -533,9 +482,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or query arguments, if the
-    /// handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or query arguments, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn gpu_instance_id(self) -> Result<u32> {
         let mut id = 0;
         // SAFETY: `nvmlVgpuInstanceGetGpuInstanceId` receives valid output locations.
@@ -547,15 +494,11 @@ impl VgpuInstance {
 
     /// Returns the PCI ID of the given vGPU instance, that is, the PCI ID of the GPU as seen inside the VM.
     ///
-    /// The vGPU PCI ID is returned as `00000000:00:00.0` if the NVIDIA driver is
-    /// not installed on the vGPU instance.
+    /// The vGPU PCI ID is returned as `00000000:00:00.0` if the NVIDIA driver is not installed on the vGPU instance.
     ///
     /// # Errors
     ///
-    /// Returns an error if the guest driver is not running, if the internal PCI
-    /// ID buffer is too small, if NVML rejects the handle or output argument, if
-    /// the handle does not match an active vGPU instance, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the guest driver is not running, if the internal PCI ID buffer is too small, if NVML rejects the handle or output argument, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn gpu_pci_id(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_PCI_BUS_ID_BUFFER_V2_SIZE as usize];
         let mut length = to_u32(buffer.len(), "NVML buffer length")?;
@@ -579,10 +522,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the versioned request, if the vGPU
-    /// instance or query arguments are invalid, if the handle does not match an
-    /// active vGPU instance, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the versioned request, if the vGPU instance or query arguments are invalid, if the handle does not match an active vGPU instance, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn runtime_state(self) -> Result<VgpuRuntimeState> {
         let mut state = sys::nvmlVgpuRuntimeState_t {
             version: struct_version::<sys::nvmlVgpuRuntimeState_t>(1),
@@ -611,10 +551,7 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal metadata buffer is too small after
-    /// retrying, if NVML rejects the handle or metadata arguments, if the handle
-    /// does not match an active vGPU instance, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the internal metadata buffer is too small after retrying, if NVML rejects the handle or metadata arguments, if the handle does not match an active vGPU instance, or if NVML reports an unexpected failure.
     pub fn metadata(self) -> Result<VgpuMetadata> {
         let raw = query_sized_raw(|size, buffer| {
             // SAFETY: `size` points to the buffer length, and `buffer` is null or points to
@@ -628,7 +565,8 @@ impl VgpuInstance {
     ///
     /// # Errors
     ///
-    /// Propagates vGPU metadata query errors, metadata serialization errors, and native compatibility-query failures. See [`Library::vgpu_compatibility`].
+    /// Propagates vGPU metadata query errors, metadata serialization errors, and native compatibility-query failures.
+    /// See [`Library::vgpu_compatibility`].
     pub fn compatibility_with(
         self,
         library: &Library,

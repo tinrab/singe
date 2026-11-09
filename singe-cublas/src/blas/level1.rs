@@ -26,9 +26,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `incx` is zero or too large for cuBLAS, the vector length is invalid, or
-/// cuBLAS rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode, `incx` is zero or too large for cuBLAS, the vector length is invalid, or cuBLAS rejects the operation.
 pub fn sscal(context: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: usize) -> Result<()> {
     context.bind()?;
     context.require_host_pointer_mode()?;
@@ -59,8 +57,7 @@ pub fn sscal(context: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: us
 
 /// Supports the 64-bit integer interface.
 ///
-/// Generalizes the typed cuBLAS norm routines so input data, output data, and compute type can
-/// be specified independently.
+/// Generalizes the typed cuBLAS norm routines so input data, output data, and compute type can be specified independently.
 ///
 /// Computes the Euclidean norm of vector `x`.
 /// The code uses a multiphase model of accumulation to avoid intermediate underflow and overflow, with the result being equivalent to $\sqrt{\sum\_{i = 1}^{n}\left( {\mathbf{x}\lbrack j\rbrack \times \mathbf{x}\lbrack j\rbrack} \right)}$ where $j = 1 + \left( {i - 1} \right)\cdot \text{incx}$ in exact arithmetic.
@@ -72,10 +69,7 @@ pub fn sscal(context: &Context, alpha: &f32, x: &mut DeviceMemory<f32>, incx: us
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `incx` is zero or too large for cuBLAS, `x` is too small for the requested
-/// vector shape, a type combination is unsupported, cuBLAS cannot allocate its
-/// reduction buffer, or cuBLAS rejects or fails the operation.
+/// Returns an error if the context cannot be used with host pointer mode, `incx` is zero or too large for cuBLAS, `x` is too small for the requested vector shape, a type combination is unsupported, cuBLAS cannot allocate its reduction buffer, or cuBLAS rejects or fails the operation.
 pub fn nrm2_ex<TX, TResult>(
     context: &Context,
     x: &DeviceMemory<TX>,
@@ -117,10 +111,8 @@ pub fn nrm2_ex<TX, TResult>(
 
 /// Supports the 64-bit integer interface.
 ///
-/// Generalizes the typed cuBLAS dot-product routines so input data, output data,
-/// and compute type can be specified independently.
-/// The `dotc` variants compute conjugated dot products, and the `dotu` variants compute
-/// unconjugated dot products.
+/// Generalizes the typed cuBLAS dot-product routines so input data, output data, and compute type can be specified independently.
+/// The `dotc` variants compute conjugated dot products, and the `dotu` variants compute unconjugated dot products.
 ///
 /// Computes the dot product of vectors `x` and `y`.
 /// The result is $\sum\_{i = 1}^{n}\left( {\mathbf{x}\lbrack k\rbrack \times \mathbf{y}\lbrack j\rbrack} \right)$ where $k = 1 + \left( {i - 1} \right)\cdot \text{incx}$ and $j = 1 + \left( {i - 1} \right)\cdot \text{incy}$.
@@ -133,11 +125,7 @@ pub fn nrm2_ex<TX, TResult>(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `incx` or `incy` is zero or too large for cuBLAS, `x` or `y` is too small
-/// for the requested vector shape, a type combination is unsupported, cuBLAS
-/// cannot allocate its reduction buffer, or cuBLAS rejects or fails the
-/// operation.
+/// Returns an error if the context cannot be used with host pointer mode, `incx` or `incy` is zero or too large for cuBLAS, `x` or `y` is too small for the requested vector shape, a type combination is unsupported, cuBLAS cannot allocate its reduction buffer, or cuBLAS rejects or fails the operation.
 pub fn dot_ex<TX, TY, TResult>(
     context: &Context,
     x: &DeviceMemory<TX>,
@@ -243,9 +231,7 @@ pub fn dotc_ex<TX, TY, TResult>(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// either increment is zero or too large for cuBLAS, the vector lengths are
-/// incompatible, or cuBLAS rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode, either increment is zero or too large for cuBLAS, the vector lengths are incompatible, or cuBLAS rejects the operation.
 pub fn drot(
     context: &Context,
     x: &mut DeviceMemory<f64>,
@@ -292,10 +278,7 @@ pub fn drot(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// either increment is zero or too large for cuBLAS, the vector lengths are
-/// incompatible, the supplied data type combination is not supported, or
-/// cuBLAS rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode, either increment is zero or too large for cuBLAS, the vector lengths are incompatible, the supplied data type combination is not supported, or cuBLAS rejects the operation.
 pub fn rot_ex<TX, TY, TCS>(
     context: &Context,
     x: &mut DeviceMemory<TX>,
@@ -350,8 +333,7 @@ pub fn rot_ex<TX, TY, TCS>(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode or
-/// cuBLAS rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode or cuBLAS rejects the operation.
 pub fn drotg(context: &Context, a: &mut f64, b: &mut f64, c: &mut f64, s: &mut f64) -> Result<()> {
     context.bind()?;
     context.require_host_pointer_mode()?;
@@ -376,9 +358,7 @@ pub fn drotg(context: &Context, a: &mut f64, b: &mut f64, c: &mut f64, s: &mut f
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// either increment is zero or too large for cuBLAS, the vector lengths are
-/// incompatible, or cuBLAS rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode, either increment is zero or too large for cuBLAS, the vector lengths are incompatible, or cuBLAS rejects the operation.
 pub fn drotm(
     context: &Context,
     x: &mut DeviceMemory<f64>,
@@ -423,8 +403,7 @@ pub fn drotm(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode or
-/// cuBLAS rejects the operation.
+/// Returns an error if the context cannot be used with host pointer mode or cuBLAS rejects the operation.
 pub fn drotmg(
     context: &Context,
     d1: &mut f64,
@@ -463,10 +442,7 @@ pub fn drotmg(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `incx` is zero or too large for cuBLAS, `x` is too small for the requested
-/// vector shape, a type combination is unsupported, or cuBLAS rejects or fails
-/// the operation.
+/// Returns an error if the context cannot be used with host pointer mode, `incx` is zero or too large for cuBLAS, `x` is too small for the requested vector shape, a type combination is unsupported, or cuBLAS rejects or fails the operation.
 pub fn scal_ex<TAlpha, TX>(
     context: &Context,
     alpha: &TAlpha,
@@ -508,11 +484,9 @@ pub fn scal_ex<TAlpha, TX>(
 
 /// Supports the 64-bit integer interface.
 ///
-/// Generalizes the typed cuBLAS AXPY routines so input data, output data, and compute type can
-/// be specified independently.
+/// Generalizes the typed cuBLAS AXPY routines so input data, output data, and compute type can be specified independently.
 ///
-/// Multiplies vector `x` by scalar $\alpha$ and adds it to vector `y`, overwriting
-/// `y` with the result.
+/// Multiplies vector `x` by scalar $\alpha$ and adds it to vector `y`, overwriting `y` with the result.
 /// The performed operation is $\mathbf{y}\lbrack j\rbrack = \alpha \times \mathbf{x}\lbrack k\rbrack + \mathbf{y}\lbrack j\rbrack$ for $i = 1,\ldots,n$, $k = 1 + \left( {i - 1} \right)\cdot \text{incx}$ and $j = 1 + \left( {i - 1} \right)\cdot \text{incy}$.
 /// The formula uses the BLAS 1-based indexing convention.
 ///
@@ -522,10 +496,7 @@ pub fn scal_ex<TAlpha, TX>(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode,
-/// `incx` or `incy` is zero or too large for cuBLAS, `x` or `y` is too small
-/// for the requested vector shape, a type combination is unsupported, or
-/// cuBLAS rejects or fails the operation.
+/// Returns an error if the context cannot be used with host pointer mode, `incx` or `incy` is zero or too large for cuBLAS, `x` or `y` is too small for the requested vector shape, a type combination is unsupported, or cuBLAS rejects or fails the operation.
 pub fn axpy_ex<TAlpha, TX, TY>(
     context: &Context,
     alpha: &TAlpha,

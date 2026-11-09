@@ -15,18 +15,16 @@ where
 {
     /// Premultiplies packed color samples by their per-pixel alpha using native scaling.
     ///
-    /// The provided implementations accept AC4 `u8` or `u16` images. Pixel alpha uses the
-    /// range from zero to the maximum channel value of the sample type. Uses the native
-    /// pixel-alpha premultiplication operation.
+    /// The provided implementations accept AC4 `u8` or `u16` images.
+    /// Pixel alpha uses the range from zero to the maximum channel value of the sample type.
+    /// Uses the native pixel-alpha premultiplication operation.
     /// Source and destination pixel dimensions must match.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native alpha processing, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native alpha processing, or stream synchronization fail.
     /// Participating image dimensions must match.
     pub fn alpha_premultiply_into(
         stream_context: &StreamContext,
@@ -42,18 +40,16 @@ where
 
     /// Premultiplies packed color samples by their per-pixel alpha using native scaling.
     ///
-    /// The provided implementations accept AC4 `u8` or `u16` images. Pixel alpha uses the
-    /// range from zero to the maximum channel value of the sample type. Uses the native
-    /// pixel-alpha premultiplication operation.
+    /// The provided implementations accept AC4 `u8` or `u16` images.
+    /// Pixel alpha uses the range from zero to the maximum channel value of the sample type.
+    /// Uses the native pixel-alpha premultiplication operation.
     /// Updates the supplied initialized image in place.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native alpha processing, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native alpha processing, or stream synchronization fail.
     pub fn alpha_premultiply_in_place(
         stream_context: &StreamContext,
         source_destination: &mut ImageViewMut<'_, T, AC4>,
@@ -72,19 +68,17 @@ where
 {
     /// Premultiplies packed color samples by their per-pixel alpha using native scaling.
     ///
-    /// The provided implementations accept AC4 `u8` or `u16` images. Pixel alpha uses the
-    /// range from zero to the maximum channel value of the sample type. Uses the native
-    /// pixel-alpha premultiplication operation.
-    /// Reuses owned image storage in place. For borrowed input, allocates a new source-sized
-    /// image before native dispatch.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// The provided implementations accept AC4 `u8` or `u16` images.
+    /// Pixel alpha uses the range from zero to the maximum channel value of the sample type.
+    /// Uses the native pixel-alpha premultiplication operation.
+    /// Reuses owned image storage in place.
+    /// For borrowed input, allocates a new source-sized image before native dispatch.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native alpha processing, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native alpha processing, or stream synchronization fail.
     /// Participating image dimensions must match.
     /// Output allocation, image view construction, or copying the source can also fail.
     pub fn alpha_premultiply(mut self) -> Result<Self> {

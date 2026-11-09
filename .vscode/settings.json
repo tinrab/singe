@@ -1,0 +1,4 @@
+{
+  "rust-analyzer.cargo.features": ["testing", "cutile", "lt", "xt", "k2"],
+  "rust-analyzer.checkOnSave": false
+}

@@ -6,7 +6,8 @@ use singe_cufft_sys as sys;
 use thiserror::Error;
 
 status_enum! {
-    /// All cuFFT Library return values except for `cufftResult::CUFFT_SUCCESS` indicate that the current API call failed and the user should reconfigure to correct the problem. The possible return values are defined as follows.
+    /// All cuFFT Library return values except for `cufftResult::CUFFT_SUCCESS` indicate that the current API call failed and the user should reconfigure to correct the problem.
+    /// The possible return values are defined as follows.
     pub enum Status: u32 => sys::cufftResult_t, unknown = "UNKNOWN_CUFFT_STATUS" {
         /// The cuFFT operation was successful.
         Success = CUFFT_SUCCESS,
@@ -79,11 +80,22 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cufft_sys::LoadError),
+
+    /// A lock was poisoned by a thread that panicked while holding it.
+    #[error("`{name}` lock is poisoned")]
+    LockPoisoned {
+        /// What the lock guards.
+        name: &'static str,
+    },
+
     /// A distributed allocation still retains the plan, preventing configuration changes.
     #[error("resource is shared and cannot be consumed")]
     OwnershipShared,
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// cuFFT returned a failure status.
@@ -141,6 +153,12 @@ impl Error {
 
 impl From<sys::cufftResult_t> for Error {
     fn from(status: sys::cufftResult_t) -> Self {
+        if status == sys::cufftResult_t::CUFFT_SETUP_FAILED
+            && let Err(error) = singe_cufft_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let code = Status::from(status);
         Self::Cufft {
             code,

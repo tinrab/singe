@@ -42,6 +42,7 @@ fn address(name: &CStr, version: i32) -> Result<*mut ffi::c_void> {
             &raw mut status
         ))?;
     }
+
     if status != CUdriverProcAddressQueryResult::CU_GET_PROC_ADDRESS_SUCCESS || pointer.is_null() {
         return Err(Status::NotSupported.into());
     }

@@ -109,14 +109,13 @@ pub struct BmmMmaTuning {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RaggedBmmConfig {
-    /// Number of independent right-hand-side batches. `row_indptr` must have
-    /// `batch + 1` entries.
+    /// Number of independent right-hand-side batches.
+    /// `row_indptr` must have `batch + 1` entries.
     pub batch: usize,
-    /// Total logical lhs/output rows. `row_indptr[batch]` must equal this
-    /// value.
+    /// Total logical lhs/output rows.
+    /// `row_indptr[batch]` must equal this value.
     pub total_rows: usize,
-    /// Maximum rows in any batch segment:
-    /// `row_indptr[b + 1] - row_indptr[b] <= max_rows`.
+    /// Maximum rows in any batch segment: `row_indptr[b + 1] - row_indptr[b] <= max_rows`.
     pub max_rows: usize,
     pub columns: usize,
     pub reduction: usize,
@@ -132,14 +131,12 @@ pub struct RaggedBmmConfig {
 pub struct GroupGemmConfig {
     /// Number of GEMM descriptors in each metadata array.
     pub group_count: usize,
-    /// Upper bounds used for launch shape selection. Every `rows[g]`,
-    /// `columns[g]`, and `reductions[g]` entry must be nonnegative and no
-    /// larger than the matching maximum.
+    /// Upper bounds used for launch shape selection.
+    /// Every `rows[g]`, `columns[g]`, and `reductions[g]` entry must be nonnegative and no larger than the matching maximum.
     pub max_rows: usize,
     pub max_columns: usize,
     pub max_reduction: usize,
-    /// Whether each RHS matrix is physically `[columns, reduction]` instead of
-    /// `[reduction, columns]`.
+    /// Whether each RHS matrix is physically `[columns, reduction]` instead of `[reduction, columns]`.
     pub transpose_rhs: bool,
 }
 
@@ -147,13 +144,13 @@ pub struct GroupGemmConfig {
 pub struct GroupedGemmConfig {
     /// Number of sorted rows processed and output rows produced.
     pub total_tokens: usize,
-    /// Number of expert segments. `m_sizes` must have this many entries and
-    /// sum to `total_tokens`.
+    /// Number of expert segments.
+    /// `m_sizes` must have this many entries and sum to `total_tokens`.
     pub expert_count: usize,
     pub columns: usize,
     pub reduction: usize,
-    /// Number of physical input rows. When `permute_input` is set,
-    /// `gather_indices[row] / top_k` must be less than this value.
+    /// Number of physical input rows.
+    /// When `permute_input` is set, `gather_indices[row] / top_k` must be less than this value.
     pub input_rows: usize,
     pub input_row_stride: usize,
     pub weight_expert_stride: usize,
@@ -170,11 +167,11 @@ pub struct GroupedGemmConfig {
 #[cfg(feature = "dtype_f8")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RaggedBlockScaledBmmConfig {
-    /// Number of independent RHS batches. Uses the same `row_indptr` contract
-    /// as [`RaggedBmmConfig`].
+    /// Number of independent RHS batches.
+    /// Uses the same `row_indptr` contract as [`RaggedBmmConfig`].
     pub batch: usize,
-    /// Total logical lhs/output rows. `row_indptr[batch]` must equal this
-    /// value.
+    /// Total logical lhs/output rows.
+    /// `row_indptr[batch]` must equal this value.
     pub total_rows: usize,
     /// Maximum rows in any batch segment.
     pub max_rows: usize,
@@ -739,6 +736,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))
@@ -817,8 +815,7 @@ unsafe fn launch_matmul_f32_with_tuning(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_f32(
     stream: &Stream,
@@ -874,8 +871,7 @@ pub unsafe fn matmul_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn tune_matmul_f32(
     stream: &Stream,
@@ -914,8 +910,7 @@ pub unsafe fn tune_matmul_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_mma_f32(
     stream: &Stream,
@@ -955,8 +950,7 @@ pub unsafe fn matmul_mma_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_f64(
     stream: &Stream,
@@ -1075,8 +1069,7 @@ unsafe fn launch_matmul_f16_f32_with_tuning(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_f16_f32(
     stream: &Stream,
@@ -1144,8 +1137,7 @@ pub unsafe fn matmul_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn tune_matmul_f16_f32(
     stream: &Stream,
@@ -1185,8 +1177,7 @@ pub unsafe fn tune_matmul_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
     stream: &Stream,
@@ -1226,8 +1217,7 @@ pub unsafe fn matvec_transposed_rhs_f16_f32_1024(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matvec_transposed_rhs_f16_f32(
     stream: &Stream,
@@ -1267,8 +1257,7 @@ pub unsafe fn matvec_transposed_rhs_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_mma_f16_f32(
     stream: &Stream,
@@ -1308,8 +1297,7 @@ pub unsafe fn matmul_mma_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_bf16_f32(
     stream: &Stream,
@@ -1348,8 +1336,7 @@ pub unsafe fn matmul_bf16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn matmul_mma_bf16_f32(
     stream: &Stream,
@@ -1388,8 +1375,7 @@ pub unsafe fn matmul_mma_bf16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Every logical output element must be initialized, even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_f32(
@@ -1433,8 +1419,7 @@ pub unsafe fn matmul_alpha_beta_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Every logical output element must be initialized, even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_f16_f32(
@@ -1478,8 +1463,7 @@ pub unsafe fn matmul_alpha_beta_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Every logical output element must be initialized, even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_bf16_f32(
@@ -1523,8 +1507,7 @@ pub unsafe fn matmul_alpha_beta_bf16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Every logical output element must be initialized, even when `beta` is zero.
 pub unsafe fn matmul_alpha_beta_f64(
@@ -1632,6 +1615,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))
@@ -1738,8 +1722,7 @@ unsafe fn launch_bmm_f32_with_tuning(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_f32(
     stream: &Stream,
@@ -1795,8 +1778,7 @@ pub unsafe fn bmm_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn tune_bmm_f32(
     stream: &Stream,
@@ -1835,8 +1817,7 @@ pub unsafe fn tune_bmm_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_mma_f32(
     stream: &Stream,
@@ -1880,8 +1861,7 @@ pub unsafe fn bmm_mma_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_mma_f16_f32(
     stream: &Stream,
@@ -1925,8 +1905,7 @@ pub unsafe fn bmm_mma_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
     stream: &Stream,
@@ -1970,8 +1949,7 @@ pub unsafe fn bmm_mma_transposed_rhs_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
     stream: &Stream,
@@ -2015,8 +1993,7 @@ pub unsafe fn bmm_mma_transposed_inputs_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_mma_bf16_f32(
     stream: &Stream,
@@ -2060,8 +2037,7 @@ pub unsafe fn bmm_mma_bf16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
     stream: &Stream,
@@ -2106,8 +2082,7 @@ pub unsafe fn bmm_mma_transposed_inputs_bf16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn masked_bmm_f32(
     stream: &Stream,
@@ -2154,8 +2129,7 @@ pub unsafe fn masked_bmm_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn masked_bmm_f16(
     stream: &Stream,
@@ -2202,8 +2176,7 @@ pub unsafe fn masked_bmm_f16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn masked_bmm_bf16(
     stream: &Stream,
@@ -2247,8 +2220,7 @@ pub unsafe fn masked_bmm_bf16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn ragged_bmm_f32(
@@ -2292,8 +2264,7 @@ pub unsafe fn ragged_bmm_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn ragged_bmm_f16(
@@ -2337,8 +2308,7 @@ pub unsafe fn ragged_bmm_f16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn ragged_bmm_bf16(
@@ -2381,8 +2351,7 @@ pub unsafe fn ragged_bmm_bf16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn group_gemm_f32(
@@ -2439,8 +2408,7 @@ pub unsafe fn group_gemm_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn group_gemm_f16(
@@ -2497,8 +2465,7 @@ pub unsafe fn group_gemm_f16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn group_gemm_bf16(
@@ -2554,8 +2521,7 @@ pub unsafe fn group_gemm_bf16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn grouped_gemm_f32(
@@ -2609,8 +2575,7 @@ pub unsafe fn grouped_gemm_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn grouped_gemm_f16(
@@ -2664,8 +2629,7 @@ pub unsafe fn grouped_gemm_f16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn grouped_gemm_bf16(
@@ -2719,8 +2683,7 @@ pub unsafe fn grouped_gemm_bf16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
@@ -2777,8 +2740,7 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
@@ -2835,8 +2797,7 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_f16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 /// Device metadata must satisfy the configuration bounds and describe in-bounds, nonoverlapping output ranges.
 pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(
@@ -2893,8 +2854,7 @@ pub unsafe fn ragged_block_scaled_bmm_f8e4m3_bf16(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_f64(
     stream: &Stream,
@@ -2937,8 +2897,7 @@ pub unsafe fn bmm_f64(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_f16_f32(
     stream: &Stream,
@@ -2981,8 +2940,7 @@ pub unsafe fn bmm_f16_f32(
 ///
 /// Inputs must be valid when read and belong to the stream's context.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all resources and exclusive writable access until queued work completes,
-/// including on errors and throughout captured graph replay.
+/// Retain all resources and exclusive writable access until queued work completes, including on errors and throughout captured graph replay.
 /// Order previous accesses before this launch and prevent input/output overlap.
 pub unsafe fn bmm_bf16_f32(
     stream: &Stream,
@@ -3041,6 +2999,7 @@ fn validate_matmul(
     {
         return Err(Error::InvalidLength);
     }
+
     let lhs_reach = if config.transpose_lhs {
         strided_matrix_reach(config.reduction, config.rows, config.lhs_row_stride)?
     } else {
@@ -3125,6 +3084,7 @@ fn validate_bmm(out_len: usize, lhs_len: usize, rhs_len: usize, config: BmmConfi
     {
         return Err(Error::InvalidLength);
     }
+
     let lhs_dims = if config.transpose_lhs {
         [config.batch, config.reduction, config.rows]
     } else {
@@ -3331,9 +3291,8 @@ fn validate_ragged_bmm(
 
 /// Validates host-visible ragged row metadata before it is copied to the GPU.
 ///
-/// The public CUDA launchers can validate only device-buffer lengths. Call this
-/// helper when `row_indptr` is still host-visible, especially for debug checks
-/// around metadata generated by custom routing code.
+/// The public CUDA launchers can validate only device-buffer lengths.
+/// Call this helper when `row_indptr` is still host-visible, especially for debug checks around metadata generated by custom routing code.
 pub fn validate_ragged_row_indptr_host(
     row_indptr: &[i32],
     batch: usize,
@@ -3351,12 +3310,15 @@ pub fn validate_ragged_row_indptr_host(
         if current < previous || current > total_rows {
             return Err(Error::InvalidLength);
         }
+
         let rows = current - previous;
         if rows > max_rows {
             return Err(Error::InvalidLength);
         }
+
         previous = current;
     }
+
     if previous != total_rows {
         return Err(Error::InvalidLength);
     }
@@ -3365,10 +3327,8 @@ pub fn validate_ragged_row_indptr_host(
 
 /// Validates ragged-BMM host metadata and the buffers it indexes.
 ///
-/// `row_indptr` must be length `config.batch + 1`, start at zero, be
-/// monotonically nondecreasing, end at `config.total_rows`, and every per-batch
-/// segment must contain at most `config.max_rows` rows. `lhs` and `out` are
-/// indexed by global ragged row, while `rhs` is indexed by dense batch.
+/// `row_indptr` must be length `config.batch + 1`, start at zero, be monotonically nondecreasing, end at `config.total_rows`, and every per-batch segment must contain at most `config.max_rows` rows.
+/// `lhs` and `out` are indexed by global ragged row, while `rhs` is indexed by dense batch.
 pub fn validate_ragged_bmm_metadata_host(
     out_len: usize,
     lhs_len: usize,
@@ -3396,6 +3356,7 @@ fn validate_group_gemm(
     {
         return Err(Error::InvalidLength);
     }
+
     ensure_len(rows_len, config.group_count)?;
     ensure_len(columns_len, config.group_count)?;
     ensure_len(reductions_len, config.group_count)?;
@@ -3410,10 +3371,9 @@ fn validate_group_gemm(
 
 /// Validates host-visible grouped-GEMM descriptors before launch.
 ///
-/// Each metadata array must have `config.group_count` entries. Dimensions are
-/// nonnegative and bounded by `config.max_*`. Offsets are nonnegative element
-/// offsets into `lhs`, `rhs`, and `out`; this helper checks that every group
-/// stays within the supplied buffer lengths.
+/// Each metadata array must have `config.group_count` entries.
+/// Dimensions are nonnegative and bounded by `config.max_*`.
+/// Offsets are nonnegative element offsets into `lhs`, `rhs`, and `out`; this helper checks that every group stays within the supplied buffer lengths.
 pub fn validate_group_gemm_metadata_host(
     lhs_len: usize,
     rhs_len: usize,
@@ -3482,6 +3442,7 @@ fn validate_grouped_gemm(
     {
         return Err(Error::InvalidLength);
     }
+
     ensure_len(
         input_len,
         strided_matrix_reach(config.input_rows, config.reduction, config.input_row_stride)?,
@@ -3510,11 +3471,9 @@ fn validate_grouped_gemm(
 
 /// Validates host-visible grouped GEMM routing metadata before launch.
 ///
-/// `m_sizes` must have `config.expert_count` nonnegative entries and sum exactly
-/// to `config.total_tokens`. `gather_indices` must have `config.total_tokens`
-/// entries. When input permutation is enabled, each gathered row divided by
-/// `top_k` must be within `config.input_rows`; when output permutation is
-/// enabled, each gathered row must be within `config.total_tokens`.
+/// `m_sizes` must have `config.expert_count` nonnegative entries and sum exactly to `config.total_tokens`.
+/// `gather_indices` must have `config.total_tokens` entries.
+/// When input permutation is enabled, each gathered row divided by `top_k` must be within `config.input_rows`; when output permutation is enabled, each gathered row must be within `config.total_tokens`.
 pub fn validate_grouped_gemm_metadata_host(
     out_len: usize,
     input_len: usize,
@@ -3542,6 +3501,7 @@ pub fn validate_grouped_gemm_metadata_host(
             return Err(Error::InvalidLength);
         }
     }
+
     if token_start != config.total_tokens {
         return Err(Error::InvalidLength);
     }
@@ -3585,6 +3545,7 @@ fn validate_ragged_block_scaled_bmm(
     {
         return Err(Error::InvalidLength);
     }
+
     let k_scale_tiles = checked_div_ceil(config.reduction, config.scale_block)?;
     let n_scale_tiles = checked_div_ceil(config.columns, config.scale_block)?;
     if config.lhs_scale_row_stride < k_scale_tiles
@@ -3696,6 +3657,7 @@ fn offset_matrix_reach(
     if rows == 0 || columns == 0 {
         return Ok(base);
     }
+
     let matrix_reach = strided_matrix_reach(rows, columns, row_stride)?;
     base.checked_add(matrix_reach).ok_or(Error::SizeOverflow)
 }

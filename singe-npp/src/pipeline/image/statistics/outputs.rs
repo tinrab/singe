@@ -228,8 +228,7 @@ impl<T, L: ChannelLayout> ContiguousImage<MaybeUninit<T>, L> {
     ///
     /// # Safety
     ///
-    /// Every element must contain a valid initialized `T`, with all producing
-    /// work ordered before subsequent consumers.
+    /// Every element must contain a valid initialized `T`, with all producing work ordered before subsequent consumers.
     #[must_use]
     pub unsafe fn assume_init(self) -> ContiguousImage<T, L> {
         ContiguousImage {

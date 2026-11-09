@@ -206,7 +206,7 @@ impl Default for cudaTextureDesc {
 }
 /// An opaque value that represents a CUDA texture object.
 pub type cudaTextureObject_t = ::core::ffi::c_ulonglong;
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroy all allocations and reset all state on the current device in the current process.
     ///
     /// Explicitly destroys and cleans up all resources associated with the current device in the current process. It is the caller’s responsibility to ensure that the resources are not accessed or passed in subsequent API calls and doing so will result in undefined behavior. These resources include CUDA types [cudaStream_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gae15d9c8b7a240312b533d6122558085a), [cudaEvent_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaea2f543a9fc0e52fe4ae712920fd1247), [cudaArray_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaaf8b3ba752727d996074a71ee997ce68), [cudaMipmappedArray_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga1b03ad14fc0ab86f8b033837f5562d8a), [`cudaPitchedPtr`], [`cudaTextureObject_t`], [`cudaSurfaceObject_t`], ::textureReference, ::surfaceReference, [cudaExternalMemory_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga79a2bf6a3a2aa9011a96dc17d476faf7), [cudaExternalSemaphore_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaf8bc7ab93d638c5835e5289ac7d683c4) and [cudaGraphicsResource_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaf58dd8d3c7a65714ff7f5459adbf7e6f). These resources also include memory allocations by [`cudaMalloc`], [`cudaMallocHost`], [`cudaMallocManaged`] and [`cudaMallocPitch`]. Any subsequent API call to this device will reinitialize the device.
@@ -214,13 +214,13 @@ unsafe extern "C" {
     /// Note that this function will reset the device immediately. It is the caller’s responsibility to ensure that the device is not being accessed by any other host threads from the process when this function is called.
     pub fn cudaDeviceReset() -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Wait for compute device to finish.
     ///
     /// Blocks until the device has completed all preceding requested tasks. [`cudaDeviceSynchronize`] returns an error if one of the preceding tasks has failed. If the [cudaDeviceScheduleBlockingSync](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga057e6912c52708b6aa86e79dd83d007c) flag was set for this device, the host thread will block until the device has finished its work.
     pub fn cudaDeviceSynchronize() -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Set resource limits.
     ///
     /// Setting `limit` to `value` is a request by the application to update the current limit maintained by the device. The driver is free to modify the requested value to meet h/w requirements (this could be clamping to minimum or maximum values, rounding up to nearest element size, etc). The application can use [`cudaDeviceGetLimit`] to find out exactly what the limit has been set to.
@@ -233,7 +233,7 @@ unsafe extern "C" {
     /// - `value`: Size of limit.
     pub fn cudaDeviceSetLimit(limit: cudaLimit, value: size_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Return resource limits.
     ///
     /// Returns in `*pValue` the current size of `limit`. The following [`cudaLimit`] values are supported.
@@ -244,7 +244,7 @@ unsafe extern "C" {
     /// - `limit`: Limit to query.
     pub fn cudaDeviceGetLimit(pValue: *mut size_t, limit: cudaLimit) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the maximum number of elements allocatable in a 1D linear texture for a given element size.
     ///
     /// Returns in `maxWidthInElements` the maximum number of elements allocatable in a 1D linear texture for given format descriptor `fmtDesc`.
@@ -259,7 +259,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the preferred cache configuration for the current device.
     ///
     /// On devices where the L1 cache and shared memory use the same hardware resources, this returns through `pCacheConfig` the preferred cache configuration for the current device. This is only a preference. The runtime will use the requested configuration if possible, but it is free to choose a different configuration if required to execute functions.
@@ -273,7 +273,7 @@ unsafe extern "C" {
     /// - `pCacheConfig`: - Returned cache configuration
     pub fn cudaDeviceGetCacheConfig(pCacheConfig: *mut cudaFuncCache) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns numerical values that correspond to the least and greatest stream priorities.
     ///
     /// Returns in `*leastPriority` and `*greatestPriority` the numerical values that correspond to the least and greatest stream priorities respectively. Stream priorities follow a convention where lower numbers imply greater priorities. The range of meaningful stream priorities is given by `*greatestPriority`, `*leastPriority`. If the user attempts to create a stream with a priority value that is outside the meaningful range as specified by this API, the priority is automatically clamped down or up to either `*leastPriority` or `*greatestPriority` respectively. See [`cudaStreamCreateWithPriority`] for details on creating a priority stream. A NULL may be passed in for `*leastPriority` or `*greatestPriority` if the value is not desired.
@@ -289,7 +289,7 @@ unsafe extern "C" {
         greatestPriority: *mut ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the preferred cache configuration for the current device.
     ///
     /// On devices where the L1 cache and shared memory use the same hardware resources, this sets through `cacheConfig` the preferred cache configuration for the current device. This is only a preference. The runtime will use the requested configuration if possible, but it is free to choose a different configuration if required to execute the function. Any function preference set via [cudaFuncSetCacheConfig (C API)](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__EXECUTION.html#group__cudart__execution_1ga6699ca1943ac2655effa0d571b2f4f15) or [cudaFuncSetCacheConfig (C++ API)](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__HIGHLEVEL.html#group__cudart__highlevel_1ga981c8d74d33b21e7fd57609b7337653e) will be preferred over this device-wide setting. Setting the device-wide cache configuration to [cudaFuncCachePreferNone](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ggab980f35ed69ee7991704de29a13de49ba3b4b8c65376ce1ca107be413e15981bc) will cause subsequent kernel launches to prefer to not change the cache configuration unless required to launch the kernel.
@@ -305,7 +305,7 @@ unsafe extern "C" {
     /// - `cacheConfig`: - Requested cache configuration
     pub fn cudaDeviceSetCacheConfig(cacheConfig: cudaFuncCache) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a handle to a compute device.
     ///
     /// Returns in `*device` a device ordinal given a PCI bus ID string.
@@ -321,7 +321,7 @@ unsafe extern "C" {
         pciBusId: *const ::core::ffi::c_char,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a PCI Bus Id string for the device.
     ///
     /// Returns an ASCII string identifying the device `dev` in the NULL-terminated string pointed to by `pciBusId`. `len` specifies the maximum length of the string that may be returned.
@@ -339,7 +339,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets an interprocess handle for a previously allocated event.
     ///
     /// Takes as input a previously allocated event. This event must have been created with the [cudaEventInterprocess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga49ec9cd742f8a3f6fde4ee72a66326f6) and [cudaEventDisableTiming](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaa5d3eff7c3623e2be533968d9cc1ee7e) flags set. This opaque handle may be copied into other processes and opened with [`cudaIpcOpenEventHandle`] to allow efficient hardware synchronization between GPU work in different processes.
@@ -357,7 +357,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Opens an interprocess event handle for use in the current process.
     ///
     /// Opens an interprocess event handle exported from another process with [`cudaIpcGetEventHandle`]. This function returns a [cudaEvent_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaea2f543a9fc0e52fe4ae712920fd1247) that behaves like a locally created event with the [cudaEventDisableTiming](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gaa5d3eff7c3623e2be533968d9cc1ee7e) flag specified. This event must be freed with [`cudaEventDestroy`].
@@ -375,7 +375,7 @@ unsafe extern "C" {
         handle: cudaIpcEventHandle_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets an interprocess memory handle for an existing device memory allocation.
     ///
     /// Takes a pointer to the base of an existing device memory allocation created with [`cudaMalloc`] and exports it for use in another process. This is a lightweight operation and may be called multiple times on an allocation without adverse effects.
@@ -393,7 +393,7 @@ unsafe extern "C" {
         devPtr: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Opens an interprocess memory handle exported from another process and returns a device pointer usable in the local process.
     ///
     /// Maps memory exported from another process with [`cudaIpcGetMemHandle`] into the current device address space. For contexts on different devices [`cudaIpcOpenMemHandle`] can attempt to enable peer access between the devices as if the user called [`cudaDeviceEnablePeerAccess`]. This behavior is controlled by the [cudaIpcMemLazyEnablePeerAccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga60f28a5142ee7ae0336dfa83fd54e006) flag. [`cudaDeviceCanAccessPeer`] can determine if a mapping is possible.
@@ -421,7 +421,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Attempts to close memory mapped with cudaIpcOpenMemHandle.
     ///
     /// Decrements the reference count of the memory returnd by [`cudaIpcOpenMemHandle`] by 1. When the reference count reaches 0, this API unmaps the memory. The original allocation in the exporting process as well as imported mappings in other processes will be unaffected.
@@ -435,7 +435,7 @@ unsafe extern "C" {
     /// - `devPtr`: - Device pointer returned by ::cudaIpcOpenMemHandle
     pub fn cudaIpcCloseMemHandle(devPtr: *mut ::core::ffi::c_void) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Blocks until remote writes are visible to the specified scope.
     ///
     /// Blocks until remote writes to the target context via mappings created through GPUDirect RDMA APIs, like nvidia_p2p_get_pages (see <https://docs.nvidia.com/cuda/gpudirect-rdma> for more information), are visible to the specified scope.
@@ -453,7 +453,7 @@ unsafe extern "C" {
         scope: cudaFlushGPUDirectRDMAWritesScope,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Registers a callback function to receive async notifications.
     ///
     /// Registers `callbackFunc` to receive async notifications.
@@ -479,7 +479,7 @@ unsafe extern "C" {
         callback: *mut cudaAsyncCallbackHandle_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Unregisters an async notification callback.
     ///
     /// Unregisters `callback` so that the corresponding callback function will stop receiving async notifications.
@@ -493,7 +493,7 @@ unsafe extern "C" {
         callback: cudaAsyncCallbackHandle_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the shared memory configuration for the current device.
     ///
     /// This function will return in `pConfig` the current size of shared memory banks on the current device. On devices with configurable shared memory banks, [`cudaDeviceSetSharedMemConfig`] can be used to change this setting, so that all subsequent kernel launches will by default use the new bank size. When [`cudaDeviceGetSharedMemConfig`] is called on devices without configurable shared memory, it will return the fixed bank size of the hardware.
@@ -508,7 +508,7 @@ unsafe extern "C" {
         pConfig: *mut cudaSharedMemConfig,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the shared memory configuration for the current device.
     ///
     /// On devices with configurable shared memory banks, this function will set the shared memory bank size which is used for all subsequent kernel launches. Any per-function setting of shared memory set via [`cudaFuncSetSharedMemConfig`] will override the device wide setting.
@@ -527,7 +527,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cudaDeviceSetSharedMemConfig(config: cudaSharedMemConfig) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the last error from a runtime call.
     ///
     /// Returns the last error that has been produced by any of the runtime calls in the same instance of the CUDA Runtime library in the host thread and resets it to [cudaSuccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038ae355f04607d824883b4a50662830d591).
@@ -535,7 +535,7 @@ unsafe extern "C" {
     /// Note: Multiple instances of the CUDA Runtime library can be present in an application when using a library that statically links the CUDA Runtime.
     pub fn cudaGetLastError() -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the last error from a runtime call.
     ///
     /// Returns the last error that has been produced by any of the runtime calls in the same instance of the CUDA Runtime library in the host thread. This call does not reset the error to [cudaSuccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038ae355f04607d824883b4a50662830d591) like [`cudaGetLastError`].
@@ -543,7 +543,7 @@ unsafe extern "C" {
     /// Note: Multiple instances of the CUDA Runtime library can be present in an application when using a library that statically links the CUDA Runtime.
     pub fn cudaPeekAtLastError() -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the string representation of an error code enum name.
     ///
     /// Returns a string containing the name of an error code in the enum. If the error code is not recognized, “unrecognized error code” is returned.
@@ -553,7 +553,7 @@ unsafe extern "C" {
     /// - `error`: - Error code to convert to string
     pub fn cudaGetErrorName(error: cudaError_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the description string for an error code.
     ///
     /// Returns the description string for an error code. If the error code is not recognized, “unrecognized error code” is returned.
@@ -563,7 +563,7 @@ unsafe extern "C" {
     /// - `error`: - Error code to convert to string
     pub fn cudaGetErrorString(error: cudaError_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the number of compute-capable devices.
     ///
     /// Returns in `*count` the number of devices with compute capability greater or equal to 2.0 that are available for execution.
@@ -573,7 +573,7 @@ unsafe extern "C" {
     /// - `count`: - Returns the number of devices with compute capability greater or equal to 2.0
     pub fn cudaGetDeviceCount(count: *mut ::core::ffi::c_int) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns information about the compute-device.
     ///
     /// Returns in `*prop` the properties of device `dev`.
@@ -587,7 +587,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns information about the device.
     ///
     /// Returns in `*value` the integer value of the attribute `attr` on device `device`.
@@ -603,7 +603,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries details about atomic operations supported between the device and host.
     ///
     /// Returns in `*capabilities` the details about requested atomic `*operations` over the link between `dev` and the host. The allocated size of `*operations` and `*capabilities` must be `count`.
@@ -626,7 +626,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the default mempool of a device.
     ///
     /// The default mempool of a device contains device memory from that device.
@@ -635,7 +635,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the current memory pool of a device.
     ///
     /// The memory pool must be local to the specified device. Unless a mempool is specified in the [`cudaMallocAsync`] call, [`cudaMallocAsync`] allocates from the current mempool of the provided stream’s device. By default, a device’s current memory pool is its default memory pool.
@@ -644,7 +644,7 @@ unsafe extern "C" {
         memPool: cudaMemPool_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets the current mempool for a device.
     ///
     /// Returns the last pool provided to [`cudaDeviceSetMemPool`] for this device or the device’s default memory pool if [`cudaDeviceSetMemPool`] has never been called. By default the current mempool is the default mempool for a device, otherwise the returned pool must have been set with ::cuDeviceSetMemPool or [`cudaDeviceSetMemPool`].
@@ -653,7 +653,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Return NvSciSync attributes that this device can support.
     ///
     /// Returns in `nvSciSyncAttrList`, the properties of NvSciSync that this CUDA device, `dev` can support. The returned `nvSciSyncAttrList` can be used to create an NvSciSync that matches this device’s capabilities.
@@ -681,7 +681,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries attributes of the link between two devices.
     ///
     /// Returns in `*value` the value of the requested attribute `attrib` of the link between `srcDevice` and `dstDevice`. The supported attributes are:
@@ -702,7 +702,7 @@ unsafe extern "C" {
         dstDevice: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries details about atomic operations supported between two devices.
     ///
     /// Returns in `*capabilities` the details about requested atomic `*operations` over the link between `srcDevice` and `dstDevice`. The allocated size of `*operations` and `*capabilities` must be `count`.
@@ -728,7 +728,7 @@ unsafe extern "C" {
         dstDevice: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Select compute-device which best matches criteria.
     ///
     /// Returns in `*device` the device which has properties that best match `*prop`.
@@ -742,7 +742,7 @@ unsafe extern "C" {
         prop: *const cudaDeviceProp,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initialize device to be used for GPU executions.
     ///
     /// This function will initialize the CUDA Runtime structures and primary context on `device` when called, but the context will not be made current to `device`.
@@ -762,7 +762,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Set device to be used for GPU executions.
     ///
     /// Sets `device` as the current device for the calling host thread. Valid device id’s are 0 to ([`cudaGetDeviceCount`] - 1).
@@ -778,7 +778,7 @@ unsafe extern "C" {
     /// - `device`: - Device on which the active host thread should execute the device code.
     pub fn cudaSetDevice(device: ::core::ffi::c_int) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns which device is currently being used.
     ///
     /// Returns in `*device` the current device for the calling host thread.
@@ -788,7 +788,7 @@ unsafe extern "C" {
     /// - `device`: - Returns the device on which the active host thread executes the device code.
     pub fn cudaGetDevice(device: *mut ::core::ffi::c_int) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Set a list of devices that can be used for CUDA.
     ///
     /// Sets a list of devices for CUDA execution in priority order using `device_arr`. The parameter `len` specifies the number of elements in the list. CUDA will try devices from the list sequentially until it finds one that works. If this function is not called, or if it is called with a `len` of 0, then CUDA will go back to its default behavior of trying devices sequentially from a default list containing all of the available CUDA devices in the system. If a specified device ID in the list does not exist, this function will return [cudaErrorInvalidDevice](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a938c6e8b96ecde62e3ab5137156f739a). If `len` is not 0 and `device_arr` is NULL or if `len` exceeds the number of devices in the system, then [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) is returned.
@@ -802,7 +802,7 @@ unsafe extern "C" {
         len: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets flags to be used for device executions.
     ///
     /// Records `flags` as the flags for the current device. If the current device has been set and that device has already been initialized, the previous flags are overwritten. If the current device has not been initialized, it is initialized with the provided flags. If no device has been made current to the calling thread, a default device is selected and initialized with the provided flags.
@@ -814,7 +814,7 @@ unsafe extern "C" {
     /// - `flags`: - Parameters for device operation
     pub fn cudaSetDeviceFlags(flags: ::core::ffi::c_uint) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets the flags for the current device.
     ///
     /// Returns in `flags` the flags for the current device. If there is a current device for the calling thread, the flags for the device are returned. If there is no current device, the flags for the first device are returned, which may be the default flags. Compare to the behavior of [`cudaSetDeviceFlags`].
@@ -830,7 +830,7 @@ unsafe extern "C" {
     /// - `flags`: - Pointer to store the device flags
     pub fn cudaGetDeviceFlags(flags: *mut ::core::ffi::c_uint) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Create an asynchronous stream.
     ///
     /// Creates a new asynchronous stream on the context that is current to the calling host thread. If no context is current to the calling host thread, then the primary context for a device is selected, made current to the calling thread, and initialized before creating a stream on it.
@@ -840,7 +840,7 @@ unsafe extern "C" {
     /// - `pStream`: - Pointer to new stream identifier
     pub fn cudaStreamCreate(pStream: *mut cudaStream_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Create an asynchronous stream.
     ///
     /// Creates a new asynchronous stream on the context that is current to the calling host thread. If no context is current to the calling host thread, then the primary context for a device is selected, made current to the calling thread, and initialized before creating a stream on it. The `flags` argument determines the behaviors of the stream. Valid values for `flags` are.
@@ -854,7 +854,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Create an asynchronous stream with the specified priority.
     ///
     /// Creates a stream with the specified priority and returns a handle in `pStream`. The stream is created on the context that is current to the calling host thread. If no context is current to the calling host thread, then the primary context for a device is selected, made current to the calling thread, and initialized before creating a stream on it. This affects the scheduling priority of work in the stream. Priorities provide a hint to preferentially run work with higher priority when possible, but do not preempt already-running work or provide any other functional guarantee on execution order.
@@ -872,7 +872,7 @@ unsafe extern "C" {
         priority: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query the priority of a stream.
     ///
     /// Query the priority of a stream. The priority is returned in in `priority`. Note that if the stream was created with a priority outside the meaningful numerical range returned by [`cudaDeviceGetStreamPriorityRange`], this function returns the clamped priority. See [`cudaStreamCreateWithPriority`] for details about priority clamping.
@@ -886,7 +886,7 @@ unsafe extern "C" {
         priority: *mut ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query the flags of a stream.
     ///
     /// Query the flags of a stream. The flags are returned in `flags`. See [`cudaStreamCreateWithFlags`] for a list of valid flags.
@@ -900,7 +900,7 @@ unsafe extern "C" {
         flags: *mut ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query the Id of a stream.
     ///
     /// Query the Id of a stream. The Id is returned in `streamId`. The Id is unique for the life of the program.
@@ -916,7 +916,7 @@ unsafe extern "C" {
         streamId: *mut ::core::ffi::c_ulonglong,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query the device of a stream.
     ///
     /// Returns in `*device` the device of the stream.
@@ -930,13 +930,13 @@ unsafe extern "C" {
         device: *mut ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Resets all persisting lines in cache to normal status.
     ///
     /// Resets all persisting lines in cache to normal status. Takes effect on function return.
     pub fn cudaCtxResetPersistingL2Cache() -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies attributes from source stream to destination stream.
     ///
     /// Copies attributes from source stream `src` to destination stream `dst`. Both streams must have the same context.
@@ -947,7 +947,7 @@ unsafe extern "C" {
     /// - `src`: Source stream For attributes see cudaStreamAttrID.
     pub fn cudaStreamCopyAttributes(dst: cudaStream_t, src: cudaStream_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries stream attribute.
     ///
     /// Queries attribute `attr` from `hStream` and stores it in corresponding member of `value_out`.
@@ -957,7 +957,7 @@ unsafe extern "C" {
         value_out: *mut cudaLaunchAttributeValue,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets stream attribute.
     ///
     /// Sets attribute `attr` on `hStream` from corresponding attribute of `value`. The updated attribute will be applied to subsequent work submitted to the stream. It will not affect previously submitted work.
@@ -967,7 +967,7 @@ unsafe extern "C" {
         value: *const cudaLaunchAttributeValue,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys and cleans up an asynchronous stream.
     ///
     /// Destroys and cleans up the asynchronous stream specified by `stream`.
@@ -979,7 +979,7 @@ unsafe extern "C" {
     /// - `stream`: - Stream identifier
     pub fn cudaStreamDestroy(stream: cudaStream_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Make a compute stream wait on an event.
     ///
     /// Makes all future work submitted to `stream` wait for all work captured in `event`. See [`cudaEventRecord`] for details on what is captured by an event. The synchronization will be performed efficiently on the device when applicable. `event` may be from a different device than `stream`.
@@ -1011,7 +1011,7 @@ pub type cudaStreamCallback_t = ::core::option::Option<
         userData: *mut ::core::ffi::c_void,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Add a callback to a compute stream.
     ///
     /// Adds a callback to be called on the host after all currently enqueued items in the stream have completed. For each cudaStreamAddCallback call, a callback will be executed exactly once. The callback will block later work in the stream until it is finished.
@@ -1035,7 +1035,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Waits for stream tasks to complete.
     ///
     /// Blocks until `stream` has completed all operations. If the [cudaDeviceScheduleBlockingSync](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga057e6912c52708b6aa86e79dd83d007c) flag was set for this device, the host thread will block until the stream is finished with all of its tasks.
@@ -1045,7 +1045,7 @@ unsafe extern "C" {
     /// - `stream`: - Stream identifier
     pub fn cudaStreamSynchronize(stream: cudaStream_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries an asynchronous stream for completion status.
     ///
     /// Returns [cudaSuccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038ae355f04607d824883b4a50662830d591) if all operations in `stream` have completed, or [cudaErrorNotReady](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a285d0c852ab65b8925505e1065563f6d) if not.
@@ -1057,7 +1057,7 @@ unsafe extern "C" {
     /// - `stream`: - Stream identifier
     pub fn cudaStreamQuery(stream: cudaStream_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Attach memory to a stream asynchronously.
     ///
     /// Enqueues an operation in `stream` to specify stream association of `length` bytes of memory starting from `devPtr`. This function is a stream-ordered operation, meaning that it is dependent on, and will only take effect when, previous work in stream has completed. Any previous association is automatically replaced.
@@ -1091,7 +1091,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Begins graph capture on a stream.
     ///
     /// Begin graph capture on `stream`. When a stream is in capture mode, all operations pushed into the stream will not be executed, but will instead be captured into a graph, which will be returned via [`cudaStreamEndCapture`]. Capture may not be initiated if `stream` is [cudaStreamLegacy](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga4e62d09dde16ba457b0a97f3a5262246). Capture must be ended on the same stream in which it was initiated, and it may only be initiated if the stream is not already in capture mode. The capture mode may be queried via [`cudaStreamIsCapturing`]. A unique id representing the capture sequence may be queried via [`cudaStreamGetCaptureInfo`].
@@ -1151,7 +1151,7 @@ impl Default for cudaGraphRecaptureCallbackData {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Begin graph capture on a stream to an existing graph.
     ///
     /// Begin graph capture on `stream` to the existing `graph`. The node creation order while recapturing the graph must be identical to the original graph. The recapture will fail immediately for:
@@ -1175,7 +1175,7 @@ unsafe extern "C" {
         callbackData: *mut cudaGraphRecaptureCallbackData,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Begins graph capture on a stream to an existing graph.
     ///
     /// Begin graph capture on `stream`. When a stream is in capture mode, all operations pushed into the stream will not be executed, but will instead be captured into `graph`, which will be returned via [`cudaStreamEndCapture`].
@@ -1201,7 +1201,7 @@ unsafe extern "C" {
         mode: cudaStreamCaptureMode,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Swaps the stream capture interaction mode for a thread.
     ///
     /// Sets the calling thread’s stream capture interaction mode to the value contained in `*mode`, and overwrites `*mode` with the previous mode for the thread. To facilitate deterministic behavior across function or module boundaries, callers are encouraged to use this API in a push-pop fashion:
@@ -1219,7 +1219,7 @@ unsafe extern "C" {
         mode: *mut cudaStreamCaptureMode,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Ends capture on a stream, returning the captured graph.
     ///
     /// End capture on `stream`, returning the captured graph via `pGraph`. Capture must have been initiated on `stream` via a call to [`cudaStreamBeginCapture`]. If capture was invalidated, due to a violation of the rules of stream capture, then a NULL graph will be returned.
@@ -1235,7 +1235,7 @@ unsafe extern "C" {
         pGraph: *mut cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a stream’s capture status.
     ///
     /// Return the capture status of `stream` via `pCaptureStatus`. After a successful call, `*pCaptureStatus` will contain one of the following:
@@ -1253,7 +1253,7 @@ unsafe extern "C" {
         pCaptureStatus: *mut cudaStreamCaptureStatus,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query a stream’s capture state.
     ///
     /// Query stream state related to stream capture.
@@ -1283,7 +1283,7 @@ unsafe extern "C" {
         numDependencies_out: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Update the set of dependencies in a capturing stream.
     ///
     /// Modifies the dependency set of a capturing stream. The dependency set is the set of nodes that the next captured node in the stream will depend on.
@@ -1309,7 +1309,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an event object
     ///
     /// Creates an event object for the current device using ::cudaEventDefault.
@@ -1335,7 +1335,7 @@ unsafe extern "C" {
     /// - `event`: - Newly created event
     pub fn cudaEventCreate(event: *mut cudaEvent_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an event object with the specified flags.
     ///
     /// Creates an event object for the current device with the specified flags. Valid flags include.
@@ -1349,7 +1349,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Records an event.
     ///
     /// Captures in `event` the contents of `stream` at the time of this call. `event` and `stream` must be on the same CUDA context. Calls such as [`cudaEventQuery`] or [`cudaStreamWaitEvent`] will then examine or wait for completion of the work that was captured. Uses of `stream` after this call do not modify `event`. See note on default stream behavior for what is captured in the default case.
@@ -1362,7 +1362,7 @@ unsafe extern "C" {
     /// - `stream`: Stream in which to record event.
     pub fn cudaEventRecord(event: cudaEvent_t, stream: cudaStream_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Records an event.
     ///
     /// Captures in `event` the contents of `stream` at the time of this call. `event` and `stream` must be on the same CUDA context. Calls such as [`cudaEventQuery`] or [`cudaStreamWaitEvent`] will then examine or wait for completion of the work that was captured. Uses of `stream` after this call do not modify `event`. See note on default stream behavior for what is captured in the default case.
@@ -1382,7 +1382,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries an event’s status.
     ///
     /// Queries the status of all work currently captured by `event`. See [`cudaEventRecord`] for details on what is captured by an event.
@@ -1396,7 +1396,7 @@ unsafe extern "C" {
     /// - `event`: - Event to query
     pub fn cudaEventQuery(event: cudaEvent_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Waits for an event to complete.
     ///
     /// Waits until the completion of all work currently captured in `event`. See [`cudaEventRecord`] for details on what is captured by an event.
@@ -1408,7 +1408,7 @@ unsafe extern "C" {
     /// - `event`: - Event to wait for
     pub fn cudaEventSynchronize(event: cudaEvent_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys an event object.
     ///
     /// Destroys the event specified by `event`.
@@ -1420,7 +1420,7 @@ unsafe extern "C" {
     /// - `event`: - Event to destroy
     pub fn cudaEventDestroy(event: cudaEvent_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Computes the elapsed time between events.
     ///
     /// Computes the elapsed time between two events (in milliseconds with a resolution of around 0.5 microseconds). Note this API is not guaranteed to return the latest errors for pending work. As such this API is intended to serve as a elapsed time calculation only and polling for completion on the events to be compared should be done with [`cudaEventQuery`] instead.
@@ -1440,7 +1440,7 @@ unsafe extern "C" {
         end: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Imports an external memory object.
     ///
     /// Imports an externally allocated memory object and returns a handle to that in `extMem_out`.
@@ -1482,7 +1482,7 @@ unsafe extern "C" {
         memHandleDesc: *const cudaExternalMemoryHandleDesc,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Maps a buffer onto an imported memory object.
     ///
     /// Maps a buffer onto an imported memory object and returns a device pointer in `devPtr`.
@@ -1506,7 +1506,7 @@ unsafe extern "C" {
         bufferDesc: *const cudaExternalMemoryBufferDesc,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Maps a CUDA mipmapped array onto an external memory object.
     ///
     /// Maps a CUDA mipmapped array onto an external object and returns a handle to it in `mipmap`.
@@ -1528,7 +1528,7 @@ unsafe extern "C" {
         mipmapDesc: *const cudaExternalMemoryMipmappedArrayDesc,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys an external memory object.
     ///
     /// Destroys the specified external memory object. Any existing buffers and CUDA mipmapped arrays mapped onto this object must no longer be used and must be explicitly freed using [`cudaFree`] and [`cudaFreeMipmappedArray`] respectively.
@@ -1538,7 +1538,7 @@ unsafe extern "C" {
     /// - `extMem`: - External memory object to be destroyed
     pub fn cudaDestroyExternalMemory(extMem: cudaExternalMemory_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Imports an external semaphore.
     ///
     /// Imports an externally allocated synchronization object and returns a handle to that in `extSem_out`.
@@ -1576,7 +1576,7 @@ unsafe extern "C" {
         semHandleDesc: *const cudaExternalSemaphoreHandleDesc,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Signals a set of external semaphore objects.
     ///
     /// Enqueues a signal operation on a set of externally allocated semaphore object in the specified stream. The operations will be executed when all prior operations in the stream complete.
@@ -1606,7 +1606,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Waits on a set of external semaphore objects.
     ///
     /// Enqueues a wait operation on a set of externally allocated semaphore object in the specified stream. The operations will be executed when all prior operations in the stream complete.
@@ -1634,7 +1634,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys an external semaphore.
     ///
     /// Destroys an external semaphore object and releases any references to the underlying resource. Any outstanding signals or waits must have completed before the semaphore is destroyed.
@@ -1644,7 +1644,7 @@ unsafe extern "C" {
     /// - `extSem`: - External semaphore to be destroyed
     pub fn cudaDestroyExternalSemaphore(extSem: cudaExternalSemaphore_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Launches a device function.
     ///
     /// The function invokes kernel `func` on `gridDim` (`gridDim.x ``gridDim.y ``gridDim.z`) grid of blocks. Each block contains `blockDim` (`blockDim.x ``blockDim.y ``blockDim.z`) threads.
@@ -1674,7 +1674,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Launches a CUDA function with launch-time configuration.
     ///
     /// Note that the functionally equivalent variadic template [cudaLaunchKernelEx](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__HIGHLEVEL.html#group__cudart__highlevel_1ga7d9168c86a4293639c75ea437465ed53) is available for C++11 and newer.
@@ -1704,7 +1704,7 @@ unsafe extern "C" {
         args: *mut *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Launches a device function where thread blocks can cooperate and synchronize as they execute.
     ///
     /// The function invokes kernel `func` on `gridDim` (`gridDim.x ``gridDim.y ``gridDim.z`) grid of blocks. Each block contains `blockDim` (`blockDim.x ``blockDim.y ``blockDim.z`) threads.
@@ -1740,7 +1740,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the preferred cache configuration for a device function.
     ///
     /// On devices where the L1 cache and shared memory use the same hardware resources, this sets through `cacheConfig` the preferred cache configuration for the function specified via `func`. This is only a preference. The runtime will use the requested configuration if possible, but it is free to choose a different configuration if required to execute `func`.
@@ -1762,7 +1762,7 @@ unsafe extern "C" {
         cacheConfig: cudaFuncCache,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Find out attributes for a given function.
     ///
     /// This function obtains the attributes of a function specified via `func`. `func` is a device function symbol and must be declared as a `__global__` function. The fetched attributes are placed in `attr`. If the specified function does not exist, then it is assumed to be a [cudaKernel_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga0b33f204b307b3154aa4f005a3c8a46a) and used as is. For templated functions, pass the function symbol as follows: func_name&lt;template_arg_0,…,template_arg_N>
@@ -1778,7 +1778,7 @@ unsafe extern "C" {
         func: *const ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Set attributes for a given function.
     ///
     /// This function sets the attributes of a function specified via `func`. The parameter `func` must be a pointer to a function that executes on the device. The parameter specified by `func` must be declared as a `__global__` function. The enumeration defined by `attr` is set to the value defined by `value`. If the specified function does not exist, then it is assumed to be a [cudaKernel_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga0b33f204b307b3154aa4f005a3c8a46a) and used as is. If the specified attribute cannot be written, or if the value is incorrect, then [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) is returned.
@@ -1798,7 +1798,7 @@ unsafe extern "C" {
         value: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the function name for a device entry function pointer.
     ///
     /// Returns in `**name` the function name associated with the symbol `func`. The function name is returned as a null-terminated string. This API may return a mangled name if the function is not declared as having C linkage. If `**name` is NULL, [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) is returned. If `func` is not a device entry function, then it is assumed to be a [cudaKernel_t](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga0b33f204b307b3154aa4f005a3c8a46a) and used as is.
@@ -1814,7 +1814,7 @@ unsafe extern "C" {
         func: *const ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the offset and size of a kernel parameter in the device-side parameter layout.
     ///
     /// Queries the kernel parameter at `paramIndex` in `func's` list of parameters and returns parameter information via `paramOffset` and `paramSize`. `paramOffset` returns the offset of the parameter in the device-side parameter layout. `paramSize` returns the size in bytes of the parameter. This information can be used to update kernel node parameters from the device via [cudaGraphKernelNodeSetParam()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__GRAPH.html#group__cudart__graph_1ga9171bc40a4f9be650b3fe867e8bfb549) and [cudaGraphKernelNodeUpdatesApply()](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__GRAPH.html#group__cudart__graph_1ga2d558cf37c9616365c67447e61ac0d6a). `paramIndex` must be less than the number of parameters that `func` takes.
@@ -1832,7 +1832,7 @@ unsafe extern "C" {
         paramSize: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the number of parameters used by the function.
     ///
     /// Queries the number of kernel parameters used by `func` and returns it in `paramCount`.
@@ -1846,7 +1846,7 @@ unsafe extern "C" {
         paramCount: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Enqueues a host function call in a stream.
     ///
     /// Enqueues a host function to run in a stream. The function will be called after currently enqueued work and will block work added after it.
@@ -1868,7 +1868,7 @@ unsafe extern "C" {
         userData: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Enqueues a host function call in a stream.
     ///
     /// Enqueues a host function to run in a stream. The function will be called after currently enqueued work and will block work added after it.
@@ -1892,7 +1892,7 @@ unsafe extern "C" {
         syncMode: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the shared memory configuration for a device function.
     ///
     /// On devices with configurable shared memory banks, this function will force all subsequent launches of the specified device function to have the given shared memory bank size configuration. On any given launch of the function, the shared memory configuration of the device will be temporarily changed if needed to suit the function’s preferred configuration. Changes in shared memory configuration between subsequent launches of functions, may introduce a device side synchronization point.
@@ -1917,7 +1917,7 @@ unsafe extern "C" {
         config: cudaSharedMemConfig,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns occupancy for a device function.
     ///
     /// Returns in `*numBlocks` the maximum number of active blocks per streaming multiprocessor for the device function.
@@ -1935,7 +1935,7 @@ unsafe extern "C" {
         dynamicSMemSize: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns dynamic shared memory available per block when launching `numBlocks` blocks on SM.
     ///
     /// Returns in `*dynamicSmemSize` the maximum size of dynamic shared memory to allow `numBlocks` blocks per SM.
@@ -1953,7 +1953,7 @@ unsafe extern "C" {
         blockSize: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns occupancy for a device function with the specified flags.
     ///
     /// Returns in `*numBlocks` the maximum number of active blocks per streaming multiprocessor for the device function.
@@ -1975,7 +1975,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Given the kernel function (`func`) and launch configuration (`config`), return the maximum cluster size in `*clusterSize`.
     ///
     /// The cluster dimensions in `config` are ignored. If func has a required cluster size set (see [`cudaFuncGetAttributes`]),`*clusterSize` will reflect the required cluster size.
@@ -1994,7 +1994,7 @@ unsafe extern "C" {
         launchConfig: *const cudaLaunchConfig_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Given the kernel function (`func`) and launch configuration (`config`), return the maximum number of clusters that could co-exist on the target device in `*numClusters`.
     ///
     /// If the function has required cluster size already set (see [`cudaFuncGetAttributes`]), the cluster size from config must either be unspecified or match the required size. Without required sizes, the cluster size must be specified in config, else the function will return an error.
@@ -2011,7 +2011,7 @@ unsafe extern "C" {
         launchConfig: *const cudaLaunchConfig_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates memory that will be automatically managed by the Unified Memory system.
     ///
     /// Allocates `size` bytes of managed memory on the device and returns in `*devPtr` a pointer to the allocated memory. If the device doesn’t support allocating managed memory, [cudaErrorNotSupported](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038ad846fd9f2e8ba5e2fb4f1695b7ab6164) is returned. Support for managed memory can be queried using the device attribute [cudaDevAttrManagedMemory](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cda5467985f87821a03625ab62e72195ff8). The allocated memory is suitably aligned for any kind of variable. The memory is not cleared. If `size` is 0, [`cudaMallocManaged`] returns [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c). The pointer is valid on the CPU and on all GPUs in the system that support managed memory. All accesses to this pointer must obey the Unified Memory programming model.
@@ -2041,7 +2041,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocate memory on the device.
     ///
     /// Allocates `size` bytes of linear memory on the device and returns in `*devPtr` a pointer to the allocated memory. The allocated memory is suitably aligned for any kind of variable. The memory is not cleared. [`cudaMalloc`] returns [cudaErrorMemoryAllocation](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038af210f50ae7f17f655e0504929606add9) in case of failure.
@@ -2057,7 +2057,7 @@ unsafe extern "C" {
         size: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates page-locked memory on the host
     ///
     /// Allocates `size` bytes of host memory that is page-locked and accessible to the device. The driver tracks the virtual memory ranges allocated with this function and automatically accelerates calls to functions such as ::cudaMemcpy*(). Since the memory can be accessed directly by the device, it can be read or written with much higher bandwidth than pageable memory obtained with functions such as ::malloc().
@@ -2091,7 +2091,7 @@ unsafe extern "C" {
         size: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates pitched memory on the device.
     ///
     /// Allocates at least `width` (in bytes) \* `height` bytes of linear memory on the device and returns in `*devPtr` a pointer to the allocated memory. The function may pad the allocation to ensure that corresponding pointers in any given row will continue to meet the alignment requirements for coalescing as the address is updated from row to row. The pitch returned in `*pitch` by [`cudaMallocPitch`] is the width in bytes of the allocation. The intended usage of `pitch` is as a separate parameter of the allocation, used to compute addresses within the 2D array. Given the row and column of an array element of type `T`, the address is computed as:
@@ -2111,7 +2111,7 @@ unsafe extern "C" {
         height: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocate an array on the device.
     ///
     /// Allocates a CUDA array according to the [`cudaChannelFormatDesc`] structure `desc` and returns a handle to the new CUDA array in `*array`.
@@ -2137,7 +2137,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Frees memory on the device.
     ///
     /// Frees the memory space pointed to by `devPtr`, which must have been returned by a previous call to one of the following memory allocation APIs - [`cudaMalloc`], [`cudaMallocPitch`], [`cudaMallocManaged`], [`cudaMallocAsync`], [`cudaMallocFromPoolAsync`].
@@ -2153,7 +2153,7 @@ unsafe extern "C" {
     /// - `devPtr`: - Device pointer to memory to free
     pub fn cudaFree(devPtr: *mut ::core::ffi::c_void) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Frees page-locked memory.
     ///
     /// Frees the memory space pointed to by `hostPtr`, which must have been returned by a previous call to [`cudaMallocHost`] or [`cudaHostAlloc`].
@@ -2163,7 +2163,7 @@ unsafe extern "C" {
     /// - `ptr`: - Pointer to memory to free
     pub fn cudaFreeHost(ptr: *mut ::core::ffi::c_void) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Frees an array on the device.
     ///
     /// Frees the CUDA array `array`, which must have been returned by a previous call to [`cudaMallocArray`]. If `devPtr` is 0, no operation is performed.
@@ -2173,7 +2173,7 @@ unsafe extern "C" {
     /// - `array`: - Pointer to array to free
     pub fn cudaFreeArray(array: cudaArray_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Frees a mipmapped array on the device.
     ///
     /// Frees the CUDA mipmapped array `mipmappedArray`, which must have been returned by a previous call to [`cudaMallocMipmappedArray`]. If `devPtr` is 0, no operation is performed.
@@ -2183,7 +2183,7 @@ unsafe extern "C" {
     /// - `mipmappedArray`: - Pointer to mipmapped array to free
     pub fn cudaFreeMipmappedArray(mipmappedArray: cudaMipmappedArray_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates page-locked memory on the host.
     ///
     /// Allocates `size` bytes of host memory that is page-locked and accessible to the device. The driver tracks the virtual memory ranges allocated with this function and automatically accelerates calls to functions such as [`cudaMemcpy`]. Since the memory can be accessed directly by the device, it can be read or written with much higher bandwidth than pageable memory obtained with functions such as ::malloc(). Allocating excessive amounts of pinned memory may degrade system performance, since it reduces the amount of memory available to the system for paging. As a result, this function is best used sparingly to allocate staging areas for data exchange between host and device.
@@ -2209,7 +2209,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Registers an existing host memory range for use by CUDA.
     ///
     /// Page-locks the memory range specified by `ptr` and `size` and maps it for the device(s) as specified by `flags`. This memory range also is added to the same tracking mechanism as [`cudaHostAlloc`] to automatically accelerate calls to functions such as [`cudaMemcpy`]. Since the memory can be accessed directly by the device, it can be read or written with much higher bandwidth than pageable memory that has not been registered. Page-locking excessive amounts of memory may degrade system performance, since it reduces the amount of memory available to the system for paging. As a result, this function is best used sparingly to register staging areas for data exchange between host and device.
@@ -2241,7 +2241,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Unregisters a memory range that was registered with cudaHostRegister.
     ///
     /// Unmaps the memory range whose base address is specified by `ptr`, and makes it pageable again.
@@ -2253,7 +2253,7 @@ unsafe extern "C" {
     /// - `ptr`: - Host pointer to memory to unregister
     pub fn cudaHostUnregister(ptr: *mut ::core::ffi::c_void) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Passes back device pointer of mapped host memory allocated by cudaHostAlloc or registered by cudaHostRegister.
     ///
     /// Passes back the device pointer corresponding to the mapped, pinned host buffer allocated by [`cudaHostAlloc`] or registered by [`cudaHostRegister`].
@@ -2275,7 +2275,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Passes back flags used to allocate pinned host memory allocated by cudaHostAlloc.
     ///
     /// [`cudaHostGetFlags`] will fail if the input pointer does not reside in an address range allocated by [`cudaHostAlloc`].
@@ -2289,7 +2289,7 @@ unsafe extern "C" {
         pHost: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates logical 1D, 2D, or 3D memory objects on the device.
     ///
     /// Allocates at least `width` \* `height` \* `depth` bytes of linear memory on the device and returns a [`cudaPitchedPtr`] in which `ptr` is a pointer to the allocated memory. The function may pad the allocation to ensure hardware alignment requirements are met. The pitch returned in the `pitch` field of `pitchedDevPtr` is the width in bytes of the allocation.
@@ -2307,7 +2307,7 @@ unsafe extern "C" {
         extent: cudaExtent,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocate an array on the device.
     ///
     /// Allocates a CUDA array according to the [`cudaChannelFormatDesc`] structure `desc` and returns a handle to the new CUDA array in `*array`.
@@ -2335,7 +2335,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocate a mipmapped array on the device.
     ///
     /// Allocates a CUDA mipmapped array according to the [`cudaChannelFormatDesc`] structure `desc` and returns a handle to the new CUDA mipmapped array in `*mipmappedArray`. `numLevels` specifies the number of mipmap levels to be allocated. This value is clamped to the range \[1, 1 + floor(log2(max(width, height, depth)))\].
@@ -2363,7 +2363,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets a mipmap level of a CUDA mipmapped array.
     ///
     /// Returns in `*levelArray` a CUDA array that represents a single mipmap level of the CUDA mipmapped array `mipmappedArray`.
@@ -2383,7 +2383,7 @@ unsafe extern "C" {
         level: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between 3D objects.
     ///
     /// [`cudaMemcpy3D`] copies data betwen two 3D objects. The source and destination objects may be in either host memory, device memory, or a CUDA array. The source, destination, extent, and kind of copy performed is specified by the [`cudaMemcpy3DParms`] struct which should be initialized to zero before use:
@@ -2409,7 +2409,7 @@ unsafe extern "C" {
     /// - `p`: - 3D memory copy parameters
     pub fn cudaMemcpy3D(p: *const cudaMemcpy3DParms) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies memory between devices.
     ///
     /// Perform a 3D memory copy according to the parameters specified in `p`. See the definition of the [`cudaMemcpy3DPeerParms`] structure for documentation of its parameters.
@@ -2421,7 +2421,7 @@ unsafe extern "C" {
     /// - `p`: - Parameters for the memory copy
     pub fn cudaMemcpy3DPeer(p: *const cudaMemcpy3DPeerParms) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between 3D objects.
     ///
     /// [`cudaMemcpy3DAsync`] copies data betwen two 3D objects. The source and destination objects may be in either host memory, device memory, or a CUDA array. The source, destination, extent, and kind of copy performed is specified by the [`cudaMemcpy3DParms`] struct which should be initialized to zero before use:
@@ -2455,7 +2455,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies memory between devices asynchronously.
     ///
     /// Perform a 3D memory copy according to the parameters specified in `p`. See the definition of the [`cudaMemcpy3DPeerParms`] structure for documentation of its parameters.
@@ -2469,7 +2469,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets free and total device memory.
     ///
     /// Returns in `*total` the total amount of memory available to the current context. Returns in `*free` the amount of memory on the device that is free according to the OS. CUDA is not guaranteed to be able to allocate all of the memory that the OS reports as free. In a multi-tenet situation, free estimate returned is prone to race condition where a new allocation/free done by a different process or a different thread in the same process between the time when free memory was estimated and reported, will result in deviation in free value reported and actual free memory.
@@ -2482,7 +2482,7 @@ unsafe extern "C" {
     /// - `total`: Returned total memory in bytes.
     pub fn cudaMemGetInfo(free: *mut size_t, total: *mut size_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets info about the specified cudaArray.
     ///
     /// Returns in `*desc`, `*extent` and `*flags` respectively, the type, shape and flags of `array`.
@@ -2502,7 +2502,7 @@ unsafe extern "C" {
         array: cudaArray_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets a CUDA array plane from a CUDA array.
     ///
     /// Returns in `pPlaneArray` a CUDA array that represents a single format plane of the CUDA array `hArray`.
@@ -2522,7 +2522,7 @@ unsafe extern "C" {
         planeIdx: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the memory requirements of a CUDA array.
     ///
     /// Returns the memory requirements of a CUDA array in `memoryRequirements` If the CUDA array is not allocated with flag [cudaArrayDeferredMapping](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga91a50795515848406a89c2e6cef2fb02) [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) will be returned.
@@ -2540,7 +2540,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the memory requirements of a CUDA mipmapped array.
     ///
     /// Returns the memory requirements of a CUDA mipmapped array in `memoryRequirements` If the CUDA mipmapped array is not allocated with flag [cudaArrayDeferredMapping](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga91a50795515848406a89c2e6cef2fb02) [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) will be returned.
@@ -2558,7 +2558,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the layout properties of a sparse CUDA array.
     ///
     /// Returns the layout properties of a sparse CUDA array in `sparseProperties`. If the CUDA array is not allocated with flag [cudaArraySparse](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga42c353686a15da063dc7722594ae4bff) [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) will be returned.
@@ -2574,7 +2574,7 @@ unsafe extern "C" {
         array: cudaArray_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the layout properties of a sparse CUDA mipmapped array.
     ///
     /// Returns the sparse array layout properties in `sparseProperties`. If the CUDA mipmapped array is not allocated with flag [cudaArraySparse](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1ga42c353686a15da063dc7722594ae4bff) [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) will be returned.
@@ -2590,7 +2590,7 @@ unsafe extern "C" {
         mipmap: cudaMipmappedArray_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `src` to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. Calling [`cudaMemcpy`] with dst and src pointers that do not match the direction of the copy results in an undefined behavior.
@@ -2608,7 +2608,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies memory between two devices.
     ///
     /// Copies memory from one device to memory on another device. `dst` is the base device pointer of the destination memory and `dstDevice` is the destination device. `src` is the base device pointer of the source memory and `srcDevice` is the source device. `count` specifies the number of bytes to copy.
@@ -2630,7 +2630,7 @@ unsafe extern "C" {
         count: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the memory area pointed to by `src` to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `dpitch` and `spitch` are the widths in memory in bytes of the 2D arrays pointed to by `dst` and `src`, including any padding added to the end of each row. The memory areas may not overlap. `width` must not exceed either `dpitch` or `spitch`. Calling [`cudaMemcpy2D`] with `dst` and `src` pointers that do not match the direction of the copy results in an undefined behavior. [`cudaMemcpy2D`] returns an error if `dpitch` or `spitch` exceeds the maximum allowed.
@@ -2654,7 +2654,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the memory area pointed to by `src` to the CUDA array `dst` starting at `hOffset` rows and `wOffset` bytes from the upper left corner, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `spitch` is the width in memory in bytes of the 2D array pointed to by `src`, including any padding added to the end of each row. `wOffset` + `width` must not exceed the width of the CUDA array `dst`. `width` must not exceed `spitch`. [`cudaMemcpy2DToArray`] returns an error if `spitch` exceeds the maximum allowed.
@@ -2680,7 +2680,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the CUDA array `src` starting at `hOffset` rows and `wOffset` bytes from the upper left corner to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `dpitch` is the width in memory in bytes of the 2D array pointed to by `dst`, including any padding added to the end of each row. `wOffset` + `width` must not exceed the width of the CUDA array `src`. `width` must not exceed `dpitch`. [`cudaMemcpy2DFromArray`] returns an error if `dpitch` exceeds the maximum allowed.
@@ -2706,7 +2706,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the CUDA array `src` starting at `hOffsetSrc` rows and `wOffsetSrc` bytes from the upper left corner to the CUDA array `dst` starting at `hOffsetDst` rows and `wOffsetDst` bytes from the upper left corner, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `wOffsetDst` + `width` must not exceed the width of the CUDA array `dst`. `wOffsetSrc` + `width` must not exceed the width of the CUDA array `src`.
@@ -2734,7 +2734,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data to the given symbol on the device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `src` to the memory area pointed to by `offset` bytes from the start of symbol `symbol`. The memory areas may not overlap. `symbol` is a variable that resides in global or constant memory space. `kind` can be either [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -2754,7 +2754,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data from the given symbol on the device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `offset` bytes from the start of symbol `symbol` to the memory area pointed to by `dst`. The memory areas may not overlap. `symbol` is a variable that resides in global or constant memory space. `kind` can be either [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -2774,7 +2774,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `src` to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -2800,7 +2800,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies memory between two devices asynchronously.
     ///
     /// Copies memory from one device to memory on another device. `dst` is the base device pointer of the destination memory and `dstDevice` is the destination device. `src` is the base device pointer of the source memory and `srcDevice` is the source device. `count` specifies the number of bytes to copy.
@@ -2824,7 +2824,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs a batch of memory copies asynchronously.
     ///
     /// Performs a batch of memory copies. The batch as a whole executes in stream order but copies within a batch are not guaranteed to execute in any specific order. This API only supports pointer-to-pointer copies. For copies involving CUDA arrays, please see [`cudaMemcpy3DBatchAsync`].
@@ -2860,7 +2860,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs a batch of 3D memory copies asynchronously.
     ///
     /// Performs a batch of memory copies. The batch as a whole executes in stream order but copies within a batch are not guaranteed to execute in any specific order. Note that this means specifying any dependent copies within a batch will result in undefined behavior.
@@ -2888,7 +2888,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs asynchronous memory copy operation with the specified attributes.
     ///
     /// Performs asynchronous memory copy operation where `dst` and `src` are the destination and source pointers respectively. `size` specifies the number of bytes to copy. `attr` specifies the attributes for the copy and `stream` specifies the stream to enqueue the operation in.
@@ -2910,7 +2910,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs 3D asynchronous memory copy with the specified attributes.
     ///
     /// Performs the copy operation specified in `op`. `flags` specifies the flags for the copy and `stream` specifies the stream to enqueue the operation in.
@@ -2928,7 +2928,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the memory area pointed to by `src` to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `dpitch` and `spitch` are the widths in memory in bytes of the 2D arrays pointed to by `dst` and `src`, including any padding added to the end of each row. The memory areas may not overlap. `width` must not exceed either `dpitch` or `spitch`.
@@ -2960,7 +2960,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the memory area pointed to by `src` to the CUDA array `dst` starting at `hOffset` rows and `wOffset` bytes from the upper left corner, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `spitch` is the width in memory in bytes of the 2D array pointed to by `src`, including any padding added to the end of each row. `wOffset` + `width` must not exceed the width of the CUDA array `dst`. `width` must not exceed `spitch`. [`cudaMemcpy2DToArrayAsync`] returns an error if `spitch` exceeds the maximum allowed.
@@ -2992,7 +2992,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies a matrix (`height` rows of `width` bytes each) from the CUDA array `src` starting at `hOffset` rows and `wOffset` bytes from the upper left corner to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing. `dpitch` is the width in memory in bytes of the 2D array pointed to by `dst`, including any padding added to the end of each row. `wOffset` + `width` must not exceed the width of the CUDA array `src`. `width` must not exceed `dpitch`. [`cudaMemcpy2DFromArrayAsync`] returns an error if `dpitch` exceeds the maximum allowed.
@@ -3024,7 +3024,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data to the given symbol on the device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `src` to the memory area pointed to by `offset` bytes from the start of symbol `symbol`. The memory areas may not overlap. `symbol` is a variable that resides in global or constant memory space. `kind` can be either [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3048,7 +3048,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data from the given symbol on the device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `offset` bytes from the start of symbol `symbol` to the memory area pointed to by `dst`. The memory areas may not overlap. `symbol` is a variable that resides in global or constant memory space. `kind` can be either [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3072,7 +3072,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initializes or sets device memory to a value.
     ///
     /// Fills the first `count` bytes of the memory area pointed to by `devPtr` with the constant byte value `value`.
@@ -3090,7 +3090,7 @@ unsafe extern "C" {
         count: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initializes or sets device memory to a value.
     ///
     /// Sets to the specified value `value` a matrix (`height` rows of `width` bytes each) pointed to by `dstPtr`. `pitch` is the width in bytes of the 2D array pointed to by `dstPtr`, including any padding added to the end of each row. This function performs fastest when the pitch is one that has been passed back by [`cudaMallocPitch`].
@@ -3112,7 +3112,7 @@ unsafe extern "C" {
         height: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initializes or sets device memory to a value.
     ///
     /// Initializes each element of a 3D array to the specified value `value`. The object to initialize is defined by `pitchedDevPtr`. The `pitch` field of `pitchedDevPtr` is the width in memory in bytes of the 3D array pointed to by `pitchedDevPtr`, including any padding added to the end of each row. The `xsize` field specifies the logical width of each row in bytes, while the `ysize` field specifies the height of each 2D slice in rows. The `pitch` field of `pitchedDevPtr` is ignored when `height` and `depth` are both equal to 1.
@@ -3136,7 +3136,7 @@ unsafe extern "C" {
         extent: cudaExtent,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initializes or sets device memory to a value.
     ///
     /// Fills the first `count` bytes of the memory area pointed to by `devPtr` with the constant byte value `value`.
@@ -3158,7 +3158,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initializes or sets device memory to a value.
     ///
     /// Sets to the specified value `value` a matrix (`height` rows of `width` bytes each) pointed to by `dstPtr`. `pitch` is the width in bytes of the 2D array pointed to by `dstPtr`, including any padding added to the end of each row. This function performs fastest when the pitch is one that has been passed back by [`cudaMallocPitch`].
@@ -3184,7 +3184,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Initializes or sets device memory to a value.
     ///
     /// Initializes each element of a 3D array to the specified value `value`. The object to initialize is defined by `pitchedDevPtr`. The `pitch` field of `pitchedDevPtr` is the width in memory in bytes of the 3D array pointed to by `pitchedDevPtr`, including any padding added to the end of each row. The `xsize` field specifies the logical width of each row in bytes, while the `ysize` field specifies the height of each 2D slice in rows. The `pitch` field of `pitchedDevPtr` is ignored when `height` and `depth` are both equal to 1.
@@ -3212,7 +3212,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Finds the address associated with a CUDA symbol.
     ///
     /// Returns in `*devPtr` the address of symbol `symbol` on the device. `symbol` is a variable that resides in global or constant memory space. If `symbol` cannot be found, or if `symbol` is not declared in the global or constant memory space, `*devPtr` is unchanged and the error [cudaErrorInvalidSymbol](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a01a4a97f3060ec714ffa9dd650b9213a) is returned.
@@ -3226,7 +3226,7 @@ unsafe extern "C" {
         symbol: *const ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Finds the size of the object associated with a CUDA symbol.
     ///
     /// Returns in `*size` the size of symbol `symbol`. `symbol` is a variable that resides in global or constant memory space. If `symbol` cannot be found, or if `symbol` is not declared in global or constant memory space, `*size` is unchanged and the error [cudaErrorInvalidSymbol](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a01a4a97f3060ec714ffa9dd650b9213a) is returned.
@@ -3240,7 +3240,7 @@ unsafe extern "C" {
         symbol: *const ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Prefetches memory to the specified destination location.
     ///
     /// Prefetches memory to the specified destination location. `devPtr` is the base device pointer of the memory to be prefetched and `location` specifies the destination location. `count` specifies the number of bytes to copy. `stream` is the stream in which the operation is enqueued. The memory range must refer to managed memory allocated via [`cudaMallocManaged`] or declared via **managed** variables, or it may also refer to memory allocated from a managed memory pool, or it may also refer to system-allocated memory on systems with non-zero cudaDevAttrPageableMemoryAccess.
@@ -3278,7 +3278,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs a batch of memory prefetches asynchronously.
     ///
     /// Performs a batch of memory prefetches. The batch as a whole executes in stream order but operations within a batch are not guaranteed to execute in any specific order. All devices in the system must have a non-zero value for the device attribute [cudaDevAttrConcurrentManagedAccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cdac88178f29891f2c18fe67361cc80de09) otherwise the API will return an error.
@@ -3308,7 +3308,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs a batch of memory discards asynchronously.
     ///
     /// Performs a batch of memory discards. The batch as a whole executes in stream order but operations within a batch are not guaranteed to execute in any specific order. All devices in the system must have a non-zero value for the device attribute [cudaDevAttrConcurrentManagedAccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cdac88178f29891f2c18fe67361cc80de09) otherwise the API will return an error.
@@ -3332,7 +3332,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Performs a batch of memory discards and prefetches asynchronously.
     ///
     /// Performs a batch of memory discards followed by prefetches. The batch as a whole executes in stream order but operations within a batch are not guaranteed to execute in any specific order. All devices in the system must have a non-zero value for the device attribute [cudaDevAttrConcurrentManagedAccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga49e2f8c2c0bd6fe264f2fc970912e5cdac88178f29891f2c18fe67361cc80de09) otherwise the API will return an error.
@@ -3362,7 +3362,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets location information for a memory address range.
     ///
     /// Retrieves memory location information for the specified address range starting at `ptr` with size `size`. The API determines the most common location by sampling memory at intervals defined by `samplingGranularity` within the whole interval.
@@ -3391,7 +3391,7 @@ unsafe extern "C" {
         location_out: *mut cudaMemLocation,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Advise about the usage of a given memory range.
     ///
     /// Advise the Unified Memory subsystem about the usage pattern for the memory range starting at `devPtr` with a size of `count` bytes. The start address and end address of the memory range will be rounded down and rounded up respectively to be aligned to CPU page size before the advice is applied. The memory range must refer to managed memory allocated via [`cudaMallocManaged`] or declared via **managed** variables. The memory range could also refer to system-allocated pageable memory provided it represents a valid, host-accessible region of memory and all additional constraints imposed by `advice` as outlined below are also satisfied. Specifying an invalid system-allocated pageable memory range results in an error being returned.
@@ -3411,7 +3411,7 @@ unsafe extern "C" {
         location: cudaMemLocation,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query an attribute of a given memory range.
     ///
     /// Query an attribute about the memory range starting at `devPtr` with a size of `count` bytes. The memory range must refer to managed memory allocated via [`cudaMallocManaged`] or declared via **managed** variables.
@@ -3433,7 +3433,7 @@ unsafe extern "C" {
         count: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query attributes of a given memory range.
     ///
     /// Query attributes of the memory range starting at `devPtr` with a size of `count` bytes. The memory range must refer to managed memory allocated via [`cudaMallocManaged`] or declared via **managed** variables. The `attributes` array will be interpreted to have `numAttributes` entries. The `dataSizes` array will also be interpreted to have `numAttributes` entries. The results of the query will be stored in `data`.
@@ -3457,7 +3457,7 @@ unsafe extern "C" {
         count: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `src` to the CUDA array `dst` starting at `hOffset` rows and `wOffset` bytes from the upper left corner, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3480,7 +3480,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the CUDA array `src` starting at `hOffset` rows and `wOffset` bytes from the upper left corner to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3503,7 +3503,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the CUDA array `src` starting at `hOffsetSrc` rows and `wOffsetSrc` bytes from the upper left corner to the CUDA array `dst` starting at `hOffsetDst` rows and `wOffsetDst` bytes from the upper left corner, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3530,7 +3530,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the memory area pointed to by `src` to the CUDA array `dst` starting at `hOffset` rows and `wOffset` bytes from the upper left corner, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3557,7 +3557,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies data between host and device.
     ///
     /// Copies `count` bytes from the CUDA array `src` starting at `hOffset` rows and `wOffset` bytes from the upper left corner to the memory area pointed to by `dst`, where `kind` specifies the direction of the copy, and must be one of [`cudaMemcpyKind::cudaMemcpyHostToHost`], [`cudaMemcpyKind::cudaMemcpyHostToDevice`], [`cudaMemcpyKind::cudaMemcpyDeviceToHost`], [`cudaMemcpyKind::cudaMemcpyDeviceToDevice`], or [`cudaMemcpyKind::cudaMemcpyDefault`]. Passing [`cudaMemcpyKind::cudaMemcpyDefault`] is recommended, in which case the type of transfer is inferred from the pointer values. However, [`cudaMemcpyKind::cudaMemcpyDefault`] is only allowed on systems that support unified virtual addressing.
@@ -3584,7 +3584,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates memory with stream ordered semantics
     ///
     /// Inserts an allocation operation into `hStream`. A pointer to the allocated memory is returned immediately in *dptr. The allocation must not be accessed until the the allocation operation completes. The allocation comes from the memory pool associated with the stream's device.
@@ -3626,7 +3626,7 @@ unsafe extern "C" {
         hStream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Frees memory with stream ordered semantics.
     ///
     /// Inserts a free operation into `hStream`. The allocation must not be accessed after stream execution reaches the free. After this API returns, accessing the memory from any subsequent work launched on the GPU or querying its pointer attributes results in undefined behavior.
@@ -3639,7 +3639,7 @@ unsafe extern "C" {
         hStream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Tries to release memory back to the OS.
     ///
     /// Releases memory back to the OS until the pool contains fewer than minBytesToKeep reserved bytes, or there is no more memory that the allocator can safely release. The allocator cannot release OS allocations that back outstanding asynchronous allocations. The OS allocations may happen at different granularity from the user allocations.
@@ -3652,7 +3652,7 @@ unsafe extern "C" {
         minBytesToKeep: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets attributes of a memory pool.
     ///
     /// Supported attributes are.
@@ -3667,7 +3667,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets attributes of a memory pool.
     ///
     /// Supported attributes are:
@@ -3684,7 +3684,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Controls visibility of pools between devices.
     ///
     /// # Parameters
@@ -3696,7 +3696,7 @@ unsafe extern "C" {
         count: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the accessibility of a pool from a device.
     ///
     /// Returns the accessibility of the pool’s memory from the specified location.
@@ -3712,7 +3712,7 @@ unsafe extern "C" {
         location: *mut cudaMemLocation,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a memory pool.
     ///
     /// Creates a CUDA memory pool and returns the handle in `pool`. The `poolProps` determines the properties of the pool such as the backing device and IPC capabilities.
@@ -3733,7 +3733,7 @@ unsafe extern "C" {
         poolProps: *const cudaMemPoolProps,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys the specified memory pool.
     ///
     /// If any pointers obtained from this pool haven’t been freed or the pool has free operations that haven’t completed when [`cudaMemPoolDestroy`] is invoked, the function will return immediately and the resources associated with the pool will be released automatically once there are no more outstanding allocations.
@@ -3741,7 +3741,7 @@ unsafe extern "C" {
     /// Destroying the current mempool of a device sets the default mempool of that device as the current mempool for that device.
     pub fn cudaMemPoolDestroy(memPool: cudaMemPool_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the default memory pool for a given location and allocation type.
     ///
     /// The memory location can be of one of [cudaMemLocationTypeDevice](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0ae479b8710f3c5270117ee9d8cf5868d4), [cudaMemLocationTypeHost](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a1ec97ff5f3c715e4b18e39dabf9e31c5), [cudaMemLocationTypeHostNuma](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a24dc63fb938dee27b41e3842da35d2d0), or [cudaMemLocationTypeDeviceLocalityDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a88b5d659aa9d7501f0382836eebb125b). The allocation type can be one of [`cudaMemAllocationType::cudaMemAllocationTypePinned`] or [`cudaMemAllocationType::cudaMemAllocationTypeManaged`]. When the allocation type is [`cudaMemAllocationType::cudaMemAllocationTypeManaged`], the location type can also be [cudaMemLocationTypeNone](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a53b6266fa56e0b7efe6a0b78ed8e8f49) to indicate no preferred location for the managed memory pool. [`cudaMemAllocationType::cudaMemAllocationTypeManaged`] can not be used with [cudaMemLocationTypeDeviceLocalityDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a88b5d659aa9d7501f0382836eebb125b). In all other cases, the call return [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c).
@@ -3751,7 +3751,7 @@ unsafe extern "C" {
         type_: cudaMemAllocationType,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets the current memory pool for a given memory location and allocation type.
     ///
     /// The memory location can be of one of [cudaMemLocationTypeDevice](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0ae479b8710f3c5270117ee9d8cf5868d4), [cudaMemLocationTypeHost](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a1ec97ff5f3c715e4b18e39dabf9e31c5), [cudaMemLocationTypeHostNuma](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a24dc63fb938dee27b41e3842da35d2d0), or [cudaMemLocationTypeDeviceLocalityDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a88b5d659aa9d7501f0382836eebb125b). The allocation type can be one of [`cudaMemAllocationType::cudaMemAllocationTypePinned`] or [`cudaMemAllocationType::cudaMemAllocationTypeManaged`]. When the allocation type is [`cudaMemAllocationType::cudaMemAllocationTypeManaged`], the location type can also be [cudaMemLocationTypeNone](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a53b6266fa56e0b7efe6a0b78ed8e8f49) to indicate no preferred location for the managed memory pool. [`cudaMemAllocationType::cudaMemAllocationTypeManaged`] can not be used with [cudaMemLocationTypeDeviceLocalityDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a88b5d659aa9d7501f0382836eebb125b). In all other cases, the call return [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c)
@@ -3763,7 +3763,7 @@ unsafe extern "C" {
         type_: cudaMemAllocationType,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the current memory pool for a memory location and allocation type.
     ///
     /// The memory location can be of one of [cudaMemLocationTypeDevice](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0ae479b8710f3c5270117ee9d8cf5868d4), [cudaMemLocationTypeHost](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a1ec97ff5f3c715e4b18e39dabf9e31c5) [cudaMemLocationTypeHostNuma](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a24dc63fb938dee27b41e3842da35d2d0), or [cudaMemLocationTypeDeviceLocalityDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a88b5d659aa9d7501f0382836eebb125b). The allocation type can be one of [`cudaMemAllocationType::cudaMemAllocationTypePinned`] or [`cudaMemAllocationType::cudaMemAllocationTypeManaged`]. When the allocation type is [`cudaMemAllocationType::cudaMemAllocationTypeManaged`], the location type can also be [cudaMemLocationTypeNone](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a53b6266fa56e0b7efe6a0b78ed8e8f49) to indicate no preferred location for the managed memory pool. [`cudaMemAllocationType::cudaMemAllocationTypeManaged`] can not be used with [cudaMemLocationTypeDeviceLocalityDomain](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga2279aa08666f329f3ba4afe397fa60f0a88b5d659aa9d7501f0382836eebb125b). In all other cases, the call return [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c)
@@ -3779,7 +3779,7 @@ unsafe extern "C" {
         memPool: cudaMemPool_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Allocates memory from a specified pool with stream ordered semantics.
     ///
     /// Inserts an allocation operation into `stream`. A pointer to the allocated memory is returned immediately in \*dptr. The allocation must not be accessed until the allocation operation completes. The allocation comes from the specified memory pool.
@@ -3796,7 +3796,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Exports a memory pool to the requested handle type.
     ///
     /// Given an IPC capable mempool, create an OS handle to share the pool with another process. A recipient process can convert the shareable handle into a mempool with [`cudaMemPoolImportFromShareableHandle`]. Individual pointers can then be shared with the [`cudaMemPoolExportPointer`] and [`cudaMemPoolImportPointer`] APIs. The implementation of what the shareable handle is and how it can be transferred is defined by the requested handle type.
@@ -3812,7 +3812,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// imports a memory pool from a shared handle.
     ///
     /// Specific allocations can be imported from the imported pool with [`cudaMemPoolImportPointer`].
@@ -3828,7 +3828,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Export data to share a memory pool allocation between processes.
     ///
     /// Constructs `shareData_out` for sharing a specific allocation from an already shared memory pool. The recipient process can import the allocation with the [`cudaMemPoolImportPointer`] api. The data is not a handle and may be shared through any IPC mechanism.
@@ -3841,7 +3841,7 @@ unsafe extern "C" {
         ptr: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Import a memory pool allocation from another process.
     ///
     /// Returns in `ptr_out` a pointer to the imported memory. The imported memory must not be accessed before the allocation operation completes in the exporting process. The imported memory must be freed from all importing processes before being freed in the exporting process. The pointer may be freed with cudaFree or cudaFreeAsync. If [`cudaFreeAsync`] is used, the free must be completed on the importing process before the free operation on the exporting process.
@@ -3851,7 +3851,7 @@ unsafe extern "C" {
         exportData: *mut cudaMemPoolPtrExportData,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns attributes about a specified pointer.
     ///
     /// Returns in `*attributes` the attributes of the pointer `ptr`. If pointer was not allocated in, mapped by or registered with context supporting unified addressing [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) is returned.
@@ -3867,7 +3867,7 @@ unsafe extern "C" {
         ptr: *const ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries if a device may directly access a peer device’s memory.
     ///
     /// Returns in `*canAccessPeer` a value of 1 if device `device` is capable of directly accessing memory from `peerDevice` and 0 otherwise. If direct access of `peerDevice` from `device` is possible, then access may be enabled by calling [`cudaDeviceEnablePeerAccess`].
@@ -3883,7 +3883,7 @@ unsafe extern "C" {
         peerDevice: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Enables direct access to memory allocations on a peer device.
     ///
     /// On success, all allocations from `peerDevice` will immediately be accessible by the current device. They will remain accessible until access is explicitly disabled using [`cudaDeviceDisablePeerAccess`] or either device is reset using [`cudaDeviceReset`].
@@ -3907,7 +3907,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Disables direct access to memory allocations on a peer device.
     ///
     /// Returns [cudaErrorPeerAccessNotEnabled](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a821b54bce59b87db6efc2ea59a867bf7) if direct access to memory on `peerDevice` has not yet been enabled from the current device.
@@ -3917,7 +3917,7 @@ unsafe extern "C" {
     /// - `peerDevice`: - Peer device to disable direct access to
     pub fn cudaDeviceDisablePeerAccess(peerDevice: ::core::ffi::c_int) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Unregisters a graphics resource for access by CUDA.
     ///
     /// Unregisters the graphics resource `resource` so it is not accessible by CUDA unless registered again.
@@ -3931,7 +3931,7 @@ unsafe extern "C" {
         resource: cudaGraphicsResource_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Set usage flags for mapping a graphics resource.
     ///
     /// Set `flags` for mapping the graphics resource `resource`.
@@ -3949,7 +3949,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Map graphics resources for access by CUDA.
     ///
     /// Maps the `count` graphics resources in `resources` for access by CUDA.
@@ -3971,7 +3971,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Unmap graphics resources.
     ///
     /// Unmaps the `count` graphics resources in `resources`.
@@ -3993,7 +3993,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get an device pointer through which to access a mapped graphics resource.
     ///
     /// Returns in `*devPtr` a pointer through which the mapped graphics resource `resource` may be accessed. Returns in `*size` the size of the memory in bytes which may be accessed from that pointer. The value set in `devPtr` may change every time that `resource` is mapped.
@@ -4011,7 +4011,7 @@ unsafe extern "C" {
         resource: cudaGraphicsResource_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get an array through which to access a subresource of a mapped graphics resource.
     ///
     /// Returns in `*array` an array through which the subresource of the mapped graphics resource `resource` which corresponds to array index `arrayIndex` and mipmap level `mipLevel` may be accessed. The value set in `array` may change every time that `resource` is mapped.
@@ -4031,7 +4031,7 @@ unsafe extern "C" {
         mipLevel: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get a mipmapped array through which to access a mapped graphics resource.
     ///
     /// Returns in `*mipmappedArray` a mipmapped array through which the mapped graphics resource `resource` may be accessed. The value set in `mipmappedArray` may change every time that `resource` is mapped.
@@ -4047,7 +4047,7 @@ unsafe extern "C" {
         resource: cudaGraphicsResource_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get the channel descriptor of an array.
     ///
     /// Returns in `*desc` the channel descriptor of the CUDA array `array`.
@@ -4061,7 +4061,7 @@ unsafe extern "C" {
         array: cudaArray_const_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a channel descriptor using the specified format
     ///
     /// Returns a channel descriptor with format `f` and number of bits of each component `x`, `y`, `z`, and `w`.  The ::cudaChannelFormatDesc is defined as:
@@ -4104,7 +4104,7 @@ unsafe extern "C" {
         f: cudaChannelFormatKind,
     ) -> cudaChannelFormatDesc;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a texture object.
     ///
     /// Creates a texture object and returns it in `pTexObject`. `pResDesc` describes the data to texture from. `pTexDesc` describes how the data should be sampled. `pResViewDesc` is an optional argument that specifies an alternate format for the data described by `pResDesc`, and also describes the subresource region to restrict access to when texturing. `pResViewDesc` can only be specified if the type of resource is a CUDA array or a CUDA mipmapped array not in a block compressed format.
@@ -4130,7 +4130,7 @@ unsafe extern "C" {
         pResViewDesc: *const cudaResourceViewDesc,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys a texture object.
     ///
     /// Destroys the texture object specified by `texObject`.
@@ -4140,7 +4140,7 @@ unsafe extern "C" {
     /// - `texObject`: - Texture object to destroy
     pub fn cudaDestroyTextureObject(texObject: cudaTextureObject_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a texture object’s resource descriptor.
     ///
     /// Returns the resource descriptor for the texture object specified by `texObject`.
@@ -4154,7 +4154,7 @@ unsafe extern "C" {
         texObject: cudaTextureObject_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a texture object’s texture descriptor.
     ///
     /// Returns the texture descriptor for the texture object specified by `texObject`.
@@ -4168,7 +4168,7 @@ unsafe extern "C" {
         texObject: cudaTextureObject_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a texture object’s resource view descriptor.
     ///
     /// Returns the resource view descriptor for the texture object specified by `texObject`. If no resource view was specified, [cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c) is returned.
@@ -4182,7 +4182,7 @@ unsafe extern "C" {
         texObject: cudaTextureObject_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a surface object.
     ///
     /// Creates a surface object and returns it in `pSurfObject`. `pResDesc` describes the data to perform surface load/stores on. [cudaResourceDesc::resType](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/structcudaResourceDesc.html#structcudaresourcedesc_1aaac8b3bb1d63bd25d8e9af7ee0b9a580) must be [`cudaResourceType::cudaResourceTypeArray`] and ::cudaResourceDesc::res::array::array must be set to a valid CUDA array handle.
@@ -4198,7 +4198,7 @@ unsafe extern "C" {
         pResDesc: *const cudaResourceDesc,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys a surface object.
     ///
     /// Destroys the surface object specified by `surfObject`.
@@ -4208,7 +4208,7 @@ unsafe extern "C" {
     /// - `surfObject`: - Surface object to destroy
     pub fn cudaDestroySurfaceObject(surfObject: cudaSurfaceObject_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a surface object’s resource descriptor Returns the resource descriptor for the surface object specified by `surfObject`.
     ///
     /// # Parameters
@@ -4220,7 +4220,7 @@ unsafe extern "C" {
         surfObject: cudaSurfaceObject_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the latest version of CUDA supported by the driver.
     ///
     /// Returns in `*driverVersion` the latest version of CUDA supported by the driver. The version is returned as (1000 major + 10 minor). For example, CUDA 9.2 would be represented by 9020. If no driver is installed, then 0 is returned as the driver version.
@@ -4232,7 +4232,7 @@ unsafe extern "C" {
     /// - `driverVersion`: - Returns the CUDA driver version.
     pub fn cudaDriverGetVersion(driverVersion: *mut ::core::ffi::c_int) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the CUDA Runtime version.
     ///
     /// Returns in `*runtimeVersion` the version number of the current CUDA Runtime instance. The version is returned as (1000 major + 10 minor). For example, CUDA 9.2 would be represented by 9020.
@@ -4265,7 +4265,7 @@ pub type cudaLogsCallback_t = ::core::option::Option<
         length: size_t,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Register a callback function to receive error log messages.
     ///
     /// # Parameters
@@ -4279,7 +4279,7 @@ unsafe extern "C" {
         callback_out: *mut cudaLogsCallbackHandle,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Unregister a log message callback.
     ///
     /// # Parameters
@@ -4287,7 +4287,7 @@ unsafe extern "C" {
     /// - `callback`: - The callback instance to unregister from receiving log messages
     pub fn cudaLogsUnregisterCallback(callback: cudaLogsCallbackHandle) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets log iterator to point to the end of log buffer, where the next message would be written.
     ///
     /// # Parameters
@@ -4299,7 +4299,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Dump accumulated driver logs into a file.
     ///
     /// Logs generated by the driver are stored in an internal buffer and can be copied out using this API. This API dumps all driver logs starting from `iterator` into `pathToFile` provided.
@@ -4315,7 +4315,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Dump accumulated driver logs into a buffer.
     ///
     /// Logs generated by the driver are stored in an internal buffer and can be copied out using this API. This API dumps driver logs from `iterator` into `buffer` up to the size specified in `*size`. The driver will always null terminate the buffer but there will not be a null character between log entries, only a newline \n. The driver will then return the actual number of bytes written in `*size`, excluding the null terminator. If there are no messages to dump, `*size` will be set to 0 and the function will return ::CUDA_SUCCESS. If the provided `buffer` is not large enough to hold any messages, `*size` will be set to 0 and the function will return ::CUDA_ERROR_INVALID_VALUE.
@@ -4333,7 +4333,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a graph.
     ///
     /// Creates an empty graph, which is returned via `pGraph`.
@@ -4347,7 +4347,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a kernel execution node and adds it to a graph.
     ///
     /// Creates a new kernel execution node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies` and arguments specified in `pNodeParams`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4383,7 +4383,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaKernelNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a kernel node’s parameters.
     ///
     /// Returns the parameters of kernel node `node` in `pNodeParams`. The `kernelParams` or `extra` array returned in `pNodeParams`, as well as the argument values it points to, are owned by the node. This memory remains valid until the node is destroyed or its parameters are modified, and should not be modified directly. Use [`cudaGraphKernelNodeSetParams`] to update the parameters of this node.
@@ -4399,7 +4399,7 @@ unsafe extern "C" {
         pNodeParams: *mut cudaKernelNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a kernel node’s parameters.
     ///
     /// Sets the parameters of kernel node `node` to `pNodeParams`.
@@ -4413,7 +4413,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaKernelNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Copies attributes from source node to destination node.
     ///
     /// Copies attributes from source node `hSrc` to destination node `hDst`. Both node must have the same context.
@@ -4427,7 +4427,7 @@ unsafe extern "C" {
         hSrc: cudaGraphNode_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Queries node attribute.
     ///
     /// Queries attribute `attr` from node `hNode` and stores it in corresponding member of `value_out`.
@@ -4437,7 +4437,7 @@ unsafe extern "C" {
         value_out: *mut cudaLaunchAttributeValue,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets node attribute.
     ///
     /// Sets attribute `attr` on node `hNode` from corresponding attribute of `value`.
@@ -4447,7 +4447,7 @@ unsafe extern "C" {
         value: *const cudaLaunchAttributeValue,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a memcpy node and adds it to a graph.
     ///
     /// Creates a new memcpy node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4471,7 +4471,7 @@ unsafe extern "C" {
         pCopyParams: *const cudaMemcpy3DParms,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a memcpy node to copy to a symbol on the device and adds it to a graph.
     ///
     /// Creates a new memcpy node to copy to `symbol` and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4503,7 +4503,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a memcpy node to copy from a symbol on the device and adds it to a graph.
     ///
     /// Creates a new memcpy node to copy from `symbol` and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4535,7 +4535,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a 1D memcpy node and adds it to a graph.
     ///
     /// Creates a new 1D memcpy node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4565,7 +4565,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a memcpy node’s parameters.
     ///
     /// Returns the parameters of memcpy node `node` in `pNodeParams`.
@@ -4579,7 +4579,7 @@ unsafe extern "C" {
         pNodeParams: *mut cudaMemcpy3DParms,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a memcpy node’s parameters.
     ///
     /// Sets the parameters of memcpy node `node` to `pNodeParams`.
@@ -4593,7 +4593,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaMemcpy3DParms,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a memcpy node’s parameters to copy to a symbol on the device.
     ///
     /// Sets the parameters of memcpy node `node` to the copy described by the provided parameters.
@@ -4617,7 +4617,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a memcpy node’s parameters to copy from a symbol on the device.
     ///
     /// Sets the parameters of memcpy node `node` to the copy described by the provided parameters.
@@ -4641,7 +4641,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a memcpy node’s parameters to perform a 1-dimensional copy.
     ///
     /// Sets the parameters of memcpy node `node` to the copy described by the provided parameters.
@@ -4663,7 +4663,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a memset node and adds it to a graph.
     ///
     /// Creates a new memset node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4685,7 +4685,7 @@ unsafe extern "C" {
         pMemsetParams: *const cudaMemsetParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a memset node’s parameters.
     ///
     /// Returns the parameters of memset node `node` in `pNodeParams`.
@@ -4699,7 +4699,7 @@ unsafe extern "C" {
         pNodeParams: *mut cudaMemsetParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a memset node’s parameters.
     ///
     /// Sets the parameters of memset node `node` to `pNodeParams`.
@@ -4713,7 +4713,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaMemsetParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a host execution node and adds it to a graph.
     ///
     /// Creates a new CPU execution node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies` and arguments specified in `pNodeParams`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4735,7 +4735,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaHostNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a host node’s parameters.
     ///
     /// Returns the parameters of host node `node` in `pNodeParams`.
@@ -4749,7 +4749,7 @@ unsafe extern "C" {
         pNodeParams: *mut cudaHostNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets a host node’s parameters.
     ///
     /// Sets the parameters of host node `node` to `nodeParams`.
@@ -4763,7 +4763,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaHostNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a child graph node and adds it to a graph.
     ///
     /// Creates a new node which executes an embedded graph, and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4787,7 +4787,7 @@ unsafe extern "C" {
         childGraph: cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Gets a handle to the embedded graph of a child graph node.
     ///
     /// Gets a handle to the embedded graph in a child graph node. This call does not clone the graph. Changes to the graph will be reflected in the node, and the node retains ownership of the graph.
@@ -4803,7 +4803,7 @@ unsafe extern "C" {
         pGraph: *mut cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an empty node and adds it to a graph.
     ///
     /// Creates a new node which performs no operation, and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4823,7 +4823,7 @@ unsafe extern "C" {
         numDependencies: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an event record node and adds it to a graph.
     ///
     /// Creates a new event record node and adds it to `hGraph` with `numDependencies` dependencies specified via `dependencies` and event specified in `event`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `dependencies` may not have any duplicate entries. A handle to the new node will be returned in `phGraphNode`.
@@ -4844,7 +4844,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the event associated with an event record node.
     ///
     /// Returns the event of event record node `hNode` in `event_out`.
@@ -4857,7 +4857,7 @@ unsafe extern "C" {
         event_out: *mut cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets an event record node’s event.
     ///
     /// Sets the event of event record node `hNode` to `event`.
@@ -4870,7 +4870,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an event wait node and adds it to a graph.
     ///
     /// Creates a new event wait node and adds it to `hGraph` with `numDependencies` dependencies specified via `dependencies` and event specified in `event`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `dependencies` may not have any duplicate entries. A handle to the new node will be returned in `phGraphNode`.
@@ -4891,7 +4891,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the event associated with an event wait node.
     ///
     /// Returns the event of event wait node `hNode` in `event_out`.
@@ -4904,7 +4904,7 @@ unsafe extern "C" {
         event_out: *mut cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets an event wait node’s event.
     ///
     /// Sets the event of event wait node `hNode` to `event`.
@@ -4917,7 +4917,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an external semaphore signal node and adds it to a graph.
     ///
     /// Creates a new external semaphore signal node and adds it to `graph` with `numDependencies` dependencies specified via `dependencies` and arguments specified in `nodeParams`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `dependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4939,7 +4939,7 @@ unsafe extern "C" {
         nodeParams: *const cudaExternalSemaphoreSignalNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns an external semaphore signal node’s parameters.
     ///
     /// Returns the parameters of an external semaphore signal node `hNode` in `params_out`. The `extSemArray` and `paramsArray` returned in `params_out`, are owned by the node. This memory remains valid until the node is destroyed or its parameters are modified, and should not be modified directly. Use [`cudaGraphExternalSemaphoresSignalNodeSetParams`] to update the parameters of this node.
@@ -4953,7 +4953,7 @@ unsafe extern "C" {
         params_out: *mut cudaExternalSemaphoreSignalNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets an external semaphore signal node’s parameters.
     ///
     /// Sets the parameters of an external semaphore signal node `hNode` to `nodeParams`.
@@ -4967,7 +4967,7 @@ unsafe extern "C" {
         nodeParams: *const cudaExternalSemaphoreSignalNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an external semaphore wait node and adds it to a graph.
     ///
     /// Creates a new external semaphore wait node and adds it to `graph` with `numDependencies` dependencies specified via `dependencies` and arguments specified in `nodeParams`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `dependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -4989,7 +4989,7 @@ unsafe extern "C" {
         nodeParams: *const cudaExternalSemaphoreWaitNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns an external semaphore wait node’s parameters.
     ///
     /// Returns the parameters of an external semaphore wait node `hNode` in `params_out`. The `extSemArray` and `paramsArray` returned in `params_out`, are owned by the node. This memory remains valid until the node is destroyed or its parameters are modified, and should not be modified directly. Use [`cudaGraphExternalSemaphoresSignalNodeSetParams`] to update the parameters of this node.
@@ -5003,7 +5003,7 @@ unsafe extern "C" {
         params_out: *mut cudaExternalSemaphoreWaitNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets an external semaphore wait node’s parameters.
     ///
     /// Sets the parameters of an external semaphore wait node `hNode` to `nodeParams`.
@@ -5017,7 +5017,7 @@ unsafe extern "C" {
         nodeParams: *const cudaExternalSemaphoreWaitNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an allocation node and adds it to a graph.
     ///
     /// Creates a new allocation node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies` and arguments specified in `nodeParams`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -5049,7 +5049,7 @@ unsafe extern "C" {
         nodeParams: *mut cudaMemAllocNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a memory alloc node’s parameters.
     ///
     /// Returns the parameters of a memory alloc node `hNode` in `params_out`. The `poolProps` and `accessDescs` returned in `params_out`, are owned by the node. This memory remains valid until the node is destroyed. The returned parameters must not be modified.
@@ -5063,7 +5063,7 @@ unsafe extern "C" {
         params_out: *mut cudaMemAllocNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a memory free node and adds it to a graph.
     ///
     /// Creates a new memory free node and adds it to `graph` with `numDependencies` dependencies specified via `pDependencies` and address specified in `dptr`. It is possible for `numDependencies` to be 0, in which case the node will be placed at the root of the graph. `pDependencies` may not have any duplicate entries. A handle to the new node will be returned in `pGraphNode`.
@@ -5087,7 +5087,7 @@ unsafe extern "C" {
         dptr: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a memory free node’s parameters.
     ///
     /// Returns the address of a memory free node `hNode` in `dptr_out`.
@@ -5101,7 +5101,7 @@ unsafe extern "C" {
         dptr_out: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Free unused memory that was cached on the specified device for use with graphs back to the OS.
     ///
     /// Blocks which are not in use by a graph that is either currently executing or scheduled to execute are freed back to the operating system.
@@ -5111,7 +5111,7 @@ unsafe extern "C" {
     /// - `device`: - The device for which cached memory should be freed.
     pub fn cudaDeviceGraphMemTrim(device: ::core::ffi::c_int) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query asynchronous allocation attributes related to graphs.
     ///
     /// Valid attributes are.
@@ -5127,7 +5127,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Set asynchronous allocation attributes related to graphs.
     ///
     /// Valid attributes are.
@@ -5143,7 +5143,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Clones a graph.
     ///
     /// This function creates a copy of `originalGraph` and returns it in `pGraphClone`. All parameters are copied into the cloned graph. The original graph may be modified after this call without affecting the clone.
@@ -5159,7 +5159,7 @@ unsafe extern "C" {
         originalGraph: cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Finds a cloned version of a node.
     ///
     /// This function returns the node in `clonedGraph` corresponding to `originalNode` in the original graph.
@@ -5177,7 +5177,7 @@ unsafe extern "C" {
         clonedGraph: cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a node’s type.
     ///
     /// Returns the node type of `node` in `pType`.
@@ -5191,7 +5191,7 @@ unsafe extern "C" {
         pType: *mut cudaGraphNodeType,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the graph that contains a given graph node.
     ///
     /// Returns the graph that contains `hNode` in `*phGraph`. If hNode is in a child graph, the child graph it is in is returned.
@@ -5205,7 +5205,7 @@ unsafe extern "C" {
         phGraph: *mut cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the node id of a given graph node.
     ///
     /// Returns the node id of `hNode` in `*nodeId`. The nodeId matches that referenced by [`cudaGraphDebugDotPrint`]. The local nodeId and graphId together can uniquely identify the node.
@@ -5219,7 +5219,7 @@ unsafe extern "C" {
         nodeId: *mut ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns an id used by tools to identify a given node.
     ///
     /// # Parameters
@@ -5230,7 +5230,7 @@ unsafe extern "C" {
         toolsNodeId: *mut ::core::ffi::c_ulonglong,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the id of a given graph.
     ///
     /// Returns the id of `hGraph` in `*graphId`. The value in `*graphId` matches that referenced by [`cudaGraphDebugDotPrint`].
@@ -5243,7 +5243,7 @@ unsafe extern "C" {
         graphID: *mut ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the id of a given graph exec.
     ///
     /// Returns the id of `hGraphExec` in `*graphId`. The value in `*graphId` matches that referenced by [`cudaGraphDebugDotPrint`].
@@ -5256,7 +5256,7 @@ unsafe extern "C" {
         graphID: *mut ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a graph’s nodes.
     ///
     /// Returns a list of `graph's` nodes. `nodes` may be NULL, in which case this function will return the number of nodes in `numNodes`. Otherwise, `numNodes` entries will be filled in. If `numNodes` is higher than the actual number of nodes, the remaining entries in `nodes` will be set to NULL, and the number of nodes actually obtained will be returned in `numNodes`.
@@ -5272,7 +5272,7 @@ unsafe extern "C" {
         numNodes: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a graph’s root nodes.
     ///
     /// Returns a list of `graph's` root nodes. `pRootNodes` may be NULL, in which case this function will return the number of root nodes in `pNumRootNodes`. Otherwise, `pNumRootNodes` entries will be filled in. If `pNumRootNodes` is higher than the actual number of root nodes, the remaining entries in `pRootNodes` will be set to NULL, and the number of nodes actually obtained will be returned in `pNumRootNodes`.
@@ -5288,7 +5288,7 @@ unsafe extern "C" {
         pNumRootNodes: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a graph’s dependency edges.
     ///
     /// Returns a list of `graph's` dependency edges. Edges are returned via corresponding indices in `from`, `to` and `edgeData`; that is, the node in `to`\[i\] has a dependency on the node in `from`\[i\] with data `edgeData`\[i\]. `from` and `to` may both be NULL, in which case this function only returns the number of edges in `numEdges`. Otherwise, `numEdges` entries will be filled in. If `numEdges` is higher than the actual number of edges, the remaining entries in `from` and `to` will be set to NULL, and the number of edges actually returned will be written to `numEdges`. `edgeData` may alone be NULL, in which case the edges must all have default (zeroed) edge data. Attempting a losst query via NULL `edgeData` will result in [cudaErrorLossyQuery](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038ad484d9d8e8f269cf93d4c111b646f908). If `edgeData` is non-NULL then `from` and `to` must be as well.
@@ -5308,7 +5308,7 @@ unsafe extern "C" {
         numEdges: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a node’s dependencies.
     ///
     /// Returns a list of `node's` dependencies. `pDependencies` may be NULL, in which case this function will return the number of dependencies in `pNumDependencies`. Otherwise, `pNumDependencies` entries will be filled in. If `pNumDependencies` is higher than the actual number of dependencies, the remaining entries in `pDependencies` will be set to NULL, and the number of nodes actually obtained will be returned in `pNumDependencies`.
@@ -5328,7 +5328,7 @@ unsafe extern "C" {
         pNumDependencies: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a node’s dependent nodes.
     ///
     /// Returns a list of `node's` dependent nodes. `pDependentNodes` may be NULL, in which case this function will return the number of dependent nodes in `pNumDependentNodes`. Otherwise, `pNumDependentNodes` entries will be filled in. If `pNumDependentNodes` is higher than the actual number of dependent nodes, the remaining entries in `pDependentNodes` will be set to NULL, and the number of nodes actually obtained will be returned in `pNumDependentNodes`.
@@ -5348,7 +5348,7 @@ unsafe extern "C" {
         pNumDependentNodes: *mut size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Adds dependency edges to a graph.
     ///
     /// The number of dependencies to be added is defined by `numDependencies` Elements in `pFrom` and `pTo` at corresponding indices define a dependency. Each node in `pFrom` and `pTo` must belong to `graph`.
@@ -5370,7 +5370,7 @@ unsafe extern "C" {
         numDependencies: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Removes dependency edges from a graph.
     ///
     /// The number of `pDependencies` to be removed is defined by `numDependencies`. Elements in `pFrom` and `pTo` at corresponding indices define a dependency. Each node in `pFrom` and `pTo` must belong to `graph`.
@@ -5392,7 +5392,7 @@ unsafe extern "C" {
         numDependencies: size_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Remove a node from the graph.
     ///
     /// Removes `node` from its graph. This operation also severs any dependencies of other nodes on `node` and vice versa.
@@ -5404,7 +5404,7 @@ unsafe extern "C" {
     /// - `node`: - Node to remove
     pub fn cudaGraphDestroyNode(node: cudaGraphNode_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an executable graph from a graph
     ///
     /// Instantiates `graph` as an executable graph. The graph is validated for any structural constraints or intra-node constraints which were not previously validated. If instantiation is successful, a handle to the instantiated graph is returned in `pGraphExec`.
@@ -5463,7 +5463,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_ulonglong,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an executable graph from a graph.
     ///
     /// Instantiates `graph` as an executable graph. The graph is validated for any structural constraints or intra-node constraints which were not previously validated. If instantiation is successful, a handle to the instantiated graph is returned in `pGraphExec`.
@@ -5487,7 +5487,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_ulonglong,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates an executable graph from a graph.
     ///
     /// Instantiates `graph` as an executable graph according to the `instantiateParams` structure. The graph is validated for any structural constraints or intra-node constraints which were not previously validated. If instantiation is successful, a handle to the instantiated graph is returned in `pGraphExec`.
@@ -5517,7 +5517,7 @@ unsafe extern "C" {
         instantiateParams: *mut cudaGraphInstantiateParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query the instantiation flags of an executable graph.
     ///
     /// Returns the flags that were passed to instantiation for the given executable graph. [cudaGraphInstantiateFlagUpload](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga638577f2b0f6a98b5e6a0e6a72d09004a565872dd74cc9d97125bf43740345238) will not be returned by this API as it does not affect the resulting executable graph.
@@ -5531,7 +5531,7 @@ unsafe extern "C" {
         flags: *mut ::core::ffi::c_ulonglong,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a kernel node in the given graphExec.
     ///
     /// Sets the parameters of a kernel node in an executable graph `hGraphExec`. The node is identified by the corresponding node `node` in the non-executable graph, from which the executable graph was instantiated.
@@ -5553,7 +5553,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaKernelNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a memcpy node in the given graphExec.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though `node` had contained `pNodeParams` at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5575,7 +5575,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaMemcpy3DParms,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a memcpy node in the given graphExec to copy to a symbol on the device.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though `node` had contained the given params at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5605,7 +5605,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a memcpy node in the given graphExec to copy from a symbol on the device.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though `node` had contained the given params at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5635,7 +5635,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a memcpy node in the given graphExec to perform a 1-dimensional copy.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though `node` had contained the given params at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5663,7 +5663,7 @@ unsafe extern "C" {
         kind: cudaMemcpyKind,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a memset node in the given graphExec.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though `node` had contained `pNodeParams` at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5689,7 +5689,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaMemsetParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for a host node in the given graphExec.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though `node` had contained `pNodeParams` at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5707,7 +5707,7 @@ unsafe extern "C" {
         pNodeParams: *const cudaHostNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Updates node parameters in the child graph node in the given graphExec.
     ///
     /// Updates the work represented by `node` in `hGraphExec` as though the nodes contained in `node's` graph had the parameters contained in `childGraph's` nodes at instantiation. `node` must remain in the graph which was used to instantiate `hGraphExec`. Changed edges to and from `node` are ignored.
@@ -5727,7 +5727,7 @@ unsafe extern "C" {
         childGraph: cudaGraph_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the event for an event record node in the given graphExec.
     ///
     /// Sets the event of an event record node in an executable graph `hGraphExec`. The node is identified by the corresponding node `hNode` in the non-executable graph, from which the executable graph was instantiated.
@@ -5745,7 +5745,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the event for an event wait node in the given graphExec.
     ///
     /// Sets the event of an event wait node in an executable graph `hGraphExec`. The node is identified by the corresponding node `hNode` in the non-executable graph, from which the executable graph was instantiated.
@@ -5763,7 +5763,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for an external semaphore signal node in the given graphExec.
     ///
     /// Sets the parameters of an external semaphore signal node in an executable graph `hGraphExec`. The node is identified by the corresponding node `hNode` in the non-executable graph, from which the executable graph was instantiated.
@@ -5785,7 +5785,7 @@ unsafe extern "C" {
         nodeParams: *const cudaExternalSemaphoreSignalNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets the parameters for an external semaphore wait node in the given graphExec.
     ///
     /// Sets the parameters of an external semaphore wait node in an executable graph `hGraphExec`. The node is identified by the corresponding node `hNode` in the non-executable graph, from which the executable graph was instantiated.
@@ -5807,7 +5807,7 @@ unsafe extern "C" {
         nodeParams: *const cudaExternalSemaphoreWaitNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Enables or disables the specified node in the given graphExec.
     ///
     /// Sets `hNode` to be either enabled or disabled. Disabled nodes are functionally equivalent to empty nodes until they are reenabled. Existing node parameters are not affected by disabling/enabling the node.
@@ -5829,7 +5829,7 @@ unsafe extern "C" {
         isEnabled: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Query whether a node in the given graphExec is enabled.
     ///
     /// Sets isEnabled to 1 if `hNode` is enabled, or 0 if `hNode` is disabled.
@@ -5849,7 +5849,7 @@ unsafe extern "C" {
         isEnabled: *mut ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Check whether an executable graph can be updated with a graph and perform the update if possible
     ///
     /// Updates the node parameters in the instantiated graph specified by `hGraphExec` with the node parameters in a topologically identical graph specified by `hGraph`.
@@ -5927,7 +5927,7 @@ unsafe extern "C" {
         resultInfo: *mut cudaGraphExecUpdateResultInfo,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Uploads an executable graph in a stream.
     ///
     /// Uploads `graphExec` to the device in `stream` without executing it. Uploads of the same `graphExec` will be serialized. Each upload is ordered behind both any previous work in `stream` and any previous launches of `graphExec`. Uses memory cached by `stream` to back the allocations owned by `graphExec`.
@@ -5941,7 +5941,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Launches an executable graph in a stream.
     ///
     /// Executes `graphExec` in `stream`. Only one instance of `graphExec` may be executing at a time. Each launch is ordered behind both any previous work in `stream` and any previous launches of `graphExec`. To execute a graph concurrently, it must be instantiated multiple times into multiple executable graphs.
@@ -5957,7 +5957,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys an executable graph.
     ///
     /// Destroys the executable graph specified by `graphExec`.
@@ -5967,7 +5967,7 @@ unsafe extern "C" {
     /// - `graphExec`: - Executable graph to destroy
     pub fn cudaGraphExecDestroy(graphExec: cudaGraphExec_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroys a graph.
     ///
     /// Destroys the graph specified by `graph`, as well as all of its nodes.
@@ -5977,7 +5977,7 @@ unsafe extern "C" {
     /// - `graph`: - Graph to destroy
     pub fn cudaGraphDestroy(graph: cudaGraph_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Write a DOT file describing graph structure.
     ///
     /// Using the provided `graph`, write to `path` a DOT formatted description of the graph. By default this includes the graph topology, node types, node id, kernel names and memcpy direction. `flags` can be specified to write more detailed information about each node type such as parameter values, kernel attributes, node and function handles.
@@ -5993,7 +5993,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Create a user object.
     ///
     /// Create a user object with the specified destructor callback and initial reference count. The initial references are owned by the caller.
@@ -6017,7 +6017,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Retain a reference to a user object.
     ///
     /// Retains new references to a user object. The new references are owned by the caller.
@@ -6033,7 +6033,7 @@ unsafe extern "C" {
         count: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Release a reference to a user object.
     ///
     /// Releases user object references owned by the caller. The object’s destructor is invoked if the reference count reaches zero.
@@ -6051,7 +6051,7 @@ unsafe extern "C" {
         count: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Retain a reference to a user object from a graph.
     ///
     /// Creates or moves user object references that will be owned by a CUDA graph.
@@ -6071,7 +6071,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Release a user object reference from a graph.
     ///
     /// Releases user object references owned by a graph.
@@ -6089,7 +6089,7 @@ unsafe extern "C" {
         count: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Adds a node of arbitrary type to a graph.
     ///
     /// Creates a new node in `graph` described by `nodeParams` with `numDependencies` dependencies specified via `pDependencies`. `numDependencies` may be 0. `pDependencies` may be null if `numDependencies` is 0. `pDependencies` may not have any duplicate entries.
@@ -6117,7 +6117,7 @@ unsafe extern "C" {
         nodeParams: *mut cudaGraphNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Update a graph node’s parameters.
     ///
     /// Sets the parameters of graph node `node` to `nodeParams`. The node type specified by `nodeParams->type` must match the type of `node`. `nodeParams` must be fully initialized and all unused bytes (reserved, padding) zeroed.
@@ -6133,7 +6133,7 @@ unsafe extern "C" {
         nodeParams: *mut cudaGraphNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a graph node’s parameters.
     ///
     /// Returns the parameters of graph node `node` in `*nodeParams`.
@@ -6151,7 +6151,7 @@ unsafe extern "C" {
         nodeParams: *mut cudaGraphNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Update a graph node’s parameters in an instantiated graph.
     ///
     /// Sets the parameters of a node in an executable graph `graphExec`. The node is identified by the corresponding node `node` in the non-executable graph from which the executable graph was instantiated. `node` must not have been removed from the original graph.
@@ -6171,7 +6171,7 @@ unsafe extern "C" {
         nodeParams: *mut cudaGraphNodeParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Create a conditional handle.
     ///
     /// Creates a conditional handle associated with `hGraph`.
@@ -6193,7 +6193,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Create a conditional handle.
     ///
     /// Creates a conditional handle associated with `hGraph`.
@@ -6217,7 +6217,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the requested driver API function pointer.
     ///
     /// Returns in `**funcPtr` the address of the CUDA driver function for the requested flags.
@@ -6247,7 +6247,7 @@ unsafe extern "C" {
         driverStatus: *mut cudaDriverEntryPointQueryResult,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the requested driver API function pointer by CUDA version.
     ///
     /// Returns in `**funcPtr` the address of the CUDA driver function for the requested flags and CUDA driver version.
@@ -6281,7 +6281,7 @@ unsafe extern "C" {
         driverStatus: *mut cudaDriverEntryPointQueryResult,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Load a library with specified code and options.
     ///
     /// Takes a pointer `code` and loads the corresponding library `library` based on the application defined library loading mode:
@@ -6315,7 +6315,7 @@ unsafe extern "C" {
         numLibraryOptions: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Load a library with specified file and options.
     ///
     /// Takes a pointer `code` and loads the corresponding library `library` based on the application defined library loading mode:
@@ -6349,7 +6349,7 @@ unsafe extern "C" {
         numLibraryOptions: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Unloads a library.
     ///
     /// Unloads the library specified with `library`.
@@ -6359,7 +6359,7 @@ unsafe extern "C" {
     /// - `library`: - Library to unload
     pub fn cudaLibraryUnload(library: cudaLibrary_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a kernel handle.
     ///
     /// Returns in `pKernel` the handle of the kernel with name `name` located in library `library`. If kernel handle is not found, the call returns [cudaErrorSymbolNotFound](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a9d51ecb21a3081d01e078d136c137593).
@@ -6375,7 +6375,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a global device pointer.
     ///
     /// Returns in `*dptr` and `*bytes` the base pointer and size of the global with name `name` for the requested library `library` and the current device. If no global for the requested name `name` exists, the call returns [cudaErrorSymbolNotFound](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a9d51ecb21a3081d01e078d136c137593). One of the parameters `dptr` or `bytes` (not both) can be NULL in which case it is ignored. The returned `dptr` cannot be passed to the Symbol APIs such as [`cudaMemcpyToSymbol`], [`cudaMemcpyFromSymbol`], [`cudaGetSymbolAddress`], or [`cudaGetSymbolSize`].
@@ -6393,7 +6393,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a pointer to managed memory.
     ///
     /// Returns in `*dptr` and `*bytes` the base pointer and size of the managed memory with name `name` for the requested library `library`. If no managed memory with the requested name `name` exists, the call returns [cudaErrorSymbolNotFound](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a9d51ecb21a3081d01e078d136c137593). One of the parameters `dptr` or `bytes` (not both) can be NULL in which case it is ignored. Note that managed memory for library `library` is shared across devices and is registered when the library is loaded. The returned `dptr` cannot be passed to the Symbol APIs such as [`cudaMemcpyToSymbol`], [`cudaMemcpyFromSymbol`], [`cudaGetSymbolAddress`], or [`cudaGetSymbolSize`].
@@ -6411,7 +6411,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns a pointer to a unified function.
     ///
     /// Returns in `*fptr` the function pointer to a unified function denoted by `symbol`. If no unified function with name `symbol` exists, the call returns [cudaErrorSymbolNotFound](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a9d51ecb21a3081d01e078d136c137593). If there is no device with attribute [cudaDeviceProp::unifiedFunctionPointers](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/structcudaDeviceProp.html#structcudadeviceprop_1a9f94309e6d30a640821cc9de9591e565) present in the system, the call may return [cudaErrorSymbolNotFound](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a9d51ecb21a3081d01e078d136c137593).
@@ -6427,7 +6427,7 @@ unsafe extern "C" {
         symbol: *const ::core::ffi::c_char,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the number of kernels within a library.
     ///
     /// Returns in `count` the number of kernels in `lib`.
@@ -6441,7 +6441,7 @@ unsafe extern "C" {
         lib: cudaLibrary_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Retrieve the kernel handles within a library.
     ///
     /// Returns in `kernels` a maximum number of `numKernels` kernel handles within `lib`. The returned kernel handle becomes invalid when the library is unloaded.
@@ -6457,7 +6457,7 @@ unsafe extern "C" {
         lib: cudaLibrary_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Sets information about a kernel.
     ///
     /// This call sets the value of a specified attribute `attr` on the kernel `kernel` for the requested device `device` to an integer value specified by `value`. This function returns [cudaSuccess](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038ae355f04607d824883b4a50662830d591) if the new value of the attribute could be successfully set. If the set fails, this call will return an error. Not all attributes can have values set. Attempting to set a value on a read-only attribute will result in an error ([cudaErrorInvalidValue](https://docs.nvidia.com/cuda/archive/13.4.2/cuda-runtime-api/cuda_runtime_api/group__CUDART__TYPES.html#group__cudart__types_1gga3f51e3575c2178246db0a94a430e0038a3e8aef5398ee38e28ed41e357b48917c))
@@ -6479,7 +6479,7 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get device resources.
     ///
     /// Get the `type` resources available to the `device`. This may often be the starting point for further partitioning or configuring of resources.
@@ -6497,7 +6497,7 @@ unsafe extern "C" {
         type_: cudaDevResourceType,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Splits [`cudaDevResourceType::cudaDevResourceTypeSm`] resources.
     ///
     /// Splits [`cudaDevResourceType::cudaDevResourceTypeSm`] resources into `nbGroups`, adhering to the minimum SM count specified in `minCount` and the usage flags in `flags`. If `result` is NULL, the API simulates a split and provides the amount of groups that would be created in `nbGroups`. Otherwise, `nbGroups` must point to the amount of elements in `result` and on return, the API will overwrite `nbGroups` with the amount actually created. The groups are written to the array in `result`. `nbGroups` can be less than the total amount if a smaller number of groups is needed.
@@ -6531,7 +6531,7 @@ unsafe extern "C" {
         minCount: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Splits a [`cudaDevResourceType::cudaDevResourceTypeSm`] resource into structured groups.
     ///
     /// This API will split a resource of [`cudaDevResourceType::cudaDevResourceTypeSm`] into `nbGroups` structured device resource groups (the `result` array), as well as an optional `remainder`, according to a set of requirements specified in the `groupParams` array. The term “structured” is a trait that specifies the `result` has SMs that are co-scheduled together. This co-scheduling can be specified via the `coscheduledSmCount` field of the `groupParams` structure, while the `smCount` will specify how many SMs are required in total for that result. The remainder is always “unstructured”, it does not have any set guarantees with respect to co-scheduling and those properties will need to either be queried via the occupancy set of APIs or further split into structured groups by this API.
@@ -6567,7 +6567,7 @@ unsafe extern "C" {
         groupParams: *mut cudaDevSmResourceGroupParams,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Generate a resource descriptor.
     ///
     /// Generates a single resource descriptor with the set of resources specified in `resources`. The generated resource descriptor is necessary for the creation of green contexts via the [`cudaGreenCtxCreate`] API. Resources of the same type can be passed in, provided they meet the requirements as noted below.
@@ -6587,7 +6587,7 @@ unsafe extern "C" {
         nbResources: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a green context with a specified set of resources.
     ///
     /// This API creates a green context with the resources specified in the descriptor `desc` and returns it in the handle represented by `phCtx`.
@@ -6611,7 +6611,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Destroy a execution context.
     ///
     /// Destroys the specified execution context `ctx`. It is the responsibility of the caller to ensure that no API call issues using `ctx` while [`cudaExecutionCtxDestroy`] is executing or subsequently.
@@ -6629,7 +6629,7 @@ unsafe extern "C" {
     /// - `ctx`: - Execution context to destroy (required parameter, see note below)
     pub fn cudaExecutionCtxDestroy(ctx: cudaExecutionContext_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get context resources.
     ///
     /// Get the `type` resources available to context represented by `ctx`.
@@ -6647,7 +6647,7 @@ unsafe extern "C" {
         type_: cudaDevResourceType,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the device handle for the execution context.
     ///
     /// Returns in `*device` the handle of the specified execution context’s device. The execution context should not be NULL.
@@ -6661,7 +6661,7 @@ unsafe extern "C" {
         ctx: cudaExecutionContext_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the unique Id associated with the execution context supplied.
     ///
     /// Returns in `ctxId` the unique Id which is associated with a given context. The Id is unique for the life of the program for this instance of CUDA. The execution context should not be NULL.
@@ -6675,7 +6675,7 @@ unsafe extern "C" {
         ctxId: *mut ::core::ffi::c_ulonglong,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Creates a stream and initializes it for the given execution context.
     ///
     /// The API creates a CUDA stream with the specified `flags` and `priority`, initializing it with resources as defined at the time of creating the specified `ctx`. Additionally, the API also enables work submitted to to the stream to be tracked under `ctx`.
@@ -6697,7 +6697,7 @@ unsafe extern "C" {
         priority: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Block for the specified execution context’s tasks to complete.
     ///
     /// Blocks until the specified execution context has completed all preceding requested tasks. If the specified execution context is the device (primary) context obtained via [`cudaDeviceGetExecutionCtx`], green contexts that have been created on the device will also be synchronized.
@@ -6709,7 +6709,7 @@ unsafe extern "C" {
     /// - `ctx`: - Execution context to synchronize (required parameter, see note below)
     pub fn cudaExecutionCtxSynchronize(ctx: cudaExecutionContext_t) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get stream resources.
     ///
     /// Get the `type` resources available to the `hStream` and store them in `resource`.
@@ -6727,7 +6727,7 @@ unsafe extern "C" {
         type_: cudaDevResourceType,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Records an event for the specified execution context.
     ///
     /// Captures in `event` all the activities of the execution context `ctx` at the time of this call. `event` and `ctx` must be from the same CUDA device, otherwise ::cudaErrorInvalidHandle will be returned. Calls such as [`cudaEventQuery`] or [`cudaExecutionCtxWaitEvent`] will then examine or wait for completion of the work that was captured. Uses of `ctx` after this call do not modify `event`. If the execution context passed to `ctx` is the device (primary) context obtained via [`cudaDeviceGetExecutionCtx`], `event` will capture all the activities of the green contexts created on the device as well.
@@ -6741,7 +6741,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Make an execution context wait on an event.
     ///
     /// Makes all future work submitted to execution context `ctx` wait for all work captured in `event`. The synchronization will be performed on the device and will not block the calling CPU thread. See [`cudaExecutionCtxRecordEvent`] for details on what is captured by an event. If the execution context passed to `ctx` is the device (primary) context obtained via [`cudaDeviceGetExecutionCtx`], all green contexts created on the device will wait for `event` as well.
@@ -6755,7 +6755,7 @@ unsafe extern "C" {
         event: cudaEvent_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Returns the execution context for a device.
     ///
     /// Returns in `ctx` the execution context for the specified device. This is the device’s primary context. The returned context can then be passed to APIs that take in a cudaExecutionContext_t enabling explicit context-based programming without relying on thread-local state.
@@ -6771,14 +6771,14 @@ unsafe extern "C" {
         device: ::core::ffi::c_int,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// impl_private
     pub fn cudaGetExportTable(
         ppExportTable: *mut *const ::core::ffi::c_void,
         pExportTableId: *const cudaUUID_t,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get pointer to device entry function that matches entry function `symbolPtr`.
     ///
     /// Returns in `functionPtr` the device entry function corresponding to the symbol `symbolPtr`.
@@ -6792,7 +6792,7 @@ unsafe extern "C" {
         symbolPtr: *const ::core::ffi::c_void,
     ) -> cudaError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::RUNTIME;
     /// Get pointer to device kernel that matches entry function `entryFuncAddr`.
     ///
     /// Returns in `kernelPtr` the device kernel corresponding to the entry function `entryFuncAddr`.

@@ -19,18 +19,19 @@ where
 {
     /// Expands C1 palette indices into the selected output sample type and channel layout.
     /// Uses the least significant `bit_size` bits of each source sample as a palette index.
-    /// The provided C1 outputs use one table value per index; packed C3 outputs use three
-    /// consecutive values per index. The table element type follows the selected conversion.
+    /// The provided C1 outputs use one table value per index; packed C3 outputs use three consecutive values per index.
+    /// The table element type follows the selected conversion.
     /// Prepares image and table regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
-    /// `bit_size` must be between one and the source element width in bits. The table must
-    /// contain at least `2^bit_size` entries of one C1 value or three packed C3 values. Required-length arithmetic is checked.
+    /// `bit_size` must be between one and the source element width in bits.
+    /// The table must contain at least `2^bit_size` entries of one C1 value or three packed C3 values.
+    /// Required-length arithmetic is checked.
     pub fn lookup_table_palette_to_into<D, L>(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C1>,
@@ -54,18 +55,19 @@ where
 
     /// Expands C1 palette indices into the selected output sample type and channel layout.
     /// Uses the least significant `bit_size` bits of each source sample as a palette index.
-    /// The provided C1 outputs use one table value per index; packed C3 outputs use three
-    /// consecutive values per index. The table element type follows the selected conversion.
+    /// The provided C1 outputs use one table value per index; packed C3 outputs use three consecutive values per index.
+    /// The table element type follows the selected conversion.
     /// Always allocates a new owned image with the source pixel dimensions.
     /// Prepares image and table regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// `bit_size` must be between one and the source element width in bits. The table must
-    /// contain at least `2^bit_size` entries of one C1 value or three packed C3 values. Required-length arithmetic is checked.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// `bit_size` must be between one and the source element width in bits.
+    /// The table must contain at least `2^bit_size` entries of one C1 value or three packed C3 values.
+    /// Required-length arithmetic is checked.
     /// Image allocation or view construction can also fail.
     pub fn lookup_table_palette_to<D, L>(
         self,

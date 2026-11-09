@@ -58,6 +58,7 @@ impl Engine {
                 for source in sources {
                     data.extend_from_slice(&self.source(lane, source, *ty)?.to_le_bytes()[..bytes]);
                 }
+
                 self.store_memory(global, lane, address, &data, data.len(), *space)?;
             }
             MemoryOperation::ConvertAddress {
@@ -121,8 +122,7 @@ impl Engine {
     }
 }
 
-/// Returns the value an atomic operation stores, given the old memory value and its operand;
-/// `compare` is the resolved comparand of a compare-and-swap.
+/// Returns the value an atomic operation stores, given the old memory value and its operand; `compare` is the resolved comparand of a compare-and-swap.
 fn atomic_update(
     op: &Atomic,
     ty: ScalarType,

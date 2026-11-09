@@ -2018,7 +2018,7 @@ pub struct cudssThreadingInterface_t {
         ) -> ::core::ffi::c_int,
     >,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets a parameter ([`cudssConfigParam_t`]) to the specified value passed by the pointer.
     ///
     /// # Parameters
@@ -2034,7 +2034,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves value of a parameter ([`cudssConfigParam_t`]) and saves it to the specified memory location.
     ///
     /// # Parameters
@@ -2052,7 +2052,7 @@ unsafe extern "C" {
         sizeWritten: *mut size_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets a parameter ([`cudssDataParam_t`]) to the specified value passed by the pointer.
     ///
     /// # Parameters
@@ -2070,7 +2070,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves value of a parameter ([`cudssDataParam_t`]) and saves it to the specified memory location.
     ///
     /// The output memory buffer can be either on device or on host, a memory copy will be done if necessary.
@@ -2092,7 +2092,7 @@ unsafe extern "C" {
         sizeWritten: *mut size_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function executes a phase of the solution process. Prior to calling [`cudssExecute`],
     /// all objects passed as parameters must already be created and properly initialized.
     ///
@@ -2169,7 +2169,7 @@ unsafe extern "C" {
         rhs: cudssMatrix_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets the stream to be used by the cuDSS library to execute its routines.
     ///
     /// # Parameters
@@ -2178,7 +2178,7 @@ unsafe extern "C" {
     /// - `stream`: \[host\] The stream used by the library.
     pub fn cudssSetStream(handle: cudssHandle_t, stream: cudaStream_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets per-device streams to be used by the cuDSS library in multi-GPU mode.
     /// This function should be used when the library handle was created with [`cudssCreateMg`].
     ///
@@ -2204,7 +2204,7 @@ unsafe extern "C" {
         stream_count: ::core::ffi::c_int,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets the communication layer to be used in [MGMN mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-gpu-multi-node-mgmn-mode)
     ///
     /// of cuDSS. The set communication layer will be used for all MGMN mode operations where the
@@ -2230,7 +2230,7 @@ unsafe extern "C" {
         commLibFileName: *const ::core::ffi::c_char,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets the threading layer to be used in [MT mode](https://docs.nvidia.com/cuda/cudss/advanced_features.html#multi-threaded-mt-mode)
     /// of cuDSS. The set threading layer will be used for all MT mode operations where the
     /// modified library handle is involved.
@@ -2245,7 +2245,7 @@ unsafe extern "C" {
         thrLibFileName: *const ::core::ffi::c_char,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS config object ([`cudssConfig_t`]) which holds the settings of the solver related
     ///
     /// to solving a specific linear system. It allocates light resources on the host.
@@ -2253,11 +2253,11 @@ unsafe extern "C" {
     /// To release the allocated memory, [`cudssConfigDestroy`] must be called.
     pub fn cudssConfigCreate(solverConfig: *mut cudssConfig_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function releases the host resources used by the cuDSS config object. Using the config object after this function call can lead to undefined behavior.
     pub fn cudssConfigDestroy(solverConfig: cudssConfig_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS data object ([`cudssData_t`]) which holds the internal data (e.g., LU factors arrays)
     /// as well as pointers to user-provided data related to solving a specific linear system.
     /// To release the allocated memory, [`cudssDataDestroy`] must be called.
@@ -2270,7 +2270,7 @@ unsafe extern "C" {
         solverData: *mut cudssData_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function releases the hardware resources used by the cuDSS data object. Using the data object after this function call can lead to undefined behavior.
     ///
     /// # Parameters
@@ -2281,7 +2281,7 @@ unsafe extern "C" {
         solverData: cudssData_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS library handle ([`cudssHandle_t`]) which holds the cuDSS library context.
     /// It allocates light hardware resources on the host, and must be called prior to making any other cuDSS library calls.
     /// Calling any cuDSS function which uses [`cudssHandle_t`] without a previous call of [`cudssCreate`] will return an error.
@@ -2292,7 +2292,7 @@ unsafe extern "C" {
     /// - `handle`: \[host\] cuDSS library handle.
     pub fn cudssCreate(handle: *mut cudssHandle_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the cuDSS library handle ([`cudssHandle_t`]) which holds the cuDSS library context for multiple devices.
     /// Calling any cuDSS function which uses [`cudssHandle_t`] without a previous call of [`cudssCreateMg`] will return an error.
     /// The cuDSS library context is tied to the CUDA devices defined by `device_count` number and `device_indices` array.
@@ -2314,7 +2314,7 @@ unsafe extern "C" {
         device_indices: *const ::core::ffi::c_int,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function releases hardware resources used by the cuDSS library.
     /// This function is the last call with a particular handle to the cuDSS library.
     /// Calling any cuDSS function which uses [`cudssHandle_t`] after [`cudssDestroy`] will return an error.
@@ -2324,7 +2324,7 @@ unsafe extern "C" {
     /// - `handle`: \[host\] cuDSS library handle.
     pub fn cudssDestroy(handle: cudssHandle_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function returns the value of the requested property. Refer to [`libraryPropertyType`] for supported types.
     ///
     /// The enum [`libraryPropertyType`] is defined in `library_types.h` (standard CUDA header file).
@@ -2339,7 +2339,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_int,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function creates a matrix object wrapped around dense matrix data.
     /// The provided data buffer for the matrix values must hold device-visible data.
     ///
@@ -2366,7 +2366,7 @@ unsafe extern "C" {
         layout: cudssLayout_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function creates a matrix object wrapped around sparse matrix data.
     /// The provided data buffers for `rowStart`, `rowEnd`, `colIndices` and `values` can hold either device or host memory pointers.
     /// Passing host memory pointers avoids redundant device-to-host data movements when the data resides on the host.
@@ -2415,7 +2415,7 @@ unsafe extern "C" {
         indexBase: cudssIndexBase_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function creates a matrix object wrapped around a batch of dense matrices.
     /// The provided data buffer for the matrix values must contain device-visible pointers to device-visible data.
     ///
@@ -2448,7 +2448,7 @@ unsafe extern "C" {
         layout: cudssLayout_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function creates a matrix object wrapped around a batch of sparse matrices (CSR format).
     /// The provided data buffer for `rowStart`, `rowEnd`, `colIndices` and `values` must contain device-visible pointers to device-visible data.
     ///
@@ -2494,7 +2494,7 @@ unsafe extern "C" {
         indexBase: cudssIndexBase_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function releases memory associated with the matrix wrapper. As cuDSS matrix objects are only lightweight wrappers around the user data,
     /// the user data remains untouched.
     ///
@@ -2503,7 +2503,7 @@ unsafe extern "C" {
     /// - `matrix`: \[host\] cuDSS matrix object.
     pub fn cudssMatrixDestroy(matrix: cudssMatrix_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves dense matrix properties and data from a cuDSS matrix object which holds a dense matrix.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
@@ -2525,7 +2525,7 @@ unsafe extern "C" {
         layout: *mut cudssLayout_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves sparse matrix properties and data from a cuDSS matrix object which holds a CSR sparse matrix.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
@@ -2562,7 +2562,7 @@ unsafe extern "C" {
         indexBase: *mut cudssIndexBase_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function resets the pointer to values inside the cuDSS matrix object to the provided buffer.
     /// The provided data buffer must hold device-visible data.
     ///
@@ -2575,7 +2575,7 @@ unsafe extern "C" {
         values: *const ::core::ffi::c_void,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function resets the CSR pointers inside the cuDSS matrix object to the provided buffers.
     /// The provided data buffers must hold device-visible data.
     ///
@@ -2593,7 +2593,7 @@ unsafe extern "C" {
         values: *const ::core::ffi::c_void,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves dense matrix properties and data from a cuDSS matrix object which holds a batch of dense matrices.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
@@ -2620,7 +2620,7 @@ unsafe extern "C" {
         layout: *mut cudssLayout_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves sparse matrix properties and data from a cuDSS matrix object which holds a batch of CSR sparse matrices.
     /// If on input any of the pointers is NULL, it is ignored and the corresponding value is not returned.
     ///
@@ -2659,7 +2659,7 @@ unsafe extern "C" {
         indexBase: *mut cudssIndexBase_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function resets the pointer to values inside the cuDSS matrix object to the provided buffer.
     /// The provided data buffer for the matrix values must contain device-visible pointers to device-visible data.
     ///
@@ -2672,7 +2672,7 @@ unsafe extern "C" {
         values: *const *const ::core::ffi::c_void,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function resets the CSR pointers inside the cuDSS matrix object to the provided buffers.
     /// The provided data buffer for `rowStart`, `rowEnd`, `colIndices` and `values` must contain device-visible pointers to device-visible data.
     ///
@@ -2690,7 +2690,7 @@ unsafe extern "C" {
         values: *const *const ::core::ffi::c_void,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function returns into the provided buffer the matrix format (as an `int` which can be a combination of bit flags
     /// defined in [`cudssMatrixFormat_t`]) of the cuDSS matrix object.
     ///
@@ -2703,7 +2703,7 @@ unsafe extern "C" {
         format: *mut ::core::ffi::c_int,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets the 1D distribution for the matrix (CSR or Dense) for the MGMN mode.
     /// The provided `first_row` and `last_row` must be always 0-based and specify the first and the last (included) row indices of the local matrix on the calling process.
     /// Setting `first_row` > `last_row` means that the local matrix is empty for the calling process.
@@ -2726,7 +2726,7 @@ unsafe extern "C" {
         last_row: i64,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function retrieves 1D distribution boundaries (first and last row indices) from a cuDSS matrix object.
     /// For the non-MGMN mode the function returns `first_row` equals to 0 and `last_row` equal to `nrows - 1`.
     ///
@@ -2741,7 +2741,7 @@ unsafe extern "C" {
         last_row: *mut i64,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the current device memory handler.
     ///
     /// # Parameters
@@ -2753,7 +2753,7 @@ unsafe extern "C" {
         handler: *mut cudssDeviceMemHandler_t,
     ) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the current device memory handler inside the library handle.
     ///
     /// If `handler` argument is set to NULL, the library handle will detach its existing memory handler from the library handle.
@@ -2792,7 +2792,7 @@ pub type cudssLoggerCallback_t = ::core::option::Option<
         message: *const ::core::ffi::c_char,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets a custom callback function to receive log messages.
     ///
     /// The callback is invoked synchronously from the calling thread and must not call any cuDSS API functions (may cause deadlocks).
@@ -2807,7 +2807,7 @@ unsafe extern "C" {
     /// - `callback`: \[host\] Pointer to callback function (see [`cudssLoggerCallback_t`]), or NULL to disable.
     pub fn cudssLoggerSetCallback(callback: cudssLoggerCallback_t) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Redirects log output to an already-opened file handle.
     ///
     /// Pass `NULL` to disable log output entirely.
@@ -2827,7 +2827,7 @@ unsafe extern "C" {
     /// - `file`: \[host\] Pointer to open file with write permission, or `NULL` to disable logging.
     pub fn cudssLoggerSetFile(file: *mut FILE) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Opens a file and redirects log output to it. The file is opened in write mode (“w”), truncating any existing content.
     ///
     /// Multiple calls automatically close the previous file. Parent directories must exist beforehand.
@@ -2842,7 +2842,7 @@ unsafe extern "C" {
     /// - `logFile`: \[host\] Path to the log file.
     pub fn cudssLoggerOpenFile(logFile: *const ::core::ffi::c_char) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the logging level to control which messages are output.
     ///
     /// # Parameters
@@ -2850,7 +2850,7 @@ unsafe extern "C" {
     /// - `level`: \[host\] Log level. Refer to [cuDSS Logging Features](https://docs.nvidia.com/cuda/cudss/logging.html#cudss-logging-features) for specific logging level values.
     pub fn cudssLoggerSetLevel(level: ::core::ffi::c_int) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the logging mask for fine-grained control over which log types are output.
     ///
     /// # Parameters
@@ -2858,7 +2858,7 @@ unsafe extern "C" {
     /// - `mask`: \[host\] Bitwise OR of masks. Refer to [cuDSS Logging Features](https://docs.nvidia.com/cuda/cudss/logging.html#cudss-logging-features) for specific logging mask values.
     pub fn cudssLoggerSetMask(mask: ::core::ffi::c_int) -> cudssStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Permanently and irreversibly disables all logging for the entire process.
     ///
     /// Once called, logging cannot be re-enabled for the lifetime of the process.

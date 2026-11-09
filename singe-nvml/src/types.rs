@@ -162,9 +162,12 @@ bitflags::bitflags! {
     /// Flags controlling a Windows driver-model change.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct DriverModelFlags: u32 {
-        /// Generic flag used to specify the default behavior of some functions. See description of particular functions for details.
+        /// Generic flag used to specify the default behavior of some functions.
+        /// See description of particular functions for details.
         ///
-        /// Default flag. Generic flag used to force some behavior. See description of particular functions for details.
+        /// Default flag.
+        /// Generic flag used to force some behavior.
+        /// See description of particular functions for details.
         const DEFAULT = sys::nvmlFlagDefault;
         /// Force flag.
         const FORCE = sys::nvmlFlagForce;
@@ -287,7 +290,8 @@ impl FieldId {
     /// `NVLink` State - one of `NVML_NVLINK_STATE`_\* values.
     pub const NVLINK_GET_STATE: Self = Self(sys::NVML_FI_DEV_NVLINK_GET_STATE);
 
-    /// GPU Recovery action. See [nvmlDeviceGpuRecoveryAction_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#group__nvmlvgpustructs_1ga9951f808183aa36957a968358dd791fb).
+    /// GPU Recovery action.
+    /// See [nvmlDeviceGpuRecoveryAction_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlVgpuStructs.html#group__nvmlvgpustructs_1ga9951f808183aa36957a968358dd791fb).
     pub const GET_GPU_RECOVERY_ACTION: Self = Self(sys::NVML_FI_DEV_GET_GPU_RECOVERY_ACTION);
 
     /// Number of groups with no spare bankremap availability.
@@ -309,70 +313,110 @@ impl FieldId {
 
     /// Field Identifiers.
     ///
-    /// All Identifiers pertain to a device. Each ID is only used once and is guaranteed never to change. Current ECC mode. 1=Active. 0=Inactive.
+    /// All Identifiers pertain to a device.
+    /// Each ID is only used once and is guaranteed never to change.
+    /// Current ECC mode. 1=Active. 0=Inactive.
     pub const ECC_CURRENT: Self = Self(sys::NVML_FI_DEV_ECC_CURRENT);
+
     /// Pending ECC mode. 1=Active. 0=Inactive.
     pub const ECC_PENDING: Self = Self(sys::NVML_FI_DEV_ECC_PENDING);
+
     /// Number of retired pages because of single bit errors.
     pub const RETIRED_SBE: Self = Self(sys::NVML_FI_DEV_RETIRED_SBE);
+
     /// Number of retired pages because of double bit errors.
     pub const RETIRED_DBE: Self = Self(sys::NVML_FI_DEV_RETIRED_DBE);
+
     /// If any pages are pending retirement. 1=yes. 0=no.
     pub const RETIRED_PENDING: Self = Self(sys::NVML_FI_DEV_RETIRED_PENDING);
+
     /// Memory temperature for the device.
     pub const MEMORY_TEMP: Self = Self(sys::NVML_FI_DEV_MEMORY_TEMP);
+
     /// Total energy consumption for the GPU in mJ since the driver was last reloaded.
     pub const TOTAL_ENERGY_CONSUMPTION: Self = Self(sys::NVML_FI_DEV_TOTAL_ENERGY_CONSUMPTION);
+
     /// `PCIe` replay counter.
     pub const PCIE_REPLAY_COUNTER: Self = Self(sys::NVML_FI_DEV_PCIE_REPLAY_COUNTER);
+
     /// Number of remapped rows due to correctable errors.
     pub const REMAPPED_CORRECTED_ROWS: Self = Self(sys::NVML_FI_DEV_REMAPPED_COR);
+
     /// Number of remapped rows due to uncorrectable errors.
     pub const REMAPPED_UNCORRECTED_ROWS: Self = Self(sys::NVML_FI_DEV_REMAPPED_UNC);
+
     /// If any rows are pending remapping. 1=yes 0=no.
     pub const REMAPPED_PENDING: Self = Self(sys::NVML_FI_DEV_REMAPPED_PENDING);
+
     /// If any rows failed to be remapped 1=yes 0=no.
     pub const REMAPPED_FAILURE: Self = Self(sys::NVML_FI_DEV_REMAPPED_FAILURE);
+
     /// Retrieves power usage for this GPU in milliwatts.
     ///
-    /// It is only available if power management mode is supported. See `nvmlDeviceGetPowerManagementMode` and `nvmlDeviceGetPowerUsage`.
+    /// It is only available if power management mode is supported.
+    /// See `nvmlDeviceGetPowerManagementMode` and `nvmlDeviceGetPowerUsage`.
     ///
-    /// scopeId needs to be specified. It signifies: 0 - GPU Only Scope - Metrics for GPU are retrieved 1 - Module scope - Metrics for the module (e.g. CPU + GPU) are retrieved. 2 - GPU base scope - GPU base Power metrics are retrieved. Note: Only supports _`MIN_LIMIT`, _`MAX_LIMIT`, _`DEFAULT_LIMIT`, and _`CURRENT_LIMIT` fields. Note: CPU here refers to NVIDIA CPU (e.g. Grace). x86 or non-NVIDIA ARM is not supported GPU power averaged over 1 sec interval, supported on Ampere (except GA100) or newer architectures.
+    /// scopeId needs to be specified.
+    /// It signifies: 0 - GPU Only Scope - Metrics for GPU are retrieved 1 - Module scope - Metrics for the module (e.g. CPU + GPU) are retrieved. 2 - GPU base scope - GPU base Power metrics are retrieved.
+    /// Note: Only supports _`MIN_LIMIT`, _`MAX_LIMIT`, _`DEFAULT_LIMIT`, and _`CURRENT_LIMIT` fields.
+    /// Note: CPU here refers to NVIDIA CPU (e.g. Grace). x86 or non-NVIDIA ARM is not supported GPU power averaged over 1 sec interval, supported on Ampere (except GA100) or newer architectures.
     pub const POWER_AVERAGE: Self = Self(sys::NVML_FI_DEV_POWER_AVERAGE);
+
     /// Current GPU power, supported on all architectures.
     pub const POWER_INSTANT: Self = Self(sys::NVML_FI_DEV_POWER_INSTANT);
+
     /// Minimum power limit in milliwatts.
     pub const POWER_MIN_LIMIT: Self = Self(sys::NVML_FI_DEV_POWER_MIN_LIMIT);
+
     /// Maximum power limit in milliwatts.
     pub const POWER_MAX_LIMIT: Self = Self(sys::NVML_FI_DEV_POWER_MAX_LIMIT);
+
     /// Default power limit in milliwatts (limit which device boots with).
     pub const POWER_DEFAULT_LIMIT: Self = Self(sys::NVML_FI_DEV_POWER_DEFAULT_LIMIT);
+
     /// Limit currently enforced in milliwatts (This includes other limits set elsewhere. E.g. Out-of-band).
     pub const POWER_CURRENT_LIMIT: Self = Self(sys::NVML_FI_DEV_POWER_CURRENT_LIMIT);
-    /// Total energy consumption (in mJ) since the driver was last reloaded. Same as `NVML_FI_DEV_TOTAL_ENERGY_CONSUMPTION` for the GPU.
+
+    /// Total energy consumption (in mJ) since the driver was last reloaded.
+    /// Same as `NVML_FI_DEV_TOTAL_ENERGY_CONSUMPTION` for the GPU.
     pub const ENERGY: Self = Self(sys::NVML_FI_DEV_ENERGY);
+
     /// Power limit requested by NVML or any other userspace client.
     pub const POWER_REQUESTED_LIMIT: Self = Self(sys::NVML_FI_DEV_POWER_REQUESTED_LIMIT);
-    /// `PCIe` transmit bytes. Value can be wrapped.
+
+    /// `PCIe` transmit bytes.
+    /// Value can be wrapped.
     pub const PCIE_TX_BYTES: Self = Self(sys::NVML_FI_DEV_PCIE_COUNT_TX_BYTES);
-    /// `PCIe` receive bytes. Value can be wrapped.
+
+    /// `PCIe` receive bytes.
+    /// Value can be wrapped.
     pub const PCIE_RX_BYTES: Self = Self(sys::NVML_FI_DEV_PCIE_COUNT_RX_BYTES);
+
     /// `NVLink` throughput counters field values.
     ///
-    /// Link ID needs to be specified in the scopeId field in [nvmlFieldValue_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlFieldValue__t.html#structnvmlfieldvalue__t). A scopeId of `UINT_MAX` returns aggregate value summed up across all links for the specified counter type in fieldId. `NVLink` TX Data throughput in KiB.
+    /// Link ID needs to be specified in the scopeId field in [nvmlFieldValue_t](https://docs.nvidia.com/deploy/nvml-api/latest/api/structnvmlFieldValue__t.html#structnvmlfieldvalue__t).
+    /// A scopeId of `UINT_MAX` returns aggregate value summed up across all links for the specified counter type in fieldId.
+    /// `NVLink` TX Data throughput in KiB.
     pub const NVLINK_THROUGHPUT_DATA_TX: Self = Self(sys::NVML_FI_DEV_NVLINK_THROUGHPUT_DATA_TX);
+
     /// `NVLink` RX Data throughput in KiB.
     pub const NVLINK_THROUGHPUT_DATA_RX: Self = Self(sys::NVML_FI_DEV_NVLINK_THROUGHPUT_DATA_RX);
+
     /// `NVLink` TX Data + protocol overhead in KiB.
     pub const NVLINK_THROUGHPUT_RAW_TX: Self = Self(sys::NVML_FI_DEV_NVLINK_THROUGHPUT_RAW_TX);
+
     /// `NVLink` RX Data + protocol overhead in KiB.
     pub const NVLINK_THROUGHPUT_RAW_RX: Self = Self(sys::NVML_FI_DEV_NVLINK_THROUGHPUT_RAW_RX);
+
     /// Perf Policy Counter for Power Policy.
     pub const PERF_POLICY_POWER: Self = Self(sys::NVML_FI_DEV_PERF_POLICY_POWER);
+
     /// Perf Policy Counter for Thermal Policy.
     pub const PERF_POLICY_THERMAL: Self = Self(sys::NVML_FI_DEV_PERF_POLICY_THERMAL);
+
     /// Perf Policy Counter for Sync boost Policy.
     pub const PERF_POLICY_SYNC_BOOST: Self = Self(sys::NVML_FI_DEV_PERF_POLICY_SYNC_BOOST);
+
     /// Perf Policy Counter for Board Limit.
     pub const PERF_POLICY_BOARD_LIMIT: Self = Self(sys::NVML_FI_DEV_PERF_POLICY_BOARD_LIMIT);
 
@@ -393,7 +437,8 @@ impl FieldId {
 
     /// GPU T.Limit temperature thresholds in degree Celsius.
     ///
-    /// These fields are supported on Ada and later architectures and supersedes `nvmlDeviceGetTemperatureThreshold`. T.Limit temperature after which GPU may shut down for HW protection.
+    /// These fields are supported on Ada and later architectures and supersedes `nvmlDeviceGetTemperatureThreshold`.
+    /// T.Limit temperature after which GPU may shut down for HW protection.
     pub const TEMPERATURE_SHUTDOWN_TLIMIT: Self =
         Self(sys::NVML_FI_DEV_TEMPERATURE_SHUTDOWN_TLIMIT);
 
@@ -1825,8 +1870,10 @@ impl GpmMetricId {
 
     /// Percentage of SMs that were busy. 0.0 - 100.0.
     pub const SM_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_UTIL as _);
+
     /// Percentage of warps that were active vs theoretical maximum. 0.0 - 100.0.
     pub const SM_OCCUPANCY: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_SM_OCCUPANCY as _);
+
     /// Percentage of time the GPU's SMs were doing integer operations. 0.0 - 100.0.
     pub const INTEGER_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_INTEGER_UTIL as _);
 
@@ -1848,10 +1895,13 @@ impl GpmMetricId {
 
     /// Percentage of DRAM bw used vs theoretical maximum. 0.0 - 100.0 \*/.
     pub const DRAM_BW_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_DRAM_BW_UTIL as _);
+
     /// Percentage of time the GPU's SMs were doing non-tensor FP64 math. 0.0 - 100.0.
     pub const FP64_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP64_UTIL as _);
+
     /// Percentage of time the GPU's SMs were doing non-tensor FP32 math. 0.0 - 100.0.
     pub const FP32_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP32_UTIL as _);
+
     /// Percentage of time the GPU's SMs were doing non-tensor FP16 math. 0.0 - 100.0.
     pub const FP16_UTIL: Self = Self(sys::nvmlGpmMetricId_t::NVML_GPM_METRIC_FP16_UTIL as _);
 
@@ -2226,7 +2276,8 @@ impl_enum_conversion!(u32, sys::nvmlTemperatureThresholds_t, TemperatureThreshol
 
 /// Compute mode.
 ///
-/// `nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_PROCESS` was added in CUDA 4.0. Earlier CUDA versions supported a single exclusive mode, which is equivalent to `nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_THREAD` in CUDA 4.0 and beyond.
+/// `nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_PROCESS` was added in CUDA 4.0.
+/// Earlier CUDA versions supported a single exclusive mode, which is equivalent to `nvmlComputeMode_t::NVML_COMPUTEMODE_EXCLUSIVE_THREAD` in CUDA 4.0 and beyond.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -2456,35 +2507,50 @@ pub enum PowerProfileType {
     MaxQ2 = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q_2 as _,
     /// `MaxQ1`.
     MaxQ1 = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q_1 as _,
-    /// Identifies the native maximum-performance workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native maximum-performance workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     MaxP = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_P as _,
-    /// Identifies the native Max-Q workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native Max-Q workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     MaxQ = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX_Q as _,
-    /// Identifies the native compute workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native compute workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Compute = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_COMPUTE as _,
-    /// Identifies the native memory-bound workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native memory-bound workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     MemoryBound = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MEMORY_BOUND as _,
-    /// Identifies the native network workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native network workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Network = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_NETWORK as _,
-    /// Identifies the native balanced workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native balanced workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Balanced = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_BALANCED as _,
-    /// Identifies the native large-language-model inference workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native large-language-model inference workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     LlmInference = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_LLM_INFERENCE as _,
-    /// Identifies the native large-language-model training workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native large-language-model training workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     LlmTraining = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_LLM_TRAINING as _,
-    /// Identifies the native RBM workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native RBM workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Rbm = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_RBM as _,
-    /// Identifies the native DCPCIE workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native DCPCIE workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Dcpcie = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_DCPCIE as _,
-    /// Identifies the native sparse HMMA workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native sparse HMMA workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     HmmaSparse = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HMMA_SPARSE as _,
-    /// Identifies the native dense HMMA workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native dense HMMA workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     HmmaDense = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HMMA_DENSE as _,
-    /// Identifies the native synchronized balanced workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native synchronized balanced workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     SyncBalanced = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_SYNC_BALANCED as _,
-    /// Identifies the native high-performance-computing workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native high-performance-computing workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Hpc = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_HPC as _,
-    /// Identifies the native MIG workload power profile. The identifier selects a bit in workload profile masks.
+    /// Identifies the native MIG workload power profile.
+    /// The identifier selects a bit in workload profile masks.
     Mig = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MIG as _,
     /// One past the last workload power profile identifier defined by this header; used for bounds checks.
     Max = sys::nvmlPowerProfileType_t::NVML_POWER_PROFILE_MAX as _,
@@ -2638,7 +2704,8 @@ pub struct ConfComputeKeyRotationThreshold {
 pub enum ClockId {
     /// Current actual clock value.
     Current = sys::nvmlClockId_t::NVML_CLOCK_ID_CURRENT as _,
-    /// Target application clock. Deprecated, do not use.
+    /// Target application clock.
+    /// Deprecated, do not use.
     #[deprecated]
     AppClockTarget = sys::nvmlClockId_t::NVML_CLOCK_ID_APP_CLOCK_TARGET as _,
     /// Default application clock target Deprecated, do not use.
@@ -2915,7 +2982,12 @@ impl_enum_conversion!(u32, sys::nvmlMemoryErrorType_t, MemoryErrorType);
 
 /// ECC counter types.
 ///
-/// Note: Volatile counts are reset each time the driver loads. On Windows this is once per boot. On Linux this can be more frequent. On Linux the driver unloads when no active clients exist. If persistence mode is enabled or there is always a driver client active (e.g. X11), then Linux also sees per-boot behavior. If not, volatile counts are reset each time a compute app is run.
+/// Note: Volatile counts are reset each time the driver loads.
+/// On Windows this is once per boot.
+/// On Linux this can be more frequent.
+/// On Linux the driver unloads when no active clients exist.
+/// If persistence mode is enabled or there is always a driver client active (e.g. X11), then Linux also sees per-boot behavior.
+/// If not, volatile counts are reset each time a compute app is run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -3162,7 +3234,8 @@ impl_enum_conversion!(u32, sys::nvmlEncoderType_t, EncoderType);
 #[repr(u32)]
 #[non_exhaustive]
 pub enum RestrictedApi {
-    /// APIs that change application clocks, see nvmlDeviceSetApplicationsClocks and see nvmlDeviceResetApplicationsClocks. Deprecated, keeping definition for backward compatibility.
+    /// APIs that change application clocks, see nvmlDeviceSetApplicationsClocks and see nvmlDeviceResetApplicationsClocks.
+    /// Deprecated, keeping definition for backward compatibility.
     #[deprecated]
     SetApplicationsClocks =
         sys::nvmlRestrictedAPI_t::NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS as _,
@@ -3244,7 +3317,8 @@ pub enum CoolerTarget {
     Memory = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_MEMORY as _,
     /// This cooler can cool the power supply.
     PowerSupply = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_POWER_SUPPLY as _,
-    /// This cooler cools all of the components related to its target gpu. `GPU_RELATED` = GPU | MEMORY | `POWER_SUPPLY`.
+    /// This cooler cools all of the components related to its target gpu.
+    /// `GPU_RELATED` = GPU | MEMORY | `POWER_SUPPLY`.
     GpuRelated = sys::nvmlCoolerTarget_t::NVML_THERMAL_COOLER_TARGET_GPU_RELATED as _,
 }
 
@@ -3298,7 +3372,8 @@ impl_enum_conversion!(u32, sys::nvmlDriverModel_t, DriverModel);
 pub enum GpuOperationMode {
     /// Everything is enabled and running at full speed.
     AllOn = sys::nvmlGpuOperationMode_t::NVML_GOM_ALL_ON as _,
-    /// Designed for running only compute tasks. Graphics operations are not allowed.
+    /// Designed for running only compute tasks.
+    /// Graphics operations are not allowed.
     Compute = sys::nvmlGpuOperationMode_t::NVML_GOM_COMPUTE as _,
     /// Designed for running graphics applications that don't require high bandwidth double precision.
     LowDp = sys::nvmlGpuOperationMode_t::NVML_GOM_LOW_DP as _,
@@ -3611,6 +3686,7 @@ impl From<VgpuTypeCapability> for sys::nvmlVgpuCapability_t {
 impl VgpuTypeCapability {
     /// P2P over `NVLink` is supported.
     pub const NVLINK_P2P: Self = Self(sys::nvmlVgpuCapability_t::NVML_VGPU_CAP_NVLINK_P2P);
+
     /// `GPUDirect` capability is supported.
     pub const GPUDIRECT: Self = Self(sys::nvmlVgpuCapability_t::NVML_VGPU_CAP_GPUDIRECT);
 }
@@ -3968,13 +4044,18 @@ pub struct FieldSample {
 /// GPU utilization, memory use, and timing statistics for a process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct AccountingStats {
-    /// Percent of time over the process's lifetime during which one or more kernels was executing on the GPU. Utilization stats just like returned by [nvmlDeviceGetUtilizationRates](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceQueries.html#group__nvmldevicequeries_1ga30e0516c86aa5f98196c73f05c77d4df) but for the life time of a process (not just the last sample period). Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlDeviceGetUtilizationRates is not supported.
+    /// Percent of time over the process's lifetime during which one or more kernels was executing on the GPU.
+    /// Utilization stats just like returned by [nvmlDeviceGetUtilizationRates](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceQueries.html#group__nvmldevicequeries_1ga30e0516c86aa5f98196c73f05c77d4df) but for the life time of a process (not just the last sample period).
+    /// Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlDeviceGetUtilizationRates is not supported.
     pub gpu_utilization: u32,
-    /// Percent of time over the process's lifetime during which global (device) memory was being read or written. Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlDeviceGetUtilizationRates is not supported.
+    /// Percent of time over the process's lifetime during which global (device) memory was being read or written.
+    /// Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlDeviceGetUtilizationRates is not supported.
     pub memory_utilization: u32,
-    /// Maximum total memory in bytes that was ever allocated by the process. Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlProcessInfo_t->usedGpuMemory is not supported.
+    /// Maximum total memory in bytes that was ever allocated by the process.
+    /// Set to `NVML_VALUE_NOT_AVAILABLE` if nvmlProcessInfo_t->usedGpuMemory is not supported.
     pub max_memory_usage: u64,
-    /// Amount of time in ms during which the compute context was active. The time is reported as 0 if the process is not terminated.
+    /// Amount of time in ms during which the compute context was active.
+    /// The time is reported as 0 if the process is not terminated.
     pub time: u64,
     /// CPU Timestamp in usec representing start time for the process.
     pub start_time: u64,
@@ -4135,7 +4216,8 @@ pub struct DeviceAttributes {
 /// GPU placement and hardware identifiers reported by the platform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PlatformInfo {
-    /// InfiniBand GUID reported by the platform. On Blackwell, bytes 8 through 15 are zero.
+    /// InfiniBand GUID reported by the platform.
+    /// On Blackwell, bytes 8 through 15 are zero.
     pub ib_guid: [u8; 16],
     /// Serial number of the chassis containing this GPU (for Blackwell it is 13 bytes so indices 13-15 are zero).
     pub chassis_serial_number: [u8; 16],
@@ -4981,6 +5063,7 @@ fn metadata_opaque_data(
             actual: raw.len(),
         });
     }
+
     let opaque_size = read_u32_at(raw, opaque_size_offset) as usize;
     let opaque_end = opaque_offset.saturating_add(opaque_size);
     if raw.len() < opaque_end {
@@ -6153,7 +6236,10 @@ bitflags::bitflags! {
         const SW_POWER_CAP = sys::nvmlClocksEventReasonSwPowerCap as u64;
         /// Sync Boost.
         ///
-        /// This GPU has been added to a Sync boost group with nvidia-smi or DCGM in order to maximize performance per watt. All GPUs in the sync boost group will boost to the minimum possible clocks across the entire group. Look at the throttle reasons for other GPUs in the system to see why those GPUs are holding this one at lower clocks. Sync boost activated.
+        /// This GPU has been added to a Sync boost group with nvidia-smi or DCGM in order to maximize performance per watt.
+        /// All GPUs in the sync boost group will boost to the minimum possible clocks across the entire group.
+        /// Look at the throttle reasons for other GPUs in the system to see why those GPUs are holding this one at lower clocks.
+        /// Sync boost activated.
         const SYNC_BOOST = sys::nvmlClocksEventReasonSyncBoost as u64;
         /// SW Thermal Slowdown.
         ///
@@ -6170,11 +6256,13 @@ bitflags::bitflags! {
         const DISPLAY_CLOCK_SETTING = sys::nvmlClocksEventReasonDisplayClockSetting as u64;
         /// Board limit.
         ///
-        /// The board limit (operating) policy is currently limiting the GPU clocks. Board limit policy is limiting clocks.
+        /// The board limit (operating) policy is currently limiting the GPU clocks.
+        /// Board limit policy is limiting clocks.
         const BOARD_LIMIT = sys::nvmlClocksEventReasonBoardLimit as u64;
         /// Reliability.
         ///
-        /// The reliability policy is currently limiting the GPU clocks. Reliability policy is limiting clocks.
+        /// The reliability policy is currently limiting the GPU clocks.
+        /// Reliability policy is limiting clocks.
         const RELIABILITY = sys::nvmlClocksEventReasonReliability as u64;
     }
 }

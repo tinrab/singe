@@ -634,13 +634,14 @@ pub enum EventAttributeValue {
 pub enum EventCollectionMode {
     /// Events are collected for the whole interval while the event group is enabled.
     ///
-    /// Event values are reset when the events are read. For CUDA toolkit v6.0 and older this was the default mode.
+    /// Event values are reset when the events are read.
+    /// For CUDA toolkit v6.0 and older this was the default mode.
     Continuous = sys::CUpti_EventCollectionMode::CUPTI_EVENT_COLLECTION_MODE_CONTINUOUS as _,
     /// Events are collected only while kernels execute during the enabled interval.
     ///
-    /// Event values are reset when each kernel begins. Read values after each kernel launch
-    /// when they need to be associated with individual launches. This mode serializes kernels
-    /// on the GPU and is the default mode from CUDA toolkit 6.5 onward.
+    /// Event values are reset when each kernel begins.
+    /// Read values after each kernel launch when they need to be associated with individual launches.
+    /// This mode serializes kernels on the GPU and is the default mode from CUDA toolkit 6.5 onward.
     Kernel = sys::CUpti_EventCollectionMode::CUPTI_EVENT_COLLECTION_MODE_KERNEL as _,
     /// Reserved integer sentinel from CUPTI.
     ForceInt = sys::CUpti_EventCollectionMode::CUPTI_EVENT_COLLECTION_MODE_FORCE_INT as _,
@@ -895,8 +896,7 @@ pub enum CallbackIdState {
     Invalid = sys::CUpti_CallbackIdState::CUPTI_CBID_STATE_INVALID as _,
     /// High-impact, non-recoverable error notification.
     ///
-    /// CUPTI finalizes itself before issuing this callback; subscribers decide whether the
-    /// application should continue without profiling or terminate.
+    /// CUPTI finalizes itself before issuing this callback; subscribers decide whether the application should continue without profiling or terminate.
     FatalError = sys::CUpti_CallbackIdState::CUPTI_CBID_STATE_FATAL_ERROR as _,
     /// Notification of non fatal errors - high impact, but recoverable.
     Error = sys::CUpti_CallbackIdState::CUPTI_CBID_STATE_ERROR as _,
@@ -921,15 +921,15 @@ pub enum ActivityKind {
     Invalid = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INVALID as _,
     /// A host-to-host, host-to-device, or device-to-device memory copy record.
     ///
-    /// CUPTI emits this as [`crate::activity::ActivityMemoryCopy`]. Use
-    /// [`ActivityKind::PeerMemoryCopy`] for peer-to-peer copies.
+    /// CUPTI emits this as [`crate::activity::ActivityMemoryCopy`].
+    /// Use [`ActivityKind::PeerMemoryCopy`] for peer-to-peer copies.
     MemoryCopy = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_MEMCPY as _,
     /// A GPU memory set record emitted as [`crate::activity::ActivityMemorySet`].
     MemorySet = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_MEMSET as _,
     /// A serialized GPU kernel execution record emitted as [`crate::activity::ActivityKernel`].
     ///
-    /// This kind serializes kernel execution. Prefer [`ActivityKind::ConcurrentKernel`] when
-    /// kernel concurrency should be preserved.
+    /// This kind serializes kernel execution.
+    /// Prefer [`ActivityKind::ConcurrentKernel`] when kernel concurrency should be preserved.
     Kernel = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_KERNEL as _,
     /// A CUDA driver API call record emitted as [`crate::activity::ActivityApi`].
     Driver = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_DRIVER as _,
@@ -937,13 +937,11 @@ pub enum ActivityKind {
     Runtime = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_RUNTIME as _,
     /// A legacy event counter record emitted as [`crate::activity::ActivityEvent`].
     ///
-    /// This kind is populated from Event API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Event API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     Event = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_EVENT as _,
     /// A legacy metric value record emitted as [`crate::activity::ActivityMetric`].
     ///
-    /// This kind is populated from Metric API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Metric API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     Metric = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_METRIC as _,
     /// CUDA device information emitted as [`crate::activity::ActivityDevice`].
     Device = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_DEVICE as _,
@@ -983,15 +981,13 @@ pub enum ActivityKind {
     Environment = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_ENVIRONMENT as _,
     /// Legacy event counter instance record emitted as [`crate::activity::ActivityEventInstance`].
     ///
-    /// This kind is populated from Event API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Event API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     EventInstance = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_EVENT_INSTANCE as _,
     /// A peer-to-peer memory copy record emitted as [`crate::activity::ActivityPeerMemoryCopy`].
     PeerMemoryCopy = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_MEMCPY2 as _,
     /// Legacy metric instance record emitted as [`crate::activity::ActivityMetricInstance`].
     ///
-    /// This kind is populated from Metric API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Metric API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     MetricInstance = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_METRIC_INSTANCE as _,
     /// Legacy source-level instruction execution record emitted as [`crate::activity::ActivityInstructionExecution`].
     ///
@@ -1024,8 +1020,8 @@ pub enum ActivityKind {
         sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_PC_SAMPLING_RECORD_INFO as _,
     /// Legacy SASS/source correlation record emitted as [`crate::activity::ActivityInstructionCorrelation`].
     ///
-    /// CUPTI emits these records when source-level analysis or PC sampling is enabled. This kind
-    /// is unsupported starting with CUDA 13.0; use the SASS Metric APIs instead.
+    /// CUPTI emits these records when source-level analysis or PC sampling is enabled.
+    /// This kind is unsupported starting with CUDA 13.0; use the SASS Metric APIs instead.
     InstructionCorrelation =
         sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INSTRUCTION_CORRELATION as _,
     /// `OpenACC` data event record emitted as [`crate::activity::ActivityOpenAccTransfer`].
@@ -1046,24 +1042,20 @@ pub enum ActivityKind {
     NvLink = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_NVLINK as _,
     /// Legacy instantaneous event record emitted as [`crate::activity::ActivityInstantaneousEvent`].
     ///
-    /// This kind is populated from Event API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Event API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     InstantaneousEvent = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INSTANTANEOUS_EVENT as _,
     /// Legacy instantaneous event instance record emitted as [`crate::activity::ActivityInstantaneousEventInstance`].
     ///
-    /// This kind is populated from Event API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Event API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     InstantaneousEventInstance =
         sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INSTANTANEOUS_EVENT_INSTANCE as _,
     /// Legacy instantaneous metric record emitted as [`crate::activity::ActivityInstantaneousMetric`].
     ///
-    /// This kind is populated from Metric API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Metric API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     InstantaneousMetric = sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INSTANTANEOUS_METRIC as _,
     /// Legacy instantaneous metric instance record emitted as [`crate::activity::ActivityInstantaneousMetricInstance`].
     ///
-    /// This kind is populated from Metric API collection, is not directly enabled or disabled,
-    /// and is unsupported starting with CUDA 13.0.
+    /// This kind is populated from Metric API collection, is not directly enabled or disabled, and is unsupported starting with CUDA 13.0.
     InstantaneousMetricInstance =
         sys::CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_INSTANTANEOUS_METRIC_INSTANCE as _,
     /// Legacy memory allocation record emitted as [`crate::activity::ActivityLegacyMemory`].
@@ -1576,144 +1568,153 @@ impl_enum_conversion!(sys::CUpti_ExternalCorrelationKind, ExternalCorrelationKin
 #[non_exhaustive]
 /// Activity API configuration attribute.
 pub enum ActivityAttribute {
-    /// Per-context device buffer size, in bytes, for concurrent kernel, memory copy,
-    /// and memory set activity data.
+    /// Per-context device buffer size, in bytes, for concurrent kernel, memory copy, and memory set activity data.
     ///
-    /// The attribute value is a `usize`. Larger buffers reduce dropped timestamps but reserve
-    /// more device memory. The default is 3,200,000 bytes. This only affects future buffer
-    /// allocations, so set it before CUDA initialization or context creation when possible.
+    /// The attribute value is a `usize`.
+    /// Larger buffers reduce dropped timestamps but reserve more device memory.
+    /// The default is 3,200,000 bytes.
+    /// This only affects future buffer allocations, so set it before CUDA initialization or context creation when possible.
     ///
-    /// Device buffer count is controlled by [`ActivityAttribute::DeviceBufferPoolLimit`], and
-    /// pre-allocation is controlled by [`ActivityAttribute::DeviceBufferPreAllocateValue`].
+    /// Device buffer count is controlled by [`ActivityAttribute::DeviceBufferPoolLimit`], and pre-allocation is controlled by [`ActivityAttribute::DeviceBufferPreAllocateValue`].
     DeviceBufferSize = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_SIZE as _,
     /// Per-context device buffer size, in bytes, for CUDA Dynamic Parallelism activity data.
     ///
-    /// The attribute value is a `usize`. Larger buffers reduce flushes but reserve more
-    /// device memory. The default is 8 MiB and only future allocations are affected.
+    /// The attribute value is a `usize`.
+    /// Larger buffers reduce flushes but reserve more device memory.
+    /// The default is 8 MiB and only future allocations are affected.
     DeviceBufferSizeCudaDynamicParallelism =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_SIZE_CDP as _,
     /// Maximum number of activity device buffers CUPTI may allocate per context.
     ///
-    /// The attribute value is a `usize`. Raising the limit can help high-rate kernel, memory
-    /// copy, and memory set workloads at the cost of a larger memory footprint. The default is
-    /// 250 and only future allocations are affected.
+    /// The attribute value is a `usize`.
+    /// Raising the limit can help high-rate kernel, memory copy, and memory set workloads at the cost of a larger memory footprint.
+    /// The default is 250 and only future allocations are affected.
     DeviceBufferPoolLimit =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_POOL_LIMIT as _,
     /// Deprecated profiling semaphore pool size.
     ///
-    /// The attribute value is a `usize`. CUPTI no longer uses profiling semaphore pools
-    /// starting with CUDA 12.3.
+    /// The attribute value is a `usize`.
+    /// CUPTI no longer uses profiling semaphore pools starting with CUDA 12.3.
     #[deprecated]
     ProfilingSemaphorePoolSize =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_POOL_SIZE as _,
     /// Deprecated maximum number of profiling semaphore pools per context.
     ///
-    /// The attribute value is a `usize`. CUPTI no longer uses profiling semaphore pools
-    /// starting with CUDA 12.3.
+    /// The attribute value is a `usize`.
+    /// CUPTI no longer uses profiling semaphore pools starting with CUDA 12.3.
     #[deprecated]
     ProfilingSemaphorePoolLimit =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_POOL_LIMIT as _,
     /// Controls whether callers provide zero-initialized activity buffers.
     ///
-    /// The attribute value is a `u8`. Zero means CUPTI clears buffers before filling them;
-    /// nonzero means the buffer callback must return an already-zeroed buffer. The default is 0.
+    /// The attribute value is a `u8`.
+    /// Zero means CUPTI clears buffers before filling them; nonzero means the buffer callback must return an already-zeroed buffer.
+    /// The default is 0.
     ZeroedOutActivityBuffer =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ZEROED_OUT_ACTIVITY_BUFFER as _,
     /// Number of activity device buffers to pre-allocate during context initialization.
     ///
-    /// The attribute value is a `usize` and must be lower than
-    /// [`ActivityAttribute::DeviceBufferPoolLimit`]. The default is 3.
+    /// The attribute value is a `usize` and must be lower than [`ActivityAttribute::DeviceBufferPoolLimit`].
+    /// The default is 3.
     DeviceBufferPreAllocateValue =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_PRE_ALLOCATE_VALUE as _,
     /// Deprecated number of profiling semaphore pools to pre-allocate during context initialization.
     ///
-    /// The attribute value is a `usize`. CUPTI no longer uses profiling semaphore pools
-    /// starting with CUDA 12.3.
+    /// The attribute value is a `usize`.
+    /// CUPTI no longer uses profiling semaphore pools starting with CUDA 12.3.
     #[deprecated]
     ProfilingSemaphorePreAllocateValue =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_PROFILING_SEMAPHORE_PRE_ALLOCATE_VALUE
             as _,
     /// Chooses page-locked host memory for activity profiling buffers.
     ///
-    /// The attribute value is a `u8`. Zero selects device memory, nonzero selects pinned host
-    /// memory. Pinned host buffers are not supported on confidential-computing devices.
+    /// The attribute value is a `u8`.
+    /// Zero selects device memory, nonzero selects pinned host memory.
+    /// Pinned host buffers are not supported on confidential-computing devices.
     MemAllocationTypeHostPinned =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_MEM_ALLOCATION_TYPE_HOST_PINNED as _,
     /// Stores activity records in per-thread activity buffers.
     ///
-    /// The attribute value is a `u8`. Set it before registering activity buffer callbacks and
-    /// before enabling activity kinds. The default is 1.
+    /// The attribute value is a `u8`.
+    /// Set it before registering activity buffer callbacks and before enabling activity kinds.
+    /// The default is 1.
     PerThreadActivityBuffer =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_PER_THREAD_ACTIVITY_BUFFER as _,
     /// Per-context device buffer size, in bytes, for device graph activity data.
     ///
-    /// The attribute value is a `usize`. Larger buffers reduce flushes but reserve more
-    /// device memory. The default is 16 MiB and only future allocations are affected.
+    /// The attribute value is a `usize`.
+    /// Larger buffers reduce flushes but reserve more device memory.
+    /// The default is 16 MiB and only future allocations are affected.
     DeviceBufferSizeDeviceGraphs =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_SIZE_DEVICE_GRAPHS as _,
     /// Enables user-defined activity records.
     ///
-    /// The attribute value is a `u8`. When enabled, CUPTI emits only fields selected for
-    /// collection by the user. This requires CUPTI API version 13.2 or newer and must be set
-    /// before enabling any activity kinds.
+    /// The attribute value is a `u8`.
+    /// When enabled, CUPTI emits only fields selected for collection by the user.
+    /// This requires CUPTI API version 13.2 or newer and must be set before enabling any activity kinds.
     UserDefinedRecords =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_USER_DEFINED_RECORDS as _,
     /// Reports or configures multiple-subscriber support.
     ///
-    /// The attribute value is a `u8`: 0 disables multiple subscribers, 1 enables them, and 2
-    /// means no earlier subscriber has chosen a value. Query through the
-    /// activity attribute API but is selected during subscription.
+    /// The attribute value is a `u8`: 0 disables multiple subscribers, 1 enables them, and 2 means no earlier subscriber has chosen a value.
+    /// Query through the activity attribute API but is selected during subscription.
     MultipleSubscriberState =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_MULTIPLE_SUBSCRIBER_STATE as _,
     /// Enables the Hardware Events System globally for activity collection.
     ///
-    /// The attribute value is a `u8`. Set it before any subscriber enables activity kinds.
+    /// The attribute value is a `u8`.
+    /// Set it before any subscriber enables activity kinds.
     EnableHes = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_HES as _,
     /// Enables allocation source library tracking for a subscriber.
     ///
-    /// The attribute value is a `u8`. It cannot be combined with the older
-    /// allocation-source enable API when multiple subscribers are allowed.
+    /// The attribute value is a `u8`.
+    /// It cannot be combined with the older allocation-source enable API when multiple subscribers are allowed.
     EnableAllocationSourceTracking =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_ALLOCATION_SOURCE_TRACKING as _,
     /// Enables kernel latency timestamp collection for a subscriber.
     ///
-    /// The attribute value is a `u8`. The default is disabled.
+    /// The attribute value is a `u8`.
+    /// The default is disabled.
     EnableKernelLatencyTimestamps =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_KERNEL_LATENCY_TIMESTAMPS as _,
     /// Enables synchronization records even for synchronization calls that return errors.
     ///
-    /// The attribute value is a `u8`. The default is disabled.
+    /// The attribute value is a `u8`.
+    /// The default is disabled.
     EnableAllSyncRecords =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_ALL_SYNC_RECORDS as _,
     /// Enables device timestamp collection for CUDA event activity records.
     ///
-    /// The attribute value is a `u8`. The default is disabled.
+    /// The attribute value is a `u8`.
+    /// The default is disabled.
     EnableCudaEventDeviceTimestamps =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_CUDA_EVENT_DEVICE_TIMESTAMPS as _,
     /// Enables kernel launch attribute collection for kernel activity records.
     ///
-    /// The attribute value is a `u8`. The default is disabled.
+    /// The attribute value is a `u8`.
+    /// The default is disabled.
     EnableKernelLaunchAttributes =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_KERNEL_LAUNCH_ATTRIBUTES as _,
     /// Enables device graph trace collection for graph activity records.
     ///
-    /// The attribute value is a `u8`. The default is disabled.
+    /// The attribute value is a `u8`.
+    /// The default is disabled.
     EnableDeviceGraphTrace =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_DEVICE_GRAPH_TRACE as _,
     /// Enables graph-level tracing in multi-subscriber mode.
     ///
-    /// The attribute value is a `u8`. The default is disabled.
+    /// The attribute value is a `u8`.
+    /// The default is disabled.
     EnableMultiSubscriberGraphLevelTrace =
         sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_ENABLE_MULTI_SUBSCRIBER_GRAPH_TRACE as _,
     /// Selects the thread ID source used in activity records.
     ///
-    /// The attribute value is an [`ActivityThreadIdType`]. The default is
-    /// [`ActivityThreadIdType::Default`].
+    /// The attribute value is an [`ActivityThreadIdType`].
+    /// The default is [`ActivityThreadIdType::Default`].
     ThreadIdType = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_THREAD_ID_TYPE as _,
     /// Registers or removes the timestamp callback used for activity records.
     ///
-    /// The attribute value is a CUPTI timestamp callback pointer; null unregisters the callback
-    /// and restores CUPTI's default CPU timer.
+    /// The attribute value is a CUPTI timestamp callback pointer; null unregisters the callback and restores CUPTI's default CPU timer.
     TimestampCallback = sys::CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_TIMESTAMP_CALLBACK as _,
     /// Configures CUDA in Graphics (CIG) mode for activity collection.
     ///
@@ -2653,15 +2654,18 @@ pub enum ActivityUnifiedMemoryCounterKind {
     GpuPageFault = sys::CUpti_ActivityUnifiedMemoryCounterKind::CUPTI_ACTIVITY_UNIFIED_MEMORY_COUNTER_KIND_GPU_PAGE_FAULT as _,
     /// Thrashing occurs when data is frequently accessed by multiple processors and has to be constantly migrated around to achieve data locality.
     ///
-    /// In this case the overhead of migration may exceed the benefits of locality. This is only supported on 64 bit Linux platforms.
+    /// In this case the overhead of migration may exceed the benefits of locality.
+    /// This is only supported on 64 bit Linux platforms.
     Thrashing = sys::CUpti_ActivityUnifiedMemoryCounterKind::CUPTI_ACTIVITY_UNIFIED_MEMORY_COUNTER_KIND_THRASHING as _,
     /// Throttling is a prevention technique used by the driver to avoid further thrashing.
     ///
-    /// Here, the driver doesn’t service the fault for one of the contending processors for a specific period of time, so that the other processor can run at full-speed. This is only supported on 64 bit Linux platforms.
+    /// Here, the driver doesn’t service the fault for one of the contending processors for a specific period of time, so that the other processor can run at full-speed.
+    /// This is only supported on 64 bit Linux platforms.
     Throttling = sys::CUpti_ActivityUnifiedMemoryCounterKind::CUPTI_ACTIVITY_UNIFIED_MEMORY_COUNTER_KIND_THROTTLING as _,
     /// In case throttling does not help, the driver tries to pin the memory to a processor for a specific period of time.
     ///
-    /// One of the contending processors will have slow access to the memory, while the other will have fast access. This is only supported on 64 bit Linux platforms.
+    /// One of the contending processors will have slow access to the memory, while the other will have fast access.
+    /// This is only supported on 64 bit Linux platforms.
     RemoteMap = sys::CUpti_ActivityUnifiedMemoryCounterKind::CUPTI_ACTIVITY_UNIFIED_MEMORY_COUNTER_KIND_REMOTE_MAP as _,
     /// Number of bytes transferred from one device to another device.
     ///
@@ -3079,7 +3083,7 @@ impl ActivityPcSamplingConfig {
     pub(crate) fn to_raw(self) -> sys::CUpti_ActivityPCSamplingConfig {
         sys::CUpti_ActivityPCSamplingConfig {
             size: u32::try_from(size_of::<sys::CUpti_ActivityPCSamplingConfig>())
-                .expect("PC sampling configuration fits its ABI size field"),
+                .expect("the PC sampling configuration fits its ABI size field"),
             samplingPeriod: self.sampling_period.into(),
             samplingPeriod2: self.sampling_period2,
         }
@@ -4151,6 +4155,7 @@ impl Display for EventGroupAttributeValue {
                     if index != 0 {
                         write!(f, ", ")?;
                     }
+
                     write!(f, "{}", event.get())?;
                 }
                 write!(f, "])")

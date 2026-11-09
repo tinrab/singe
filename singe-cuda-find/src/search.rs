@@ -131,6 +131,7 @@ pub fn find_library_path(root: &Path, cuda_major_version_hint: Option<&str>) -> 
         potential_lib_dirs.push(root.join("lib").join("x64"));
         potential_lib_dirs.push(root.join("lib"));
     }
+
     #[cfg(target_os = "linux")]
     {
         potential_lib_dirs.push(root.join("lib64"));
@@ -193,42 +194,50 @@ pub fn potential_roots(specific_env_vars: &[&str], lib_name_hint: &str) -> Vec<P
         {
             glob_patterns.push("/usr/local/cudnn");
         }
+
         if lib_name_hint.contains("cuTENSOR")
             && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             // Add the potential root for versioned search.
             glob_patterns.push("/usr/local/cutensor");
         }
+
         if lib_name_hint.contains("cuFile")
             && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             glob_patterns.push("/usr/local/cufile");
         }
+
         if lib_name_hint.contains("cuBLAS")
             && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             // cuBLAS is usually part of toolkit, but check just in case.
             glob_patterns.push("/usr/local/cublas");
         }
+
         if lib_name_hint.contains("cuRAND")
             && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             glob_patterns.push("/usr/local/curand");
         }
+
         if lib_name_hint.contains("cuSOLVER")
             && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             glob_patterns.push("/usr/local/cusolver");
         }
+
         if lib_name_hint.contains("cuSPARSE")
             && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             glob_patterns.push("/usr/local/cusparse");
         }
+
         if lib_name_hint.contains("NCCL") && specific_env_vars.iter().all(|v| env::var(v).is_err())
         {
             glob_patterns.push("/usr/local/nccl");
         }
+
         if lib_name_hint.contains("NPP") && specific_env_vars.iter().all(|v| env::var(v).is_err()) {
             glob_patterns.push("/usr/local/npp");
         }
@@ -309,6 +318,7 @@ pub(crate) fn driver_search_paths() -> Vec<PathBuf> {
     if nvidia_driver_base.is_dir() && seen_paths.insert(nvidia_driver_base.clone()) {
         paths.push(nvidia_driver_base);
     }
+
     // Check for NVSMI directory.
     let nvsmi_path = PathBuf::from(program_files).join("NVIDIA Corporation/NVSMI");
     if nvsmi_path.is_dir() && seen_paths.insert(nvsmi_path.clone()) {

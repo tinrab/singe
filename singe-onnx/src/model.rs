@@ -17,16 +17,14 @@ pub type PropertyMap = BTreeMap<String, String>;
 
 /// Top-level ONNX model container.
 ///
-/// A model bundles one parameterized computation graph with metadata, imported
-/// operator sets, optional training information, and model-local functions.
+/// A model bundles one parameterized computation graph with metadata, imported operator sets, optional training information, and model-local functions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Model {
     /// ONNX IR version targeted by this model.
     pub ir_version: i64,
     /// Operator sets this model relies on.
     ///
-    /// Nodes bind to the same-domain, same-operator entry with the highest
-    /// imported version.
+    /// Nodes bind to the same-domain, same-operator entry with the highest imported version.
     pub operator_set_imports: Vec<OperatorSetId>,
     /// Framework or tool that generated the model.
     pub producer_name: String,
@@ -38,7 +36,8 @@ pub struct Model {
     pub domain: Option<String>,
     /// Version of the graph encoded in the model.
     pub model_version: i64,
-    /// Human-readable model documentation. Markdown is allowed by ONNX.
+    /// Human-readable model documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Parameterized graph evaluated to execute the model.
     pub graph: Graph,
@@ -52,8 +51,8 @@ pub struct Model {
 
 /// Identifier for an imported ONNX operator set.
 ///
-/// Operator sets are uniquely identified by `(domain, version)`. The empty
-/// domain denotes the standard ONNX operator set.
+/// Operator sets are uniquely identified by `(domain, version)`.
+/// The empty domain denotes the standard ONNX operator set.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OperatorSetId {
     /// Operator set domain, or `None` for the standard ONNX operator set.
@@ -64,8 +63,7 @@ pub struct OperatorSetId {
 
 /// ONNX computation graph.
 ///
-/// A graph contains a topologically sorted DAG of nodes, constant initializers,
-/// graph inputs and outputs, value type information, and graph-level metadata.
+/// A graph contains a topologically sorted DAG of nodes, constant initializers, graph inputs and outputs, value type information, and graph-level metadata.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Graph {
     /// Nodes in topological order.
@@ -74,12 +72,13 @@ pub struct Graph {
     pub name: String,
     /// Named tensor constants used as graph inputs.
     ///
-    /// ONNX requires every initializer to have a unique name across dense and
-    /// sparse initializers. The name may also appear in the graph input list.
+    /// ONNX requires every initializer to have a unique name across dense and sparse initializers.
+    /// The name may also appear in the graph input list.
     pub initializers: Vec<Tensor>,
     /// Sparse-format tensor constants used as graph inputs.
     pub sparse_initializers: Vec<SparseTensor>,
-    /// Human-readable graph documentation. Markdown is allowed by ONNX.
+    /// Human-readable graph documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Graph inputs.
     pub inputs: Vec<ValueInfo>,
@@ -95,8 +94,7 @@ pub struct Graph {
 
 /// ONNX graph node.
 ///
-/// Nodes represent computation stages, such as a `Conv` operator that consumes
-/// image, filter, and bias tensors and produces a convolved output.
+/// Nodes represent computation stages, such as a `Conv` operator that consumes image, filter, and bias tensors and produces a convolved output.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     /// Input value names.
@@ -113,7 +111,8 @@ pub struct Node {
     pub overload: Option<String>,
     /// Additional named attributes for the node.
     pub attributes: Vec<Attribute>,
-    /// Human-readable node documentation. Markdown is allowed by ONNX.
+    /// Human-readable node documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Named node metadata values.
     pub metadata_props: PropertyMap,
@@ -121,8 +120,8 @@ pub struct Node {
 
 /// Named ONNX attribute.
 ///
-/// Attributes are typed values attached to nodes or functions. ONNX requires
-/// exactly one content field matching the declared attribute type.
+/// Attributes are typed values attached to nodes or functions.
+/// ONNX requires exactly one content field matching the declared attribute type.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attribute {
     /// Attribute name.
@@ -133,7 +132,8 @@ pub struct Attribute {
     ///
     /// ONNX restricts this to function sub-graphs; it is invalid in the main graph.
     pub ref_attribute_name: String,
-    /// Human-readable attribute documentation. Markdown is allowed by ONNX.
+    /// Human-readable attribute documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Parsed attribute value.
     pub value: AttributeValue,
@@ -174,8 +174,8 @@ pub enum AttributeValue {
 
 /// Serialized ONNX tensor value.
 ///
-/// Tensor elements are stored in row-major order. Data may be embedded in the
-/// protobuf message or stored externally through [`Tensor::external_data`].
+/// Tensor elements are stored in row-major order.
+/// Data may be embedded in the protobuf message or stored externally through [`Tensor::external_data`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tensor {
     /// Tensor shape.
@@ -186,7 +186,8 @@ pub struct Tensor {
     pub segment: Option<TensorSegment>,
     /// Optional tensor name in the ONNX value namespace.
     pub name: String,
-    /// Human-readable tensor documentation. Markdown is allowed by ONNX.
+    /// Human-readable tensor documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Whether tensor content is embedded in the protobuf or stored externally.
     pub data_location: TensorDataLocation,
@@ -194,8 +195,8 @@ pub struct Tensor {
     pub data: Option<TensorElements>,
     /// External data location metadata.
     ///
-    /// Recognized ONNX keys include `location`, `offset`, `length`, and
-    /// `checksum`. `location` is relative to the model file directory.
+    /// Recognized ONNX keys include `location`, `offset`, `length`, and `checksum`.
+    /// `location` is relative to the model file directory.
     pub external_data: PropertyMap,
     /// Named tensor metadata values.
     pub metadata_props: PropertyMap,
@@ -203,8 +204,7 @@ pub struct Tensor {
 
 /// Inline tensor storage.
 ///
-/// ONNX may store tensor elements either in type-specific repeated fields or in
-/// a raw little-endian byte buffer.
+/// ONNX may store tensor elements either in type-specific repeated fields or in a raw little-endian byte buffer.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TensorElements {
     /// `float_data`: `FLOAT` values or interleaved real/imaginary `COMPLEX64` values.
@@ -239,13 +239,11 @@ pub struct TensorSegment {
 pub struct SparseTensor {
     /// Non-default values, encoded as a tensor of shape `[NNZ]`.
     ///
-    /// When used as a graph sparse initializer, ONNX requires this tensor to
-    /// have a non-empty name serving as the sparse tensor name.
+    /// When used as a graph sparse initializer, ONNX requires this tensor to have a non-empty name serving as the sparse tensor name.
     pub values: Option<Tensor>,
     /// Indices of non-default values.
     ///
-    /// Indices may be `[NNZ, rank]` index tuples or `[NNZ]` linearized indices,
-    /// and must be sorted without duplicates.
+    /// Indices may be `[NNZ, rank]` index tuples or `[NNZ]` linearized indices, and must be sorted without duplicates.
     pub indices: Option<Tensor>,
     /// Dense shape represented by the sparse tensor.
     pub dimensions: Vec<i64>,
@@ -258,7 +256,8 @@ pub struct ValueInfo {
     pub name: String,
     /// Optional value type and shape descriptor.
     pub value_type: Option<Type>,
-    /// Human-readable value documentation. Markdown is allowed by ONNX.
+    /// Human-readable value documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Named value metadata values.
     pub metadata_props: PropertyMap,
@@ -293,7 +292,8 @@ pub enum TypeValue {
 /// Dense tensor type and optional shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TensorType {
-    /// Tensor element type. ONNX requires this to be a valid non-undefined tensor data type.
+    /// Tensor element type.
+    /// ONNX requires this to be a valid non-undefined tensor data type.
     pub element_type: TensorDataType,
     /// Optional tensor shape.
     pub shape: Option<TensorShape>,
@@ -327,7 +327,8 @@ pub struct TypeOptional {
 /// Sparse tensor type and optional shape.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SparseTensorType {
-    /// Sparse tensor element type. ONNX requires this to be a valid non-undefined tensor data type.
+    /// Sparse tensor element type.
+    /// ONNX requires this to be a valid non-undefined tensor data type.
     pub element_type: TensorDataType,
     /// Optional dense shape represented by the sparse tensor.
     pub shape: Option<TensorShape>,
@@ -367,16 +368,14 @@ pub struct TensorAnnotation {
     pub tensor_name: String,
     /// Mapping from predefined quantization parameter keys to tensor names.
     ///
-    /// For 8-bit linear quantization, ONNX predefines keys such as
-    /// `SCALE_TENSOR` and `ZERO_POINT_TENSOR`.
+    /// For 8-bit linear quantization, ONNX predefines keys such as `SCALE_TENSOR` and `ZERO_POINT_TENSOR`.
     pub quant_parameter_tensor_names: PropertyMap,
 }
 
 /// ONNX training metadata.
 ///
-/// A training info entry describes an optional initialization graph and one
-/// training-algorithm step. Executing the algorithm and applying
-/// `update_binding` performs one training update step.
+/// A training info entry describes an optional initialization graph and one training-algorithm step.
+/// Executing the algorithm and applying `update_binding` performs one training update step.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TrainingInfo {
     /// Graph used to compute initial tensors before training starts.
@@ -407,7 +406,8 @@ pub struct Function {
     pub attribute_protos: Vec<Attribute>,
     /// Nodes in the function body.
     pub nodes: Vec<Node>,
-    /// Human-readable function documentation. Markdown is allowed by ONNX.
+    /// Human-readable function documentation.
+    /// Markdown is allowed by ONNX.
     pub doc_string: Option<String>,
     /// Operator sets relied on by the function body.
     pub operator_set_imports: Vec<OperatorSetId>,
@@ -620,6 +620,7 @@ impl RequestParse<onnx::AttributeProto> for Attribute {
                 CommonError::RequiredFieldMissing,
             ));
         }
+
         let attribute_type = parse_enum(value.r#type, onnx::AttributeProto::TYPE_FIELD_NAME)?;
         let parsed_value = match attribute_type {
             AttributeType::Undefined => {
@@ -713,6 +714,7 @@ impl RequestParse<onnx::TensorProto> for Tensor {
                 CommonError::TypeMismatch,
             ));
         }
+
         let data = match data_location {
             TensorDataLocation::External => None,
             TensorDataLocation::Default => parse_tensor_data(&value, data_type)?,

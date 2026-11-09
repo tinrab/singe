@@ -1,0 +1,17 @@
+[package]
+name = "singe-testing"
+description = "Testing utilities for Singe."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+publish = false
+
+[features]
+default = []
+cuda_13_4 = ["singe/cuda_13_4", "singe/testing"]
+
+[dependencies]
+singe.workspace = true
+safetensors.workspace = true
+serde_json.workspace = true

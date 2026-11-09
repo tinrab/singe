@@ -150,6 +150,7 @@ fn project_key(value: &mut Value, projection: KeyProjection) {
                 object.remove("aux_outputs");
                 project_operation(object);
             }
+
             // Operand groups may also use `tensors`; only graphs own tensor declarations.
             if object.get("operations").is_some_and(Value::is_array)
                 && let Some(Value::Object(tensors)) = object.get_mut("tensors")
@@ -166,11 +167,13 @@ fn project_key(value: &mut Value, projection: KeyProjection) {
                         if let Some(scalar) = tensor["placement"].get_mut("RuntimeScalar") {
                             scalar["default"] = Value::Null;
                         }
+
                         // Native tensors ignore the vector axis when the lane count is omitted or one.
                         if tensor["vector_count"].is_null() || tensor["vector_count"] == 1 {
                             tensor["vector_count"] = Value::Null;
                             tensor["vectorized_dimension"] = Value::Null;
                         }
+
                         if tensor["reordering"] == "None" {
                             tensor["reordering"] = Value::Null;
                         }

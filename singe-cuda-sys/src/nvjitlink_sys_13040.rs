@@ -76,7 +76,7 @@ pub struct nvJitLink {
 ///
 /// To link inputs, an instance of nvJitLinkHandle must be created first with nvJitLinkCreate().
 pub type nvJitLinkHandle = *mut nvJitLink;
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkCreate creates an instance of nvJitLinkHandle with the given input options, and sets the output parameter `handle`.
     ///
     ///
@@ -106,7 +106,7 @@ unsafe extern "C" {
         options: *const *const ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkCreate creates an instance of nvJitLinkHandle with the given input options, and sets the output parameter `handle`.
     ///
     ///
@@ -136,7 +136,7 @@ unsafe extern "C" {
         options: *mut *const ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkDestroy frees the memory associated with the given handle and sets it to NULL.
     ///
     ///
@@ -156,7 +156,7 @@ unsafe extern "C" {
     /// - `handle`: Address of nvJitLink handle.
     pub fn __nvJitLinkDestroy_13_4(handle: *mut nvJitLinkHandle) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkDestroy frees the memory associated with the given handle and sets it to NULL.
     ///
     ///
@@ -176,7 +176,7 @@ unsafe extern "C" {
     /// - `handle`: Address of nvJitLink handle.
     pub fn nvJitLinkDestroy(handle: *mut nvJitLinkHandle) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkAddData adds data image to the link.
     ///
     ///
@@ -202,7 +202,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkAddData adds data image to the link.
     ///
     ///
@@ -228,7 +228,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkAddFile reads data from file and links it in.
     ///
     ///
@@ -250,7 +250,7 @@ unsafe extern "C" {
         fileName: *const ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkAddFile reads data from file and links it in.
     ///
     ///
@@ -272,7 +272,7 @@ unsafe extern "C" {
         fileName: *const ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkComplete does the actual link.
     ///
     ///
@@ -288,7 +288,7 @@ unsafe extern "C" {
     /// - `handle`: nvJitLink handle.
     pub fn __nvJitLinkComplete_13_4(handle: nvJitLinkHandle) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkComplete does the actual link.
     ///
     ///
@@ -304,7 +304,7 @@ unsafe extern "C" {
     /// - `handle`: nvJitLink handle.
     pub fn nvJitLinkComplete(handle: nvJitLinkHandle) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedCubinSize gets the size of the linked cubin.
     ///
     ///
@@ -328,7 +328,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedCubinSize gets the size of the linked cubin.
     ///
     ///
@@ -352,7 +352,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedCubin gets the linked cubin.
     ///
     ///
@@ -376,7 +376,7 @@ unsafe extern "C" {
         cubin: *mut ::core::ffi::c_void,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedCubin gets the linked cubin.
     ///
     ///
@@ -400,7 +400,7 @@ unsafe extern "C" {
         cubin: *mut ::core::ffi::c_void,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedPtxSize gets the size of the linked ptx.
     ///
     ///
@@ -424,7 +424,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedPtxSize gets the size of the linked ptx.
     ///
     ///
@@ -448,7 +448,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedPtx gets the linked ptx.
     ///
     ///
@@ -472,7 +472,7 @@ unsafe extern "C" {
         ptx: *mut ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedPtx gets the linked ptx.
     ///
     ///
@@ -496,7 +496,7 @@ unsafe extern "C" {
         ptx: *mut ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedLTOIRSize gets the size of the linked LTOIR.
     ///
     ///
@@ -520,7 +520,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedLTOIRSize gets the size of the linked LTOIR.
     ///
     ///
@@ -544,7 +544,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedLTOIR gets the linked LTOIR.
     ///
     ///
@@ -568,7 +568,7 @@ unsafe extern "C" {
         ltoir: *mut ::core::ffi::c_void,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetLinkedLTOIR gets the linked LTOIR.
     ///
     ///
@@ -592,7 +592,7 @@ unsafe extern "C" {
         ltoir: *mut ::core::ffi::c_void,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetErrorLogSize gets the size of the error log.
     ///
     ///
@@ -616,7 +616,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetErrorLogSize gets the size of the error log.
     ///
     ///
@@ -640,7 +640,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetErrorLog puts any error messages in the log.
     ///
     ///
@@ -664,7 +664,7 @@ unsafe extern "C" {
         log: *mut ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetErrorLog puts any error messages in the log.
     ///
     ///
@@ -688,7 +688,7 @@ unsafe extern "C" {
         log: *mut ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetInfoLogSize gets the size of the info log.
     ///
     ///
@@ -712,7 +712,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetInfoLogSize gets the size of the info log.
     ///
     ///
@@ -736,7 +736,7 @@ unsafe extern "C" {
         size: *mut usize,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetInfoLog puts any info messages in the log.
     ///
     ///
@@ -760,7 +760,7 @@ unsafe extern "C" {
         log: *mut ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkGetInfoLog puts any info messages in the log.
     ///
     ///
@@ -784,7 +784,7 @@ unsafe extern "C" {
         log: *mut ::core::ffi::c_char,
     ) -> nvJitLinkResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVJITLINK;
     /// nvJitLinkVersion returns the current version of nvJitLink.
     ///
     ///

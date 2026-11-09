@@ -13,21 +13,18 @@ where
     Self: MaskedKernelBorderFilterImage<T, L>,
 {
     /// Applies the native high-pass filter with border control.
-    /// `mask_size` selects the native filter kernel. The wrapper forwards mask and border
-    /// values to NPP, which may reject unsupported combinations.
-    /// `source_offset` locates the output ROI in the full source. The destination dimensions
-    /// select its extent.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` selects the native filter kernel.
+    /// The wrapper forwards mask and border values to NPP, which may reject unsupported combinations.
+    /// `source_offset` locates the output ROI in the full source.
+    /// The destination dimensions select its extent.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn filter_high_pass_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -47,21 +44,18 @@ where
     }
 
     /// Applies the native low-pass filter with border control.
-    /// `mask_size` selects the native filter kernel. The wrapper forwards mask and border
-    /// values to NPP, which may reject unsupported combinations.
-    /// `source_offset` locates the output ROI in the full source. The destination dimensions
-    /// select its extent.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` selects the native filter kernel.
+    /// The wrapper forwards mask and border values to NPP, which may reject unsupported combinations.
+    /// `source_offset` locates the output ROI in the full source.
+    /// The destination dimensions select its extent.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn filter_low_pass_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -81,21 +75,18 @@ where
     }
 
     /// Applies the native Gaussian filter with border control.
-    /// `mask_size` selects the native filter kernel. The wrapper forwards mask and border
-    /// values to NPP, which may reject unsupported combinations.
-    /// `source_offset` locates the output ROI in the full source. The destination dimensions
-    /// select its extent.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` selects the native filter kernel.
+    /// The wrapper forwards mask and border values to NPP, which may reject unsupported combinations.
+    /// `source_offset` locates the output ROI in the full source.
+    /// The destination dimensions select its extent.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn filter_gauss_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -115,21 +106,18 @@ where
     }
 
     /// Applies the native Laplace filter with border control.
-    /// `mask_size` selects the native filter kernel. The wrapper forwards mask and border
-    /// values to NPP, which may reject unsupported combinations.
-    /// `source_offset` locates the output ROI in the full source. The destination dimensions
-    /// select its extent.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// `mask_size` selects the native filter kernel.
+    /// The wrapper forwards mask and border values to NPP, which may reject unsupported combinations.
+    /// `source_offset` locates the output ROI in the full source.
+    /// The destination dimensions select its extent.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     pub fn filter_laplace_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

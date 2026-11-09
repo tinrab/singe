@@ -9,8 +9,12 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_nccl_sys::LoadError),
+
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// An NCCL operation returned a failure status.
@@ -94,6 +98,12 @@ impl Error {
 
 impl From<sys::ncclResult_t> for Error {
     fn from(code: sys::ncclResult_t) -> Self {
+        if code == sys::ncclResult_t::ncclSystemError
+            && let Err(error) = singe_nccl_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         Self::from(Status::from(code))
     }
 }
@@ -134,8 +144,7 @@ status_enum! {
         RemoteError = ncclRemoteError,
         /// An NCCL operation on the communicator is being enqueued and progressed in the background.
         ///
-        /// Whenever an operation returns an error (neither [`Status::Success`] nor [`Status::InProgress`]),
-        /// NCCL may print a more detailed message when the `NCCL_DEBUG` environment variable is set to `WARN`.
+        /// Whenever an operation returns an error (neither [`Status::Success`] nor [`Status::InProgress`]), NCCL may print a more detailed message when the `NCCL_DEBUG` environment variable is set to `WARN`.
         InProgress = ncclInProgress,
         /// The operation timed out.
         Timeout = ncclTimeout,

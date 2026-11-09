@@ -102,7 +102,8 @@ impl<'a> ActivityBuffer<'a> {
 
     /// Returns an iterator over records in this completed activity buffer.
     ///
-    /// Records and their borrowed payload fields retain the buffer lifetime. Native parsing errors are yielded by the iterator.
+    /// Records and their borrowed payload fields retain the buffer lifetime.
+    /// Native parsing errors are yielded by the iterator.
     #[must_use]
     pub fn records(self) -> ActivityRecords<'a> {
         ActivityRecords {
@@ -117,7 +118,8 @@ impl<'a> ActivityBuffer<'a> {
 
 /// Owns a byte copy of a completed CUPTI activity buffer.
 ///
-/// Decoded records borrow this owner. Native pointer-backed strings and binary images are not deep-copied with the record bytes.
+/// Decoded records borrow this owner.
+/// Native pointer-backed strings and binary images are not deep-copied with the record bytes.
 #[derive(Debug, Clone)]
 pub struct ActivityBufferOwned {
     bytes: Vec<u8>,
@@ -152,7 +154,8 @@ impl ActivityBufferOwned {
 
     /// Returns an iterator over records in this completed activity buffer.
     ///
-    /// Records and their borrowed payload fields retain the buffer lifetime. Native parsing errors are yielded by the iterator.
+    /// Records and their borrowed payload fields retain the buffer lifetime.
+    /// Native parsing errors are yielded by the iterator.
     #[must_use]
     pub fn records(&self) -> ActivityRecords<'_> {
         ActivityRecords {
@@ -167,7 +170,8 @@ impl ActivityBufferOwned {
 
 /// Guard for the current Rust activity-buffer callbacks.
 ///
-/// Dropping the guard clears its callbacks if this registration still owns them. Dropping a replaced registration leaves the newer callbacks installed.
+/// Dropping the guard clears its callbacks if this registration still owns them.
+/// Dropping a replaced registration leaves the newer callbacks installed.
 #[derive(Debug)]
 pub struct ActivityCallbackRegistration {
     owner_id: u64,
@@ -203,7 +207,8 @@ impl Drop for TimestampCallbackRegistration {
 
 /// Borrowed CUPTI activity record with kind-checked payload decoders.
 ///
-/// Copies retain the same borrow lifetime. Unrecognized kinds remain available through [`Self::raw_kind`].
+/// Copies retain the same borrow lifetime.
+/// Unrecognized kinds remain available through [`Self::raw_kind`].
 #[derive(Debug, Clone, Copy)]
 pub struct ActivityRecord<'a> {
     ptr: *const sys::CUpti_Activity,
@@ -227,12 +232,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMemoryDecompress`] for [`ActivityKind::MemoryDecompress`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn memory_decompress(self) -> Option<ActivityMemoryDecompress> {
         if self.kind() != Some(ActivityKind::MemoryDecompress) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemDecompress>()) };
@@ -241,12 +248,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMemoryCopy`] for [`ActivityKind::MemoryCopy`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn memory_copy(self) -> Option<ActivityMemoryCopy> {
         if self.kind() != Some(ActivityKind::MemoryCopy) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemcpy7>()) };
         Some(ActivityMemoryCopy::from_raw(record))
@@ -254,12 +263,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityPeerMemoryCopy`] for [`ActivityKind::PeerMemoryCopy`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn peer_memory_copy(self) -> Option<ActivityPeerMemoryCopy> {
         if self.kind() != Some(ActivityKind::PeerMemoryCopy) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemcpyPtoP4>()) };
@@ -268,12 +279,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMemorySet`] for [`ActivityKind::MemorySet`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn memory_set(self) -> Option<ActivityMemorySet> {
         if self.kind() != Some(ActivityKind::MemorySet) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemset5>()) };
         Some(ActivityMemorySet::from_raw(record))
@@ -281,7 +294,8 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityKernel`] for [`ActivityKind::Kernel`], [`ActivityKind::ConcurrentKernel`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn kernel(self) -> Option<ActivityKernel<'a>> {
         if !matches!(
@@ -290,6 +304,7 @@ impl<'a> ActivityRecord<'a> {
         ) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityKernel13>()) };
         Some(ActivityKernel::from_raw(record))
@@ -297,7 +312,8 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityCudaDynamicParallelismKernel`] for [`ActivityKind::CudaDynamicParallelismKernel`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn cuda_dynamic_parallelism_kernel(
         self,
@@ -305,6 +321,7 @@ impl<'a> ActivityRecord<'a> {
         if self.kind() != Some(ActivityKind::CudaDynamicParallelismKernel) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityCdpKernel>()) };
@@ -313,7 +330,8 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityApi`] for [`ActivityKind::Driver`], [`ActivityKind::Runtime`], [`ActivityKind::InternalLaunchApi`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn api(self) -> Option<ActivityApi> {
         if !matches!(
@@ -322,6 +340,7 @@ impl<'a> ActivityRecord<'a> {
         ) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityAPI>()) };
         Some(ActivityApi::from_raw(record))
@@ -329,12 +348,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityStream`] for [`ActivityKind::Stream`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn stream(self) -> Option<ActivityStream> {
         if self.kind() != Some(ActivityKind::Stream) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityStream>()) };
         Some(ActivityStream::from_raw(record))
@@ -342,12 +363,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivitySynchronization`] for [`ActivityKind::Synchronization`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn synchronization(self) -> Option<ActivitySynchronization> {
         if self.kind() != Some(ActivityKind::Synchronization) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivitySynchronization2>()) };
@@ -356,12 +379,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMemory`] for [`ActivityKind::Memory2`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn memory(self) -> Option<ActivityMemory<'a>> {
         if self.kind() != Some(ActivityKind::Memory2) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemory4>()) };
         Some(ActivityMemory::from_raw(record))
@@ -369,12 +394,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityLegacyMemory`] for [`ActivityKind::Memory`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn legacy_memory(self) -> Option<ActivityLegacyMemory<'a>> {
         if self.kind() != Some(ActivityKind::Memory) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemory>()) };
         Some(ActivityLegacyMemory::from_raw(record))
@@ -382,12 +409,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMemoryPool`] for [`ActivityKind::MemoryPool`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn memory_pool(self) -> Option<ActivityMemoryPool> {
         if self.kind() != Some(ActivityKind::MemoryPool) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMemoryPool3>()) };
@@ -396,12 +425,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityGraphTrace`] for [`ActivityKind::GraphTrace`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn graph_trace(self) -> Option<ActivityGraphTrace> {
         if self.kind() != Some(ActivityKind::GraphTrace) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityGraphTrace2>()) };
@@ -410,12 +441,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityDeviceGraphTrace`] for [`ActivityKind::DeviceGraphTrace`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn device_graph_trace(self) -> Option<ActivityDeviceGraphTrace> {
         if self.kind() != Some(ActivityKind::DeviceGraphTrace) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityDeviceGraphTrace>()) };
@@ -424,12 +457,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityGraphHostNode`] for [`ActivityKind::GraphHostNode`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn graph_host_node(self) -> Option<ActivityGraphHostNode> {
         if self.kind() != Some(ActivityKind::GraphHostNode) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityGraphHostNode>()) };
@@ -438,12 +473,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityHostLaunch`] for [`ActivityKind::HostLaunch`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn host_launch(self) -> Option<ActivityHostLaunch> {
         if self.kind() != Some(ActivityKind::HostLaunch) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityHostLaunch>()) };
@@ -452,12 +489,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityComputeEngineContextSwitch`] for [`ActivityKind::ComputeEngineCtxSwitch`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn compute_engine_context_switch(self) -> Option<ActivityComputeEngineContextSwitch> {
         if self.kind() != Some(ActivityKind::ComputeEngineCtxSwitch) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityComputeEngineCtxSwitch>())
@@ -467,12 +506,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityGreenContext`] for [`ActivityKind::GreenContext`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn green_context(self) -> Option<ActivityGreenContext> {
         if self.kind() != Some(ActivityKind::GreenContext) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityGreenContext3>()) };
@@ -481,12 +522,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityName`] for [`ActivityKind::Name`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn name(self) -> Option<ActivityName<'a>> {
         if self.kind() != Some(ActivityKind::Name) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityName>()) };
         Some(ActivityName::from_raw(record))
@@ -494,12 +537,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMarker`] for [`ActivityKind::Marker`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn marker(self) -> Option<ActivityMarker<'a>> {
         if self.kind() != Some(ActivityKind::Marker) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMarker2>()) };
         Some(ActivityMarker::from_raw(record))
@@ -507,12 +552,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityExternalCorrelation`] for [`ActivityKind::ExternalCorrelation`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn external_correlation(self) -> Option<ActivityExternalCorrelation> {
         if self.kind() != Some(ActivityKind::ExternalCorrelation) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityExternalCorrelation>())
@@ -522,12 +569,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMarkerPayload`] for [`ActivityKind::MarkerData`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn marker_data(self) -> Option<ActivityMarkerPayload> {
         if self.kind() != Some(ActivityKind::MarkerData) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMarkerData2>()) };
@@ -536,12 +585,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityCudaEvent`] for [`ActivityKind::CudaEvent`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn cuda_event(self) -> Option<ActivityCudaEvent> {
         if self.kind() != Some(ActivityKind::CudaEvent) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityCudaEvent2>()) };
@@ -550,12 +601,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityContext`] for [`ActivityKind::Context`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn context(self) -> Option<ActivityContext> {
         if self.kind() != Some(ActivityKind::Context) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityContext4>()) };
         Some(ActivityContext::from_raw(record))
@@ -563,12 +616,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityEvent`] for [`ActivityKind::Event`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn event(self) -> Option<ActivityEvent> {
         if self.kind() != Some(ActivityKind::Event) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityEvent>()) };
         Some(ActivityEvent::from_raw(record))
@@ -576,12 +631,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityEventInstance`] for [`ActivityKind::EventInstance`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn event_instance(self) -> Option<ActivityEventInstance> {
         if self.kind() != Some(ActivityKind::EventInstance) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityEventInstance>()) };
@@ -590,12 +647,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMetric`] for [`ActivityKind::Metric`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn metric(self) -> Option<ActivityMetric> {
         if self.kind() != Some(ActivityKind::Metric) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMetric>()) };
         Some(ActivityMetric::from_raw(record))
@@ -603,12 +662,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityMetricInstance`] for [`ActivityKind::MetricInstance`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn metric_instance(self) -> Option<ActivityMetricInstance> {
         if self.kind() != Some(ActivityKind::MetricInstance) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityMetricInstance>()) };
@@ -617,12 +678,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityInstantaneousEvent`] for [`ActivityKind::InstantaneousEvent`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn instantaneous_event(self) -> Option<ActivityInstantaneousEvent> {
         if self.kind() != Some(ActivityKind::InstantaneousEvent) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityInstantaneousEvent>())
@@ -632,12 +695,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityInstantaneousEventInstance`] for [`ActivityKind::InstantaneousEventInstance`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn instantaneous_event_instance(self) -> Option<ActivityInstantaneousEventInstance> {
         if self.kind() != Some(ActivityKind::InstantaneousEventInstance) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(
@@ -650,12 +715,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityInstantaneousMetric`] for [`ActivityKind::InstantaneousMetric`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn instantaneous_metric(self) -> Option<ActivityInstantaneousMetric> {
         if self.kind() != Some(ActivityKind::InstantaneousMetric) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityInstantaneousMetric>())
@@ -665,12 +732,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityInstantaneousMetricInstance`] for [`ActivityKind::InstantaneousMetricInstance`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn instantaneous_metric_instance(self) -> Option<ActivityInstantaneousMetricInstance> {
         if self.kind() != Some(ActivityKind::InstantaneousMetricInstance) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(
@@ -683,12 +752,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityGlobalAccess`] for [`ActivityKind::GlobalAccess`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn global_access(self) -> Option<ActivityGlobalAccess> {
         if self.kind() != Some(ActivityKind::GlobalAccess) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityGlobalAccess3>()) };
@@ -697,12 +768,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityBranch`] for [`ActivityKind::Branch`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn branch(self) -> Option<ActivityBranch> {
         if self.kind() != Some(ActivityKind::Branch) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityBranch2>()) };
         Some(ActivityBranch::from_raw(record))
@@ -710,12 +783,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityInstructionExecution`] for [`ActivityKind::InstructionExecution`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn instruction_execution(self) -> Option<ActivityInstructionExecution> {
         if self.kind() != Some(ActivityKind::InstructionExecution) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityInstructionExecution>())
@@ -725,12 +800,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityPcSampling`] for [`ActivityKind::PcSampling`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn pc_sampling(self) -> Option<ActivityPcSampling> {
         if self.kind() != Some(ActivityKind::PcSampling) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityPCSampling3>()) };
@@ -739,12 +816,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityPcSamplingRecordInfo`] for [`ActivityKind::PcSamplingRecordInfo`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn pc_sampling_record_info(self) -> Option<ActivityPcSamplingRecordInfo> {
         if self.kind() != Some(ActivityKind::PcSamplingRecordInfo) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityPCSamplingRecordInfo>())
@@ -754,12 +833,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityUnifiedMemoryCounter`] for [`ActivityKind::UnifiedMemoryCounter`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn unified_memory_counter(self) -> Option<ActivityUnifiedMemoryCounter> {
         if self.kind() != Some(ActivityKind::UnifiedMemoryCounter) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityUnifiedMemoryCounter3>())
@@ -769,12 +850,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityDeviceAttribute`] for [`ActivityKind::DeviceAttribute`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn device_attribute(self) -> Option<ActivityDeviceAttribute> {
         if self.kind() != Some(ActivityKind::DeviceAttribute) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityDeviceAttribute>()) };
@@ -783,12 +866,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityEnvironment`] for [`ActivityKind::Environment`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn environment(self) -> Option<ActivityEnvironment> {
         if self.kind() != Some(ActivityKind::Environment) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityEnvironment>()) };
@@ -797,12 +882,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityDevice`] for [`ActivityKind::Device`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn device(self) -> Option<ActivityDevice<'a>> {
         if self.kind() != Some(ActivityKind::Device) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityDevice6>()) };
         Some(ActivityDevice::from_raw(record))
@@ -810,12 +897,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityJit`] for [`ActivityKind::Jit`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn jit(self) -> Option<ActivityJit<'a>> {
         if self.kind() != Some(ActivityKind::Jit) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityJit2>()) };
         Some(ActivityJit::from_raw(record))
@@ -823,12 +912,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityNvLink`] for [`ActivityKind::NvLink`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn nvlink(self) -> Option<ActivityNvLink<'a>> {
         if self.kind() != Some(ActivityKind::NvLink) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityNvLink5>()) };
         Some(ActivityNvLink::from_raw(record))
@@ -836,12 +927,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityPcie`] for [`ActivityKind::Pcie`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn pcie(self) -> Option<ActivityPcie> {
         if self.kind() != Some(ActivityKind::Pcie) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityPcie>()) };
         Some(ActivityPcie::from_raw(record))
@@ -849,12 +942,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityInstructionCorrelation`] for [`ActivityKind::InstructionCorrelation`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn instruction_correlation(self) -> Option<ActivityInstructionCorrelation> {
         if self.kind() != Some(ActivityKind::InstructionCorrelation) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityInstructionCorrelation>())
@@ -864,12 +959,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityOpenMultiProcessing`] for [`ActivityKind::OpenMultiProcessing`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn open_multi_processing(self) -> Option<ActivityOpenMultiProcessing> {
         if self.kind() != Some(ActivityKind::OpenMultiProcessing) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityOpenMp>()) };
         Some(ActivityOpenMultiProcessing::from_raw(record))
@@ -877,12 +974,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityOpenAccTransfer`] for [`ActivityKind::OpenAccData`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn open_acc_data(self) -> Option<ActivityOpenAccTransfer<'a>> {
         if self.kind() != Some(ActivityKind::OpenAccData) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityOpenAccData>()) };
@@ -891,12 +990,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityOpenAccLaunch`] for [`ActivityKind::OpenAccLaunch`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn open_acc_launch(self) -> Option<ActivityOpenAccLaunch<'a>> {
         if self.kind() != Some(ActivityKind::OpenAccLaunch) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityOpenAccLaunch>()) };
@@ -905,12 +1006,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityOpenAccOther`] for [`ActivityKind::OpenAccOther`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn open_acc_other(self) -> Option<ActivityOpenAccOther<'a>> {
         if self.kind() != Some(ActivityKind::OpenAccOther) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityOpenAccOther>()) };
@@ -919,12 +1022,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityPreemption`] for [`ActivityKind::Preemption`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn preemption(self) -> Option<ActivityPreemption> {
         if self.kind() != Some(ActivityKind::Preemption) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityPreemption>()) };
@@ -933,12 +1038,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityFunction`] for [`ActivityKind::Function`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn function(self) -> Option<ActivityFunction<'a>> {
         if self.kind() != Some(ActivityKind::Function) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityFunction>()) };
         Some(ActivityFunction::from_raw(record))
@@ -946,12 +1053,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityModule`] for [`ActivityKind::Module`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn module(self) -> Option<ActivityModule<'a>> {
         if self.kind() != Some(ActivityKind::Module) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityModule>()) };
         Some(ActivityModule::from_raw(record))
@@ -959,12 +1068,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivitySharedAccess`] for [`ActivityKind::SharedAccess`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn shared_access(self) -> Option<ActivitySharedAccess> {
         if self.kind() != Some(ActivityKind::SharedAccess) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivitySharedAccess>()) };
@@ -973,12 +1084,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityConfidentialComputeRotation`] for [`ActivityKind::ConfidentialComputeRotation`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn confidential_compute_rotation(self) -> Option<ActivityConfidentialComputeRotation> {
         if self.kind() != Some(ActivityKind::ConfidentialComputeRotation) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record = unsafe {
             ptr::read_unaligned(
@@ -991,12 +1104,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivitySourceLocator`] for [`ActivityKind::SourceLocator`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn source_locator(self) -> Option<ActivitySourceLocator<'a>> {
         if self.kind() != Some(ActivityKind::SourceLocator) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivitySourceLocator>()) };
@@ -1005,12 +1120,14 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes [`ActivityOverhead`] for [`ActivityKind::Overhead`] records.
     ///
-    /// Returns `None` for other activity kinds. Borrowed payload fields retain the source record lifetime.
+    /// Returns `None` for other activity kinds.
+    /// Borrowed payload fields retain the source record lifetime.
     #[must_use]
     pub fn overhead(self) -> Option<ActivityOverhead> {
         if self.kind() != Some(ActivityKind::Overhead) {
             return None;
         }
+
         // SAFETY: the kind check above means CUPTI wrote a complete record of this type at `self.ptr`; `read_unaligned` makes no alignment assumption.
         let record =
             unsafe { ptr::read_unaligned(self.ptr.cast::<sys::CUpti_ActivityOverhead3>()) };
@@ -1019,7 +1136,8 @@ impl<'a> ActivityRecord<'a> {
 
     /// Decodes this record into a tagged payload.
     ///
-    /// Kinds without a supported decoder produce [`ActivityRecordPayload::Unsupported`] with the original raw kind. Borrowed payload fields retain the source record lifetime.
+    /// Kinds without a supported decoder produce [`ActivityRecordPayload::Unsupported`] with the original raw kind.
+    /// Borrowed payload fields retain the source record lifetime.
     #[expect(
         clippy::too_many_lines,
         reason = "activity decoding enumerates the supported native activity record kinds"
@@ -1297,15 +1415,18 @@ pub struct ActivityApi {
     pub kind: ActivityKind,
     /// The ID of the driver or runtime function.
     pub callback_id: CallbackId,
-    /// The start timestamp for the function, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
+    /// The start timestamp for the function, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
     pub start: u64,
-    /// The end timestamp for the function, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
+    /// The end timestamp for the function, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
     pub end: u64,
     /// The ID of the process where the driver or runtime CUDA function is executing.
     pub process_id: ProcessId,
     /// The ID of the thread where the driver or runtime CUDA function is executing.
     pub thread_id: ThreadId,
-    /// The correlation ID of the driver or runtime CUDA function. Each function invocation is assigned a unique correlation ID that is identical to the correlation ID in the memcpy, memset, or kernel activity record that is associated with this function.
+    /// The correlation ID of the driver or runtime CUDA function.
+    /// Each function invocation is assigned a unique correlation ID that is identical to the correlation ID in the memcpy, memset, or kernel activity record that is associated with this function.
     pub correlation_id: CorrelationId,
     /// Native return status: a `CUresult` code for a driver call or a `cudaError_t` code for a runtime call.
     pub return_value: u32,
@@ -1358,25 +1479,38 @@ impl ActivityStream {
 pub struct ActivitySynchronization {
     /// Kind of CUDA synchronization operation recorded.
     pub synchronization_type: ActivitySynchronizationType,
-    /// The start timestamp for the function, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
+    /// The start timestamp for the function, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
     pub start: u64,
-    /// The end timestamp for the function, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
+    /// The end timestamp for the function, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the function.
     pub end: u64,
     /// The correlation ID of the API to which this result is associated.
     pub correlation_id: CorrelationId,
-    /// The ID of the context for which the synchronization API is called. In case of context synchronization API it is the context id for which the API is called. In case of stream/event synchronization it is the ID of the context where the stream/event was created.
+    /// The ID of the context for which the synchronization API is called.
+    /// In case of context synchronization API it is the context id for which the API is called.
+    /// In case of stream/event synchronization it is the ID of the context where the stream/event was created.
     pub context_id: ContextId,
-    /// The compute stream for which the synchronization API is called. A `CUPTI_SYNCHRONIZATION_INVALID_VALUE` value indicate the field is not applicable for this record. Not valid for `cuCtxSynchronize`, `cuEventSynchronize`.
+    /// The compute stream for which the synchronization API is called.
+    /// A `CUPTI_SYNCHRONIZATION_INVALID_VALUE` value indicate the field is not applicable for this record.
+    /// Not valid for `cuCtxSynchronize`, `cuEventSynchronize`.
     pub stream_id: StreamId,
-    /// The event ID for which the synchronization API is called. A `CUPTI_SYNCHRONIZATION_INVALID_VALUE` value indicate the field is not applicable for this record. Not valid for `cuCtxSynchronize`, `cuStreamSynchronize`.
+    /// The event ID for which the synchronization API is called.
+    /// A `CUPTI_SYNCHRONIZATION_INVALID_VALUE` value indicate the field is not applicable for this record.
+    /// Not valid for `cuCtxSynchronize`, `cuStreamSynchronize`.
     pub cuda_event_id: CudaEventId,
-    /// A unique ID to associate event synchronization records with the latest CUDA Event record. Similar field is added in [`ActivityCudaEvent`] to associate synchronization record to the CUDA Event record.
+    /// A unique ID to associate event synchronization records with the latest CUDA Event record.
+    /// Similar field is added in [`ActivityCudaEvent`] to associate synchronization record to the CUDA Event record.
     ///
-    /// The same CUDA event can be used multiple times, so the event id will not be unique to correlate the synchronization record with the latest CUDA Event record. This field will be unique and can be used to do the required correlation.
+    /// The same CUDA event can be used multiple times, so the event id will not be unique to correlate the synchronization record with the latest CUDA Event record.
+    /// This field will be unique and can be used to do the required correlation.
     ///
-    /// A `CUPTI_SYNCHRONIZATION_INVALID_VALUE` value indicates that the field is not applicable for this record. Valid only for synchronization records related to CUDA Events.
+    /// A `CUPTI_SYNCHRONIZATION_INVALID_VALUE` value indicates that the field is not applicable for this record.
+    /// Valid only for synchronization records related to CUDA Events.
     pub cuda_event_sync_id: CudaEventSyncId,
-    /// The return value for the synchronization record. Use [`enable_all_sync_records`] API to enable/disable collection of synchronization records with return value being non-zero. This will be a `CUresult` value.
+    /// The return value for the synchronization record.
+    /// Use [`enable_all_sync_records`] API to enable/disable collection of synchronization records with return value being non-zero.
+    /// This will be a `CUresult` value.
     pub return_value: u32,
 }
 
@@ -1479,7 +1613,8 @@ pub struct ActivityMemory<'a> {
     pub operation_type: ActivityMemoryOperationType,
     /// The memory kind requested by the user, [`ActivityMemoryKind`].
     pub memory_kind: ActivityMemoryKind,
-    /// The correlation ID of the memory operation. Each memory operation is assigned a unique correlation ID that is identical to the correlation ID in the driver and runtime API activity record that launched the memory operation.
+    /// The correlation ID of the memory operation.
+    /// Each memory operation is assigned a unique correlation ID that is identical to the correlation ID in the driver and runtime API activity record that launched the memory operation.
     pub correlation_id: CorrelationId,
     /// The virtual address of the allocation.
     pub address: u64,
@@ -1495,15 +1630,18 @@ pub struct ActivityMemory<'a> {
     pub device_id: DeviceId,
     /// Context identifier; preserves `CUPTI_INVALID_CONTEXT_ID` when the native context is null.
     pub context_id: ContextId,
-    /// The ID of the stream. If memory operation is not async, `stream_id` is set to `CUPTI_INVALID_STREAM_ID`.
+    /// The ID of the stream.
+    /// If memory operation is not async, `stream_id` is set to `CUPTI_INVALID_STREAM_ID`.
     pub stream_id: StreamId,
-    /// Variable name shared by records for the same symbol. `None` represents a null native pointer.
+    /// Variable name shared by records for the same symbol.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
     /// Whether the memory operation uses an asynchronous memory API.
     pub is_asynchronous: bool,
     /// The memory pool configuration used for the memory operations.
     pub memory_pool_config: ActivityMemoryPoolConfig,
-    /// Shared object or binary from which the allocation request originates. `None` represents a null native pointer.
+    /// Shared object or binary from which the allocation request originates.
+    /// `None` represents a null native pointer.
     pub source: Option<&'a CStr>,
 }
 
@@ -1555,11 +1693,13 @@ pub struct ActivityLegacyMemory<'a> {
     pub bytes: u64,
     /// The start timestamp for the memory operation, i.e. the time when memory was allocated, in nanoseconds.
     pub start: u64,
-    /// The end timestamp for the memory operation, i.e. the time when memory was freed, in nanoseconds. This will be 0 if memory is not freed in the application.
+    /// The end timestamp for the memory operation, i.e. the time when memory was freed, in nanoseconds.
+    /// This will be 0 if memory is not freed in the application.
     pub end: u64,
     /// The program counter of the allocation of memory.
     pub allocation_pc: u64,
-    /// The program counter of the freeing of memory. This will be 0 if memory is not freed in the application.
+    /// The program counter of the freeing of memory.
+    /// This will be 0 if memory is not freed in the application.
     pub free_pc: u64,
     /// The ID of the process to which this record belongs to.
     pub process_id: ProcessId,
@@ -1567,7 +1707,8 @@ pub struct ActivityLegacyMemory<'a> {
     pub device_id: DeviceId,
     /// Context identifier; preserves `CUPTI_INVALID_CONTEXT_ID` when the native context is null.
     pub context_id: ContextId,
-    /// Variable name shared by records for the same symbol. `None` represents a null native pointer.
+    /// Variable name shared by records for the same symbol.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
 }
 
@@ -1596,23 +1737,28 @@ pub struct ActivityMemoryPool {
     pub operation_type: ActivityMemoryPoolOperationType,
     /// The type of the memory pool, [`ActivityMemoryPoolType`].
     pub pool_type: ActivityMemoryPoolType,
-    /// The correlation ID of the memory pool operation. Each memory pool operation is assigned a unique correlation ID that is identical to the correlation ID in the driver and runtime API activity record that launched the memory operation.
+    /// The correlation ID of the memory pool operation.
+    /// Each memory pool operation is assigned a unique correlation ID that is identical to the correlation ID in the driver and runtime API activity record that launched the memory operation.
     pub correlation_id: CorrelationId,
     /// The ID of the process to which this record belongs to.
     pub process_id: ProcessId,
     /// The ID of the device where the memory pool is created.
     pub device_id: DeviceId,
-    /// The minimum bytes to keep of the memory pool. `min_bytes_to_keep` is valid for [`ActivityMemoryPoolOperationType::Trimmed`], [`ActivityMemoryPoolOperationType`].
+    /// The minimum bytes to keep of the memory pool.
+    /// `min_bytes_to_keep` is valid for [`ActivityMemoryPoolOperationType::Trimmed`], [`ActivityMemoryPoolOperationType`].
     pub min_bytes_to_keep: u64,
     /// The virtual address of the allocation.
     pub address: u64,
-    /// The size of the memory pool operation in bytes. `size` is valid for [`ActivityMemoryPoolType::Local`], [`ActivityMemoryPoolType`].
+    /// The size of the memory pool operation in bytes.
+    /// `size` is valid for [`ActivityMemoryPoolType::Local`], [`ActivityMemoryPoolType`].
     pub size: u64,
-    /// The release threshold of the memory pool. `release_threshold` is valid for [`ActivityMemoryPoolType::Local`], [`ActivityMemoryPoolType`].
+    /// The release threshold of the memory pool.
+    /// `release_threshold` is valid for [`ActivityMemoryPoolType::Local`], [`ActivityMemoryPoolType`].
     pub release_threshold: u64,
     /// The start timestamp for the memory operation, in nanoseconds.
     pub timestamp: u64,
-    /// The utilized size of the memory pool. `utilized_size` is valid for [`ActivityMemoryPoolType::Local`], [`ActivityMemoryPoolType`].
+    /// The utilized size of the memory pool.
+    /// `utilized_size` is valid for [`ActivityMemoryPoolType::Local`], [`ActivityMemoryPoolType`].
     pub utilized_size: u64,
     /// Whether the pool uses managed memory (`true`) rather than pinned memory (`false`).
     pub is_managed_pool: bool,
@@ -1640,17 +1786,22 @@ impl ActivityMemoryPool {
 /// Decoded CUDA graph execution interval.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActivityGraphTrace {
-    /// The correlation ID of the graph launch. Each graph launch is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the graph.
+    /// The correlation ID of the graph launch.
+    /// Each graph launch is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the graph.
     pub correlation_id: CorrelationId,
-    /// The start timestamp for the graph execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
+    /// The start timestamp for the graph execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
     pub start: u64,
-    /// The end timestamp for the graph execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
+    /// The end timestamp for the graph execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
     pub end: u64,
-    /// The ID of the device where the first node of the graph is executed. If this is `INT_MAX`, then the start is on the host.
+    /// The ID of the device where the first node of the graph is executed.
+    /// If this is `INT_MAX`, then the start is on the host.
     pub device_id: DeviceId,
     /// The unique ID of the graph that is launched.
     pub graph_id: GraphId,
-    /// The ID of the context where the first node of the graph is executed. If this is `INT_MAX`, then the start is on the host.
+    /// The ID of the context where the first node of the graph is executed.
+    /// If this is `INT_MAX`, then the start is on the host.
     pub context_id: ContextId,
     /// The ID of the stream where the graph is being launched.
     pub stream_id: StreamId,
@@ -1681,15 +1832,18 @@ impl ActivityGraphTrace {
 pub struct ActivityDeviceGraphTrace {
     /// The ID of the device where the first node of the graph is executed.
     pub device_id: DeviceId,
-    /// The start timestamp for the graph execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
+    /// The start timestamp for the graph execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
     pub start: u64,
-    /// The end timestamp for the graph execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
+    /// The end timestamp for the graph execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the graph.
     pub end: u64,
     /// The unique ID of the graph that is launched.
     pub graph_id: GraphId,
     /// The unique ID of the graph that has launched this graph.
     pub launcher_graph_id: GraphId,
-    /// The type of launch. See [`DeviceGraphLaunchMode`].
+    /// The type of launch.
+    /// See [`DeviceGraphLaunchMode`].
     pub device_launch_mode: DeviceGraphLaunchMode,
     /// The ID of the context where the first node of the graph is executed.
     pub context_id: ContextId,
@@ -1720,9 +1874,11 @@ pub struct ActivityGraphHostNode {
     pub stream_id: StreamId,
     /// The ID of the CUDA context to which the waiting CUDA stream belongs.
     pub context_id: ContextId,
-    /// The ID of the CUDA device to which the CUDA context and stream belong. The graph host node is executing on the CPU, but it is associated with the CUDA device through the CUDA context and stream.
+    /// The ID of the CUDA device to which the CUDA context and stream belong.
+    /// The graph host node is executing on the CPU, but it is associated with the CUDA device through the CUDA context and stream.
     pub device_id: DeviceId,
-    /// The correlation ID of the graph host node operation. Each operation is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the operation.
+    /// The correlation ID of the graph host node operation.
+    /// Each operation is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the operation.
     pub correlation_id: CorrelationId,
     /// The unique ID of the graph that executed this host node through graph launch.
     pub graph_id: GraphId,
@@ -1732,9 +1888,11 @@ pub struct ActivityGraphHostNode {
     pub process_id: ProcessId,
     /// The ID of the thread where the host node is executing.
     pub thread_id: ThreadId,
-    /// The start timestamp. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
+    /// The start timestamp.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
     pub start: u64,
-    /// The end timestamp. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
+    /// The end timestamp.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
     pub end: u64,
 }
 
@@ -1762,15 +1920,18 @@ pub struct ActivityHostLaunch {
     pub stream_id: StreamId,
     /// The ID of the CUDA context to which the waiting CUDA stream belongs.
     pub context_id: ContextId,
-    /// The ID of the CUDA device to which the CUDA context and stream belong. The host function is executing on the CPU, but it is associated with the CUDA device through the CUDA context and stream.
+    /// The ID of the CUDA device to which the CUDA context and stream belong.
+    /// The host function is executing on the CPU, but it is associated with the CUDA device through the CUDA context and stream.
     pub device_id: DeviceId,
-    /// The correlation ID of the host launch operation. Each operation is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the operation.
+    /// The correlation ID of the host launch operation.
+    /// Each operation is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the operation.
     pub correlation_id: CorrelationId,
     /// The ID of the process where the host function is executing.
     pub process_id: ProcessId,
     /// The ID of the thread where the host function is executing.
     pub thread_id: ThreadId,
-    /// The start timestamp. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
+    /// The start timestamp.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
     pub start: u64,
     /// End timestamp; `CUPTI_TIMESTAMP_UNKNOWN` indicates that the end time is unavailable.
     pub end: u64,
@@ -1798,7 +1959,9 @@ pub struct ActivityComputeEngineContextSwitch {
     pub context_id: ContextId,
     /// The timestamp at which the [`ComputeEngineContextSwitchOperationType`] occurs.
     pub timestamp: u64,
-    /// The type of the Compute Engine Context switch operation. [`ComputeEngineContextSwitchOperationType::Start`] indicates the start of the context switch operation. [`ComputeEngineContextSwitchOperationType::End`] indicates the end of the context switch operation.
+    /// The type of the Compute Engine Context switch operation.
+    /// [`ComputeEngineContextSwitchOperationType::Start`] indicates the start of the context switch operation.
+    /// [`ComputeEngineContextSwitchOperationType::End`] indicates the end of the context switch operation.
     pub operation_type: ComputeEngineContextSwitchOperationType,
 }
 
@@ -1827,27 +1990,29 @@ pub struct ActivityGreenContext {
     pub num_multiprocessors: u16,
     /// Allocated logical texture-processing cluster (TPC) identifiers as 32-bit bitmask words.
     ///
-    /// Only the first `logical_tpc_mask_size` words are valid; unused entries are zero. Word `j` covers TPC identifiers `32 * j..32 * (j + 1)`. For example, a first word of 66 selects TPCs 1 and 6. The 32-word array can represent up to 1,024 TPCs.
+    /// Only the first `logical_tpc_mask_size` words are valid; unused entries are zero.
+    /// Word `j` covers TPC identifiers `32 * j..32 * (j + 1)`.
+    /// For example, a first word of 66 selects TPCs 1 and 6. The 32-word array can represent up to 1,024 TPCs.
     pub logical_tpc_mask: [u32; 32],
     /// Number of valid 32-bit words in `logical_tpc_mask`.
     pub logical_tpc_mask_size: u8,
     /// The work queue resource ID associated with the green context.
-    ///  This is a unique identifier for the work queue resource used by this green context.
+    /// This is a unique identifier for the work queue resource used by this green context.
     pub workqueue_resource_id: u64,
     /// The concurrency limit for the work queue associated with the green context.
-    ///  This defines the maximum number of concurrent operations allowed on this work queue.
+    /// This defines the maximum number of concurrent operations allowed on this work queue.
     pub workqueue_concurrency_limit: u32,
     /// The sharing scope for the work queue associated with the green context.
-    ///  This defines how the work queue can be shared across different contexts or processes.
-    ///  See the CUDA `CUdevWorkqueueConfigScope` values for possible sharing scopes.
+    /// This defines how the work queue can be shared across different contexts or processes.
+    /// See the CUDA `CUdevWorkqueueConfigScope` values for possible sharing scopes.
     pub workqueue_sharing_scope: u32,
     /// The number of HW channels assigned to this green context's work queue.
-    ///  This reflects the actual channel assignment at green context creation time.
-    ///  A value of 0 indicates that channel information is not available.
+    /// This reflects the actual channel assignment at green context creation time.
+    /// A value of 0 indicates that channel information is not available.
     pub workqueue_channel_count: u32,
     /// Array of HW channel IDs assigned to this green context's work queue.
-    ///  Valid entries are specified by workqueueChannelCount; unused entries are zeroed.
-    ///  The array supports up to 32 channel IDs.
+    /// Valid entries are specified by workqueueChannelCount; unused entries are zeroed.
+    /// The array supports up to 32 channel IDs.
     pub workqueue_channel_ids: [u32; 32],
 }
 
@@ -1996,7 +2161,8 @@ pub struct ActivityName<'a> {
     pub object_kind: ActivityObjectKind,
     /// Activity object identifier, decoded according to `object_kind`.
     pub object_id: ActivityObjectId,
-    /// Name associated with the recorded object. `None` represents a null native pointer.
+    /// Name associated with the recorded object.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
 }
 
@@ -2026,7 +2192,8 @@ pub struct ActivityMarker<'a> {
     ///
     /// See also: `CUpti_ActivityFlag`
     pub flags: ActivityFlags,
-    /// The timestamp for the marker, in nanoseconds. A value of 0 indicates that timestamp information could not be collected for the marker.
+    /// The timestamp for the marker, in nanoseconds.
+    /// A value of 0 indicates that timestamp information could not be collected for the marker.
     pub timestamp: u64,
     /// The marker ID.
     pub id: ActivityMarkerId,
@@ -2072,7 +2239,8 @@ impl ActivityMarker<'_> {
 pub struct ActivityExternalCorrelation {
     /// The kind of external API this record correlated to.
     pub external_kind: ExternalCorrelationKind,
-    /// The correlation ID of the associated non-CUDA API record. The exact field in the associated external record depends on that record's activity kind (
+    /// The correlation ID of the associated non-CUDA API record.
+    /// The exact field in the associated external record depends on that record's activity kind (
     ///
     /// See also: `external_kind`).
     pub external_id: ExternalCorrelationId,
@@ -2135,7 +2303,8 @@ impl MetricValueRaw {
 
     /// Interprets the native metric bits according to `kind`.
     ///
-    /// Choose the kind reported by the metric metadata. The native integer sentinel is interpreted as an unsigned 64-bit value.
+    /// Choose the kind reported by the metric metadata.
+    /// The native integer sentinel is interpreted as an unsigned 64-bit value.
     #[must_use]
     pub fn value_as(self, kind: MetricValueKind) -> MetricValue {
         metric_value_from_raw_kind(
@@ -2164,7 +2333,8 @@ pub struct ActivityMarkerPayload {
     pub color: u32,
     /// The category for the marker.
     pub category: u32,
-    /// CUPTI maintained domain id required for NVTX extended payloads. To parse the payload correctly, the domain id must be used to identify the payload attributes as they are domain specific.
+    /// CUPTI maintained domain id required for NVTX extended payloads.
+    /// To parse the payload correctly, the domain id must be used to identify the payload attributes as they are domain specific.
     pub cupti_domain_id: CuptiDomainId,
 }
 
@@ -2190,7 +2360,8 @@ pub struct ActivityMetric {
     pub id: MetricId,
     /// The metric value.
     pub value: MetricValueRaw,
-    /// The correlation ID of the metric. Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the metric was gathered.
+    /// The correlation ID of the metric.
+    /// Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the metric was gathered.
     pub correlation_id: CorrelationId,
     /// The properties of this metric.
     ///
@@ -2218,7 +2389,8 @@ pub struct ActivityMetricInstance {
     pub value: MetricValueRaw,
     /// The metric domain instance.
     pub instance: u32,
-    /// The correlation ID of the metric. Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the metric was gathered.
+    /// The correlation ID of the metric.
+    /// Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the metric was gathered.
     pub correlation_id: CorrelationId,
     /// The properties of this metric.
     ///
@@ -2251,7 +2423,10 @@ pub struct ActivityCudaEvent {
     pub event_id: CudaEventId,
     /// The ID of the device where the event was recorded.
     pub device_id: DeviceId,
-    /// The device-side timestamp on CUDA event record. Timestamp is in nanoseconds. Collection of this field is disabled by default. It can be enabled by calling CUPTI API [`enable_cuda_event_device_timestamulti_process_service`].
+    /// The device-side timestamp on CUDA event record.
+    /// Timestamp is in nanoseconds.
+    /// Collection of this field is disabled by default.
+    /// It can be enabled by calling CUPTI API [`enable_cuda_event_device_timestamulti_process_service`].
     pub device_timestamp: u64,
     /// A unique ID to associate event synchronization records with the latest CUDA Event record.
     pub cuda_event_sync_id: CudaEventSyncId,
@@ -2284,11 +2459,13 @@ pub struct ActivityContext {
     pub compute_api_kind: ActivityComputeApiKind,
     /// Identifier of the default stream in this context.
     pub null_stream_id: StreamId,
-    /// The ID of the parent context. It would be 0 if context does not have parent.
+    /// The ID of the parent context.
+    /// It would be 0 if context does not have parent.
     pub parent_context_id: ContextId,
     /// Whether this is a CUDA green context.
     pub is_green_context: bool,
-    /// Number of multiprocessors assigned to the green context. Valid only when `is_green_context` is `true`.
+    /// Number of multiprocessors assigned to the green context.
+    /// Valid only when `is_green_context` is `true`.
     pub num_multiprocessors: u16,
     /// This field indicates the CIG mode.
     pub cig_mode: ContextCigMode,
@@ -2322,7 +2499,8 @@ pub struct ActivityEvent {
     pub value: u64,
     /// The event domain ID.
     pub domain_id: EventDomainId,
-    /// The correlation ID of the event. Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the event was gathered.
+    /// The correlation ID of the event.
+    /// Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the event was gathered.
     pub correlation_id: CorrelationId,
 }
 
@@ -2348,7 +2526,8 @@ pub struct ActivityEventInstance {
     pub instance: u32,
     /// The event value.
     pub value: u64,
-    /// The correlation ID of the event. Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the event was gathered.
+    /// The correlation ID of the event.
+    /// Use of this ID is user-defined, but typically this ID value will equal the correlation ID of the kernel for which the event was gathered.
     pub correlation_id: CorrelationId,
 }
 
@@ -2487,7 +2666,8 @@ pub struct ActivityGlobalAccess {
     pub correlation_id: CorrelationId,
     /// Correlation ID with global/device function name.
     pub function_id: FunctionId,
-    /// The number of times this instruction was executed per warp. It will be incremented when at least one of thread among warp is active with predicate and condition code evaluating to true.
+    /// The number of times this instruction was executed per warp.
+    /// It will be incremented when at least one of thread among warp is active with predicate and condition code evaluating to true.
     pub executed: u32,
     /// The pc offset for the access.
     pub pc_offset: u64,
@@ -2530,7 +2710,8 @@ pub struct ActivityBranch {
     pub diverged: u32,
     /// This increments each time when this instruction is executed by number of threads that executed this instruction.
     pub threads_executed: u64,
-    /// The number of times this instruction was executed per warp. It will be incremented regardless of predicate or condition code.
+    /// The number of times this instruction was executed per warp.
+    /// It will be incremented regardless of predicate or condition code.
     pub executed: u32,
 }
 
@@ -2565,7 +2746,8 @@ pub struct ActivityInstructionExecution {
     pub threads_executed: u64,
     /// This increments each time when this instruction is executed by number of threads that executed this instruction with predicate and condition code evaluating to true.
     pub not_predicated_off_threads_executed: u64,
-    /// The number of times this instruction was executed per warp. It will be incremented regardless of predicate or condition code.
+    /// The number of times this instruction was executed per warp.
+    /// It will be incremented regardless of predicate or condition code.
     pub executed: u32,
 }
 
@@ -2595,11 +2777,16 @@ pub struct ActivityPcSampling {
     pub correlation_id: CorrelationId,
     /// Correlation ID with global/device function name.
     pub function_id: FunctionId,
-    /// Number of times the PC was sampled with the `stall_reason` in the record. These samples indicate that no instruction was issued in that cycle from the warp scheduler from where the warp was sampled. Field is valid for devices with compute capability 6.0 and higher.
+    /// Number of times the PC was sampled with the `stall_reason` in the record.
+    /// These samples indicate that no instruction was issued in that cycle from the warp scheduler from where the warp was sampled.
+    /// Field is valid for devices with compute capability 6.0 and higher.
     pub latency_samples: u32,
-    /// Number of times the PC was sampled with the `stall_reason` in the record. The same PC can be sampled with different stall reasons. The count includes `latency_samples`.
+    /// Number of times the PC was sampled with the `stall_reason` in the record.
+    /// The same PC can be sampled with different stall reasons.
+    /// The count includes `latency_samples`.
     pub samples: u32,
-    /// Current stall reason. Includes one of the reasons from [`ActivityPcSamplingStallReason`].
+    /// Current stall reason.
+    /// Includes one of the reasons from [`ActivityPcSamplingStallReason`].
     pub stall_reason: ActivityPcSamplingStallReason,
     /// The pc offset for the instruction.
     pub pc_offset: u64,
@@ -2649,19 +2836,34 @@ impl ActivityPcSamplingRecordInfo {
 pub struct ActivityUnifiedMemoryCounter {
     /// The Unified Memory counter kind.
     pub counter_kind: ActivityUnifiedMemoryCounterKind,
-    /// Value of the counter For `counter_kind` [`ActivityUnifiedMemoryCounterKind::BytesTransferHostToDevice`], [`ActivityUnifiedMemoryCounterKind::BytesTransferDeviceToHost`], [`ActivityUnifiedMemoryCounterKind::Thrashing`] and [`ActivityUnifiedMemoryCounterKind::RemoteMap`], it is the size of the memory region in bytes. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::GpuPageFault`], it is the number of page fault groups for the same page. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`], it is the program counter for the instruction that caused fault.
+    /// Value of the counter For `counter_kind` [`ActivityUnifiedMemoryCounterKind::BytesTransferHostToDevice`], [`ActivityUnifiedMemoryCounterKind::BytesTransferDeviceToHost`], [`ActivityUnifiedMemoryCounterKind::Thrashing`] and [`ActivityUnifiedMemoryCounterKind::RemoteMap`], it is the size of the memory region in bytes.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::GpuPageFault`], it is the number of page fault groups for the same page.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`], it is the program counter for the instruction that caused fault.
     pub value: u64,
-    /// The start timestamp of the counter, in nanoseconds. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::BytesTransferHostToDevice`] and [`ActivityUnifiedMemoryCounterKind::BytesTransferDeviceToHost`], timestamp is captured when activity starts on GPU. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::GpuPageFault`] and [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`], timestamp is captured when CUDA driver started processing the fault. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Thrashing`], timestamp is captured when CUDA driver detected thrashing of memory region. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Throttling`], timestamp is captured when throttling operation was started by CUDA driver. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::RemoteMap`], timestamp is captured when CUDA driver has pushed all required operations to the processor specified by `destination_id`.
+    /// The start timestamp of the counter, in nanoseconds.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::BytesTransferHostToDevice`] and [`ActivityUnifiedMemoryCounterKind::BytesTransferDeviceToHost`], timestamp is captured when activity starts on GPU.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::GpuPageFault`] and [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`], timestamp is captured when CUDA driver started processing the fault.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Thrashing`], timestamp is captured when CUDA driver detected thrashing of memory region.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Throttling`], timestamp is captured when throttling operation was started by CUDA driver.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::RemoteMap`], timestamp is captured when CUDA driver has pushed all required operations to the processor specified by `destination_id`.
     pub start: u64,
-    /// The end timestamp of the counter, in nanoseconds. Ignore this field if `counter_kind` is [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`] or [`ActivityUnifiedMemoryCounterKind::Thrashing`] or [`ActivityUnifiedMemoryCounterKind::RemoteMap`]. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::BytesTransferHostToDevice`] and [`ActivityUnifiedMemoryCounterKind::BytesTransferDeviceToHost`], timestamp is captured when activity finishes on GPU. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::GpuPageFault`], timestamp is captured when CUDA driver queues the replay of faulting memory accesses on the GPU For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Throttling`], timestamp is captured when throttling operation was finished by CUDA driver.
+    /// The end timestamp of the counter, in nanoseconds.
+    /// Ignore this field if `counter_kind` is [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`] or [`ActivityUnifiedMemoryCounterKind::Thrashing`] or [`ActivityUnifiedMemoryCounterKind::RemoteMap`].
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::BytesTransferHostToDevice`] and [`ActivityUnifiedMemoryCounterKind::BytesTransferDeviceToHost`], timestamp is captured when activity finishes on GPU.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::GpuPageFault`], timestamp is captured when CUDA driver queues the replay of faulting memory accesses on the GPU For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Throttling`], timestamp is captured when throttling operation was finished by CUDA driver.
     pub end: u64,
-    /// This is the virtual base address of the page/s being transferred. For cpu and gpu faults, the virtual address for the page that faulted.
+    /// This is the virtual base address of the page/s being transferred.
+    /// For cpu and gpu faults, the virtual address for the page that faulted.
     pub address: u64,
-    /// The ID of the source CPU/device involved in the memory transfer, page fault, thrashing, throttling or remote map operation. For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Thrashing`], it is a bitwise OR of the device IDs fighting for the memory region, ONLY if there are less than 32 devices. Ignore this field if `counter_kind` is [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`].
+    /// The ID of the source CPU/device involved in the memory transfer, page fault, thrashing, throttling or remote map operation.
+    /// For `counter_kind` [`ActivityUnifiedMemoryCounterKind::Thrashing`], it is a bitwise OR of the device IDs fighting for the memory region, ONLY if there are less than 32 devices.
+    /// Ignore this field if `counter_kind` is [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`].
     pub source_id: UnifiedMemoryProcessorId,
-    /// The ID of the destination CPU/device involved in the memory transfer or remote map operation. Ignore this field if `counter_kind` is [`ActivityUnifiedMemoryCounterKind::GpuPageFault`] or [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`] or [`ActivityUnifiedMemoryCounterKind::Thrashing`] or [`ActivityUnifiedMemoryCounterKind::Throttling`].
+    /// The ID of the destination CPU/device involved in the memory transfer or remote map operation.
+    /// Ignore this field if `counter_kind` is [`ActivityUnifiedMemoryCounterKind::GpuPageFault`] or [`ActivityUnifiedMemoryCounterKind::CentralProcessingUnitPageFaultCount`] or [`ActivityUnifiedMemoryCounterKind::Thrashing`] or [`ActivityUnifiedMemoryCounterKind::Throttling`].
     pub destination_id: UnifiedMemoryProcessorId,
-    /// The ID of the stream causing the transfer. This value of this field is invalid.
+    /// The ID of the stream causing the transfer.
+    /// This value of this field is invalid.
     pub stream_id: StreamId,
     /// The ID of the process to which this record belongs to.
     pub process_id: ProcessId,
@@ -2785,7 +2987,8 @@ impl ActivityDeviceAttributeValue {
     ///
     /// # Panics
     ///
-    /// Panics if the internal four-byte slice has an unexpected length. Its fixed range makes this condition unreachable.
+    /// Panics if the internal four-byte slice has an unexpected length.
+    /// Its fixed range makes this condition unreachable.
     #[must_use]
     pub fn as_u32(self) -> u32 {
         u32::from_le_bytes(
@@ -2825,7 +3028,8 @@ pub struct ActivityDeviceAttribute {
     pub device_id: DeviceId,
     /// Attribute selector decoded as either a CUPTI attribute or a CUDA driver attribute using the native device-attribute flag.
     pub attribute: ActivityDeviceAttributeKind,
-    /// Raw attribute value. Interpret it using the selected CUPTI or CUDA driver attribute and its native value type.
+    /// Raw attribute value.
+    /// Interpret it using the selected CUPTI or CUDA driver attribute and its native value type.
     pub value: ActivityDeviceAttributeValue,
 }
 
@@ -2903,7 +3107,8 @@ pub enum ActivityEnvironmentReading {
 pub struct ActivityEnvironment {
     /// The ID of the device.
     pub device_id: DeviceId,
-    /// The timestamp when this sample was retrieved, in nanoseconds. A value of 0 indicates that timestamp information could not be collected for the marker.
+    /// The timestamp when this sample was retrieved, in nanoseconds.
+    /// A value of 0 indicates that timestamp information could not be collected for the marker.
     pub timestamp: u64,
     /// The kind of data reported in this record.
     pub environment_kind: ActivityEnvironmentKind,
@@ -3016,19 +3221,25 @@ pub struct ActivityDevice<'a> {
     pub device_id: DeviceId,
     /// Whether error-correcting code (ECC) is enabled for the device.
     pub ecc_enabled: bool,
-    /// The device UUID. This value is the globally unique immutable alphanumeric identifier of the device.
+    /// The device UUID.
+    /// This value is the globally unique immutable alphanumeric identifier of the device.
     pub uuid: [u8; 16],
-    /// Device name. This borrowed view does not transfer ownership of the native name allocation. `None` represents a null native pointer.
+    /// Device name.
+    /// This borrowed view does not transfer ownership of the native name allocation.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
     /// Whether the device is visible to CUDA under the `CUDA_VISIBLE_DEVICES` environment setting.
     pub is_cuda_visible: bool,
     /// Whether Multi-Instance GPU (MIG) mode is enabled on the device.
     pub is_mig_enabled: bool,
-    /// GPU Instance id for MIG enabled devices. If mig mode is disabled value is set to `UINT32_MAX`
+    /// GPU Instance id for MIG enabled devices.
+    /// If mig mode is disabled value is set to `UINT32_MAX`
     pub gpu_instance_id: GpuInstanceId,
-    /// Compute Instance id for MIG enabled devices. If mig mode is disabled value is set to `UINT32_MAX`
+    /// Compute Instance id for MIG enabled devices.
+    /// If mig mode is disabled value is set to `UINT32_MAX`
     pub compute_instance_id: ComputeInstanceId,
-    /// The MIG UUID. This value is the globally unique immutable alphanumeric identifier of the device.
+    /// The MIG UUID.
+    /// This value is the globally unique immutable alphanumeric identifier of the device.
     pub mig_uuid: [u8; 16],
     /// Whether this GPU is a non-uniform memory access (NUMA) node.
     pub is_non_uniform_memory_access_node: bool,
@@ -3103,17 +3314,23 @@ pub struct ActivityJit<'a> {
     pub operation_type: ActivityJitOperationType,
     /// The device ID.
     pub device_id: DeviceId,
-    /// The start timestamp for the JIT operation, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the JIT operation.
+    /// The start timestamp for the JIT operation, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the JIT operation.
     pub start: u64,
-    /// The end timestamp for the JIT operation, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the JIT operation.
+    /// The end timestamp for the JIT operation, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the JIT operation.
     pub end: u64,
-    /// The correlation ID of the JIT operation to which records belong to. Each JIT operation is assigned a unique correlation ID that is identical to the correlation ID in the driver or runtime API activity record that launched the JIT operation.
+    /// The correlation ID of the JIT operation to which records belong to.
+    /// Each JIT operation is assigned a unique correlation ID that is identical to the correlation ID in the driver or runtime API activity record that launched the JIT operation.
     pub correlation_id: CorrelationId,
-    /// The correlation ID to correlate JIT compilation, load and store operations. Each JIT compilation unit is assigned a unique correlation ID at the time of the JIT compilation. This correlation id can be used to find the matching JIT cache load/store records.
+    /// The correlation ID to correlate JIT compilation, load and store operations.
+    /// Each JIT compilation unit is assigned a unique correlation ID at the time of the JIT compilation.
+    /// This correlation id can be used to find the matching JIT cache load/store records.
     pub operation_correlation_id: JitOperationCorrelationId,
     /// The size of compute cache.
     pub cache_size: u64,
-    /// Path at which the compiled binary is cached. `None` represents a null native pointer.
+    /// Path at which the compiled binary is cached.
+    /// `None` represents a null native pointer.
     pub cache_path: Option<&'a CStr>,
     /// The ID of the process where the JIT operation is executing.
     pub process_id: ProcessId,
@@ -3192,9 +3409,11 @@ pub struct ActivityNvLink<'a> {
     pub flags: LinkFlags,
     /// Number of physical `NVLinks` present between two devices.
     pub physical_link_count: u32,
-    /// Borrowed endpoint-zero port identifiers, one per physical link. `None` indicates a null native pointer or zero links.
+    /// Borrowed endpoint-zero port identifiers, one per physical link.
+    /// `None` indicates a null native pointer or zero links.
     pub device0_ports: Option<&'a [u32]>,
-    /// Borrowed endpoint-one port identifiers, one per physical link. `None` indicates a null native pointer or zero links.
+    /// Borrowed endpoint-one port identifiers, one per physical link.
+    /// `None` indicates a null native pointer or zero links.
     pub device1_ports: Option<&'a [u32]>,
     /// Bandwidth of `NVLink` in kbytes/sec.
     pub bandwidth: u64,
@@ -3352,7 +3571,8 @@ pub struct ActivityPcie {
     pub link_rate: u16,
     /// Link width of the GPU or bridge.
     pub link_width: u16,
-    /// Upstream bus ID for the GPU or PCI bridge. Required to identify which bus it is connected to in the topology.
+    /// Upstream bus ID for the GPU or PCI bridge.
+    /// Required to identify which bus it is connected to in the topology.
     pub upstream_bus: u16,
     /// GPU or bridge properties selected by `device_type`.
     pub attributes: ActivityPcieAttributes,
@@ -3483,7 +3703,8 @@ fn optional_cstr<'a>(ptr: *const ffi::c_char) -> Option<&'a CStr> {
 pub struct ActivityOpenAccBase<'a> {
     /// Kind of `OpenACC` event.
     pub event_kind: OpenAccEventKind,
-    /// Enclosing `OpenACC` construct. PGI runtimes older than 16.1 report an unknown construct.
+    /// Enclosing `OpenACC` construct.
+    /// PGI runtimes older than 16.1 report an unknown construct.
     pub parent_construct: OpenAccConstructKind,
     /// Native record version number.
     pub version: u32,
@@ -3574,7 +3795,8 @@ pub struct ActivityOpenAccTransfer<'a> {
     pub host_ptr: u64,
     /// Device pointer if available.
     pub device_ptr: u64,
-    /// Name of the variable associated with the event, when known. `None` represents a null native pointer.
+    /// Name of the variable associated with the event, when known.
+    /// `None` represents a null native pointer.
     pub variable_name: Option<&'a CStr>,
 }
 
@@ -3603,7 +3825,8 @@ pub struct ActivityOpenAccLaunch<'a> {
     pub num_workers: u64,
     /// The number of vector lanes created for this kernel launch.
     pub vector_length: u64,
-    /// Name of the launched kernel, when known. `None` represents a null native pointer.
+    /// Name of the launched kernel, when known.
+    /// `None` represents a null native pointer.
     pub kernel_name: Option<&'a CStr>,
 }
 
@@ -3639,7 +3862,8 @@ impl ActivityOpenAccOther<'_> {
 pub struct ActivityPreemption {
     /// kind of the preemption.
     pub preemption_kind: ActivityPreemptionKind,
-    /// The timestamp of the preemption, in nanoseconds. A value of 0 indicates that timestamp information could not be collected for the preemption.
+    /// The timestamp of the preemption, in nanoseconds.
+    /// A value of 0 indicates that timestamp information could not be collected for the preemption.
     pub timestamp: u64,
     /// The grid-id of the block that is preempted.
     pub grid_id: GridId,
@@ -3675,7 +3899,8 @@ pub struct ActivityFunction<'a> {
     pub module_id: ModuleId,
     /// The function's unique symbol index in the module.
     pub function_index: u32,
-    /// Function name shared by records for the same kernel. `None` represents a null native pointer.
+    /// Function name shared by records for the same kernel.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
 }
 
@@ -3706,7 +3931,8 @@ pub struct ActivityModule<'a> {
     pub context_id: ContextId,
     /// The module ID.
     pub id: ModuleId,
-    /// Borrowed CUDA binary image bytes, when the native image pointer is present. `None` represents a null native pointer.
+    /// Borrowed CUDA binary image bytes, when the native image pointer is present.
+    /// `None` represents a null native pointer.
     pub cubin: Option<&'a [u8]>,
 }
 
@@ -3747,7 +3973,8 @@ pub struct ActivitySharedAccess {
     pub shared_transactions: u64,
     /// The minimum number of shared memory transactions possible based on the access pattern.
     pub theoretical_shared_transactions: u64,
-    /// The number of times this instruction was executed per warp. It will be incremented when at least one of thread among warp is active with predicate and condition code evaluating to true.
+    /// The number of times this instruction was executed per warp.
+    /// It will be incremented when at least one of thread among warp is active with predicate and condition code evaluating to true.
     pub executed: u32,
 }
 
@@ -3806,7 +4033,8 @@ pub struct ActivitySourceLocator<'a> {
     pub id: SourceLocatorId,
     /// The line number in the source .
     pub line_number: u32,
-    /// Source file path, when available. `None` represents a null native pointer.
+    /// Source file path, when available.
+    /// `None` represents a null native pointer.
     pub file_name: Option<&'a CStr>,
 }
 
@@ -3835,13 +4063,18 @@ pub struct ActivityOverhead {
     pub object_kind: ActivityObjectKind,
     /// Activity object identifier, decoded according to `object_kind`.
     pub object_id: ActivityObjectId,
-    /// The start timestamp for the overhead, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the overhead.
+    /// The start timestamp for the overhead, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the overhead.
     pub start: u64,
-    /// The end timestamp for the overhead, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the overhead.
+    /// The end timestamp for the overhead, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the overhead.
     pub end: u64,
-    /// The correlation ID of the overhead operation to which records belong to. This ID is identical to the correlation ID in the driver or runtime API activity record that launched the overhead operation. In some cases, it can be zero, such as for [`ActivityOverheadKind::BufferFlush`] records.
+    /// The correlation ID of the overhead operation to which records belong to.
+    /// This ID is identical to the correlation ID in the driver or runtime API activity record that launched the overhead operation.
+    /// In some cases, it can be zero, such as for [`ActivityOverheadKind::BufferFlush`] records.
     pub correlation_id: CorrelationId,
-    /// Whether the native record includes an additional overhead payload. This flag records its presence without exposing its pointer.
+    /// Whether the native record includes an additional overhead payload.
+    /// This flag records its presence without exposing its pointer.
     pub has_overhead_data: bool,
 }
 
@@ -3867,7 +4100,8 @@ impl ActivityOverhead {
 pub struct ActivityKernel<'a> {
     /// Execution model of the kernel function.
     pub execution_model: FunctionExecutionModel,
-    /// Kernel name shared by records for the same kernel. `None` represents a null native pointer.
+    /// Kernel name shared by records for the same kernel.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
     /// The ID of the device where the kernel is executing.
     pub device_id: DeviceId,
@@ -3875,9 +4109,11 @@ pub struct ActivityKernel<'a> {
     pub context_id: ContextId,
     /// The ID of the stream where the kernel is executing.
     pub stream_id: StreamId,
-    /// The correlation ID of the kernel. Each kernel execution is assigned a unique correlation ID that is identical to the correlation ID in the driver or runtime API activity record that launched the kernel.
+    /// The correlation ID of the kernel.
+    /// Each kernel execution is assigned a unique correlation ID that is identical to the correlation ID in the driver or runtime API activity record that launched the kernel.
     pub correlation_id: CorrelationId,
-    /// The grid ID of the kernel. Each kernel is assigned a unique grid ID at runtime.
+    /// The grid ID of the kernel.
+    /// Each kernel is assigned a unique grid ID at runtime.
     pub grid_id: GridId,
     /// Grid dimensions in thread blocks.
     pub grid: Dim3,
@@ -3885,17 +4121,28 @@ pub struct ActivityKernel<'a> {
     pub block: Dim3,
     /// Thread-block cluster dimensions; valid for compute capability 9.0 and later.
     pub cluster: Dim3,
-    /// The start timestamp for the kernel execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
+    /// The start timestamp for the kernel execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
     pub start: u64,
-    /// The end timestamp for the kernel execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
+    /// The end timestamp for the kernel execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
     pub end: u64,
-    /// The completed timestamp for the kernel execution, in nanoseconds.  It represents the completion of all its child kernels and the kernel itself. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the completion time is unknown.
+    /// The completed timestamp for the kernel execution, in nanoseconds.
+    /// It represents the completion of all its child kernels and the kernel itself.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the completion time is unknown.
     pub completed: u64,
-    /// The timestamp when the kernel is queued up in the command buffer, in nanoseconds. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the queued time could not be collected for the kernel. This timestamp is not collected by default. Use API [`enable_latency_timestamulti_process_service`]() to enable collection.
+    /// The timestamp when the kernel is queued up in the command buffer, in nanoseconds.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the queued time could not be collected for the kernel.
+    /// This timestamp is not collected by default.
+    /// Use API [`enable_latency_timestamulti_process_service`]() to enable collection.
     ///
-    /// Command buffer is a buffer written by CUDA driver to send commands like kernel launch, memory copy etc to the GPU. All launches of CUDA kernels are asynchronous with respect to the host, the host requests the launch by writing commands into the command buffer, then returns without checking the GPU's progress.
+    /// Command buffer is a buffer written by CUDA driver to send commands like kernel launch, memory copy etc to the GPU.
+    /// All launches of CUDA kernels are asynchronous with respect to the host, the host requests the launch by writing commands into the command buffer, then returns without checking the GPU's progress.
     pub queued: u64,
-    /// The timestamp when the command buffer containing the kernel launch is submitted to the GPU, in nanoseconds. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the submitted time could not be collected for the kernel. This timestamp is not collected by default. Use API [`enable_latency_timestamulti_process_service`]() to enable collection.
+    /// The timestamp when the command buffer containing the kernel launch is submitted to the GPU, in nanoseconds.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the submitted time could not be collected for the kernel.
+    /// This timestamp is not collected by default.
+    /// Use API [`enable_latency_timestamulti_process_service`]() to enable collection.
     pub submitted: u64,
     /// The static shared memory allocated for the kernel, in bytes.
     pub static_shared_memory: u32,
@@ -3907,27 +4154,34 @@ pub struct ActivityKernel<'a> {
     pub local_memory_total: u64,
     /// The number of registers required for each thread executing the kernel.
     pub registers_per_thread: u16,
-    /// The shared memory configuration used for the kernel. The value is one of the `CUsharedconfig` enumeration values from `cuda.h`.
+    /// The shared memory configuration used for the kernel.
+    /// The value is one of the `CUsharedconfig` enumeration values from `cuda.h`.
     pub shared_memory_config: u8,
     /// Shared memory size set by the driver.
     pub shared_memory_executed: u32,
     /// Requested shared-memory carveout percentage, or `None` when no carveout was requested.
     pub shared_memory_carveout_requested: Option<u8>,
-    /// The partitioned global caching requested for the kernel. Partitioned global caching is required to enable caching on certain chips, such as devices with compute capability 5.2.
+    /// The partitioned global caching requested for the kernel.
+    /// Partitioned global caching is required to enable caching on certain chips, such as devices with compute capability 5.2.
     pub partitioned_global_cache_requested: ActivityPartitionedGlobalCacheConfig,
-    /// The partitioned global caching executed for the kernel. Partitioned global caching is required to enable caching on certain chips, such as devices with compute capability 5.2. Partitioned global caching can be automatically disabled if the occupancy requirement of the launch cannot support caching.
+    /// The partitioned global caching executed for the kernel.
+    /// Partitioned global caching is required to enable caching on certain chips, such as devices with compute capability 5.2.
+    /// Partitioned global caching can be automatically disabled if the occupancy requirement of the launch cannot support caching.
     pub partitioned_global_cache_executed: ActivityPartitionedGlobalCacheConfig,
     /// Whether the kernel uses a regular launch or a single-device or multi-device cooperative launch.
     pub launch_type: ActivityLaunchType,
-    /// The shared memory limit config for the kernel. This field shows whether user has opted for a higher per block limit of dynamic shared memory.
+    /// The shared memory limit config for the kernel.
+    /// This field shows whether user has opted for a higher per block limit of dynamic shared memory.
     pub shared_memory_limit_config: FunctionSharedMemoryLimitConfig,
     /// Graph node ID in the source graph from which the executable graph was instantiated.
     pub source_graph_node_id: GraphNodeId,
     /// ID of the source graph from which the executable graph was instantiated.
     pub source_graph_id: GraphId,
-    /// The unique ID of the graph node that launched this kernel through graph launch APIs. This field will be 0 if the kernel is not launched through graph launch APIs.
+    /// The unique ID of the graph node that launched this kernel through graph launch APIs.
+    /// This field will be 0 if the kernel is not launched through graph launch APIs.
     pub graph_node_id: GraphNodeId,
-    /// The unique ID of the graph that launched this kernel through graph launch APIs. This field will be 0 if the kernel is not launched through graph launch APIs.
+    /// The unique ID of the graph that launched this kernel through graph launch APIs.
+    /// This field will be 0 if the kernel is not launched through graph launch APIs.
     pub graph_id: GraphId,
     /// The ID of the HW channel on which the kernel is launched.
     pub channel_id: ChannelId,
@@ -4018,7 +4272,8 @@ impl ActivityKernel<'_> {
 /// Borrowed strings and slices remain tied to the source record lifetime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActivityCudaDynamicParallelismKernel<'a> {
-    /// Kernel name shared by records for the same kernel. `None` represents a null native pointer.
+    /// Kernel name shared by records for the same kernel.
+    /// `None` represents a null native pointer.
     pub name: Option<&'a CStr>,
     /// The ID of the device where the kernel is executing.
     pub device_id: DeviceId,
@@ -4026,9 +4281,11 @@ pub struct ActivityCudaDynamicParallelismKernel<'a> {
     pub context_id: ContextId,
     /// The ID of the stream where the kernel is executing.
     pub stream_id: StreamId,
-    /// The correlation ID of the kernel. Each kernel execution is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the kernel.
+    /// The correlation ID of the kernel.
+    /// Each kernel execution is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the kernel.
     pub correlation_id: CorrelationId,
-    /// The grid ID of the kernel. Each kernel execution is assigned a unique grid ID.
+    /// The grid ID of the kernel.
+    /// Each kernel execution is assigned a unique grid ID.
     pub grid_id: GridId,
     /// The grid ID of the parent kernel.
     pub parent_grid_id: GridId,
@@ -4038,15 +4295,20 @@ pub struct ActivityCudaDynamicParallelismKernel<'a> {
     pub grid: Dim3,
     /// Thread-block dimensions in threads.
     pub block: Dim3,
-    /// The start timestamp for the kernel execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
+    /// The start timestamp for the kernel execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
     pub start: u64,
-    /// The end timestamp for the kernel execution, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
+    /// The end timestamp for the kernel execution, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the kernel.
     pub end: u64,
-    /// The timestamp when kernel is marked as completed, in nanoseconds. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the completion time is unknown.
+    /// The timestamp when kernel is marked as completed, in nanoseconds.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the completion time is unknown.
     pub completed: u64,
-    /// The timestamp when kernel is queued up, in nanoseconds. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the queued time is unknown.
+    /// The timestamp when kernel is queued up, in nanoseconds.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the queued time is unknown.
     pub queued: u64,
-    /// The timestamp when kernel is submitted to the gpu, in nanoseconds. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the submission time is unknown.
+    /// The timestamp when kernel is submitted to the gpu, in nanoseconds.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the submission time is unknown.
     pub submitted: u64,
     /// The static shared memory allocated for the kernel, in bytes.
     pub static_shared_memory: u32,
@@ -4058,7 +4320,8 @@ pub struct ActivityCudaDynamicParallelismKernel<'a> {
     pub local_memory_total: u32,
     /// The number of registers required for each thread executing the kernel.
     pub registers_per_thread: u16,
-    /// The shared memory configuration used for the kernel. The value is one of the `CUsharedconfig` enumeration values from `cuda.h`.
+    /// The shared memory configuration used for the kernel.
+    /// The value is one of the `CUsharedconfig` enumeration values from `cuda.h`.
     pub shared_memory_config: u8,
 }
 
@@ -4115,15 +4378,18 @@ pub struct ActivityMemoryDecompress {
     pub channel_id: ChannelId,
     /// The type of the channel.
     pub channel_type: ChannelType,
-    /// The correlation ID of the decompression operations. Each operation is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the operation.
+    /// The correlation ID of the decompression operations.
+    /// Each operation is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the operation.
     pub correlation_id: CorrelationId,
     /// The number of operations in the batch.
     pub number_of_operations: u32,
     /// The number of bytes to be read and decompressed in the batch operation.
     pub source_bytes: u64,
-    /// The start timestamp. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
+    /// The start timestamp.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
     pub start: u64,
-    /// The end timestamp. A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
+    /// The end timestamp.
+    /// A value of `CUPTI_TIMESTAMP_UNKNOWN` indicates that the start time is unknown.
     pub end: u64,
 }
 
@@ -4159,9 +4425,11 @@ pub struct ActivityMemoryCopy {
     pub flags: ActivityFlags,
     /// The number of bytes transferred by the memory copy.
     pub bytes: u64,
-    /// The start timestamp for the memory copy, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
+    /// The start timestamp for the memory copy, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
     pub start: u64,
-    /// The end timestamp for the memory copy, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
+    /// The end timestamp for the memory copy, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
     pub end: u64,
     /// The ID of the device where the memory copy is occurring.
     pub device_id: DeviceId,
@@ -4169,17 +4437,21 @@ pub struct ActivityMemoryCopy {
     pub context_id: ContextId,
     /// The ID of the stream where the memory copy is occurring.
     pub stream_id: StreamId,
-    /// The correlation ID of the memory copy. Each memory copy is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the memory copy.
+    /// The correlation ID of the memory copy.
+    /// Each memory copy is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the memory copy.
     pub correlation_id: CorrelationId,
-    /// The runtime correlation ID of the memory copy. Each memory copy is assigned a unique runtime correlation ID that is identical to the correlation ID in the runtime API activity record that launched the memory copy.
+    /// The runtime correlation ID of the memory copy.
+    /// Each memory copy is assigned a unique runtime correlation ID that is identical to the correlation ID in the runtime API activity record that launched the memory copy.
     pub runtime_correlation_id: CorrelationId,
     /// Graph node ID in the source graph from which the executable graph was instantiated.
     pub source_graph_node_id: GraphNodeId,
     /// ID of the source graph from which the executable graph was instantiated.
     pub source_graph_id: GraphId,
-    /// The unique ID of the graph node that executed this memcpy through graph launch. This field will be 0 if the memcpy is not done through graph launch.
+    /// The unique ID of the graph node that executed this memcpy through graph launch.
+    /// This field will be 0 if the memcpy is not done through graph launch.
     pub graph_node_id: GraphNodeId,
-    /// The unique ID of the graph that executed this memcpy through graph launch. This field will be 0 if the memcpy is not done through graph launch.
+    /// The unique ID of the graph that executed this memcpy through graph launch.
+    /// This field will be 0 if the memcpy is not done through graph launch.
     pub graph_id: GraphId,
     /// The ID of the HW channel on which the memory copy is occurring.
     pub channel_id: ChannelId,
@@ -4187,7 +4459,10 @@ pub struct ActivityMemoryCopy {
     pub channel_type: ChannelType,
     /// Whether the copy belongs to a device-launched graph.
     pub is_device_launched: bool,
-    /// The total number of memcopy operations traced in this record. This field is valid for memcpy operations happening using `MemcpyBatchAsync` APIs in CUDA. In `MemcpyBatchAsync` APIs, multiple memcpy operations are batched together for optimization purposes based on certain heuristics. For other memcpy operations, this field will be 1.
+    /// The total number of memcopy operations traced in this record.
+    /// This field is valid for memcpy operations happening using `MemcpyBatchAsync` APIs in CUDA.
+    /// In `MemcpyBatchAsync` APIs, multiple memcpy operations are batched together for optimization purposes based on certain heuristics.
+    /// For other memcpy operations, this field will be 1.
     pub copy_count: u64,
 }
 
@@ -4233,9 +4508,11 @@ pub struct ActivityPeerMemoryCopy {
     pub flags: ActivityFlags,
     /// The number of bytes transferred by the memory copy.
     pub bytes: u64,
-    /// The start timestamp for the memory copy, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
+    /// The start timestamp for the memory copy, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
     pub start: u64,
-    /// The end timestamp for the memory copy, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
+    /// The end timestamp for the memory copy, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory copy.
     pub end: u64,
     /// The ID of the device where the memory copy is occurring.
     pub device_id: DeviceId,
@@ -4251,11 +4528,14 @@ pub struct ActivityPeerMemoryCopy {
     pub destination_device_id: DeviceId,
     /// The ID of the context owning the memory being copied to.
     pub destination_context_id: ContextId,
-    /// The correlation ID of the memory copy. Each memory copy is assigned a unique correlation ID that is identical to the correlation ID in the driver and runtime API activity record that launched the memory copy.
+    /// The correlation ID of the memory copy.
+    /// Each memory copy is assigned a unique correlation ID that is identical to the correlation ID in the driver and runtime API activity record that launched the memory copy.
     pub correlation_id: CorrelationId,
-    /// The unique ID of the graph node that executed the memcpy through graph launch. This field will be 0 if memcpy is not done using graph launch.
+    /// The unique ID of the graph node that executed the memcpy through graph launch.
+    /// This field will be 0 if memcpy is not done using graph launch.
     pub graph_node_id: GraphNodeId,
-    /// The unique ID of the graph that executed this memcpy through graph launch. This field will be 0 if the memcpy is not done through graph launch.
+    /// The unique ID of the graph that executed this memcpy through graph launch.
+    /// This field will be 0 if the memcpy is not done through graph launch.
     pub graph_id: GraphId,
     /// The ID of the HW channel on which the memory copy is occurring.
     pub channel_id: ChannelId,
@@ -4296,9 +4576,11 @@ pub struct ActivityMemorySet {
     pub value: u32,
     /// The number of bytes being set by the memory set.
     pub bytes: u64,
-    /// The start timestamp for the memory set, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory set.
+    /// The start timestamp for the memory set, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory set.
     pub start: u64,
-    /// The end timestamp for the memory set, in nanoseconds. A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory set.
+    /// The end timestamp for the memory set, in nanoseconds.
+    /// A value of 0 for both the start and end timestamps indicates that timestamp information could not be collected for the memory set.
     pub end: u64,
     /// The ID of the device where the memory set is occurring.
     pub device_id: DeviceId,
@@ -4306,7 +4588,8 @@ pub struct ActivityMemorySet {
     pub context_id: ContextId,
     /// The ID of the stream where the memory set is occurring.
     pub stream_id: StreamId,
-    /// The correlation ID of the memory set. Each memory set is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the memory set.
+    /// The correlation ID of the memory set.
+    /// Each memory set is assigned a unique correlation ID that is identical to the correlation ID in the driver API activity record that launched the memory set.
     pub correlation_id: CorrelationId,
     /// The flags associated with the memset.
     ///
@@ -4320,9 +4603,11 @@ pub struct ActivityMemorySet {
     pub source_graph_node_id: GraphNodeId,
     /// ID of the source graph from which the executable graph was instantiated.
     pub source_graph_id: GraphId,
-    /// The unique ID of the graph node that executed this memset through graph launch. This field will be 0 if the memset is not executed through graph launch.
+    /// The unique ID of the graph node that executed this memset through graph launch.
+    /// This field will be 0 if the memset is not executed through graph launch.
     pub graph_node_id: GraphNodeId,
-    /// The unique ID of the graph that executed this memset through graph launch. This field will be 0 if the memset is not executed through graph launch.
+    /// The unique ID of the graph that executed this memset through graph launch.
+    /// This field will be 0 if the memset is not executed through graph launch.
     pub graph_id: GraphId,
     /// The ID of the HW channel on which the memory set is occurring.
     pub channel_id: ChannelId,
@@ -4358,7 +4643,8 @@ impl ActivityMemorySet {
 
 /// Iterator over borrowed records in a completed activity buffer.
 ///
-/// Stops at the end of the buffer. A native iteration error is yielded once as `Err`, after which iteration stops.
+/// Stops at the end of the buffer.
+/// A native iteration error is yielded once as `Err`, after which iteration stops.
 #[derive(Debug)]
 pub struct ActivityRecords<'a> {
     buffer: *mut u8,
@@ -4390,7 +4676,8 @@ impl<'a> Iterator for ActivityRecords<'a> {
                 ptr: self.current.cast_const(),
                 _marker: PhantomData,
             })),
-            sys::CUptiResult::CUPTI_ERROR_QUEUE_EMPTY => {
+            // CUPTI reports the end of the buffer as `MAX_LIMIT_REACHED`.
+            sys::CUptiResult::CUPTI_ERROR_MAX_LIMIT_REACHED => {
                 self.finished = true;
                 None
             }
@@ -4435,7 +4722,8 @@ impl ActivityBufferCallbackConfig {
 
 /// Collects byte copies of completed activity buffers behind a shared mutex.
 ///
-/// Buffers accumulate until [`Self::take_buffers`] removes them. Dropping the collector clears its callbacks if it still owns the current registration.
+/// Buffers accumulate until [`Self::take_buffers`] removes them.
+/// Dropping the collector clears its callbacks if it still owns the current registration.
 #[derive(Debug)]
 pub struct ActivityCollector {
     owner_id: u64,
@@ -4613,7 +4901,8 @@ impl Context {
 
     /// Configures legacy PC sampling for this context.
     ///
-    /// For Pascal and older GPUs, configure PC sampling before enabling [`crate::types::ActivityKind::PcSampling`]. Starting with CUDA 13.0 this legacy profiler path is unsupported.
+    /// For Pascal and older GPUs, configure PC sampling before enabling [`crate::types::ActivityKind::PcSampling`].
+    /// Starting with CUDA 13.0 this legacy profiler path is unsupported.
     ///
     /// # Errors
     ///
@@ -4686,7 +4975,8 @@ pub fn disable_global(kind: ActivityKind) -> Result<()> {
 
 /// Globally enables collection of an activity kind and asks CUPTI to emit existing resource records when supported.
 ///
-/// Register activity buffer callbacks before calling this; otherwise CUPTI can enable the kind without delivering records. Resource dumping is mainly useful for late attach to existing devices, contexts, streams, `NVLink`, and `PCIe` records.
+/// Register activity buffer callbacks before calling this; otherwise CUPTI can enable the kind without delivering records.
+/// Resource dumping is mainly useful for late attach to existing devices, contexts, streams, `NVLink`, and `PCIe` records.
 ///
 /// # Errors
 ///
@@ -4811,13 +5101,15 @@ pub fn enabled_kinds(subscriber: &Subscriber) -> Result<Vec<ActivityKind>> {
             &raw mut enabled_count,
         ))?;
     }
+
     kinds.truncate(to_usize(enabled_count, "enabled_activity_kinds_count")?);
     Ok(kinds.into_iter().map(ActivityKind::from).collect())
 }
 
 /// Returns the byte size of CUPTI's activity record struct for an activity kind and CUPTI API version.
 ///
-/// Pass `0` for `version` to query the current runtime version. Nonzero versions must use CUPTI's `xxyyzz` version format and be at least 13.0.
+/// Pass `0` for `version` to query the current runtime version.
+/// Nonzero versions must use CUPTI's `xxyyzz` version format and be at least 13.0.
 ///
 /// # Errors
 ///
@@ -4963,7 +5255,8 @@ pub fn enable_runtime_api(callback_id: CallbackId, enable: bool) -> Result<()> {
 
 /// Enables hardware-event-system tracing for the profiling session.
 ///
-/// Call this before creating CUDA contexts when possible. Once enabled, hardware tracing persists for the session.
+/// Call this before creating CUDA contexts when possible.
+/// Once enabled, hardware tracing persists for the session.
 ///
 /// # Errors
 ///
@@ -5042,7 +5335,8 @@ pub fn flush_all(flag: ActivityFlushFlag) -> Result<()> {
 
 /// Sets CUPTI's periodic activity flush interval.
 ///
-/// Passing `0` disables periodic flushing and restores CUPTI's default worker-thread heuristics. Periodic flushes deliver only full buffers whose records are complete.
+/// Passing `0` disables periodic flushing and restores CUPTI's default worker-thread heuristics.
+/// Periodic flushes deliver only full buffers whose records are complete.
 ///
 /// # Errors
 ///
@@ -5099,7 +5393,8 @@ pub fn global_attribute_value(attr: ActivityAttribute) -> Result<ActivityAttribu
 ///
 /// # Errors
 ///
-/// Returns an error if the typed accessor does not support the attribute, the native result has an unexpected byte size or enum value, a checked size conversion fails, or CUPTI rejects or cannot read the attribute. Also returns an error if the subscriber handle is absent.
+/// Returns an error if the typed accessor does not support the attribute, the native result has an unexpected byte size or enum value, a checked size conversion fails, or CUPTI rejects or cannot read the attribute.
+/// Also returns an error if the subscriber handle is absent.
 pub fn attribute_value(
     subscriber: &Subscriber,
     attr: ActivityAttribute,
@@ -5245,7 +5540,10 @@ pub fn push_external_correlation_id(
 
 /// Registers a process-wide Rust callback receiving completed activity buffers.
 ///
-/// Replaces the current Rust callback owner. Keep the returned registration alive while collecting; dropping it clears its callbacks if it still owns the registration. Buffer bytes are borrowed only during `completed`. Callback panics are caught by the native trampoline.
+/// Replaces the current Rust callback owner.
+/// Keep the returned registration alive while collecting; dropping it clears its callbacks if it still owns the registration.
+/// Buffer bytes are borrowed only during `completed`.
+/// Callback panics are caught by the native trampoline.
 ///
 /// # Errors
 ///
@@ -5305,7 +5603,8 @@ where
 
 /// Registers subscriber-scoped activity buffer callbacks.
 ///
-/// Register callbacks before enabling activity kinds if you want CUPTI to deliver activity records. Callback-based collection cannot be mixed with CUPTI's blocking enqueue/dequeue activity APIs.
+/// Register callbacks before enabling activity kinds if you want CUPTI to deliver activity records.
+/// Callback-based collection cannot be mixed with CUPTI's blocking enqueue/dequeue activity APIs.
 ///
 /// # Errors
 ///
@@ -5510,12 +5809,14 @@ impl Drop for ActivityBufferAllocation {
         if self.buffer.is_null() {
             return;
         }
+
         let Ok(size) = usize::try_from(self.size) else {
             return;
         };
         if size == 0 {
             return;
         }
+
         let Ok(layout) = activity_buffer_layout(size) else {
             return;
         };
@@ -5532,7 +5833,8 @@ fn activity_buffer_layout(size: usize) -> StdResult<Layout, LayoutError> {
 
 /// Registers a process-wide timestamp callback for activity records.
 ///
-/// Register the callback before enabling activity kinds. Changing it during a profiling session can make earlier and later records use different timestamp sources.
+/// Register the callback before enabling activity kinds.
+/// Changing it during a profiling session can make earlier and later records use different timestamp sources.
 ///
 /// # Errors
 ///
@@ -5565,6 +5867,7 @@ where
         {
             *callback = None;
         }
+
         drop(callback);
         return Err(error);
     }
@@ -5629,7 +5932,8 @@ pub fn set_global_attribute_value(
 ///
 /// # Errors
 ///
-/// Returns an error if the setting variant does not match a supported attribute, a checked byte-size conversion fails, or CUPTI rejects the attribute or its value. Also returns an error if the subscriber handle is absent.
+/// Returns an error if the setting variant does not match a supported attribute, a checked byte-size conversion fails, or CUPTI rejects the attribute or its value.
+/// Also returns an error if the subscriber handle is absent.
 pub fn set_attribute_value(
     subscriber: &Subscriber,
     attr: ActivityAttribute,

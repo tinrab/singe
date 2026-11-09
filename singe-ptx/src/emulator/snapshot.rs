@@ -1,5 +1,4 @@
-//! Copies of lane state returned by
-//! [`Emulator::inspect_lane`](crate::emulator::Emulator::inspect_lane).
+//! Copies of lane state returned by [`Emulator::inspect_lane`](crate::emulator::Emulator::inspect_lane).
 
 use crate::ast::{ScalarType, Span};
 
@@ -13,8 +12,8 @@ pub struct RegisterSnapshot {
 }
 
 impl RegisterSnapshot {
-    /// Returns the register name. Registers declared as a range, such as `%r<4>`, have
-    /// their index appended (`%r2`).
+    /// Returns the register name.
+    /// Registers declared as a range, such as `%r<4>`, have their index appended (`%r2`).
     #[must_use]
     pub fn name(&self) -> &str {
         &self.name
@@ -26,8 +25,7 @@ impl RegisterSnapshot {
         self.ty
     }
 
-    /// Returns the source byte range of the declaration, which tells apart registers
-    /// that shadow each other.
+    /// Returns the source byte range of the declaration, which tells apart registers that shadow each other.
     #[must_use]
     pub fn declaration(&self) -> Span {
         self.declaration
@@ -63,8 +61,7 @@ impl FrameSnapshot {
         self.instruction
     }
 
-    /// Returns the source byte range of the current instruction, or `None` past the
-    /// last instruction.
+    /// Returns the source byte range of the current instruction, or `None` past the last instruction.
     #[must_use]
     pub fn span(&self) -> Option<Span> {
         self.span
@@ -77,11 +74,10 @@ impl FrameSnapshot {
     }
 }
 
-/// A copy of one lane's state, taken by
-/// [`Emulator::inspect_lane`](crate::emulator::Emulator::inspect_lane).
+/// A copy of one lane's state, taken by [`Emulator::inspect_lane`](crate::emulator::Emulator::inspect_lane).
 ///
-/// The copy does not keep the emulator alive and does not change when the launch
-/// resumes. An exited lane has no frames.
+/// The copy does not keep the emulator alive and does not change when the launch resumes.
+/// An exited lane has no frames.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LaneSnapshot {
     pub(crate) cta: [u32; 3],
@@ -103,8 +99,7 @@ impl LaneSnapshot {
         self.lane
     }
 
-    /// Returns the lane's carry flag, or `None` while it is undefined: at lane start
-    /// and after a call or return.
+    /// Returns the lane's carry flag, or `None` while it is undefined: at lane start and after a call or return.
     #[must_use]
     pub fn carry(&self) -> Option<bool> {
         self.carry

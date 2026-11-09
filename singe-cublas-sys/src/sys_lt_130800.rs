@@ -445,7 +445,7 @@ pub struct cublasLtContext {
 }
 /// The [`cublasLtHandle_t`] type is a pointer type to an opaque structure holding the cuBLASLt library context. Use [`cublasLtCreate`] to initialize the cuBLASLt library context and return a handle to an opaque structure holding the cuBLASLt library context, and use [`cublasLtDestroy`] to destroy a previously created cuBLASLt library context descriptor and release the resources.
 pub type cublasLtHandle_t = *mut cublasLtContext;
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function initializes the cuBLASLt library and creates a handle to an opaque structure holding the cuBLASLt library context. It allocates light hardware resources on the host and device, and must be called prior to making any other cuBLASLt library calls.
     ///
     /// The cuBLASLt library context is tied to the current CUDA device. To use the library on multiple devices, one cuBLASLt handle must be created for each device. Furthermore, the device must be set as the current before invoking cuBLASLt functions with a handle tied to that device.
@@ -470,7 +470,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: The allocation completed successfully.
     pub fn cublasLtCreate(lightHandle: *mut cublasLtHandle_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function releases hardware resources used by the cuBLASLt library. This function is usually the last call with a particular handle to the cuBLASLt library. Because [`cublasLtCreate`] allocates some internal resources and the release of those resources by calling [`cublasLtDestroy`] will implicitly call `cudaDeviceSynchronize()`, it is recommended to minimize the number of times these functions are called.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -486,7 +486,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: The cuBLASLt context was successfully destroyed.
     pub fn cublasLtDestroy(lightHandle: cublasLtHandle_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Returns the string representation of a given status.
     ///
     ///  [`cublasStatus_t`] - the status.
@@ -494,7 +494,7 @@ unsafe extern "C" {
     ///  `const char*` - the NULL-terminated string.
     pub fn cublasLtGetStatusName(status: cublasStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Returns the description string for a given status.
     ///
     ///  [`cublasStatus_t`] - the status.
@@ -502,7 +502,7 @@ unsafe extern "C" {
     ///  `const char*` - the NULL-terminated string.
     pub fn cublasLtGetStatusString(status: cublasStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the version number of cuBLASLt library.
     ///
     ///  None.
@@ -510,7 +510,7 @@ unsafe extern "C" {
     /// `size_t` - The version number of cuBLASLt library.
     pub fn cublasLtGetVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the version number of the CUDA Runtime library.
     ///
     ///  None.
@@ -518,7 +518,7 @@ unsafe extern "C" {
     /// `size_t` - The version number of the CUDA Runtime library.
     pub fn cublasLtGetCudartVersion() -> size_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the requested property by writing it to the memory location pointed to by the value parameter.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -537,7 +537,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Returns the [Heuristics Cache](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#heuristics-cache) capacity.
     ///
     /// # Return value
@@ -546,7 +546,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: The capacity was successfully written.
     pub fn cublasLtHeuristicsCacheGetCapacity(capacity: *mut size_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Sets the [Heuristics Cache](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#heuristics-cache) capacity. Set the capacity to 0 to disable the heuristics cache.
     ///
     /// This function takes precedence over `CUBLASLT_HEURISTICS_CACHE_CAPACITY` environment variable.
@@ -556,7 +556,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: The capacity was successfully set.
     pub fn cublasLtHeuristicsCacheSetCapacity(capacity: size_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Instructs cuBLASLt library to not use [CPU instructions](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#disabling-cpu-instructions) specified by the flags in the `mask`.
     /// The function takes precedence over the `CUBLASLT_DISABLE_CPU_INSTRUCTIONS_MASK` environment variable.
     ///
@@ -2243,7 +2243,7 @@ pub enum cublasLtPointerModeMask_t {
 ///
 /// Flags below can be combined using the bit OR operator “|”.
 pub type cublasLtNumericalImplFlags_t = u64;
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function computes the matrix multiplication of matrices A and B to produce the output matrix D, according to the following operation:
     ///
     /// `D = alpha*(A*B) + beta*(C),`
@@ -2311,7 +2311,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function computes the matrix transformation operation on the input matrices A and B, to produce the output matrix C, according to the below operation:
     ///
     /// `C = alpha*transformation(A) + beta*transformation(B),`
@@ -2461,7 +2461,7 @@ pub enum cublasLtMatrixLayoutAttribute_t {
     /// Experimental: [`cublasLtIntegerWidth_t`] is an enumerated type used to indicate the width of integers in the leading dimensions array of a grouped matrix. Default value is [`cublasLtIntegerWidth_t::CUBLASLT_INTEGER_WIDTH_32`]. See [`cublasLtIntegerWidth_t`].
     CUBLASLT_GROUPED_MATRIX_LAYOUT_LD_ARRAY_INTEGER_WIDTH = 13,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatrixLayoutInit_internal(
         matLayout: cublasLtMatrixLayout_t,
@@ -2472,7 +2472,7 @@ unsafe extern "C" {
         ld: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: Internal. Do not use directly.
     pub fn cublasLtGroupedMatrixLayoutInit_internal(
         matLayout: cublasLtMatrixLayout_t,
@@ -2484,7 +2484,7 @@ unsafe extern "C" {
         ld_array: *const ::core::ffi::c_void,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function creates a matrix layout descriptor by allocating the memory needed to hold its opaque structure.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2507,7 +2507,7 @@ unsafe extern "C" {
         ld: i64,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function creates a grouped matrix layout descriptor by allocating the memory needed to hold its opaque structure.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2534,7 +2534,7 @@ unsafe extern "C" {
         ld_array: *const ::core::ffi::c_void,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function destroys a previously created matrix layout descriptor object.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2550,7 +2550,7 @@ unsafe extern "C" {
         matLayout: cublasLtMatrixLayout_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified attribute belonging to a previously created matrix layout descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2573,7 +2573,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried attribute belonging to the specified matrix layout descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2705,7 +2705,7 @@ pub enum cublasLtMatmulBatchInvarianceFlags_t {
     /// The value is not set through the attribute; batch invariance is controlled by the temporary, experimental `CUBLAS_BATCH_INVARIANCE_FLAGS` environment variable instead.
     CUBLASLT_BATCH_INVARIANCE_UNSET = 32768,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatmulDescInit_internal(
         matmulDesc: cublasLtMatmulDesc_t,
@@ -2714,7 +2714,7 @@ unsafe extern "C" {
         scaleType: cudaDataType_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function creates a matrix multiply descriptor by allocating the memory needed to hold its opaque structure.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2735,7 +2735,7 @@ unsafe extern "C" {
         scaleType: cudaDataType_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function destroys a previously created matrix multiply descriptor object.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2749,7 +2749,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: If operation was successful.
     pub fn cublasLtMatmulDescDestroy(matmulDesc: cublasLtMatmulDesc_t) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified attribute belonging to a previously created matrix multiply descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2772,7 +2772,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried attribute belonging to a previously created matrix multiply descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2821,7 +2821,7 @@ pub enum cublasLtMatrixTransformDescAttributes_t {
     /// Specifies the type of operation that should be performed on the matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`] (i.e., non-transpose operation). See [`cublasOperation_t`].
     CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSB = 3,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatrixTransformDescInit_internal(
         transformDesc: cublasLtMatrixTransformDesc_t,
@@ -2829,7 +2829,7 @@ unsafe extern "C" {
         scaleType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function creates a matrix transform descriptor by allocating the memory needed to hold its opaque structure.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2848,7 +2848,7 @@ unsafe extern "C" {
         scaleType: cudaDataType,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function destroys a previously created matrix transform descriptor object.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2864,7 +2864,7 @@ unsafe extern "C" {
         transformDesc: cublasLtMatrixTransformDesc_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified attribute belonging to a previously created matrix transform descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2887,7 +2887,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried attribute belonging to a previously created matrix transform descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2940,14 +2940,14 @@ pub enum cublasLtEmulationDescAttributes_t {
     /// This parameter is for fixed-point emulation. A device pointer which will contain the number of mantissa bits that were retained. If emulation is not used, the pointer will contain -1. Default: nullptr.
     CUBLASLT_EMULATION_DESC_FIXEDPOINT_MANTISSA_BIT_COUNT_POINTER = 5,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtEmulationDescInit_internal(
         emulationDesc: cublasLtEmulationDesc_t,
         size: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function creates a new emulation descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2964,7 +2964,7 @@ unsafe extern "C" {
         emulationDesc: *mut cublasLtEmulationDesc_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function destroys a previously created emulation descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -2980,7 +2980,7 @@ unsafe extern "C" {
         emulationDesc: cublasLtEmulationDesc_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified attribute belonging to a previously created emulation descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3003,7 +3003,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried attribute belonging to a previously created emulation descriptor.
     ///
     /// # Parameters
@@ -3202,14 +3202,14 @@ pub enum cublasLtMatmulPreferenceAttributes_t {
     /// Experimental: Average columns of matrix D. This is only supported when all matrix descriptors have [`cublasLtMatrixLayoutAttribute_t::CUBLASLT_MATRIX_LAYOUT_BATCH_MODE`] set to [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`]. Default value is 0.
     CUBLASLT_MATMUL_PREF_GROUPED_DESC_D_AVERAGE_COLS = 15,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Internal. Do not use directly.
     pub fn cublasLtMatmulPreferenceInit_internal(
         pref: cublasLtMatmulPreference_t,
         size: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function creates a matrix multiply heuristic search preferences descriptor by allocating the memory needed to hold its opaque structure.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3226,7 +3226,7 @@ unsafe extern "C" {
         pref: *mut cublasLtMatmulPreference_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function destroys a previously created matrix multiply preferences descriptor object.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3242,7 +3242,7 @@ unsafe extern "C" {
         pref: cublasLtMatmulPreference_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified attribute belonging to a previously created matrix multiply preferences descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3265,7 +3265,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried attribute belonging to a previously created matrix multiply heuristic search preferences descriptor.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3317,7 +3317,7 @@ impl Default for cublasLtMatmulHeuristicResult_t {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function retrieves the possible algorithms for the matrix multiply operation [`cublasLtMatmul`] function with the given input matrices A, B and C, and the output matrix D. The output is placed in `heuristicResultsArray[]` in the order of increasing estimated compute time.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3353,7 +3353,7 @@ unsafe extern "C" {
         returnAlgoCount: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function retrieves the possible algorithms for the matrix multiply operation [`cublasLtMatmul`] function with the given input matrices A, B and C, and the output matrix D. The output is placed in `heuristicResultsArray[]` in the order of increasing estimated compute time.
     ///
     /// Unlike [`cublasLtMatmulAlgoGetHeuristic`], this variant takes a CUDA stream into account when selecting algorithms. If the stream is associated with a Green Context (a CUDA execution context that provides access to a subset of GPU resources), the heuristic considers the SM count and resource constraints of that context. For more information see [Execution Context Management](https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EXECUTION__CONTEXT.html#group__CUDART__EXECUTION__CONTEXT).
@@ -3393,7 +3393,7 @@ unsafe extern "C" {
         stream: cudaStream_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function retrieves the IDs of all the matrix multiply algorithms that are valid, and can potentially be run by the [`cublasLtMatmul`] function, for given types of the input matrices A, B and C, and of the output matrix D.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3421,7 +3421,7 @@ unsafe extern "C" {
         returnAlgoCount: *mut ::core::ffi::c_int,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function initializes the matrix multiply algorithm structure for the [`cublasLtMatmul`], for a specified matrix multiply algorithm and input matrices A, B and C, and the output matrix D.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3451,7 +3451,7 @@ unsafe extern "C" {
         algo: *mut cublasLtMatmulAlgo_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function performs the correctness check on the matrix multiply algorithm descriptor for the matrix multiply operation [`cublasLtMatmul`] function with the given input matrices A, B and C, and the output matrix D. It checks whether the descriptor is supported on the current device, and returns the result containing the required workspace and the calculated wave count.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3480,7 +3480,7 @@ unsafe extern "C" {
         result: *mut cublasLtMatmulHeuristicResult_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function performs the correctness check on the matrix multiply algorithm descriptor for the matrix multiply operation [`cublasLtMatmul`] function with the given input matrices A, B and C, and the output matrix D. It checks whether the descriptor is supported on the current device and execution context (specified by the stream), and returns the result containing the required workspace and the calculated wave count.
     ///
     /// Unlike [`cublasLtMatmulAlgoCheck`], this variant takes a CUDA stream into account when evaluating algorithm compatibility. If the stream is associated with a Green Context (a CUDA execution context that provides access to a subset of GPU resources), the check reflects the SM count and resource constraints of that context, not the full device. For more information see [Execution Context Management](https://docs.nvidia.com/cuda/cuda-runtime-api/group__CUDART__EXECUTION__CONTEXT.html#group__CUDART__EXECUTION__CONTEXT).
@@ -3575,7 +3575,7 @@ pub enum cublasLtMatmulAlgoCapAttributes_t {
     /// Experimental: Support pointer array grouped batch. 0 means no support, supported otherwise. See [`cublasLtBatchMode_t::CUBLASLT_BATCH_MODE_GROUPED`] of [`cublasLtBatchMode_t`].
     CUBLASLT_ALGO_CAP_POINTER_ARRAY_GROUPED_SUPPORT = 23,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried capability attribute for an initialized [`cublasLtMatmulAlgo_t`] descriptor structure. The capability attribute value is retrieved from the enumerated type [`cublasLtMatmulAlgoCapAttributes_t`].
     ///
     /// For example, to get list of supported Tile IDs:
@@ -3636,7 +3636,7 @@ pub enum cublasLtMatmulAlgoConfigAttributes_t {
     /// Cluster shape ID. Refer to `cublasLtClusterShape_t.` Default: [`cublasLtClusterShape_t::CUBLASLT_CLUSTER_SHAPE_AUTO`].
     CUBLASLT_ALGO_CONFIG_CLUSTER_SHAPE_ID = 8,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function sets the value of the specified configuration attribute for an initialized [`cublasLtMatmulAlgo_t`] descriptor. The configuration attribute is an enumerant of the type [`cublasLtMatmulAlgoConfigAttributes_t`].
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3659,7 +3659,7 @@ unsafe extern "C" {
         sizeInBytes: size_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// This function returns the value of the queried configuration attribute for an initialized [`cublasLtMatmulAlgo_t`] descriptor. The configuration attribute value is retrieved from the enumerated type [`cublasLtMatmulAlgoConfigAttributes_t`].
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3692,7 +3692,7 @@ pub type cublasLtLoggerCallback_t = ::core::option::Option<
         message: *const ::core::ffi::c_char,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function sets the logging callback function.
     ///
     /// See cublasStatus_t for a complete list of valid return codes.
@@ -3708,7 +3708,7 @@ unsafe extern "C" {
         callback: cublasLtLoggerCallback_t,
     ) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function sets the logging output file. Note: once registered using this function call, the provided file handle must not be closed unless the function is called again to switch to a different file handle.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3722,7 +3722,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: If logging file was successfully set.
     pub fn cublasLtLoggerSetFile(file: *mut FILE) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function opens and sets the logging output file in the given path.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3736,7 +3736,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: If the logging file was successfully opened.
     pub fn cublasLtLoggerOpenFile(logFile: *const ::core::ffi::c_char) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function sets the value of the logging level.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3751,7 +3751,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: If the logging level was successfully set.
     pub fn cublasLtLoggerSetLevel(level: ::core::ffi::c_int) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function sets the value of the logging mask.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.
@@ -3765,7 +3765,7 @@ unsafe extern "C" {
     /// - [`cublasStatus_t::CUBLAS_STATUS_SUCCESS`]: If the logging mask was successfully set.
     pub fn cublasLtLoggerSetMask(mask: ::core::ffi::c_int) -> cublasStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LT;
     /// Experimental: This function disables logging for the entire run.
     ///
     /// See [`cublasStatus_t`] for a complete list of valid return codes.

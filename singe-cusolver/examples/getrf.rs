@@ -1,5 +1,4 @@
-//! Port of the cuSOLVER `getrf` sample: LU-factorize a 3x3 matrix with partial
-//! pivoting and solve `A * x = b`.
+//! Port of the cuSOLVER `getrf` sample: LU-factorize a 3x3 matrix with partial pivoting and solve `A * x = b`.
 
 use std::{error::Error, mem::MaybeUninit};
 

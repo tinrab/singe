@@ -17,7 +17,9 @@ use crate::{
 
 /// Owns pending local device workspace and optional pinned host workspace.
 ///
-/// First use retains the plan context and checks both capacities. Later uses must share that context. Dropping used workspace clears cached communication registrations before releasing its allocations.
+/// First use retains the plan context and checks both capacities.
+/// Later uses must share that context.
+/// Dropping used workspace clears cached communication registrations before releasing its allocations.
 #[derive(Debug)]
 pub struct WorkspaceMemory<'comm> {
     context: Option<ContextRef<'comm>>,
@@ -33,7 +35,8 @@ struct HostWorkspace {
 impl<'comm> WorkspaceMemory<'comm> {
     /// Allocates local device and pinned host byte storage for the supplied workspace requirements.
     ///
-    /// Zero host requirements use no pinned allocation. The allocation is not associated with a multi-process handle until prepared for execution.
+    /// Zero host requirements use no pinned allocation.
+    /// The allocation is not associated with a multi-process handle until prepared for execution.
     ///
     /// # Errors
     ///
@@ -60,9 +63,11 @@ impl<'comm> WorkspaceMemory<'comm> {
         if self.device.context().as_ref() != context.cuda_context().as_ref() {
             return Err(CudaError::MemoryContextMismatch.into());
         }
+
         if let Some(existing) = &self.context {
             validate_same_context(existing, context, "workspace")?;
         }
+
         let actual = self.device.byte_len() as u64;
         if actual < required.device_size() {
             return Err(Error::InsufficientWorkspaceSize {
@@ -70,6 +75,7 @@ impl<'comm> WorkspaceMemory<'comm> {
                 actual,
             });
         }
+
         let actual = self.host.memory.as_ref().map_or(0, PinnedHostMemory::len) as u64;
         if actual < required.host_size() {
             return Err(Error::InsufficientWorkspaceSize {
@@ -77,6 +83,7 @@ impl<'comm> WorkspaceMemory<'comm> {
                 actual,
             });
         }
+
         self.context = Some(context.clone());
         Ok(())
     }
@@ -120,8 +127,10 @@ impl Drop for WorkspaceMemory<'_> {
         if let Some(context) = &self.context
             && let Err(error) = context.clear_operation_cache()
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to clear cutensormp workspace registrations: {error}");
+            eprintln!(
+                "failed to clear cutensormp workspace registrations: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }

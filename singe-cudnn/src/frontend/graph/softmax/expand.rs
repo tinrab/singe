@@ -77,6 +77,7 @@ impl Graph {
                 alpha2: 1.0,
             })?;
         }
+
         self.pointwise_into(PointwiseOperation::Binary {
             name: None,
             mode: PointwiseMode::Sub,
@@ -157,6 +158,7 @@ impl Graph {
                 alpha2: 1.0,
             })?;
         }
+
         if let Some(stats) = tensors.stats {
             let log_sum = self.inferred_tensor(
                 TensorSpec::new(intermediate_type, reduction_shape).virtual_tensor(),
@@ -189,6 +191,7 @@ impl Graph {
                 alpha2: stats_scale,
             })?;
         }
+
         self.pointwise_into(PointwiseOperation::Binary {
             name: None,
             mode: PointwiseMode::Div,

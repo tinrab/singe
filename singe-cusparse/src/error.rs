@@ -21,10 +21,8 @@ status_enum! {
         InvalidValue = CUSPARSE_STATUS_INVALID_VALUE,
         /// The operation requires a feature absent from the device architecture.
         ArchitectureMismatch = CUSPARSE_STATUS_ARCH_MISMATCH,
-        /// An access to GPU memory space failed, which is usually caused by a
-        /// failure to bind a texture or an invalid device pointer.
-        /// To correct: check that all device pointers are valid and that no texture
-        /// is bound that could interfere with the operation.
+        /// An access to GPU memory space failed, which is usually caused by a failure to bind a texture or an invalid device pointer.
+        /// To correct: check that all device pointers are valid and that no texture is bound that could interfere with the operation.
         MappingError = CUSPARSE_STATUS_MAPPING_ERROR,
         /// The GPU program failed to execute.
         /// A kernel launch failure on the GPU is a common cause.
@@ -64,8 +62,12 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cusparse_sys::LoadError),
+
     /// CUDA context, stream, or memory operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(
         /// Underlying CUDA error.
         #[from]
@@ -140,6 +142,12 @@ impl Error {
 
 impl From<sys::cusparseStatus_t> for Error {
     fn from(status: sys::cusparseStatus_t) -> Self {
+        if status == sys::cusparseStatus_t::CUSPARSE_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cusparse_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let code = Status::from(status);
         Self::from(code)
     }

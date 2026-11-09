@@ -13,28 +13,20 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::video::{VideoFormat, VideoOutputView, VideoView, validate_conversion},
-    optional::{
-        nppiI444_8u_ToUYVP_10u_P3C3R_Ctx, nppiNV12_8u_ToUYVP_10u_P2C3R_Ctx,
-        nppiNV16_8u_ToUYVP_10u_P2C3R_Ctx, nppiP010_16u_ToUYVP_10u_P3C3R_Ctx,
-        nppiP208_8u_ToUYVP_10u_C3C3R_Ctx, nppiP210_16u_ToUYVP_10u_P2C3R_Ctx,
-        nppiUYVP_10u_ToI444_8u_C3P3R_Ctx, nppiUYVP_10u_ToNV16_8u_C3P2R_Ctx,
-        nppiUYVP_10u_ToP208_8u_C3C3R_Ctx, nppiUYVP_10u_ToV210_10u_C3C3R_Ctx,
-        nppiUYVP_10u_ToY410_10u_C3C3R_Ctx, nppiUYVP_10u_ToYUV444_8u_C3C3R_Ctx,
-        nppiV210_10u_ToUYVP_10u_C3C3R_Ctx, nppiY410_10u_ToUYVP_10u_C3C3R_Ctx,
-        nppiYUV444_8u_ToUYVP_10u_C3C3R_Ctx,
-    },
     try_ffi,
     types::{ColorSpace, Point, Size},
 };
 
 /// 2 channel 8-bit unsigned planar NV12 to 3 channel 8-bit unsigned packed RGB BT.601 full-range color conversion (ITU-T T.871 / JFIF).
 ///
-/// Coefficients derived from BT.601 luma weights (Kr=0.299, Kb=0.114) with full digital range Y=\[0..255\], Cb/Cr=\[0..255\] (offset 128). Use this variant for cameras that signal full-range BT.601 NV12 (e.g. OAK-D VPU encoder output), as distinct from the unspecified-range default `nppiNV12ToRGB_8u_P2C3R` and the BT.709 variants.
+/// Coefficients derived from BT.601 luma weights (Kr=0.299, Kb=0.114) with full digital range Y=\[0..255\], Cb/Cr=\[0..255\] (offset 128).
+/// Use this variant for cameras that signal full-range BT.601 NV12 (e.g. OAK-D VPU encoder output), as distinct from the unspecified-range default `nppiNV12ToRGB_8u_P2C3R` and the BT.709 variants.
 ///
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -50,6 +42,7 @@ pub unsafe fn nv12_to_rgb_601_8u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -88,7 +81,8 @@ pub unsafe fn nv12_to_rgb_601_8u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Bgr`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Bgr`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -104,6 +98,7 @@ pub unsafe fn nv12_to_bgr_601_8u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -144,7 +139,8 @@ pub unsafe fn nv12_to_bgr_601_8u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -163,6 +159,7 @@ pub unsafe fn rgb_16f_to_uyvp_10u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -200,7 +197,8 @@ pub unsafe fn rgb_16f_to_uyvp_10u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -219,6 +217,7 @@ pub unsafe fn rgb_16f_to_uyvp_10u_p3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -261,7 +260,8 @@ pub unsafe fn rgb_16f_to_uyvp_10u_p3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgba` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgba` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -280,6 +280,7 @@ pub unsafe fn rgba_16f_to_uyvp_10u_ac4c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -313,7 +314,8 @@ pub unsafe fn rgba_16f_to_uyvp_10u_ac4c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -333,6 +335,7 @@ pub unsafe fn uyvp_10u_to_rgb_8u_c3ac4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -371,7 +374,8 @@ pub unsafe fn uyvp_10u_to_rgb_8u_c3ac4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -390,6 +394,7 @@ pub unsafe fn uyvp_10u_to_rgb_16f_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -427,7 +432,8 @@ pub unsafe fn uyvp_10u_to_rgb_16f_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -447,6 +453,7 @@ pub unsafe fn uyvp_10u_to_rgba_16f_c3ac4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -485,7 +492,8 @@ pub unsafe fn uyvp_10u_to_rgba_16f_c3ac4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::RgbPlanar`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::RgbPlanar`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -504,6 +512,7 @@ pub unsafe fn uyvp_10u_to_rgb_16f_c3p3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -542,7 +551,8 @@ pub unsafe fn uyvp_10u_to_rgb_16f_c3p3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All destination planes must have equal byte strides.
 ///
@@ -559,6 +569,7 @@ pub unsafe fn nv12_8u_to_uyvp_10u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -584,7 +595,7 @@ pub unsafe fn nv12_8u_to_uyvp_10u_p2c3r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiNV12_8u_ToUYVP_10u_P2C3R_Ctx(
+        try_ffi!(sys::nppiNV12_8u_ToUYVP_10u_P2C3R_Ctx(
             source_pointers.as_ptr(),
             source_steps.as_ptr(),
             source_offset.into(),
@@ -601,7 +612,8 @@ pub unsafe fn nv12_8u_to_uyvp_10u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P010Planar` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P010Planar` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -619,6 +631,7 @@ pub unsafe fn p010_16u_to_uyvp_10u_p3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -639,7 +652,7 @@ pub unsafe fn p010_16u_to_uyvp_10u_p3c3r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiP010_16u_ToUYVP_10u_P3C3R_Ctx(
+        try_ffi!(sys::nppiP010_16u_ToUYVP_10u_P3C3R_Ctx(
             source_pointers.as_ptr(),
             source.planes[0].step(),
             source_offset.into(),
@@ -660,11 +673,10 @@ pub unsafe fn p010_16u_to_uyvp_10u_p3c3r(
 ///
 /// # Safety
 ///
-/// `source` and `destination` must point to device allocations containing the
-/// source and destination formats required by NPP, with valid byte pitches and
-/// enough storage for `size`. The allocations must remain valid until the stream
-/// completes. They must not overlap. NPP's header does not specify the P208 plane
-/// placement, so this interface leaves that storage contract to the caller.
+/// `source` and `destination` must point to device allocations containing the source and destination formats required by NPP, with valid byte pitches and enough storage for `size`.
+/// The allocations must remain valid until the stream completes.
+/// They must not overlap.
+/// NPP's header does not specify the P208 plane placement, so this interface leaves that storage contract to the caller.
 pub unsafe fn uyvp_10u_to_p208_8u_c3c3r(
     context: &StreamContext,
     source: *const u8,
@@ -678,7 +690,7 @@ pub unsafe fn uyvp_10u_to_p208_8u_c3c3r(
 
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiUYVP_10u_ToP208_8u_C3C3R_Ctx(
+        try_ffi!(sys::nppiUYVP_10u_ToP208_8u_C3C3R_Ctx(
             source,
             source_step,
             Point { x: 0, y: 0 }.into(),
@@ -695,7 +707,8 @@ pub unsafe fn uyvp_10u_to_p208_8u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Nv16`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Nv16`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 ///
@@ -712,6 +725,7 @@ pub unsafe fn uyvp_10u_to_nv16_8u_c3p2r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -737,7 +751,7 @@ pub unsafe fn uyvp_10u_to_nv16_8u_c3p2r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiUYVP_10u_ToNV16_8u_C3P2R_Ctx(
+        try_ffi!(sys::nppiUYVP_10u_ToNV16_8u_C3P2R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -754,7 +768,8 @@ pub unsafe fn uyvp_10u_to_nv16_8u_c3p2r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::V210`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::V210`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -772,6 +787,7 @@ pub unsafe fn uyvp_10u_to_v210_10u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -787,7 +803,7 @@ pub unsafe fn uyvp_10u_to_v210_10u_c3c3r(
     )?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiUYVP_10u_ToV210_10u_C3C3R_Ctx(
+        try_ffi!(sys::nppiUYVP_10u_ToV210_10u_C3C3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -808,11 +824,10 @@ pub unsafe fn uyvp_10u_to_v210_10u_c3c3r(
 ///
 /// # Safety
 ///
-/// `source` and `destination` must point to device allocations containing the
-/// source and destination formats required by NPP, with valid byte pitches and
-/// enough storage for `size`. The allocations must remain valid until the stream
-/// completes. They must not overlap. NPP's header does not specify the P208 plane
-/// placement, so this interface leaves that storage contract to the caller.
+/// `source` and `destination` must point to device allocations containing the source and destination formats required by NPP, with valid byte pitches and enough storage for `size`.
+/// The allocations must remain valid until the stream completes.
+/// They must not overlap.
+/// NPP's header does not specify the P208 plane placement, so this interface leaves that storage contract to the caller.
 pub unsafe fn p208_8u_to_uyvp_10u_c3c3r(
     context: &StreamContext,
     source: *const u8,
@@ -826,7 +841,7 @@ pub unsafe fn p208_8u_to_uyvp_10u_c3c3r(
 
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiP208_8u_ToUYVP_10u_C3C3R_Ctx(
+        try_ffi!(sys::nppiP208_8u_ToUYVP_10u_C3C3R_Ctx(
             source,
             source_step,
             Point { x: 0, y: 0 }.into(),
@@ -843,7 +858,8 @@ pub unsafe fn p208_8u_to_uyvp_10u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv16` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv16` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All destination planes must have equal byte strides.
 ///
@@ -860,6 +876,7 @@ pub unsafe fn nv16_8u_to_uyvp_10u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -885,7 +902,7 @@ pub unsafe fn nv16_8u_to_uyvp_10u_p2c3r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiNV16_8u_ToUYVP_10u_P2C3R_Ctx(
+        try_ffi!(sys::nppiNV16_8u_ToUYVP_10u_P2C3R_Ctx(
             source_pointers.as_ptr(),
             source_steps.as_ptr(),
             source_offset.into(),
@@ -902,7 +919,8 @@ pub unsafe fn nv16_8u_to_uyvp_10u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::V210` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::V210` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -920,6 +938,7 @@ pub unsafe fn v210_10u_to_uyvp_10u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -935,7 +954,7 @@ pub unsafe fn v210_10u_to_uyvp_10u_c3c3r(
     )?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiV210_10u_ToUYVP_10u_C3C3R_Ctx(
+        try_ffi!(sys::nppiV210_10u_ToUYVP_10u_C3C3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -952,7 +971,8 @@ pub unsafe fn v210_10u_to_uyvp_10u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P210` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P210` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All destination planes must have equal byte strides.
 ///
@@ -969,6 +989,7 @@ pub unsafe fn p210_16u_to_uyvp_10u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -994,7 +1015,7 @@ pub unsafe fn p210_16u_to_uyvp_10u_p2c3r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiP210_16u_ToUYVP_10u_P2C3R_Ctx(
+        try_ffi!(sys::nppiP210_16u_ToUYVP_10u_P2C3R_Ctx(
             source_pointers.as_ptr(),
             source_steps.as_ptr(),
             source_offset.into(),
@@ -1011,7 +1032,8 @@ pub unsafe fn p210_16u_to_uyvp_10u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::I444`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::I444`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1029,6 +1051,7 @@ pub unsafe fn uyvp_10u_to_i444_8u_c3p3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1049,7 +1072,7 @@ pub unsafe fn uyvp_10u_to_i444_8u_c3p3r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiUYVP_10u_ToI444_8u_C3P3R_Ctx(
+        try_ffi!(sys::nppiUYVP_10u_ToI444_8u_C3P3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -1066,7 +1089,8 @@ pub unsafe fn uyvp_10u_to_i444_8u_c3p3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Yuv444`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Yuv444`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1084,6 +1108,7 @@ pub unsafe fn uyvp_10u_to_yuv444_8u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1099,7 +1124,7 @@ pub unsafe fn uyvp_10u_to_yuv444_8u_c3c3r(
     )?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiUYVP_10u_ToYUV444_8u_C3C3R_Ctx(
+        try_ffi!(sys::nppiUYVP_10u_ToYUV444_8u_C3C3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -1116,7 +1141,8 @@ pub unsafe fn uyvp_10u_to_yuv444_8u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Y410`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvp10` and the destination format must be `VideoFormat::Y410`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1134,6 +1160,7 @@ pub unsafe fn uyvp_10u_to_y410_10u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1149,7 +1176,7 @@ pub unsafe fn uyvp_10u_to_y410_10u_c3c3r(
     )?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiUYVP_10u_ToY410_10u_C3C3R_Ctx(
+        try_ffi!(sys::nppiUYVP_10u_ToY410_10u_C3C3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -1166,7 +1193,8 @@ pub unsafe fn uyvp_10u_to_y410_10u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::I444` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::I444` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1184,6 +1212,7 @@ pub unsafe fn i444_8u_to_uyvp_10u_p3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1204,7 +1233,7 @@ pub unsafe fn i444_8u_to_uyvp_10u_p3c3r(
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiI444_8u_ToUYVP_10u_P3C3R_Ctx(
+        try_ffi!(sys::nppiI444_8u_ToUYVP_10u_P3C3R_Ctx(
             source_pointers.as_ptr(),
             source.planes[0].step(),
             source_offset.into(),
@@ -1221,7 +1250,8 @@ pub unsafe fn i444_8u_to_uyvp_10u_p3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Yuv444` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Yuv444` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1239,6 +1269,7 @@ pub unsafe fn yuv444_8u_to_uyvp_10u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1254,7 +1285,7 @@ pub unsafe fn yuv444_8u_to_uyvp_10u_c3c3r(
     )?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiYUV444_8u_ToUYVP_10u_C3C3R_Ctx(
+        try_ffi!(sys::nppiYUV444_8u_ToUYVP_10u_C3C3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -1271,7 +1302,8 @@ pub unsafe fn yuv444_8u_to_uyvp_10u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Y410` and the destination format must be `VideoFormat::Uyvp10`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Y410` and the destination format must be `VideoFormat::Uyvp10`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1289,6 +1321,7 @@ pub unsafe fn y410_10u_to_uyvp_10u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1304,7 +1337,7 @@ pub unsafe fn y410_10u_to_uyvp_10u_c3c3r(
     )?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
-        try_ffi!(nppiY410_10u_ToUYVP_10u_C3C3R_Ctx(
+        try_ffi!(sys::nppiY410_10u_ToUYVP_10u_C3C3R_Ctx(
             source.planes[0].as_ptr().cast(),
             source.planes[0].step(),
             source_offset.into(),
@@ -1321,7 +1354,8 @@ pub unsafe fn y410_10u_to_uyvp_10u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Uyvy`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Uyvy`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1340,6 +1374,7 @@ pub unsafe fn rgb_8u_to_uyvy_8u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1373,7 +1408,8 @@ pub unsafe fn rgb_8u_to_uyvy_8u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Uyvy`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Uyvy`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1392,6 +1428,7 @@ pub unsafe fn rgb_8u_to_uyvy_8u_p3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1430,7 +1467,8 @@ pub unsafe fn rgb_8u_to_uyvy_8u_p3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgba` and the destination format must be `VideoFormat::Uyvy`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgba` and the destination format must be `VideoFormat::Uyvy`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1449,6 +1487,7 @@ pub unsafe fn rgba_8u_to_uyvy_8u_ac4c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1482,7 +1521,8 @@ pub unsafe fn rgba_8u_to_uyvy_8u_ac4c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Uyvy16`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Uyvy16`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1501,6 +1541,7 @@ pub unsafe fn rgb_16u_to_uyvy16_16u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1534,7 +1575,8 @@ pub unsafe fn rgb_16u_to_uyvy16_16u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Uyvy16`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Uyvy16`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1553,6 +1595,7 @@ pub unsafe fn rgb_16u_to_uyvy16_16u_p3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1591,7 +1634,8 @@ pub unsafe fn rgb_16u_to_uyvy16_16u_p3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgba` and the destination format must be `VideoFormat::Uyvy16`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgba` and the destination format must be `VideoFormat::Uyvy16`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1610,6 +1654,7 @@ pub unsafe fn rgba_16u_to_uyvy16_16u_ac4c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1643,7 +1688,8 @@ pub unsafe fn rgba_16u_to_uyvy16_16u_ac4c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvy` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvy` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1662,6 +1708,7 @@ pub unsafe fn uyvy_8u_to_rgb_8u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1695,7 +1742,8 @@ pub unsafe fn uyvy_8u_to_rgb_8u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvy` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvy` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1715,6 +1763,7 @@ pub unsafe fn uyvy_8u_to_rgb_8u_c3ac4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1749,7 +1798,8 @@ pub unsafe fn uyvy_8u_to_rgb_8u_c3ac4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvy` and the destination format must be `VideoFormat::RgbPlanar`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvy` and the destination format must be `VideoFormat::RgbPlanar`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1768,6 +1818,7 @@ pub unsafe fn uyvy_8u_to_rgb_8u_c3p3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1806,7 +1857,8 @@ pub unsafe fn uyvy_8u_to_rgb_8u_c3p3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvy16` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvy16` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1825,6 +1877,7 @@ pub unsafe fn uyvy16_16u_to_rgb_16u_c3c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1858,7 +1911,8 @@ pub unsafe fn uyvy16_16u_to_rgb_16u_c3c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvy16` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvy16` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1878,6 +1932,7 @@ pub unsafe fn uyvy16_16u_to_rgb_16u_c3ac4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1912,7 +1967,8 @@ pub unsafe fn uyvy16_16u_to_rgb_16u_c3ac4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Uyvy16` and the destination format must be `VideoFormat::RgbPlanar`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Uyvy16` and the destination format must be `VideoFormat::RgbPlanar`.
+/// The destination pixel extent must fit within the source extent.
 /// `source_offset` must be `(0, 0)`; source-region endpoint arithmetic must not overflow.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
@@ -1931,6 +1987,7 @@ pub unsafe fn uyvy16_16u_to_rgb_16u_c3p3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -1973,7 +2030,8 @@ pub unsafe fn uyvy16_16u_to_rgb_16u_c3p3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -1991,6 +2049,7 @@ pub unsafe fn nv12_to_rgb_8u_p2c4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2033,7 +2092,8 @@ pub unsafe fn nv12_to_rgb_8u_p2c4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Bgra`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Bgra`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2051,6 +2111,7 @@ pub unsafe fn nv12_to_bgr_8u_p2c4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2093,7 +2154,8 @@ pub unsafe fn nv12_to_bgr_8u_p2c4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2109,6 +2171,7 @@ pub unsafe fn nv12_to_rgb_bt2020_8u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2149,7 +2212,8 @@ pub unsafe fn nv12_to_rgb_bt2020_8u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Bgr`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Nv12` and the destination format must be `VideoFormat::Bgr`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2165,6 +2229,7 @@ pub unsafe fn nv12_to_bgr_bt2020_8u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2205,7 +2270,8 @@ pub unsafe fn nv12_to_bgr_bt2020_8u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2222,6 +2288,7 @@ pub unsafe fn p010_to_rgb_8u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2263,7 +2330,8 @@ pub unsafe fn p010_to_rgb_8u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2281,6 +2349,7 @@ pub unsafe fn p010_to_rgb_8u_p2c4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2323,7 +2392,8 @@ pub unsafe fn p010_to_rgb_8u_p2c4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2340,6 +2410,7 @@ pub unsafe fn p010_to_rgb_16u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2381,7 +2452,8 @@ pub unsafe fn p010_to_rgb_16u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P010` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2399,6 +2471,7 @@ pub unsafe fn p010_to_rgb_16u_p2c4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2441,7 +2514,8 @@ pub unsafe fn p010_to_rgb_16u_p2c4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P016` and the destination format must be `VideoFormat::Rgb`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P016` and the destination format must be `VideoFormat::Rgb`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2458,6 +2532,7 @@ pub unsafe fn p016_to_rgb_16u_p2c3r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2499,7 +2574,8 @@ pub unsafe fn p016_to_rgb_16u_p2c3r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::P016` and the destination format must be `VideoFormat::Rgba`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::P016` and the destination format must be `VideoFormat::Rgba`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2517,6 +2593,7 @@ pub unsafe fn p016_to_rgb_16u_p2c4r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2555,7 +2632,8 @@ pub unsafe fn p016_to_rgb_16u_p2c4r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Nv12`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Rgb` and the destination format must be `VideoFormat::Nv12`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2572,6 +2650,7 @@ pub unsafe fn rgb_to_nv12_8u_c3p2r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2609,7 +2688,8 @@ pub unsafe fn rgb_to_nv12_8u_c3p2r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Nv12`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::RgbPlanar` and the destination format must be `VideoFormat::Nv12`.
+/// The destination pixel extent must fit within the source extent.
 /// All source planes must have equal byte strides.
 /// All destination planes must have equal byte strides.
 ///
@@ -2626,6 +2706,7 @@ pub unsafe fn rgb_to_nv12_8u_p3p2r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }
@@ -2668,7 +2749,8 @@ pub unsafe fn rgb_to_nv12_8u_p3p2r(
 /// # Errors
 ///
 /// Returns an error if CUDA context binding fails, a source or destination plane belongs to another CUDA context, or NPP rejects the conversion.
-/// The source format must be `VideoFormat::Yuv420` and the destination format must be `VideoFormat::Nv12`. The destination pixel extent must fit within the source extent.
+/// The source format must be `VideoFormat::Yuv420` and the destination format must be `VideoFormat::Nv12`.
+/// The destination pixel extent must fit within the source extent.
 /// All destination planes must have equal byte strides.
 ///
 /// # Safety
@@ -2683,6 +2765,7 @@ pub unsafe fn yuv420_to_nv12_8u_p3p2r(
     for plane in source.planes() {
         context.validate_region(plane)?;
     }
+
     for plane in destination.planes() {
         context.validate_region(plane)?;
     }

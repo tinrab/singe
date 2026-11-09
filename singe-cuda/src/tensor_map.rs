@@ -109,7 +109,8 @@ driver_enum! {
         /// Fills out-of-bounds elements with zero.
         #[default]
         Zero = CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE,
-        /// Fills out-of-bounds elements with the special NaN value that requests zero contribution to FMA. Only floating-point tensor data types support this mode.
+        /// Fills out-of-bounds elements with the special NaN value that requests zero contribution to FMA.
+        /// Only floating-point tensor data types support this mode.
         NanRequestZeroFma = CU_TENSOR_MAP_FLOAT_OOB_FILL_NAN_REQUEST_ZERO_FMA,
     }
 }
@@ -142,7 +143,8 @@ driver_enum! {
 
 /// Interleaving, shared-memory swizzling, L2 promotion, and out-of-bounds behavior for tensor-map encoding.
 ///
-/// `S` restricts the swizzle choices accepted by the selected encoding mode. Defaults use no interleaving, the default swizzle for `S`, no L2 promotion, and zero fill.
+/// `S` restricts the swizzle choices accepted by the selected encoding mode.
+/// Defaults use no interleaving, the default swizzle for `S`, no L2 promotion, and zero fill.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TensorMapOptions<S = Swizzle> {
     /// Channel interleave layout of the global tensor.
@@ -160,11 +162,15 @@ pub struct TensorMapOptions<S = Swizzle> {
 pub struct TensorMapLayout<'a> {
     /// Scalar or packed element format of the global tensor.
     pub data_type: TensorMapDataType,
-    /// Element count along each axis, fastest-varying first. Each must lie in `1..=2^32`; supported ranks depend on the encoding mode.
+    /// Element count along each axis, fastest-varying first.
+    /// Each must lie in `1..=2^32`; supported ranks depend on the encoding mode.
     pub dimensions: &'a [u64],
-    /// Byte strides for axes one through rank minus one. The dimension-zero stride is implicit. Each supplied stride must be positive, a multiple of 16, and less than `2^40`.
+    /// Byte strides for axes one through rank minus one.
+    /// The dimension-zero stride is implicit.
+    /// Each supplied stride must be positive, a multiple of 16, and less than `2^40`.
     pub byte_strides: &'a [u64],
-    /// Traversal step along every axis, with one entry per dimension. Each must lie in `1..=8`; CUDA ignores the first step when interleaving is disabled.
+    /// Traversal step along every axis, with one entry per dimension.
+    /// Each must lie in `1..=8`; CUDA ignores the first step when interleaving is disabled.
     pub element_strides: &'a [u32],
 }
 
@@ -177,6 +183,7 @@ impl TensorMapLayout<'_> {
         {
             return Err(Error::InvalidMemoryAccess);
         }
+
         if self
             .dimensions
             .iter()
@@ -247,7 +254,8 @@ pub struct Im2colBox<'a> {
 
 /// Width-only pixel-box bounds and channel counts for wide image-to-column encoding.
 ///
-/// The box has a size of one along its depth and height axes. Native wide encoding requires compute capability 10.0 or higher.
+/// The box has a size of one along its depth and height axes.
+/// Native wide encoding requires compute capability 10.0 or higher.
 #[derive(Debug, Clone, Copy)]
 pub struct Im2colWideBox {
     /// Width coordinate offset of the left box corner.
@@ -303,7 +311,9 @@ impl TensorMapDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides. Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities. The box must have one size per tensor dimension, each in `1..=256`.
+    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides.
+    /// Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities.
+    /// The box must have one size per tensor dimension, each in `1..=256`.
     pub unsafe fn encode_tiled(
         context: &Context,
         address: DevicePtr,
@@ -319,6 +329,7 @@ impl TensorMapDescriptor {
         {
             return Err(Error::InvalidMemoryAccess);
         }
+
         context.bind()?;
         let mut raw = sys::CUtensorMap::default();
         // SAFETY: `cuTensorMapEncodeTiled` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
@@ -348,7 +359,9 @@ impl TensorMapDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides. Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities. The tensor rank must be three through five, and both corner slices must have rank minus two entries.
+    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides.
+    /// Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities.
+    /// The tensor rank must be three through five, and both corner slices must have rank minus two entries.
     pub unsafe fn encode_im2col(
         context: &Context,
         address: DevicePtr,
@@ -362,6 +375,7 @@ impl TensorMapDescriptor {
         {
             return Err(Error::InvalidMemoryAccess);
         }
+
         context.bind()?;
         let mut raw = sys::CUtensorMap::default();
         // SAFETY: `cuTensorMapEncodeIm2col` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
@@ -394,7 +408,9 @@ impl TensorMapDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides. Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities. The tensor rank must be three through five; CUDA additionally validates the width box and wide-loading mode.
+    /// Returns `Error::InvalidMemoryAccess` for invalid rank, slice lengths, dimension sizes, byte strides, or traversal strides.
+    /// Also propagates context binding failures and native encoding errors for unsupported layouts, options, addresses, or device capabilities.
+    /// The tensor rank must be three through five; CUDA additionally validates the width box and wide-loading mode.
     pub unsafe fn encode_im2col_wide(
         context: &Context,
         address: DevicePtr,
@@ -468,6 +484,7 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
         if required_bytes > region.byte_len() as u64 {
             return Err(Error::InvalidMemoryAccess);
         }
+
         // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
         let descriptor = encode(region.context(), unsafe {
             DevicePtr::from_raw(region.region().as_ptr().cast())
@@ -481,11 +498,13 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
 
     /// Encodes a tiled tensor map while retaining its backing device region.
     ///
-    /// Checks that the region covers the byte span described by `layout`. Retention does not establish initialization or order later device accesses.
+    /// Checks that the region covers the byte span described by `layout`.
+    /// Retention does not establish initialization or order later device accesses.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows. Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_tiled`].
+    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows.
+    /// Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_tiled`].
     pub fn tiled(
         region: OwnedDeviceRegion<O>,
         layout: TensorMapLayout<'_>,
@@ -500,11 +519,13 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
 
     /// Encodes a image-to-column tensor map while retaining its backing device region.
     ///
-    /// Checks that the region covers the byte span described by `layout`. Retention does not establish initialization or order later device accesses.
+    /// Checks that the region covers the byte span described by `layout`.
+    /// Retention does not establish initialization or order later device accesses.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows. Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_im2col`].
+    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows.
+    /// Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_im2col`].
     pub fn im2col(
         region: OwnedDeviceRegion<O>,
         layout: TensorMapLayout<'_>,
@@ -519,11 +540,13 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
 
     /// Encodes a wide image-to-column tensor map while retaining its backing device region.
     ///
-    /// Checks that the region covers the byte span described by `layout`. Retention does not establish initialization or order later device accesses.
+    /// Checks that the region covers the byte span described by `layout`.
+    /// Retention does not establish initialization or order later device accesses.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows. Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_im2col_wide`].
+    /// Returns `Error::InvalidMemoryAccess` for an invalid layout or insufficient backing region, or `Error::InvalidMemoryAllocationRequest` if the required byte-span calculation overflows.
+    /// Also propagates encoding and context binding errors from [`TensorMapDescriptor::encode_im2col_wide`].
     pub fn im2col_wide(
         region: OwnedDeviceRegion<O>,
         layout: TensorMapLayout<'_>,
@@ -562,18 +585,23 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
 
     /// Replaces the descriptor's base address and retained backing region, preserving its encoded layout.
     ///
-    /// Previously copied descriptors still point to the old region. Keep that region alive for any executions that use those copies.
+    /// Previously copied descriptors still point to the old region.
+    /// Keep that region alive for any executions that use those copies.
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` if the new region belongs to another context, or `Error::InvalidMemoryAccess` if it is too short for the encoded layout. Also propagates context binding and native address-replacement errors. The retained region changes only after replacement succeeds.
+    /// Returns `Error::MemoryContextMismatch` if the new region belongs to another context, or `Error::InvalidMemoryAccess` if it is too short for the encoded layout.
+    /// Also propagates context binding and native address-replacement errors.
+    /// The retained region changes only after replacement succeeds.
     pub fn replace_region(&mut self, region: OwnedDeviceRegion<O>) -> Result<()> {
         if region.context() != self.region.context() {
             return Err(Error::MemoryContextMismatch);
         }
+
         if self.required_bytes > region.byte_len() as u64 {
             return Err(Error::InvalidMemoryAccess);
         }
+
         // SAFETY: the new region was validated against the descriptor layout and is retained by `self`.
         unsafe {
             self.descriptor.replace_address(
@@ -581,6 +609,7 @@ impl<O: DeviceRegionProvider + Send + Sync + 'static> RetainedTensorMap<O> {
                 DevicePtr::from_raw(region.region().as_ptr().cast()),
             )?;
         }
+
         self.region = region;
         Ok(())
     }

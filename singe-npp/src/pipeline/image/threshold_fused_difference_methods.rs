@@ -17,18 +17,16 @@ where
     Self: FusedAbsoluteDifferenceThresholdImage<T, L>,
 {
     /// Computes native absolute differences and replaces those strictly above `threshold` with `value`.
-    /// For each active sample, returns `value` when the absolute difference exceeds the
-    /// threshold; otherwise returns the absolute difference. Both inputs must have matching
-    /// pixel dimensions.
-    /// Writes into the equally sized destination. AC4 alpha retains its previous
-    /// initialization state; this call does not initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// For each active sample, returns `value` when the absolute difference exceeds the threshold; otherwise returns the absolute difference.
+    /// Both inputs must have matching pixel dimensions.
+    /// Writes into the equally sized destination.
+    /// AC4 alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn fused_absolute_difference_threshold_greater_value_into(
         stream_context: &StreamContext,
@@ -52,17 +50,16 @@ where
     }
 
     /// Computes native absolute differences and replaces those strictly above `threshold` with `value`.
-    /// For each active sample, returns `value` when the absolute difference exceeds the
-    /// threshold; otherwise returns the absolute difference. Both inputs must have matching
-    /// pixel dimensions.
-    /// Updates the supplied image in place. AC4 alpha remains unchanged.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// For each active sample, returns `value` when the absolute difference exceeds the threshold; otherwise returns the absolute difference.
+    /// Both inputs must have matching pixel dimensions.
+    /// Updates the supplied image in place.
+    /// AC4 alpha remains unchanged.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn fused_absolute_difference_threshold_greater_value_in_place(
         stream_context: &StreamContext,
@@ -91,18 +88,16 @@ where
     Self: FusedAbsoluteDifferenceThresholdImage<T, L>,
 {
     /// Computes native absolute differences and replaces those strictly above `threshold` with `value`.
-    /// For each active sample, returns `value` when the absolute difference exceeds the
-    /// threshold; otherwise returns the absolute difference. Both inputs must have matching
-    /// pixel dimensions.
-    /// Reuses owned backing; borrowed input produces a new owned image. Preserves source
-    /// alpha for AC4.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// For each active sample, returns `value` when the absolute difference exceeds the threshold; otherwise returns the absolute difference.
+    /// Both inputs must have matching pixel dimensions.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves source alpha for AC4.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn fused_absolute_difference_threshold_greater_value(
@@ -136,6 +131,7 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 <Self as FusedAbsoluteDifferenceThresholdImage<
                     T,
                     L,

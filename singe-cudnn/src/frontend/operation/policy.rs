@@ -23,6 +23,7 @@ impl Operation {
         for subgraph in self.score_subgraphs_mut() {
             subgraph.inherit_data_type_policy(policy);
         }
+
         let compute = policy.compute();
         match self {
             Self::Matmul(operation) => operation.config.inherit_compute_type(compute),

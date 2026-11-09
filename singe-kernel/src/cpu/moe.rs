@@ -27,9 +27,11 @@ pub fn moe_align_block_size_i32(
                 count += 1;
             }
         }
+
         max_count = max_count.max(count);
         total += ceil_div(count, block_size) * block_size;
     }
+
     cumsum[expert_count] =
         i32::try_from(total).expect("kernel dimension or index exceeds the i32 interface");
     let expert_ids = (0..total / block_size)
@@ -77,9 +79,11 @@ pub fn fused_moe_f32(
                     expert * columns * reduction + column * reduction + reduction_index;
                 sum = input[input_offset].mul_add(weight[weight_offset], sum);
             }
+
             if mul_routed_weight {
                 sum *= routed_weight[slot];
             }
+
             out[slot * columns + column] = sum;
         }
     }
@@ -124,9 +128,11 @@ pub fn fused_moe_f8e4m3_block_scaled_f32(
                     * input_scale)
                     .mul_add(weight_scale, sum);
             }
+
             if mul_routed_weight {
                 sum *= routed_weight[slot];
             }
+
             out[slot * columns + column] = sum;
         }
     }

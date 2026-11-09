@@ -85,6 +85,7 @@ impl ConvolutionOperation {
         if !matches!(shape.rank(), 4 | 5) {
             return Ok(());
         }
+
         let elements = shape
             .element_count()?
             .checked_mul(to_usize(vector_count, "tensor vector count")?)
@@ -186,10 +187,8 @@ impl ConvolutionOperation {
 
 /// Attributes shared by frontend convolution operations.
 ///
-/// Used for forward convolution, data-gradient convolution, and weight-gradient
-/// convolution. It corresponds to the C++ frontend convolution attribute
-/// setters for padding, stride, dilation, convolution mode, and
-/// compute data type.
+/// Used for forward convolution, data-gradient convolution, and weight-gradient convolution.
+/// It corresponds to the C++ frontend convolution attribute setters for padding, stride, dilation, convolution mode, and compute data type.
 /// Groups are derived from the input and filter channel dimensions, as in C++.
 /// Omitted compute precision inherits graph policy for every convolution direction.
 #[derive(Debug, Clone, Serialize, Deserialize)]

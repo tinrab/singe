@@ -11,8 +11,7 @@ use crate::{error::Result, try_ffi};
 ///
 /// # Safety
 ///
-/// `callback`, if present, must remain valid for use by cuBLAS and must follow
-/// the callback ABI expected by the library.
+/// `callback`, if present, must remain valid for use by cuBLAS and must follow the callback ABI expected by the library.
 ///
 /// # Errors
 ///
@@ -30,8 +29,7 @@ pub unsafe fn set_callback(callback: sys::cublasLogCallback) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if `file` contains an interior NUL byte or if cuBLAS
-/// rejects the logging configuration.
+/// Returns an error if `file` contains an interior NUL byte or if cuBLAS rejects the logging configuration.
 pub fn configure(enabled: bool, stdout: bool, stderr: bool, file: Option<&Path>) -> Result<()> {
     let file = file.map(path_to_cstring).transpose()?;
 

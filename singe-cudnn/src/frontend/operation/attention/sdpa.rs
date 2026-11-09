@@ -26,9 +26,7 @@ use crate::{
 
 /// Options for the direct cuDNN SDPA forward operation.
 ///
-/// Covers variable-length sequence tensors, padding mask, paged attention page
-/// tables, block masks, dropout, random-number-generator dump, and the
-/// unfused-FMA option described for frontend SDPA attributes.
+/// Covers variable-length sequence tensors, padding mask, paged attention page tables, block masks, dropout, random-number-generator dump, and the unfused-FMA option described for frontend SDPA attributes.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct DirectSdpaForwardConfig {
     #[serde(default)]
@@ -64,7 +62,8 @@ impl DirectSdpaForwardConfig {
         }
     }
 
-    /// Selects softmax statistics encoding. SDPA backward requires natural log.
+    /// Selects softmax statistics encoding.
+    /// SDPA backward requires natural log.
     #[must_use]
     pub fn with_stats_base(mut self, base: SoftmaxStatsBase) -> Self {
         self.stats_base = base;
@@ -219,9 +218,7 @@ impl Default for DirectSdpaForwardConfig {
 
 /// Options for the direct cuDNN SDPA backward operation.
 ///
-/// Covers variable-length sequences, padding/causal masks, score subgraphs,
-/// sink gradients, and maximum total sequence lengths used by ragged THD
-/// layouts.
+/// Covers variable-length sequences, padding/causal masks, score subgraphs, sink gradients, and maximum total sequence lengths used by ragged THD layouts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DirectSdpaBackwardConfig {
     #[serde(default)]
@@ -439,6 +436,7 @@ impl SdpaOperation {
                 for id in tensors.activations_and_gradients() {
                     graph.validate_tensor_rank(id, 4, "sdpa backward data")?;
                 }
+
                 graph.validate_tensor_rank(tensors.stats, 4, "sdpa backward statistics")?;
             }
         }
@@ -591,9 +589,7 @@ impl SdpaOperation {
 
 /// Attributes for fused scaled dot product attention.
 ///
-/// SDPA computes `softmax(QK^T / sqrt(d))V`, with optional attention scale,
-/// causal masking, variable-length sequence tensors, and statistics outputs.
-///
+/// SDPA computes `softmax(QK^T / sqrt(d))V`, with optional attention scale, causal masking, variable-length sequence tensors, and statistics outputs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SdpaConfig {
     pub(crate) name: Option<String>,

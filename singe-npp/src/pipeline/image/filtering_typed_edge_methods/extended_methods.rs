@@ -11,20 +11,17 @@ where
     L: ChannelLayout,
 {
     /// Applies the native horizontal second Sobel filter into the selected output type and layout.
-    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1
-    /// `i16` output samples.
+    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1 `i16` output samples.
     /// Uses the selected `mask_size`; NPP may reject unsupported masks.
-    /// Allocates a new owned output for the valid source window. Reduces width and height
-    /// by the selected square mask extent minus one.
+    /// Allocates a new owned output for the valid source window.
+    /// Reduces width and height by the selected square mask extent minus one.
     /// The wrapper requires a square mask and uses its center as the anchor.
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// sample; row padding remains unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output sample; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native filter execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native filter execution, or stream synchronization fail.
     /// The source must contain the complete neighborhood and its valid output window.
     /// One-dimensional mask variants are rejected.
     /// Output allocation or image view construction can also fail.
@@ -49,20 +46,17 @@ where
     }
 
     /// Applies the native vertical second Sobel filter into the selected output type and layout.
-    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1
-    /// `i16` output samples.
+    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1 `i16` output samples.
     /// Uses the selected `mask_size`; NPP may reject unsupported masks.
-    /// Allocates a new owned output for the valid source window. Reduces width and height
-    /// by the selected square mask extent minus one.
+    /// Allocates a new owned output for the valid source window.
+    /// Reduces width and height by the selected square mask extent minus one.
     /// The wrapper requires a square mask and uses its center as the anchor.
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// sample; row padding remains unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output sample; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native filter execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native filter execution, or stream synchronization fail.
     /// The source must contain the complete neighborhood and its valid output window.
     /// One-dimensional mask variants are rejected.
     /// Output allocation or image view construction can also fail.
@@ -87,20 +81,17 @@ where
     }
 
     /// Applies the native cross Sobel filter into the selected output type and layout.
-    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1
-    /// `i16` output samples.
+    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1 `i16` output samples.
     /// Uses the selected `mask_size`; NPP may reject unsupported masks.
-    /// Allocates a new owned output for the valid source window. Reduces width and height
-    /// by the selected square mask extent minus one.
+    /// Allocates a new owned output for the valid source window.
+    /// Reduces width and height by the selected square mask extent minus one.
     /// The wrapper requires a square mask and uses its center as the anchor.
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// sample; row padding remains unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output sample; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native filter execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native filter execution, or stream synchronization fail.
     /// The source must contain the complete neighborhood and its valid output window.
     /// One-dimensional mask variants are rejected.
     /// Output allocation or image view construction can also fail.
@@ -117,20 +108,17 @@ where
     }
 
     /// Applies the native Laplace filter into the selected output type and layout.
-    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1
-    /// `i16` output samples.
+    /// The provided typed implementations convert C1 `u8` or `i8` source samples to C1 `i16` output samples.
     /// Uses the selected `mask_size`; NPP may reject unsupported masks.
-    /// Allocates a new owned output for the valid source window. Reduces width and height
-    /// by the selected square mask extent minus one.
+    /// Allocates a new owned output for the valid source window.
+    /// Reduces width and height by the selected square mask extent minus one.
     /// The wrapper requires a square mask and uses its center as the anchor.
-    /// Prepares source and destination regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// sample; row padding remains unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output sample; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native filter execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native filter execution, or stream synchronization fail.
     /// The source must contain the complete neighborhood and its valid output window.
     /// One-dimensional mask variants are rejected.
     /// Output allocation or image view construction can also fail.

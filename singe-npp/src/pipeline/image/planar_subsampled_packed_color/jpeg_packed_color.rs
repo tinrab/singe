@@ -13,7 +13,8 @@ impl SubsampledPlanarImage<u8> {
     /// Uses [`ycbcr420_to_rgb_jpeg_u8_p3_to_c3`](crate::image::raw::color::ycbcr420_to_rgb_jpeg_u8_p3_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -42,7 +43,8 @@ impl SubsampledPlanarImage<u8> {
     /// Uses [`ycbcr422_to_rgb_jpeg_u8_p3_to_c3`](crate::image::raw::color::ycbcr422_to_rgb_jpeg_u8_p3_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -71,7 +73,8 @@ impl SubsampledPlanarImage<u8> {
     /// Uses [`ycbcr411_to_rgb_jpeg_u8_p3_to_c3`](crate::image::raw::color::ycbcr411_to_rgb_jpeg_u8_p3_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -100,7 +103,8 @@ impl SubsampledPlanarImage<u8> {
     /// Uses [`ycbcr420_to_bgr_jpeg_u8_p3_to_c3`](crate::image::raw::color::ycbcr420_to_bgr_jpeg_u8_p3_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -129,7 +133,8 @@ impl SubsampledPlanarImage<u8> {
     /// Uses [`ycbcr422_to_bgr_jpeg_u8_p3_to_c3`](crate::image::raw::color::ycbcr422_to_bgr_jpeg_u8_p3_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -158,7 +163,8 @@ impl SubsampledPlanarImage<u8> {
     /// Uses [`ycbcr411_to_bgr_jpeg_u8_p3_to_c3`](crate::image::raw::color::ycbcr411_to_bgr_jpeg_u8_p3_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

@@ -13,8 +13,8 @@ use crate::{
     },
 };
 
-/// Memory ordering qualifiers. The interpreter serializes every access, so orderings
-/// are validated here and not kept in the executable form.
+/// Memory ordering qualifiers.
+/// The interpreter serializes every access, so orderings are validated here and not kept in the executable form.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Ordering {
     Weak,
@@ -33,6 +33,15 @@ pub fn access(
 ) -> Result<Operation> {
     let ordering = access_ordering(head, write)?;
     let space = head.space();
+    // `ld.global.nc` reads through the non-coherent cache, which only changes caching of data the kernel does not write.
+    if !write && space == Some(StateSpace::Global) && head.take("nc") {
+        require(
+            ordering == Ordering::Weak,
+            instruction.span,
+            "non-coherent loads cannot be ordered",
+        )?;
+    }
+
     require(
         !write || space != Some(StateSpace::Const),
         instruction.span,
@@ -45,6 +54,7 @@ pub fn access(
             "memory ordering requires generic, global, or shared addressing",
         )?;
     }
+
     let count = if head.take("v2") {
         2
     } else if head.take("v4") {
@@ -117,8 +127,7 @@ pub fn access(
     }
 }
 
-/// Consumes the ordering and, for relaxed, acquire, and release accesses, the scope of
-/// `ld` or `st`.
+/// Consumes the ordering and, for relaxed, acquire, and release accesses, the scope of `ld` or `st`.
 fn access_ordering(head: &mut Head<'_>, write: bool) -> Result<Ordering> {
     let ordering = if head.take("volatile") {
         Ordering::Volatile
@@ -251,6 +260,7 @@ pub fn fence(instruction: &Instruction, head: &mut Head<'_>, opcode: Opcode) -> 
         if !head.take("sc") {
             head.take("acq_rel");
         }
+
         require(
             head.take_scope(),
             instruction.span,

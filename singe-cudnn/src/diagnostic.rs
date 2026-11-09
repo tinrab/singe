@@ -76,8 +76,8 @@ pub fn callback() -> Result<(u32, *mut (), Callback)> {
 ///
 /// # Safety
 ///
-/// `callback`, if present, must follow the cuDNN callback ABI. `user_data`
-/// must remain valid for any callback invocation that may use it.
+/// `callback`, if present, must follow the cuDNN callback ABI.
+/// `user_data` must remain valid for any callback invocation that may use it.
 ///
 /// # Errors
 ///
@@ -107,9 +107,7 @@ pub fn last_error_string() -> String {
 /// A kernel launch failure is reported as [`Status::ExecutionFailed`] by the corresponding wrapper call.
 /// Typically, after a GPU kernel starts, no runtime checks are performed by the kernel itself - numerical results are simply written to output buffers.
 ///
-/// When persistent spatial batch normalization is selected, the algorithm may encounter
-/// numerical overflows where ordinary spatial batch normalization performs just fine, albeit at a
-/// slower speed.
+/// When persistent spatial batch normalization is selected, the algorithm may encounter numerical overflows where ordinary spatial batch normalization performs just fine, albeit at a slower speed.
 /// Invoke [`query_runtime_error`] to verify that numerical overflows did not occur during kernel execution.
 /// Those issues are reported by the kernel that performs computations.
 ///
@@ -131,14 +129,11 @@ pub fn last_error_string() -> String {
 /// The result can be `Ok`, [`Status::RuntimeInProgress`], or [`Status::RuntimeFpOverflow`].
 /// The remote kernel error is automatically cleared by [`query_runtime_error`].
 ///
-/// Use [`query_runtime_error`] after batch normalization calls that use
-/// persistent spatial mode.
+/// Use [`query_runtime_error`] after batch normalization calls that use persistent spatial mode.
 ///
 /// # Errors
 ///
-/// Returns an error if cuDNN rejects the input arguments, if the stream
-/// synchronization or query used to retrieve the remote error fails, or if the
-/// device cannot access zero-copy memory to report kernel errors.
+/// Returns an error if cuDNN rejects the input arguments, if the stream synchronization or query used to retrieve the remote error fails, or if the device cannot access zero-copy memory to report kernel errors.
 pub fn query_runtime_error(context: &Context, mode: RuntimeErrorQueryMode) -> Result<Status> {
     let mut status = sys::cudnnStatus_t::CUDNN_STATUS_SUCCESS;
     // SAFETY: `cudnnQueryRuntimeError` receives live handles owned by the wrappers and valid output locations.

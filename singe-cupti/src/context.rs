@@ -17,7 +17,8 @@ use crate::{
 
 /// A shared CUDA context used by CUPTI context-specific queries and profiling.
 ///
-/// Clones retain the same CUDA context. CUPTI finalization remains process-wide and is independent of this owner.
+/// Clones retain the same CUDA context.
+/// CUPTI finalization remains process-wide and is independent of this owner.
 #[derive(Debug, Clone)]
 pub struct Context {
     inner: Arc<CudaContext>,
@@ -86,7 +87,8 @@ impl Context {
 
     /// Returns the current auto-boost state for this context.
     ///
-    /// Auto boost can make profiling results less stable. CUPTI may try to disable it during profiling, but that can fail because of permissions or `CUDA_AUTO_BOOST`.
+    /// Auto boost can make profiling results less stable.
+    /// CUPTI may try to disable it during profiling, but that can fail because of permissions or `CUDA_AUTO_BOOST`.
     ///
     /// # Errors
     ///
@@ -206,7 +208,8 @@ pub fn timestamp() -> Result<u64> {
 
 /// Returns the thread ID type CUPTI uses for activity records.
 ///
-/// This legacy process-wide API is not supported when multiple subscribers are allowed. Prefer [`crate::types::ActivityAttribute::ThreadIdType`] for subscriber-scoped activity collection.
+/// This legacy process-wide API is not supported when multiple subscribers are allowed.
+/// Prefer [`crate::types::ActivityAttribute::ThreadIdType`] for subscriber-scoped activity collection.
 ///
 /// # Errors
 ///
@@ -222,7 +225,9 @@ pub fn thread_id_type() -> Result<ActivityThreadIdType> {
 
 /// Sets the thread ID type CUPTI uses for activity records.
 ///
-/// Do not change this during a profiling session; existing and future activity records may otherwise use different thread ID schemes. This legacy process-wide API is not supported when multiple subscribers are allowed. Prefer [`crate::types::ActivityAttribute::ThreadIdType`] for subscriber-scoped activity collection.
+/// Do not change this during a profiling session; existing and future activity records may otherwise use different thread ID schemes.
+/// This legacy process-wide API is not supported when multiple subscribers are allowed.
+/// Prefer [`crate::types::ActivityAttribute::ThreadIdType`] for subscriber-scoped activity collection.
 ///
 /// # Errors
 ///
@@ -237,9 +242,11 @@ pub fn set_thread_id_type(thread_id_type: ActivityThreadIdType) -> Result<()> {
 
 /// Detaches CUPTI from the current process.
 ///
-/// CUPTI finalization is process-global. It is intentionally not tied to [`Context`] drop, because dropping one cloned CUDA context wrapper should not silently disable profiling for unrelated CUPTI users in the same process.
+/// CUPTI finalization is process-global.
+/// It is intentionally not tied to [`Context`] drop, because dropping one cloned CUDA context wrapper should not silently disable profiling for unrelated CUPTI users in the same process.
 ///
-/// Prefer unsubscribing individual [`crate::callback::Subscriber`] values when ending a tracing session. CUPTI may return before finalizing when multiple subscribers are active.
+/// Prefer unsubscribing individual [`crate::callback::Subscriber`] values when ending a tracing session.
+/// CUPTI may return before finalizing when multiple subscribers are active.
 ///
 /// # Errors
 ///

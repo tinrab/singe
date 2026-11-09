@@ -12,7 +12,6 @@
     non_upper_case_globals,
     unsafe_op_in_unsafe_fn,
     unpredictable_function_pointer_comparisons,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -254,6 +253,96 @@ pub mod runtime {
     #[cfg(feature = "runtime_13_4")]
     include!("runtime_sys_13040.rs");
 }
+
+pub use singe_loader::LoadError;
+
+static DRIVER: singe_loader::Library = singe_loader::Library::cuda_driver();
+
+// Loads the CUDA driver, which each of its functions otherwise does on first call.
+pub fn load_driver() -> Result<(), LoadError> {
+    DRIVER.load()
+}
+
+static RUNTIME: singe_loader::Library = singe_loader::Library::cuda_runtime();
+
+// Loads the CUDA runtime, which each of its functions otherwise does on first call.
+pub fn load_runtime() -> Result<(), LoadError> {
+    RUNTIME.load()
+}
+
+static NVRTC: singe_loader::Library = singe_loader::Library::nvrtc();
+
+// Loads NVRTC, which each of its functions otherwise does on first call.
+pub fn load_nvrtc() -> Result<(), LoadError> {
+    NVRTC.load()
+}
+
+// Where NVRTC loaded from, loading it if it is not yet.
+pub fn nvrtc_paths() -> Result<Vec<std::path::PathBuf>, LoadError> {
+    NVRTC.paths()
+}
+
+static NVJITLINK: singe_loader::Library = singe_loader::Library::nvjitlink();
+
+// Loads nvJitLink, which each of its functions otherwise does on first call.
+pub fn load_nvjitlink() -> Result<(), LoadError> {
+    NVJITLINK.load()
+}
+
+static NVVM: singe_loader::Library = singe_loader::Library::nvvm();
+
+// Loads NVVM, which each of its functions otherwise does on first call.
+pub fn load_nvvm() -> Result<(), LoadError> {
+    NVVM.load()
+}
+
+static NVTX: singe_loader::Library = singe_loader::Library::nvtx();
+
+// Loads NVTX, which each of its functions otherwise does on first call.
+pub fn load_nvtx() -> Result<(), LoadError> {
+    NVTX.load()
+}
+
+#[cfg(feature = "driver_13_4")]
+singe_loader::missing_status!(
+    driver::CUresult,
+    library: driver::CUresult::CUDA_ERROR_SHARED_OBJECT_INIT_FAILED,
+    symbol: driver::CUresult::CUDA_ERROR_SHARED_OBJECT_SYMBOL_NOT_FOUND,
+);
+
+#[cfg(feature = "runtime_13_4")]
+impl singe_loader::Missing for runtime::cudaChannelFormatDesc {
+    fn missing(_: singe_loader::Absence) -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            z: 0,
+            w: 0,
+            f: runtime::cudaChannelFormatKind::cudaChannelFormatKindSigned,
+        }
+    }
+}
+
+#[cfg(feature = "nvrtc_13_4")]
+singe_loader::missing_status!(
+    nvrtc::nvrtcResult,
+    library: nvrtc::nvrtcResult::NVRTC_ERROR_INTERNAL_ERROR,
+    symbol: nvrtc::nvrtcResult::NVRTC_ERROR_INTERNAL_ERROR,
+);
+
+#[cfg(feature = "nvjitlink_13_4")]
+singe_loader::missing_status!(
+    nvjitlink::nvJitLinkResult,
+    library: nvjitlink::nvJitLinkResult::NVJITLINK_ERROR_INTERNAL,
+    symbol: nvjitlink::nvJitLinkResult::NVJITLINK_ERROR_OUTDATED_LIBRARY,
+);
+
+#[cfg(feature = "nvvm_13_4")]
+singe_loader::missing_status!(
+    nvvm::nvvmResult,
+    library: nvvm::nvvmResult::NVVM_ERROR_PROGRAM_CREATION_FAILURE,
+    symbol: nvvm::nvvmResult::NVVM_ERROR_PROGRAM_CREATION_FAILURE,
+);
 
 #[cfg(test)]
 mod tests {

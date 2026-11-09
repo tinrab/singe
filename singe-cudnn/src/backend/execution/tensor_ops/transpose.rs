@@ -64,7 +64,8 @@ impl TransposeConfig {
     ///
     /// # Panics
     ///
-    /// Panics if an internal permutation or checked-shape invariant is violated during stride lookup. Malformed permutations return errors before this lookup.
+    /// Panics if an internal permutation or checked-shape invariant is violated during stride lookup.
+    /// Malformed permutations return errors before this lookup.
     pub fn infer_output_shape(&self, input: &Shape) -> Result<Shape> {
         let dimensions = self.infer_output_dimensions(input)?;
         let strides = self
@@ -92,6 +93,7 @@ impl TransposeConfig {
                 actual: self.permutation.len(),
             });
         }
+
         if self.permutation.is_empty() {
             return Err(Error::EmptyList {
                 name: "transpose permutation".into(),
@@ -114,7 +116,8 @@ impl TransposeConfig {
     }
 }
 
-/// Native transpose. Output strides may describe independent storage.
+/// Native transpose.
+/// Output strides may describe independent storage.
 #[derive(Debug)]
 pub struct TransposeOperation {
     descriptor: BackendDescriptor,
@@ -134,11 +137,13 @@ impl TransposeOperation {
                 name: "transpose output dimensions".into(),
             });
         }
+
         if x.data_type() != y.data_type() {
             return Err(Error::DescriptorMismatch {
                 name: "transpose data type".into(),
             });
         }
+
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::OperationTranspose)?;
         descriptor.set_attribute_descriptor(
             BackendAttributeName::OperationTransposeXDesc,

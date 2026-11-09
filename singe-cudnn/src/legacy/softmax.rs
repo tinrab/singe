@@ -17,16 +17,14 @@ use crate::{
     utility::check_range,
 };
 
-/// Selects the softmax implementation used by [`softmax_forward`] and
-/// [`softmax_backward`].
+/// Selects the softmax implementation used by [`softmax_forward`] and [`softmax_backward`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum SoftmaxAlgorithm {
     /// Applies the straightforward softmax operation.
     Fast = sys::cudnnSoftmaxAlgorithm_t::CUDNN_SOFTMAX_FAST as _,
-    /// Scales each point of the softmax input domain by its maximum value to avoid
-    /// potential floating point overflows in the softmax evaluation.
+    /// Scales each point of the softmax input domain by its maximum value to avoid potential floating point overflows in the softmax evaluation.
     Accurate = sys::cudnnSoftmaxAlgorithm_t::CUDNN_SOFTMAX_ACCURATE as _,
     /// This entry performs the log softmax operation, avoiding overflows by scaling each point in the input domain as in [`SoftmaxAlgorithm::Accurate`].
     Log = sys::cudnnSoftmaxAlgorithm_t::CUDNN_SOFTMAX_LOG as _,
@@ -40,8 +38,7 @@ impl_enum_display!(SoftmaxAlgorithm, {
     Self::Log => "CUDNN_SOFTMAX_LOG",
 });
 
-/// Selects the dimensions over which [`softmax_forward`] and
-/// [`softmax_backward`] compute their results.
+/// Selects the dimensions over which [`softmax_forward`] and [`softmax_backward`] compute their results.
 ///
 /// **Values**
 ///
@@ -83,10 +80,8 @@ fn require_capacity<T>(descriptor: &TensorDescriptor<T>, length: usize) -> Resul
 /// Retain the context, device ranges, and exclusive writes through completion and replay.
 /// Do not race handle reconfiguration with submission.
 /// Input elements must be valid when read; order their producers before this operation.
-/// When beta is nonzero, all accessed
-/// destination elements must already be initialized.
-/// Descriptors must match
-/// their tensor element types and scaling coefficients are consumed during the call.
+/// When beta is nonzero, all accessed destination elements must already be initialized.
+/// Descriptors must match their tensor element types and scaling coefficients are consumed during the call.
 ///
 /// # Errors
 ///
@@ -108,6 +103,7 @@ pub unsafe fn softmax_forward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "softmax forward",
         x_desc.dimensions() == y_desc.dimensions()
@@ -135,9 +131,10 @@ pub unsafe fn softmax_forward<T: FloatingElement>(
 /// Only descriptor elements are produced; destination padding remains untouched.
 ///
 /// # Safety
-/// Retain the context, input values, output storage, and exclusive writes through completion
-/// and captured replay. Order input producers before use. Nonzero beta requires
-/// initialized destination elements. Descriptors must match their element types.
+/// Retain the context, input values, output storage, and exclusive writes through completion and captured replay.
+/// Order input producers before use.
+/// Nonzero beta requires initialized destination elements.
+/// Descriptors must match their element types.
 ///
 /// # Errors
 ///
@@ -166,6 +163,7 @@ pub unsafe fn softmax_backward<T: FloatingElement>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     check_range!(
         "softmax backward",
         y_desc.dimensions() == output_gradient_desc.dimensions()

@@ -63,9 +63,8 @@ impl_enum_display!(DataType, {
 ///
 /// # Safety
 ///
-/// Size, alignment, complexity, and the reported datatype must match the NPP
-/// element ABI. All valid values must contain initialized bytes, and all
-/// initialized NPP storage patterns must be valid Rust values.
+/// Size, alignment, complexity, and the reported datatype must match the NPP element ABI.
+/// All valid values must contain initialized bytes, and all initialized NPP storage patterns must be valid Rust values.
 pub unsafe trait DataTypeLike: AnyBitPatternDeviceRepr + NoUninitDeviceRepr + Debug {
     /// Returns the native datatype of this scalar or complex component.
     fn data_type() -> DataType;
@@ -203,8 +202,7 @@ impl_data_type!(Complex64, F64, true);
 
 /// Converts a Rust value to its corresponding native NPP argument representation.
 ///
-/// The provided scalar implementations return the value unchanged; complex implementations
-/// construct the corresponding native real and imaginary fields.
+/// The provided scalar implementations return the value unchanged; complex implementations construct the corresponding native real and imaginary fields.
 pub trait IntoNpp {
     /// Native argument type produced by this value conversion.
     type Npp;
@@ -299,8 +297,8 @@ bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     /// Native contour boundary direction flags for union-find labeled regions.
     ///
-    /// Single directions describe neighboring contour pixels. `ANY_*` masks combine
-    /// the cardinal direction with its two adjacent diagonals.
+    /// Single directions describe neighboring contour pixels.
+    /// `ANY_*` masks combine the cardinal direction with its two adjacent diagonals.
     pub struct ContourDirection: u8 {
         /// Contour direction south east.
         const SOUTH_EAST = contour_direction_bits(sys::NPP_CONTOUR_DIRECTION_SOUTH_EAST);
@@ -471,6 +469,7 @@ impl Size {
                 name: "width".into(),
             });
         }
+
         if self.height <= 0 {
             return Err(Error::ValueNotPositive {
                 name: "height".into(),
@@ -1927,16 +1926,20 @@ impl_enum_display!(InterpolationMode, {
 
 /// Rounding Modes.
 ///
-/// The enumerated rounding modes are used by a large number of NPP primitives to allow the user to specify the method by which fractional values are converted to integer values. Also see [Rounding Modes](https://docs.nvidia.com/cuda/archive/13.4.2/npp/introduction.html#general_conventions_lb_1rounding_modes).
+/// The enumerated rounding modes are used by a large number of NPP primitives to allow the user to specify the method by which fractional values are converted to integer values.
+/// Also see [Rounding Modes](https://docs.nvidia.com/cuda/archive/13.4.2/npp/introduction.html#general_conventions_lb_1rounding_modes).
 ///
-/// For NPP release 5.5 new names for the three rounding modes are introduced that are based on the naming conventions for rounding modes set forth in the IEEE-754 floating-point standard. Developers are encouraged to use the new, longer names to be future proof as the legacy names will be deprecated in subsequent NPP releases.
+/// For NPP release 5.5 new names for the three rounding modes are introduced that are based on the naming conventions for rounding modes set forth in the IEEE-754 floating-point standard.
+/// Developers are encouraged to use the new, longer names to be future proof as the legacy names will be deprecated in subsequent NPP releases.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[non_exhaustive]
 #[repr(u32)]
 pub enum RoundMode {
     /// Round to the nearest even integer.
     ///
-    /// All fractional numbers are rounded to their nearest integer. The ambiguous cases (i.e. &lt;integer>.5) are rounded to the closest even integer. E.g.
+    /// All fractional numbers are rounded to their nearest integer.
+    /// The ambiguous cases (i.e. &lt;integer>.5) are rounded to the closest even integer.
+    /// E.g.
     ///
     /// * roundNear(0.5) = 0
     /// * roundNear(0.6) = 1
@@ -1945,7 +1948,9 @@ pub enum RoundMode {
     Near = sys::NppRoundMode::NPP_RND_NEAR as _,
     /// Round according to financial rule.
     ///
-    /// All fractional numbers are rounded to their nearest integer. The ambiguous cases (i.e. &lt;integer>.5) are rounded away from zero. E.g.
+    /// All fractional numbers are rounded to their nearest integer.
+    /// The ambiguous cases (i.e. &lt;integer>.5) are rounded away from zero.
+    /// E.g.
     ///
     /// * roundFinancial(0.4) = 0
     /// * roundFinancial(0.5) = 1

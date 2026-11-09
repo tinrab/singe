@@ -18,10 +18,9 @@ where
 {
     /// Applies the affine transformation and interpolation configured by `warp`.
     /// Writes only the transformed source intersection into the configured destination ROI.
-    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state;
-    /// success does not establish initialization of the entire destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state; success does not establish initialization of the entire destination.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -49,10 +48,9 @@ where
 
     /// Applies the NPP backward affine warp configured by `warp`.
     /// Writes only the transformed source intersection into the configured destination ROI.
-    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state;
-    /// success does not establish initialization of the entire destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state; success does not establish initialization of the entire destination.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -80,10 +78,9 @@ where
 
     /// Applies an affine warp defined by the source and destination quadrangles in `warp`.
     /// Writes only the transformed source intersection into the configured destination ROI.
-    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state;
-    /// success does not establish initialization of the entire destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state; success does not establish initialization of the entire destination.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -111,10 +108,9 @@ where
 
     /// Applies the perspective transformation and interpolation configured by `warp`.
     /// Writes only the transformed source intersection into the configured destination ROI.
-    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state;
-    /// success does not establish initialization of the entire destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state; success does not establish initialization of the entire destination.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -142,10 +138,9 @@ where
 
     /// Applies the NPP backward perspective warp configured by `warp`.
     /// Writes only the transformed source intersection into the configured destination ROI.
-    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state;
-    /// success does not establish initialization of the entire destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state; success does not establish initialization of the entire destination.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -173,10 +168,9 @@ where
 
     /// Applies a perspective warp defined by the source and destination quadrangles in `warp`.
     /// Writes only the transformed source intersection into the configured destination ROI.
-    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state;
-    /// success does not establish initialization of the entire destination.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Uncovered pixels and ignored AC4 alpha retain their previous initialization state; success does not establish initialization of the entire destination.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

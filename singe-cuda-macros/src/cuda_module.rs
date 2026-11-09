@@ -74,24 +74,28 @@ impl ModuleConfig {
                     if source.is_some() {
                         return Err(SynError::new(key.span(), "duplicate `source` field"));
                     }
+
                     source = Some(input.parse::<LitStr>()?);
                 }
                 "exports" => {
                     if !exports.is_empty() {
                         return Err(SynError::new(key.span(), "duplicate `exports` field"));
                     }
+
                     exports = parse_export_specs(input)?;
                 }
                 "headers" => {
                     if !headers.is_empty() {
                         return Err(SynError::new(key.span(), "duplicate `headers` field"));
                     }
+
                     headers = parse_header_specs(input)?;
                 }
                 "compile" => {
                     if compile {
                         return Err(SynError::new(key.span(), "duplicate `compile` field"));
                     }
+
                     compile = true;
                     let config = parse_compile_config(input)?;
                     nvrtc_args = config.nvrtc_args;
@@ -311,6 +315,7 @@ fn extract_metadata(config: &ModuleConfig) -> SynResult<ModuleMetadata> {
                 }
             }
         }
+
         let params = source_kernel
             .params
             .iter()
@@ -527,7 +532,10 @@ fn generate_module(
                     let cache_key = (context_key, module_cache_key_suffix());
                     let cache = module_cache();
 
-                    if let Some(module) = cache.lock().expect("cuda module cache poisoned").get(&cache_key).and_then(Weak::upgrade) {
+                    let poisoned = |_| _singe_cuda::error::Error::ResourcePoisoned {
+                        name: "cuda module cache",
+                    };
+                    if let Some(module) = cache.lock().map_err(poisoned)?.get(&cache_key).and_then(Weak::upgrade) {
                         return Ok(Self { module });
                     }
 
@@ -538,7 +546,7 @@ fn generate_module(
                         &nvrtc_args,
                         &kernel_names,
                     )?);
-                    let mut cache = cache.lock().expect("cuda module cache poisoned");
+                    let mut cache = cache.lock().map_err(poisoned)?;
                     let module = match cache.get(&cache_key).and_then(Weak::upgrade) {
                         Some(cached) => cached,
                         None => {
@@ -582,6 +590,7 @@ fn map_param(
                     "by-value parameters require `value(Type)`",
                 ));
             }
+
             let ty = spec
                 .and_then(|spec| spec.rust_type.as_ref())
                 .map(|ty| quote! { #ty })
@@ -629,12 +638,14 @@ fn map_pointer_param(
             "pointer parameters require `read`, `write` or `read_write`",
         ));
     }
+
     if spec.is_some() && levels.len() != 1 {
         return Err(SynError::new(
             name.span(),
             "access annotations require a single-level pointer",
         ));
     }
+
     let element_type = spec
         .and_then(|spec| spec.rust_type.as_ref())
         .map(|ty| quote! { #ty })
@@ -645,6 +656,7 @@ fn map_pointer_param(
             "access annotations on untyped pointers require an explicit Rust element type",
         ));
     }
+
     let mut raw = element_type.clone().unwrap_or_else(|| quote! { () });
     for mutable in levels {
         raw = if *mutable {
@@ -653,6 +665,7 @@ fn map_pointer_param(
             quote! { *const #raw }
         };
     }
+
     let mut param = KernelParam {
         rust_name: name.clone(),
         source_name: source_param.name.clone(),
@@ -679,6 +692,7 @@ fn map_pointer_param(
                 "a const pointer cannot declare writable access",
             ));
         }
+
         let mapping = pointer_access_tokens(name, &ty, mode);
         param.view_type = mapping.view;
         param.typed_argument = Some(mapping.argument);
@@ -782,6 +796,7 @@ fn validate_generated_names(kernels: &[KernelMetadata]) -> SynResult<()> {
     for name in ["create", "raw", "kernel_symbol", "SOURCE"] {
         register(&mut methods, &Ident::new(name, Span::call_site()))?;
     }
+
     for kernel in kernels {
         register(&mut types, &signature_name(&kernel.rust_name))?;
         register(&mut methods, &format_ident!("prepare_{}", kernel.rust_name))?;
@@ -1082,14 +1097,17 @@ fn cache_key(
         if let Some(rust_name) = &export.rust_name {
             hasher.update(rust_name.to_string().as_bytes());
         }
+
         hasher.update([0]);
     }
+
     for (include_name, header_source) in headers {
         hasher.update(include_name.as_bytes());
         hasher.update([0]);
         hasher.update(header_source.as_bytes());
         hasher.update([0]);
     }
+
     for arg in nvrtc_args {
         hasher.update(arg.value().as_bytes());
         hasher.update([0]);
@@ -1126,6 +1144,7 @@ fn parse_export_specs(input: ParseStream) -> SynResult<Vec<ExportSpec>> {
                                 "duplicate `requirements` field",
                             ));
                         }
+
                         requirements = Some(body.parse::<Expr>()?);
                     }
                     "parameters" => {
@@ -1143,6 +1162,7 @@ fn parse_export_specs(input: ParseStream) -> SynResult<Vec<ExportSpec>> {
                 }
             }
         }
+
         exports.push(ExportSpec {
             source_name,
             rust_name,
@@ -1196,6 +1216,7 @@ fn parse_parameter_specs(
                 "`value` requires an explicit Rust type",
             ));
         }
+
         if parameters
             .insert(
                 name.to_string().trim_start_matches("r#").to_owned(),
@@ -1246,6 +1267,7 @@ fn parse_compile_config(input: ParseStream) -> SynResult<CompileConfig> {
                 if nvrtc_args.is_some() {
                     return Err(SynError::new(key.span(), "duplicate `nvrtc_args` field"));
                 }
+
                 nvrtc_args = Some(parse_string_list(&content)?);
             }
             _ => {
@@ -1410,6 +1432,7 @@ fn pointer_levels_from_declaration(declaration: &str, array: bool) -> Vec<bool> 
         levels.push(!contains_identifier(&declaration[previous..star], "const"));
         previous = star + 1;
     }
+
     if array {
         let segment = if levels.is_empty() {
             declaration
@@ -1437,15 +1460,18 @@ fn resolve_scalar_tokens(
     if tokens.iter().any(|token| token == "void") {
         return None;
     }
+
     if let Some(scalar) = tokens.iter().find_map(|token| aliases.get(token).copied()) {
         return Some(scalar);
     }
+
     if tokens
         .iter()
         .any(|token| token == "bool" || token == "_bool")
     {
         return Some(RustScalar::Bool);
     }
+
     if tokens.iter().any(|token| {
         matches!(
             token.as_str(),
@@ -1454,6 +1480,7 @@ fn resolve_scalar_tokens(
     }) {
         return Some(RustScalar::F16);
     }
+
     if tokens.iter().any(|token| {
         matches!(
             token.as_str(),
@@ -1462,48 +1489,60 @@ fn resolve_scalar_tokens(
     }) {
         return Some(RustScalar::Bf16);
     }
+
     if tokens.iter().any(|token| token == "double") {
         return Some(RustScalar::F64);
     }
+
     if tokens.iter().any(|token| token == "float") {
         return Some(RustScalar::F32);
     }
+
     if tokens.iter().any(|token| token == "size_t") {
         return Some(RustScalar::USize);
     }
+
     if tokens
         .iter()
         .any(|token| matches!(token.as_str(), "ssize_t" | "ptrdiff_t"))
     {
         return Some(RustScalar::ISize);
     }
+
     if tokens
         .iter()
         .any(|token| matches!(token.as_str(), "uint64_t" | "uintptr_t"))
     {
         return Some(RustScalar::U64);
     }
+
     if tokens
         .iter()
         .any(|token| matches!(token.as_str(), "int64_t" | "intptr_t"))
     {
         return Some(RustScalar::I64);
     }
+
     if tokens.iter().any(|token| token == "uint32_t") {
         return Some(RustScalar::U32);
     }
+
     if tokens.iter().any(|token| token == "int32_t") {
         return Some(RustScalar::I32);
     }
+
     if tokens.iter().any(|token| token == "uint16_t") {
         return Some(RustScalar::U16);
     }
+
     if tokens.iter().any(|token| token == "int16_t") {
         return Some(RustScalar::I16);
     }
+
     if tokens.iter().any(|token| token == "uint8_t") {
         return Some(RustScalar::U8);
     }
+
     if tokens.iter().any(|token| token == "int8_t") {
         return Some(RustScalar::I8);
     }
@@ -1522,6 +1561,7 @@ fn resolve_integer_tokens(tokens: &[String]) -> Option<RustScalar> {
             RustScalar::I64
         });
     }
+
     if tokens.iter().any(|token| token == "short") {
         return Some(if unsigned {
             RustScalar::U16
@@ -1529,6 +1569,7 @@ fn resolve_integer_tokens(tokens: &[String]) -> Option<RustScalar> {
             RustScalar::I16
         });
     }
+
     if tokens.iter().any(|token| token == "char") {
         return match (unsigned, signed) {
             (true, _) => Some(RustScalar::U8),
@@ -1536,6 +1577,7 @@ fn resolve_integer_tokens(tokens: &[String]) -> Option<RustScalar> {
             _ => None,
         };
     }
+
     if tokens.iter().any(|token| token == "int") {
         return Some(if unsigned {
             RustScalar::U32
@@ -1600,10 +1642,12 @@ fn collect_using_aliases(source: &str, aliases: &mut HashMap<String, RustScalar>
         if alias.is_empty() || !alias.chars().all(is_c_identifier_char) {
             continue;
         }
+
         let ty = ty.trim();
         if ty.contains('*') || ty.contains('&') {
             continue;
         }
+
         let Some(scalar) = source_scalar_type(ty, "", aliases) else {
             continue;
         };
@@ -1620,8 +1664,10 @@ fn declaration_type_tokens(declaration: &str, name: &str) -> Vec<String> {
             current.push(ch.to_ascii_lowercase());
             continue;
         }
+
         push_type_token(&mut tokens, &mut current, &name);
     }
+
     push_type_token(&mut tokens, &mut current, &name);
     tokens
 }
@@ -1660,6 +1706,7 @@ fn find_descendant_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     if node.kind() == kind {
         return Some(node);
     }
+
     for index in 0..node.child_count() {
         if let Some(child) = node.child(index)
             && let Some(found) = find_descendant_kind(child, kind)
@@ -1674,6 +1721,7 @@ fn declarator_name(node: Node<'_>) -> Option<Node<'_>> {
     if matches!(node.kind(), "identifier" | "field_identifier") {
         return Some(node);
     }
+
     if let Some(declarator) = node.child_by_field_name("declarator")
         && let Some(name) = declarator_name(declarator)
     {
@@ -1696,6 +1744,7 @@ fn declarator_has_kind(node: Node<'_>, kind: &str) -> bool {
     if node.kind() == kind {
         return true;
     }
+
     for index in 0..node.child_count() {
         if let Some(child) = node.child(index)
             && declarator_has_kind(child, kind)
@@ -1722,6 +1771,7 @@ fn contains_identifier(source: &str, needle: &str) -> bool {
         if before && after {
             return true;
         }
+
         start = end;
     }
     false
@@ -1749,9 +1799,11 @@ fn sanitize_identifier(name: &str) -> String {
             output.push('_');
         }
     }
+
     if output.is_empty() {
         output.push_str("arg");
     }
+
     if output.as_bytes()[0].is_ascii_digit() {
         output.insert(0, '_');
     }

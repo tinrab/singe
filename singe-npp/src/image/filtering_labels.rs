@@ -52,7 +52,8 @@ pub fn label_markers_uf_buffer_size_u32_c1(roi: Size) -> Result<usize> {
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -71,7 +72,8 @@ pub fn label_markers_uf_buffer_size_u32_c1(roi: Size) -> Result<usize> {
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf_u8_to_u32_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u8, C1>,
@@ -106,7 +108,8 @@ pub unsafe fn label_markers_uf_u8_to_u32_c1(
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -125,7 +128,8 @@ pub unsafe fn label_markers_uf_u8_to_u32_c1(
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf_u16_to_u32_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u16, C1>,
@@ -160,7 +164,8 @@ pub unsafe fn label_markers_uf_u16_to_u32_c1(
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -179,7 +184,8 @@ pub unsafe fn label_markers_uf_u16_to_u32_c1(
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf_u32_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, u32, C1>,
@@ -216,17 +222,20 @@ macro_rules! impl_label_markers_uf_batch {
     ($name:ident, $source_ty:ty, $ffi_name:ident) => {
         /// Labels connected regions with the native union-find algorithm.
         ///
-        /// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+        /// A connected region contains pixels with the same value.
+        /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
         /// Native marker IDs may have gaps and do not have a defined ordering.
         /// The provided implementations reject stream capture and return after successful stream completion.
         /// Temporary device scratch or descriptor allocations remain alive through native use.
-        /// The common ROI uses the smallest source or destination width and height in the batch. Pixels outside that ROI remain unwritten.
+        /// The common ROI uses the smallest source or destination width and height in the batch.
+        /// Pixels outside that ROI remain unwritten.
         ///
         /// # Errors
         ///
         /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
         /// Scratch-size queries, device allocations or descriptor uploads, capture checks, and stream synchronization can also fail.
-        /// Source and destination batches must have equal lengths of at least two, representable as `i32`. Each source and destination pair must have equal sizes.
+        /// Source and destination batches must have equal lengths of at least two, representable as `i32`.
+        /// Each source and destination pair must have equal sizes.
         ///
         /// # Safety
         ///
@@ -236,7 +245,8 @@ macro_rules! impl_label_markers_uf_batch {
         /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
         /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
         /// Retain all allocations until native work completes.
-        /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+        /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`.
+        /// The wrapper does not enforce this allocation or stride requirement.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             sources: &[ImageView<'_, $source_ty, C1>],
@@ -280,17 +290,20 @@ macro_rules! impl_label_markers_uf_batch_advanced {
     ($name:ident, $source_ty:ty, $ffi_name:ident) => {
         /// Labels connected regions with the native union-find algorithm.
         ///
-        /// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+        /// A connected region contains pixels with the same value.
+        /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
         /// Native marker IDs may have gaps and do not have a defined ordering.
         /// The provided implementations reject stream capture and return after successful stream completion.
         /// Temporary device scratch or descriptor allocations remain alive through native use.
-        /// Each pair uses its own image size. The largest destination width and height determine the native launch bounds.
+        /// Each pair uses its own image size.
+        /// The largest destination width and height determine the native launch bounds.
         ///
         /// # Errors
         ///
         /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
         /// Scratch-size queries, device allocations or descriptor uploads, capture checks, and stream synchronization can also fail.
-        /// Source and destination batches must have equal lengths of at least two, representable as `i32`. Each source and destination pair must have equal sizes.
+        /// Source and destination batches must have equal lengths of at least two, representable as `i32`.
+        /// Each source and destination pair must have equal sizes.
         ///
         /// # Safety
         ///
@@ -300,7 +313,8 @@ macro_rules! impl_label_markers_uf_batch_advanced {
         /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
         /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
         /// Retain all allocations until native work completes.
-        /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+        /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`.
+        /// The wrapper does not enforce this allocation or stride requirement.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             sources: &[ImageView<'_, $source_ty, C1>],
@@ -381,7 +395,8 @@ impl_label_markers_uf_batch_advanced!(
 /// # Safety
 ///
 /// Implementations must preserve native element representations, connectivity, marker output semantics, and the documented execution contract.
-/// Scratch-size queries must not underestimate native workspace requirements. Retain temporary resources through native completion.
+/// Scratch-size queries must not underestimate native workspace requirements.
+/// Retain temporary resources through native completion.
 pub unsafe trait LabelMarkersUfC1: DataTypeLike + Sized {
     /// Returns the required scratch capacity in bytes for union-find labeling of `roi`.
     ///
@@ -396,7 +411,8 @@ pub unsafe trait LabelMarkersUfC1: DataTypeLike + Sized {
 
     /// Labels connected regions with the native union-find algorithm.
     ///
-    /// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// A connected region contains pixels with the same value.
+    /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
     /// Native marker IDs may have gaps and do not have a defined ordering.
     /// The provided implementations reject stream capture and return after successful stream completion.
     /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -415,7 +431,8 @@ pub unsafe trait LabelMarkersUfC1: DataTypeLike + Sized {
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+    /// The wrapper does not enforce this allocation or stride requirement.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -473,7 +490,8 @@ pub fn label_markers_uf_buffer_size_for<T: LabelMarkersUfC1>(roi: Size) -> Resul
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -492,7 +510,8 @@ pub fn label_markers_uf_buffer_size_for<T: LabelMarkersUfC1>(roi: Size) -> Resul
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf<T: LabelMarkersUfC1>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,
@@ -508,14 +527,16 @@ pub unsafe fn label_markers_uf<T: LabelMarkersUfC1>(
 /// # Safety
 ///
 /// Implementations must preserve native element representations, connectivity, marker output semantics, and the documented execution contract.
-/// Scratch-size queries must not underestimate native workspace requirements. Retain temporary resources through native completion.
+/// Scratch-size queries must not underestimate native workspace requirements.
+/// Retain temporary resources through native completion.
 pub unsafe trait LabelMarkersUfToC1<Destination>: DataTypeLike + Sized
 where
     Destination: DataTypeLike,
 {
     /// Labels connected regions with the native union-find algorithm.
     ///
-    /// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// A connected region contains pixels with the same value.
+    /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
     /// Native marker IDs may have gaps and do not have a defined ordering.
     /// The provided implementations reject stream capture and return after successful stream completion.
     /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -534,7 +555,8 @@ where
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+    /// The wrapper does not enforce this allocation or stride requirement.
     unsafe fn dispatch_to(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -560,7 +582,8 @@ where
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
@@ -579,7 +602,8 @@ where
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the source image width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf_to<T, Destination>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,
@@ -599,21 +623,25 @@ where
 /// # Safety
 ///
 /// Implementations must preserve native element representations, connectivity, marker output semantics, and the documented execution contract.
-/// Scratch-size queries must not underestimate native workspace requirements. Retain temporary resources through native completion.
+/// Scratch-size queries must not underestimate native workspace requirements.
+/// Retain temporary resources through native completion.
 pub unsafe trait LabelMarkersUfBatchC1: DataTypeLike + Sized {
     /// Labels connected regions with the native union-find algorithm.
     ///
-    /// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// A connected region contains pixels with the same value.
+    /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
     /// Native marker IDs may have gaps and do not have a defined ordering.
     /// The provided implementations reject stream capture and return after successful stream completion.
     /// Temporary device scratch or descriptor allocations remain alive through native use.
-    /// The common ROI uses the smallest source or destination width and height in the batch. Pixels outside that ROI remain unwritten.
+    /// The common ROI uses the smallest source or destination width and height in the batch.
+    /// Pixels outside that ROI remain unwritten.
     ///
     /// # Errors
     ///
     /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
     /// Scratch-size queries, device allocations or descriptor uploads, capture checks, and stream synchronization can also fail.
-    /// Source and destination batches must have equal lengths of at least two, representable as `i32`. Each source and destination pair must have equal sizes.
+    /// Source and destination batches must have equal lengths of at least two, representable as `i32`.
+    /// Each source and destination pair must have equal sizes.
     ///
     /// # Safety
     ///
@@ -623,7 +651,8 @@ pub unsafe trait LabelMarkersUfBatchC1: DataTypeLike + Sized {
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`.
+    /// The wrapper does not enforce this allocation or stride requirement.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         sources: &[ImageView<'_, Self, C1>],
@@ -670,17 +699,20 @@ unsafe impl LabelMarkersUfBatchC1 for u32 {
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
-/// The common ROI uses the smallest source or destination width and height in the batch. Pixels outside that ROI remain unwritten.
+/// The common ROI uses the smallest source or destination width and height in the batch.
+/// Pixels outside that ROI remain unwritten.
 ///
 /// # Errors
 ///
 /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
 /// Scratch-size queries, device allocations or descriptor uploads, capture checks, and stream synchronization can also fail.
-/// Source and destination batches must have equal lengths of at least two, representable as `i32`. Each source and destination pair must have equal sizes.
+/// Source and destination batches must have equal lengths of at least two, representable as `i32`.
+/// Each source and destination pair must have equal sizes.
 ///
 /// # Safety
 ///
@@ -690,7 +722,8 @@ unsafe impl LabelMarkersUfBatchC1 for u32 {
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of the common ROI width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf_batch<T: LabelMarkersUfBatchC1>(
     stream_context: &StreamContext,
     sources: &[ImageView<'_, T, C1>],
@@ -706,21 +739,25 @@ pub unsafe fn label_markers_uf_batch<T: LabelMarkersUfBatchC1>(
 /// # Safety
 ///
 /// Implementations must preserve native element representations, connectivity, marker output semantics, and the documented execution contract.
-/// Scratch-size queries must not underestimate native workspace requirements. Retain temporary resources through native completion.
+/// Scratch-size queries must not underestimate native workspace requirements.
+/// Retain temporary resources through native completion.
 pub unsafe trait LabelMarkersUfBatchAdvancedC1: DataTypeLike + Sized {
     /// Labels connected regions with the native union-find algorithm.
     ///
-    /// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+    /// A connected region contains pixels with the same value.
+    /// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
     /// Native marker IDs may have gaps and do not have a defined ordering.
     /// The provided implementations reject stream capture and return after successful stream completion.
     /// Temporary device scratch or descriptor allocations remain alive through native use.
-    /// Each pair uses its own image size. The largest destination width and height determine the native launch bounds.
+    /// Each pair uses its own image size.
+    /// The largest destination width and height determine the native launch bounds.
     ///
     /// # Errors
     ///
     /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
     /// Scratch-size queries, device allocations or descriptor uploads, capture checks, and stream synchronization can also fail.
-    /// Source and destination batches must have equal lengths of at least two, representable as `i32`. Each source and destination pair must have equal sizes.
+    /// Source and destination batches must have equal lengths of at least two, representable as `i32`.
+    /// Each source and destination pair must have equal sizes.
     ///
     /// # Safety
     ///
@@ -730,7 +767,8 @@ pub unsafe trait LabelMarkersUfBatchAdvancedC1: DataTypeLike + Sized {
     /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
     /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
     /// Retain all allocations until native work completes.
-    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+    /// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`.
+    /// The wrapper does not enforce this allocation or stride requirement.
     unsafe fn dispatch(
         stream_context: &StreamContext,
         sources: &[ImageView<'_, Self, C1>],
@@ -793,17 +831,20 @@ unsafe impl LabelMarkersUfBatchAdvancedC1 for u32 {
 
 /// Labels connected regions with the native union-find algorithm.
 ///
-/// A connected region contains pixels with the same value. `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
+/// A connected region contains pixels with the same value.
+/// `ImageNormalization::L1` selects four-way connectivity and `ImageNormalization::Infinity` selects eight-way connectivity.
 /// Native marker IDs may have gaps and do not have a defined ordering.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
-/// Each pair uses its own image size. The largest destination width and height determine the native launch bounds.
+/// Each pair uses its own image size.
+/// The largest destination width and height determine the native launch bounds.
 ///
 /// # Errors
 ///
 /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
 /// Scratch-size queries, device allocations or descriptor uploads, capture checks, and stream synchronization can also fail.
-/// Source and destination batches must have equal lengths of at least two, representable as `i32`. Each source and destination pair must have equal sizes.
+/// Source and destination batches must have equal lengths of at least two, representable as `i32`.
+/// Each source and destination pair must have equal sizes.
 ///
 /// # Safety
 ///
@@ -813,7 +854,8 @@ unsafe impl LabelMarkersUfBatchAdvancedC1 for u32 {
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
 /// NPP receives mutable source pointers; provide exclusive access to source storage during native use.
 /// Retain all allocations until native work completes.
-/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`. The wrapper does not enforce this allocation or stride requirement.
+/// Native UF destinations must use linear CUDA allocations, rather than pitched allocations, with a byte stride of each destination image width times `size_of::<u32>()`.
+/// The wrapper does not enforce this allocation or stride requirement.
 pub unsafe fn label_markers_uf_batch_advanced<T: LabelMarkersUfBatchAdvancedC1>(
     stream_context: &StreamContext,
     sources: &[ImageView<'_, T, C1>],
@@ -834,8 +876,10 @@ pub unsafe fn label_markers_uf_batch_advanced<T: LabelMarkersUfBatchAdvancedC1>(
 /// # Errors
 ///
 /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-/// The batch must contain at least two images and fit in `i32`. Each image stride must equal its width times `size_of::<u32>()`.
-/// `new_max_label_ids` must contain exactly one element per image. ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
+/// The batch must contain at least two images and fit in `i32`.
+/// Each image stride must equal its width times `size_of::<u32>()`.
+/// `new_max_label_ids` must contain exactly one element per image.
+/// ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
 /// All image sizes must match.
 ///
 /// # Safety
@@ -844,7 +888,8 @@ pub unsafe fn label_markers_uf_batch_advanced<T: LabelMarkersUfBatchAdvancedC1>(
 /// Inputs must be initialized and ready for native execution.
 /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-/// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI. Use linear CUDA allocations rather than pitched allocations.
+/// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI.
+/// Use linear CUDA allocations rather than pitched allocations.
 /// Retain images and the count output until native work completes.
 pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place(
     stream_context: &StreamContext,
@@ -856,6 +901,7 @@ pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place(
     for image in source_destinations.iter() {
         stream_context.validate_region(image)?;
     }
+
     stream_context.stream().ensure_not_capturing()?;
 
     let (batch_size, roi, descriptors) = compress_marker_labels_uf_batch_descriptors(
@@ -894,13 +940,16 @@ pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place(
 /// The device `new_max_label_ids` output receives one new maximum label ID per image.
 /// The provided implementations reject stream capture and return after successful stream completion.
 /// Temporary device scratch or descriptor allocations remain alive through native use.
-/// Uses each image's own dimensions and scratch size. The largest width, height, and per-image scratch size provide native batch bounds.
+/// Uses each image's own dimensions and scratch size.
+/// The largest width, height, and per-image scratch size provide native batch bounds.
 ///
 /// # Errors
 ///
 /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-/// The batch must contain at least two images and fit in `i32`. Each image stride must equal its width times `size_of::<u32>()`.
-/// `new_max_label_ids` must contain exactly one element per image. ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
+/// The batch must contain at least two images and fit in `i32`.
+/// Each image stride must equal its width times `size_of::<u32>()`.
+/// `new_max_label_ids` must contain exactly one element per image.
+/// ROI-area arithmetic, scratch queries and allocations, descriptor uploads, capture checks, and synchronization can also fail.
 ///
 /// # Safety
 ///
@@ -908,7 +957,8 @@ pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place(
 /// Inputs must be initialized and ready for native execution.
 /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-/// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI. Use linear CUDA allocations rather than pitched allocations.
+/// Each image must contain output from a matching UF label-generation call, with the same base pointer and ROI.
+/// Use linear CUDA allocations rather than pitched allocations.
 /// Retain images and the count output until native work completes.
 pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place_advanced(
     stream_context: &StreamContext,
@@ -920,6 +970,7 @@ pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place_advanced(
     for image in source_destinations.iter() {
         stream_context.validate_region(image)?;
     }
+
     stream_context.stream().ensure_not_capturing()?;
 
     let (batch_size, max_roi, descriptors) = compress_marker_labels_uf_batch_advanced_descriptors(
@@ -1065,8 +1116,10 @@ pub fn compressed_marker_labels_uf_geometry_lists_size_c1(
 /// # Errors
 ///
 /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-/// Contour and direction images must match the label-image size. The label-image stride must equal its width times `size_of::<u32>()`.
-/// The marker-info allocation must cover the queried byte count. Both count lists require at least `max_marker_label_id` entries; both offset lists require at least `max_marker_label_id + 1`, with checked sentinel arithmetic.
+/// Contour and direction images must match the label-image size.
+/// The label-image stride must equal its width times `size_of::<u32>()`.
+/// The marker-info allocation must cover the queried byte count.
+/// Both count lists require at least `max_marker_label_id` entries; both offset lists require at least `max_marker_label_id + 1`, with checked sentinel arithmetic.
 ///
 /// # Safety
 ///
@@ -1074,8 +1127,10 @@ pub fn compressed_marker_labels_uf_geometry_lists_size_c1(
 /// Inputs must be initialized and ready for native execution.
 /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-/// The label image must be a linear CUDA allocation produced by the UF generation and compression sequence, using its original base pointer and ROI. NPP receives a mutable label-image pointer; provide exclusive access during native use.
-/// Keep host outputs and device buffers valid and exclusively accessible through queued completion, including submission errors and every captured replay. Host allocations must meet native host-memory requirements.
+/// The label image must be a linear CUDA allocation produced by the UF generation and compression sequence, using its original base pointer and ROI.
+/// NPP receives a mutable label-image pointer; provide exclusive access during native use.
+/// Keep host outputs and device buffers valid and exclusively accessible through queued completion, including submission errors and every captured replay.
+/// Host allocations must meet native host-memory requirements.
 pub unsafe fn compressed_marker_labels_uf_info_u32_c1(
     stream_context: &StreamContext,
     compressed_marker_labels: &ImageView<'_, u32, C1>,
@@ -1147,17 +1202,23 @@ pub unsafe fn compressed_marker_labels_uf_info_u32_c1(
 
 /// Generates ordered contour geometry from matching UF contour-info results.
 ///
-/// `output_in_counterclockwise_order` selects counterclockwise ordering when true and clockwise ordering otherwise. Counts, offsets, label information, and direction images must describe the same image and ROI.
-/// The native routine may skip contours larger than 256K pixels unless the requested range selects that contour alone. Only native-reported contour geometry is valid.
+/// `output_in_counterclockwise_order` selects counterclockwise ordering when true and clockwise ordering otherwise.
+/// Counts, offsets, label information, and direction images must describe the same image and ROI.
+/// The native routine may skip contours larger than 256K pixels unless the requested range selects that contour alone.
+/// Only native-reported contour geometry is valid.
 /// Submits native work without an explicit wrapper synchronization.
 /// Host and device buffers remain borrowed by native work until completion; returning successfully does not release those lifetime obligations.
 ///
 /// # Errors
 ///
 /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-/// Both marker-info lists must cover their queried byte count. Device and host geometry lists must have equal lengths and cover the query for the final host offset sentinel.
-/// The host offset list must contain the sentinel at `max_marker_label_id`; both offset lists require at least `max_marker_label_id + 1` entries. The device count list and both found-count lists require at least `max_marker_label_id` entries.
-/// Contour IDs must satisfy `first < last <= max_marker_label_id`. The host geometry-image byte span must fit its supplied step and image size without arithmetic overflow. Device and host block-segment list lengths must match.
+/// Both marker-info lists must cover their queried byte count.
+/// Device and host geometry lists must have equal lengths and cover the query for the final host offset sentinel.
+/// The host offset list must contain the sentinel at `max_marker_label_id`; both offset lists require at least `max_marker_label_id + 1` entries.
+/// The device count list and both found-count lists require at least `max_marker_label_id` entries.
+/// Contour IDs must satisfy `first < last <= max_marker_label_id`.
+/// The host geometry-image byte span must fit its supplied step and image size without arithmetic overflow.
+/// Device and host block-segment list lengths must match.
 ///
 /// # Safety
 ///
@@ -1165,9 +1226,12 @@ pub unsafe fn compressed_marker_labels_uf_info_u32_c1(
 /// Inputs must be initialized and ready for native execution.
 /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
 /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-/// All metadata, counts, offsets, directions, and total pixel counts must come from the matching UF contour workflow. Host offsets read during validation must already be ready.
-/// Size both block-segment lists using the matching block-segment size query; this wrapper checks their lengths agree but does not prove sufficient capacity. The host image stride must satisfy native image layout requirements.
-/// Keep all host and device allocations valid and exclusively accessible through queued completion, including submission errors and captured replay. Host allocations must meet native host-memory requirements.
+/// All metadata, counts, offsets, directions, and total pixel counts must come from the matching UF contour workflow.
+/// Host offsets read during validation must already be ready.
+/// Size both block-segment lists using the matching block-segment size query; this wrapper checks their lengths agree but does not prove sufficient capacity.
+/// The host image stride must satisfy native image layout requirements.
+/// Keep all host and device allocations valid and exclusively accessible through queued completion, including submission errors and captured replay.
+/// Host allocations must meet native host-memory requirements.
 pub unsafe fn compressed_marker_labels_uf_contours_generate_geometry_lists_c1(
     stream_context: &StreamContext,
     marker_labels_info_list_dev: &mut DeviceMemory<CompressedMarkerLabelsInfo>,
@@ -1285,7 +1349,8 @@ macro_rules! impl_contours_image_marching_squares_interpolation {
     ($name:ident, $point_ty:ty, $ffi_name:ident) => {
         /// Interpolates integer contour coordinates with native marching squares into floating-point contour coordinates.
         ///
-        /// The contour images, directions, geometry, found counts, and offsets must come from the matching UF contour workflow. Only native-reported contour results are valid.
+        /// The contour images, directions, geometry, found counts, and offsets must come from the matching UF contour workflow.
+        /// Only native-reported contour results are valid.
         /// Native processing may skip contours larger than 256K pixels unless the requested range selects that contour alone.
         /// Submits native work without an explicit wrapper synchronization.
         /// Host and device buffers remain borrowed by native work until completion; returning successfully does not release those lifetime obligations.
@@ -1293,9 +1358,13 @@ macro_rules! impl_contours_image_marching_squares_interpolation {
         /// # Errors
         ///
         /// CUDA context binding, image or buffer context validation, NPP execution, and checked count or byte-size conversions can fail.
-        /// All three image sizes must match. Contour IDs must satisfy `first < last <= max_marker_label_id`.
-        /// The host offset sentinel at `max_marker_label_id` must exist. Both geometry lists must have equal lengths and cover the geometry-size query for that sentinel.
-        /// The host found-count list and both starting-offset lists require at least `max_marker_label_id` entries, and the host offset list additionally needs its sentinel. The interpolated device geometry list must have exactly `total_image_pixel_contour_count` elements. Device and host block-segment list lengths must match.
+        /// All three image sizes must match.
+        /// Contour IDs must satisfy `first < last <= max_marker_label_id`.
+        /// The host offset sentinel at `max_marker_label_id` must exist.
+        /// Both geometry lists must have equal lengths and cover the geometry-size query for that sentinel.
+        /// The host found-count list and both starting-offset lists require at least `max_marker_label_id` entries, and the host offset list additionally needs its sentinel.
+        /// The interpolated device geometry list must have exactly `total_image_pixel_contour_count` elements.
+        /// Device and host block-segment list lengths must match.
         ///
         /// # Safety
         ///
@@ -1303,9 +1372,11 @@ macro_rules! impl_contours_image_marching_squares_interpolation {
         /// Inputs must be initialized and ready for native execution.
         /// Keep every native-writable allocation exclusively accessible and disjoint from all other allocations used by the call.
         /// Native layouts, strides, alignment, allocation bounds, and input contents must be valid.
-        /// NPP receives mutable pointers to the contour source and metadata; provide exclusive access to all such storage during native use. The host offset sentinel must be ready before this call reads it.
+        /// NPP receives mutable pointers to the contour source and metadata; provide exclusive access to all such storage during native use.
+        /// The host offset sentinel must be ready before this call reads it.
         /// Use matching query-sized block-segment storage; equality of list lengths does not establish adequate capacity.
-        /// Retain host and device allocations through queued completion, including submission errors and every captured replay. Host allocations must meet native host-memory requirements.
+        /// Retain host and device allocations through queued completion, including submission errors and every captured replay.
+        /// Host allocations must meet native host-memory requirements.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             contours_image_dev: &ImageView<'_, u8, C1>,

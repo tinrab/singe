@@ -13,27 +13,23 @@ use crate::{
 
 macro_rules! impl_alpha_comp_constant {
     ($name:ident, $ty:ty, $layout:ty, $ffi:ident) => {
-        /// Composites `source1` and `source2` into `destination` using the constant
-        /// opacities `alpha1` and `alpha2` and the selected `operation`.
+        /// Composites `source1` and `source2` into `destination` using the constant opacities `alpha1` and `alpha2` and the selected `operation`.
         /// Opacity ranges from zero to the maximum channel value for the pixel type.
-        ///
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -146,27 +142,23 @@ impl_alpha_comp_constant!(
 
 macro_rules! impl_alpha_comp {
     ($name:ident, $ty:ty, $layout:ty, $ffi:ident) => {
-        /// Composites `source1` and `source2` into `destination` using their image alpha
-        /// values and the selected `operation`.
+        /// Composites `source1` and `source2` into `destination` using their image alpha values and the selected `operation`.
         /// Alpha values range from zero to the maximum channel value for the pixel type.
-        ///
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -228,26 +220,22 @@ impl_alpha_comp!(alpha_comp_f32_ac4, f32, AC4, nppiAlphaComp_32f_AC4R_Ctx);
 
 macro_rules! impl_comp_color_key_scalar {
     ($name:ident, $ffi:ident) => {
-        /// Performs complement color-key replacement of `source1` by `source2`,
-        /// using `color_key`, and writes the result to `destination`.
-        ///
+        /// Performs complement color-key replacement of `source1` by `source2`, using `color_key`, and writes the result to `destination`.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -285,26 +273,22 @@ macro_rules! impl_comp_color_key_scalar {
 
 macro_rules! impl_comp_color_key_array {
     ($name:ident, $layout:ty, $channels:literal, $ffi:ident) => {
-        /// Performs complement color-key replacement of `source1` by `source2`,
-        /// using the per-channel `color_key`, and writes the result to `destination`.
-        ///
+        /// Performs complement color-key replacement of `source1` by `source2`, using the per-channel `color_key`, and writes the result to `destination`.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -343,28 +327,23 @@ macro_rules! impl_comp_color_key_array {
 
 macro_rules! impl_alpha_comp_color_key {
     ($name:ident, $ffi:ident) => {
-        /// Performs complement color-key replacement of `source1` by `source2` with
-        /// alpha blending, writing the result to `destination`.
-        /// `alpha1` and `alpha2` are constant opacities in the range 0 through 255.
-        /// `operation` selects the composition; premultiplied-alpha operations are excluded.
-        ///
+        /// Performs complement color-key replacement of `source1` by `source2` with alpha blending, writing the result to `destination`.
+        /// `alpha1` and `alpha2` are constant opacities in the range 0 through 255. `operation` selects the composition; premultiplied-alpha operations are excluded.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -420,27 +399,23 @@ impl_alpha_comp_color_key!(
 
 macro_rules! impl_alpha_premultiply_constant {
     ($name:ident, $ty:ty, $layout:ty, $ffi:ident) => {
-        /// Premultiplies source channels by the constant opacity `alpha` and writes
-        /// the result to `destination`, using native scaling for the pixel type.
+        /// Premultiplies source channels by the constant opacity `alpha` and writes the result to `destination`, using native scaling for the pixel type.
         /// Opacity ranges from zero to the maximum channel value.
-        ///
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -473,25 +448,22 @@ macro_rules! impl_alpha_premultiply_constant {
 
 macro_rules! impl_alpha_premultiply_constant_in_place {
     ($name:ident, $ty:ty, $layout:ty, $ffi:ident) => {
-        /// Premultiplies channels in `source_destination` by the constant opacity
-        /// `alpha`, using native scaling for the pixel type.
+        /// Premultiplies channels in `source_destination` by the constant opacity `alpha`, using native scaling for the pixel type.
         /// Opacity ranges from zero to the maximum channel value.
-        ///
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
         /// Keep the image exclusively writable through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -518,26 +490,22 @@ macro_rules! impl_alpha_premultiply_constant_in_place {
 
 macro_rules! impl_alpha_premultiply {
     ($name:ident, $ty:ty, $ffi:ident) => {
-        /// Premultiplies source channels by their pixel alpha values and writes
-        /// the result to `destination`, using native scaling for the pixel type.
-        ///
+        /// Premultiplies source channels by their pixel alpha values and writes the result to `destination`, using native scaling for the pixel type.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// All image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
-        /// Keep source images read-only and destination pixels exclusively writable and disjoint
-        /// from every input through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Keep source images read-only and destination pixels exclusively writable and disjoint from every input through completion.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,
@@ -568,24 +536,21 @@ macro_rules! impl_alpha_premultiply {
 
 macro_rules! impl_alpha_premultiply_in_place {
     ($name:ident, $ty:ty, $ffi:ident) => {
-        /// Premultiplies channels in `source_destination` by their pixel alpha values,
-        /// using native scaling for the pixel type.
-        ///
+        /// Premultiplies channels in `source_destination` by their pixel alpha values, using native scaling for the pixel type.
         #[doc = concat!("Calls [`sys::", stringify!($ffi), "`].")]
         ///
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input pixels must be initialized and ready when the stream reaches this operation.
         /// Keep the image exclusively writable through completion.
-        /// Addresses, row strides, and image regions must satisfy the native routine's alignment
-        /// and capacity requirements.
-        /// Retain images and the stream context through queued completion,
-        /// including submission errors and every captured graph replay.
+        /// Addresses, row strides, and image regions must satisfy the native routine's alignment and capacity requirements.
+        /// Retain images and the stream context through queued completion, including submission errors and every captured graph replay.
         /// Padding and channels left untouched by the operation are not initialized by it.
         pub unsafe fn $name(
             stream_context: &StreamContext,

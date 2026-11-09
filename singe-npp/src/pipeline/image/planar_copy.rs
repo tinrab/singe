@@ -127,17 +127,14 @@ where
 {
     /// Copies packed channels into a new owned planar image.
     ///
-    /// The provided implementations map C3 to three planes and C4 to four planes, retaining
-    /// the `u8`, `u16`, `i16`, `i32`, or `f32` sample type and channel order.
+    /// The provided implementations map C3 to three planes and C4 to four planes, retaining the `u8`, `u16`, `i16`, `i32`, or `f32` sample type and channel order.
     /// Allocates one source-sized image per plane and initializes every logical sample.
-    /// Prepares all input and output planes or packed regions, waits for producers on other
-    /// streams, rejects capture, and returns after successful native execution and stream
-    /// completion. Row padding remains unwritten.
+    /// Prepares all input and output planes or packed regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, transfer or native execution, or stream synchronization fail.
     /// Allocation, copying borrowed input, or image view construction can also fail.
     pub fn copy_to_planar<const C: usize>(self) -> Result<PlanarImage<T, C>>
     where
@@ -164,18 +161,16 @@ where
 
     /// Copies planar channels into a new owned packed image.
     ///
-    /// The provided implementations map C3 to three planes and C4 to four planes, retaining
-    /// the `u8`, `u16`, `i16`, `i32`, or `f32` sample type and channel order.
-    /// Allocates a packed image using the pipeline dimensions. Every source plane must
-    /// match those dimensions. Existing pipeline pixel values are not copied.
-    /// Prepares all input and output planes or packed regions, waits for producers on other
-    /// streams, rejects capture, and returns after successful native execution and stream
-    /// completion. Row padding remains unwritten.
+    /// The provided implementations map C3 to three planes and C4 to four planes, retaining the `u8`, `u16`, `i16`, `i32`, or `f32` sample type and channel order.
+    /// Allocates a packed image using the pipeline dimensions.
+    /// Every source plane must match those dimensions.
+    /// Existing pipeline pixel values are not copied.
+    /// Prepares all input and output planes or packed regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, transfer or native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, transfer or native execution, or stream synchronization fail.
     /// Source planes and packed destination dimensions must match.
     /// Allocation, copying borrowed input, or image view construction can also fail.
     pub fn copy_from_planar<const C: usize>(

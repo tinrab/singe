@@ -10,7 +10,7 @@ mod fused_gen;
     ambiguous_glob_reexports,
     reason = "kernel modules re-export overlapping generated names"
 )]
-pub use fused_gen::kernels::*;
+pub use self::fused_gen::kernels::*;
 
 #[cutile::module]
 mod kernels {
@@ -1151,6 +1151,7 @@ mod kernels {
                 mat = select(col_mask, mat / col_sum, mat);
             }
         }
+
         unsafe { store_vector(y, matrix_offsets, select(mask, mat, one), mask) };
 
         let _ = batch;
@@ -1194,6 +1195,7 @@ mod kernels {
             let y_res = unsafe { load_f32_vector_1024(y, y_res_offsets, mask) };
             sum = sum + y_res * x_tile;
         }
+
         unsafe { store_f32_vector_1024(out, offsets, sum, mask) };
     }
 
@@ -1520,6 +1522,7 @@ mod kernels {
                 q_out, q_input, cos, sin, offsets, mask, seq_len, q_heads, head_dim,
             )
         };
+
         unsafe {
             bshd_rope_k_cache_update_impl(
                 k_out,
@@ -1536,6 +1539,7 @@ mod kernels {
                 position_start,
             )
         };
+
         unsafe {
             v_cache_update_impl(
                 v_cache,
@@ -1764,6 +1768,7 @@ mod kernels {
                 q_len,
             );
         };
+
         unsafe {
             rotary_interleaved_cache_f32(
                 k_out,
@@ -1846,6 +1851,7 @@ mod kernels {
                 q_len,
             );
         };
+
         unsafe {
             rotary_interleaved_cache_f16(
                 k_out,
@@ -1928,6 +1934,7 @@ mod kernels {
                 q_len,
             );
         };
+
         unsafe {
             rotary_interleaved_cache_f64(
                 k_out,

@@ -35,23 +35,22 @@ unsafe impl Send for SolverState {}
 impl SolverState {
     /// Creates a solver data object for `context`.
     ///
-    /// cuDSS stores analysis products, factors, memory allocations, query
-    /// results, and copied user-provided data in this object.
+    /// cuDSS stores analysis products, factors, memory allocations, query results, and copied user-provided data in this object.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDSS cannot create the data object or returns a null
-    /// handle.
+    /// Returns an error if cuDSS cannot create the data object or returns a null handle.
     pub fn create(context: &Context) -> Result<Self> {
         let handle = context.handle();
         let raw = {
-            let owner = handle.lock();
+            let owner = handle.lock()?;
             owner.bind()?;
             let mut raw = ptr::null_mut();
             // SAFETY: the actual creating context stays bound and retained.
             unsafe {
                 try_ffi!(sys::cudssDataCreate(owner.as_raw(), &raw mut raw))?;
             }
+
             if raw.is_null() {
                 return Err(Error::NullHandle);
             }
@@ -64,9 +63,8 @@ impl SolverState {
     ///
     /// # Safety
     ///
-    /// `raw` must be a valid cuDSS data handle created for `context`. Ownership
-    /// is transferred to the returned wrapper, which destroys the handle on
-    /// drop with the same context.
+    /// `raw` must be a valid cuDSS data handle created for `context`.
+    /// Ownership is transferred to the returned wrapper, which destroys the handle on drop with the same context.
     ///
     /// # Errors
     ///
@@ -87,16 +85,14 @@ impl SolverState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the value size cannot be represented for cuDSS or if
-    /// cuDSS rejects the parameter, value type, or value.
+    /// Returns an error if the value size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or value.
     ///
     /// # Safety
     ///
-    /// T and any pointer indirection must match the parameter's native ABI, with
-    /// initialized source bytes. Retain referenced buffers for all native uses,
-    /// including queued execution and captured replay.
+    /// T and any pointer indirection must match the parameter's native ABI, with initialized source bytes.
+    /// Retain referenced buffers for all native uses, including queued execution and captured replay.
     pub unsafe fn set_raw<T: Copy>(&mut self, param: DataParameter, value: &T) -> Result<()> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind()?;
         // SAFETY: `cudssDataSet` receives live handles owned by the wrappers.
         unsafe {
@@ -112,25 +108,22 @@ impl SolverState {
 
     /// Sets an array-valued solver data parameter.
     ///
-    /// `T` and the slice length must match the value type documented for
-    /// `param`.
+    /// `T` and the slice length must match the value type documented for `param`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the slice byte size cannot be represented for cuDSS
-    /// or if cuDSS rejects the parameter, value type, or values.
+    /// Returns an error if the slice byte size cannot be represented for cuDSS or if cuDSS rejects the parameter, value type, or values.
     ///
     /// # Safety
     ///
-    /// T, slice length, initialized source bytes, and indirection must match the
-    /// parameter's native array ABI. Retain referenced buffers for all native uses,
-    /// including queued execution and captured replay.
+    /// T, slice length, initialized source bytes, and indirection must match the parameter's native array ABI.
+    /// Retain referenced buffers for all native uses, including queued execution and captured replay.
     pub unsafe fn set_raw_slice<T: Copy>(
         &mut self,
         param: DataParameter,
         values: &[T],
     ) -> Result<()> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind()?;
         // SAFETY: `cudssDataSet` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
         unsafe {
@@ -148,9 +141,8 @@ impl SolverState {
     ///
     /// # Safety
     ///
-    /// `communicator` must point to a live communicator whose concrete type
-    /// matches the configured cuDSS communication layer's device backend. It
-    /// must remain valid for every cuDSS phase that may use this `SolverState`.
+    /// `communicator` must point to a live communicator whose concrete type matches the configured cuDSS communication layer's device backend.
+    /// It must remain valid for every cuDSS phase that may use this `SolverState`.
     ///
     /// # Errors
     ///
@@ -164,9 +156,8 @@ impl SolverState {
     ///
     /// # Safety
     ///
-    /// `communicator` must point to a live communicator whose concrete type
-    /// matches the configured cuDSS communication layer's host backend. It must
-    /// remain valid for every cuDSS phase that may use this `SolverState`.
+    /// `communicator` must point to a live communicator whose concrete type matches the configured cuDSS communication layer's host backend.
+    /// It must remain valid for every cuDSS phase that may use this `SolverState`.
     ///
     /// # Errors
     ///
@@ -182,17 +173,14 @@ impl SolverState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the value size cannot be represented for cuDSS, if
-    /// cuDSS rejects the parameter or value type, or if cuDSS reports an
-    /// internal byte-count mismatch.
+    /// Returns an error if the value size cannot be represented for cuDSS, if cuDSS rejects the parameter or value type, or if cuDSS reports an internal byte-count mismatch.
     ///
     /// # Safety
     ///
-    /// The parameter must be a synchronous host output that does not read an
-    /// existing destination value. Successful writes must initialize every byte as
-    /// a valid T; matching byte counts alone does not establish value validity.
+    /// The parameter must be a synchronous host output that does not read an existing destination value.
+    /// Successful writes must initialize every byte as a valid T; matching byte counts alone does not establish value validity.
     pub unsafe fn get_raw<T: Copy>(&self, param: DataParameter) -> Result<T> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind_data_query(param)?;
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
@@ -217,15 +205,13 @@ impl SolverState {
 
     /// Returns the number of bytes needed to retrieve `param`.
     ///
-    /// This is useful for variable-length data parameters before allocating a
-    /// destination buffer.
+    /// This is useful for variable-length data parameters before allocating a destination buffer.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuDSS cannot report the parameter size or if the
-    /// reported byte count cannot be represented as `usize`.
+    /// Returns an error if cuDSS cannot report the parameter size or if the reported byte count cannot be represented as `usize`.
     pub fn size_of(&self, param: DataParameter) -> Result<usize> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind_data_query(param)?;
         // SAFETY: `cudssDataGet` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -248,22 +234,18 @@ impl SolverState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the value size cannot be represented for cuDSS, if
-    /// cuDSS rejects the parameter or value type, or if cuDSS reports an
-    /// internal byte-count mismatch.
+    /// Returns an error if the value size cannot be represented for cuDSS, if cuDSS rejects the parameter or value type, or if cuDSS reports an internal byte-count mismatch.
     ///
     /// # Safety
     ///
-    /// T and its initial contents must satisfy the parameter's native input/output
-    /// ABI. Writes must leave a valid T. For indirect device writes, retain the
-    /// pointed-to output and resources with exclusive write access through completion
-    /// on every path, and order prior accesses before the copy.
+    /// T and its initial contents must satisfy the parameter's native input/output ABI.
+    /// Writes must leave a valid T. For indirect device writes, retain the pointed-to output and resources with exclusive write access through completion on every path, and order prior accesses before the copy.
     pub unsafe fn get_into_raw<T: Copy>(
         &self,
         param: DataParameter,
         value: &mut T,
     ) -> Result<usize> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind_data_query(param)?;
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
@@ -284,26 +266,23 @@ impl SolverState {
 
     /// Retrieves an array-valued solver data parameter into a host slice.
     ///
-    /// `T` and the slice length must match the value type documented for
-    /// `param`.
+    /// `T` and the slice length must match the value type documented for `param`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the slice byte size cannot be represented for cuDSS,
-    /// if cuDSS rejects the parameter or value type, or if cuDSS reports that
-    /// more bytes are needed than the provided slice can hold.
+    /// Returns an error if the slice byte size cannot be represented for cuDSS, if cuDSS rejects the parameter or value type, or if cuDSS reports that more bytes are needed than the provided slice can hold.
     ///
     /// # Safety
     ///
-    /// T and the destination length must match this synchronous host parameter's
-    /// ABI. Native writes must leave valid initialized T values. Use the device-output
-    /// APIs for parameters that require device-visible destinations.
+    /// T and the destination length must match this synchronous host parameter's ABI.
+    /// Native writes must leave valid initialized T values.
+    /// Use the device-output APIs for parameters that require device-visible destinations.
     pub unsafe fn get_raw_slice<T: Copy>(
         &self,
         param: DataParameter,
         values: &mut [T],
     ) -> Result<usize> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind_data_query(param)?;
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
@@ -324,30 +303,24 @@ impl SolverState {
 
     /// Retrieves a solver data parameter into device memory.
     ///
-    /// `values` must point to a device allocation with at least `byte_len`
-    /// writable bytes, and the byte length must match the value type documented
-    /// for `param`.
+    /// `values` must point to a device allocation with at least `byte_len` writable bytes, and the byte length must match the value type documented for `param`.
     ///
     /// # Errors
     ///
-    /// Returns an error if `byte_len` cannot be represented for cuDSS, if cuDSS
-    /// rejects the parameter or destination pointer, or if cuDSS reports that
-    /// more bytes are needed than `byte_len`.
+    /// Returns an error if `byte_len` cannot be represented for cuDSS, if cuDSS rejects the parameter or destination pointer, or if cuDSS reports that more bytes are needed than `byte_len`.
     ///
     /// # Safety
     ///
-    /// The pointer must identify `byte_len` live, exclusively writable device bytes
-    /// accessible from this data object's execution context. Match the parameter's
-    /// native output layout, order prior phases and accesses, and retain all resources
-    /// through completion on every path. Only the completed produced prefix may be
-    /// consumed; a successful enqueue alone does not initialize output values.
+    /// The pointer must identify `byte_len` live, exclusively writable device bytes accessible from this data object's execution context.
+    /// Match the parameter's native output layout, order prior phases and accesses, and retain all resources through completion on every path.
+    /// Only the completed produced prefix may be consumed; a successful enqueue alone does not initialize output values.
     pub unsafe fn get_device_raw(
         &self,
         param: DataParameter,
         values: DevicePtr,
         byte_len: usize,
     ) -> Result<usize> {
-        let handle = self.handle.lock();
+        let handle = self.handle.lock()?;
         handle.bind_data_query(param)?;
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
@@ -372,26 +345,24 @@ impl SolverState {
     ///
     /// # Errors
     ///
-    /// Returns an error if the destination belongs to another context, the
-    /// parameter cannot be queried in this execution mode, context binding or
-    /// the native query fails, or a byte count cannot be represented. A native
-    /// result claiming more bytes than the destination holds is also rejected.
+    /// Returns an error if the destination belongs to another context, the parameter cannot be queried in this execution mode, context binding or the native query fails, or a byte count cannot be represented.
+    /// A native result claiming more bytes than the destination holds is also rejected.
     ///
     /// # Safety
     ///
     /// T and the destination layout must match the selected parameter's ABI.
-    /// Retain the output, data object, and context with exclusive write access
-    /// through completion on every path. Order prior producer phases before the
-    /// copy. Only completed, whole produced elements may be promoted; padding,
-    /// incomplete elements, and unused tails remain outside that guarantee.
+    /// Retain the output, data object, and context with exclusive write access through completion on every path.
+    /// Order prior producer phases before the copy.
+    /// Only completed, whole produced elements may be promoted; padding, incomplete elements, and unused tails remain outside that guarantee.
     pub unsafe fn get_device<T: DeviceRepr>(
         &self,
         param: DataParameter,
         values: &mut impl DeviceOutput<T>,
     ) -> Result<usize> {
-        if values.context() != self.handle.lock().cuda_context() {
+        if values.context() != self.handle.lock()?.cuda_context() {
             return Err(Error::ContextMismatch);
         }
+
         let byte_len = values.region().byte_len();
         // SAFETY: the output trait supplies valid writable storage; the caller
         // establishes parameter ABI, ordering, and queued lifetime requirements.
@@ -483,10 +454,14 @@ impl SolverState {
     /// Consumes this wrapper and returns the owned raw cuDSS data handle.
     ///
     /// The caller becomes responsible for destroying the returned handle with the matching cuDSS context.
-    #[must_use]
-    pub fn into_raw(mut self) -> (sys::cudssData_t, Context) {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the context handle's lock is poisoned, and this wrapper keeps owning the data.
+    pub fn into_raw(mut self) -> Result<(sys::cudssData_t, Context)> {
+        let context = Context::from_handle(self.handle.clone())?;
         let raw = mem::replace(&mut self.raw, ptr::null_mut());
-        (raw, Context::from_handle(self.handle.clone()))
+        Ok((raw, context))
     }
 }
 
@@ -495,13 +470,17 @@ impl Drop for SolverState {
         if self.raw.is_null() {
             return;
         }
-        let handle = self.handle.lock();
+
+        // Cleanup must destroy the data whatever a panic left in this lock.
+        let handle = self.handle.lock_for_drop();
         let _ = handle.bind();
         // SAFETY: `cudssDataDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cudssDataDestroy(handle.as_raw(), self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cudss data: {error}");
+                eprintln!(
+                    "failed to destroy cudss data: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

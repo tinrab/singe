@@ -1,12 +1,42 @@
 /// Declares a library status enum from `(Variant = RAW_CONSTANT)` pairs.
 ///
-/// The generated enum has an `Unknown(code)` catch-all and implements `raw()`,
-/// `From<code>`, `From<raw enum>`, `TryFrom<Status> for raw enum`, and a
-/// [`Display`](std::fmt::Display) that prints the C constant name. Unknown codes
-/// print as `$unknown(code)`. Crates add `description()` and predicates in their
-/// own `impl Status` block.
+/// The generated enum has an `Unknown(code)` catch-all and implements `raw()`, `From<code>`, `From<raw enum>`, `TryFrom<Status> for raw enum`, and a [`Display`](std::fmt::Display) that prints the C constant name.
+/// Unknown codes print as `$unknown(code)`.
+///
+/// For libraries without an error-string function, write each variant as `Variant = RAW_CONSTANT => "description"` and add `unknown_description = "..."` after `unknown`, and the macro also generates `description()`.
+/// Otherwise crates add `description()` in their own `impl Status` block.
 #[macro_export]
 macro_rules! status_enum {
+    (
+        $(#[$meta:meta])*
+        pub enum $name:ident: $code:ty => $raw:ty, unknown = $unknown:literal, unknown_description = $unknown_description:literal {
+            $(
+                $(#[$variant_meta:meta])*
+                $variant:ident = $constant:ident => $description:literal,
+            )*
+        }
+    ) => {
+        $crate::status_enum! {
+            $(#[$meta])*
+            pub enum $name: $code => $raw, unknown = $unknown {
+                $(
+                    $(#[$variant_meta])*
+                    $variant = $constant,
+                )*
+            }
+        }
+
+        impl $name {
+            /// Returns a description of the status.
+            #[must_use]
+            pub const fn description(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $description,)*
+                    Self::Unknown(_) => $unknown_description,
+                }
+            }
+        }
+    };
     (
         $(#[$meta:meta])*
         pub enum $name:ident: $code:ty => $raw:ty, unknown = $unknown:literal {

@@ -50,6 +50,7 @@ pub unsafe fn qk_norm_rope_f16(
     {
         return Err(Error::InvalidLength);
     }
+
     let dynamic = position.is_some();
     let cache_enabled = cache.is_some();
     // SAFETY: the address comes from a live device buffer; wrapping it does not dereference it.
@@ -57,11 +58,13 @@ pub unsafe fn qk_norm_rope_f16(
     for pointer in [q_out, k_out, query, key, q_weight, k_weight] {
         checked_device_pointer(&pointer)?;
     }
+
     checked_device_pointer(&cos)?;
     checked_device_pointer(&sin)?;
     if let Some(position) = position {
         checked_device_pointer(&position)?;
     }
+
     if !dynamic
         && c.table_start
             .checked_add(c.seq_len)
@@ -70,6 +73,7 @@ pub unsafe fn qk_norm_rope_f16(
     {
         return Err(Error::InvalidLength);
     }
+
     let (k_cache, v_cache, max_seq) = cache.unwrap_or((null, null, 0));
     if cache_enabled {
         checked_device_pointer(&k_cache)?;
@@ -88,6 +92,7 @@ pub unsafe fn qk_norm_rope_f16(
             return Err(Error::InvalidLength);
         }
     }
+
     checked_i32_value(checked_element_count(
         checked_element_count(c.seq_len, c.heads.max(c.kv_heads))?,
         c.head_dim,
@@ -150,6 +155,7 @@ pub unsafe fn lm_head_argmax_f16(
     if vocab_size == 0 || hidden_size == 0 {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&block_max)?;
     checked_device_pointer(&block_idx)?;
     checked_device_pointer(&weights)?;

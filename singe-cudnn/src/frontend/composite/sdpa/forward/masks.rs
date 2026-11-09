@@ -298,7 +298,7 @@ impl Graph {
                 DataType::Boolean,
             ),
             (Some(valid), None) | (None, Some(valid)) => Ok(valid),
-            (None, None) => Ok(self.tensor(TensorSpec::constant(ScalarValue::Boolean(true)))),
+            (None, None) => Ok(self.tensor(TensorSpec::scalar(ScalarValue::Boolean(true)))),
         }
     }
 
@@ -402,7 +402,8 @@ impl Graph {
     }
 
     /// Creates an additive top-left causal mask: zero for `key <= query`, negative infinity otherwise.
-    /// Query and key supply geometry only. No extra score-buffer binding is required.
+    /// Query and key supply geometry only.
+    /// No extra score-buffer binding is required.
     ///
     /// # Errors
     ///
@@ -448,8 +449,7 @@ impl Graph {
 
     /// Adds scaled dot product attention with explicit output and optional softmax summaries.
     ///
-    /// SDPA computes `softmax(QK^T / sqrt(d))V` and may generate stats for
-    /// backward training computation.
+    /// SDPA computes `softmax(QK^T / sqrt(d))V` and may generate stats for backward training computation.
     /// Records direct attention, or composes the configured fused mask.
     /// Rejected requests discard tentative scale tensors and operations.
     ///
@@ -465,6 +465,7 @@ impl Graph {
         if !matches!(config.mask(), SdpaFusedMaskMode::None) {
             return self.sdpa_composite(inputs, outputs, config);
         }
+
         let checkpoint = self.mutation_checkpoint();
         let result = self.sdpa_direct(
             inputs,
@@ -547,7 +548,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible attention operands or output dimensions, unsupported cumulative sequence lengths, invalid mask or sequence metadata, incompatible score modifiers or softmax summaries, or failure to construct constituent matrix, pointwise, reduction, or dropout operations. Inferred result and auxiliary layouts must also be representable.
+    /// Returns an error for unknown or incompatible attention operands or output dimensions, unsupported cumulative sequence lengths, invalid mask or sequence metadata, incompatible score modifiers or softmax summaries, or failure to construct constituent matrix, pointwise, reduction, or dropout operations.
+    /// Inferred result and auxiliary layouts must also be representable.
     pub fn sdpa(
         &mut self,
         inputs: SdpaInputs,
@@ -630,7 +632,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts. Caller-declared outputs must exist and match inferred output requirements.
+    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
+    /// Caller-declared outputs must exist and match inferred output requirements.
     pub fn sdpa_auto_into(
         &mut self,
         inputs: SdpaInputs,
@@ -717,6 +720,7 @@ impl Graph {
         {
             self.modify_tensor(mask, TensorSpec::virtual_tensor)?;
         }
+
         let modifiers = if let Some(dropout) = config.dropout() {
             let dropout_scale = self.tensor(sdpa_scalar_tensor(DataType::F32, dropout.scale())?);
             let rng_dump = rng_dump.ok_or(FrontendError::SdpaOutputMissing {

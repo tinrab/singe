@@ -22,16 +22,15 @@ where
     <Self as ColorKeyImage<L>>::ColorKey: Copy,
 {
     /// Performs native complement color-key replacement of `left` by `right`.
-    /// The provided C1 implementation takes a scalar key; C3 and C4 take three and four
-    /// key components respectively. Uses the native color-key comparison and replacement rules.
+    /// The provided C1 implementation takes a scalar key; C3 and C4 take three and four key components respectively.
+    /// Uses the native color-key comparison and replacement rules.
     /// Writes the native composition into the supplied destination.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn comp_color_key_into(
         stream_context: &StreamContext,
@@ -55,18 +54,15 @@ where
     Self: AlphaCompColorKeyImage,
 {
     /// Performs native complement color-key replacement of `source` by `other` with alpha blending.
-    /// `alpha` and `other_alpha` are constant source opacities from zero through 255.
-    /// `color_key` supplies four native key components. `operation` selects native composition;
-    /// the native API excludes premultiplied-alpha operations, and the wrapper forwards the
-    /// selector without validating it.
+    /// `alpha` and `other_alpha` are constant source opacities from zero through 255. `color_key` supplies four native key components.
+    /// `operation` selects native composition; the native API excludes premultiplied-alpha operations, and the wrapper forwards the selector without validating it.
     /// Writes the native composition into the supplied destination.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn alpha_comp_color_key_into(
         stream_context: &StreamContext,
@@ -97,18 +93,15 @@ where
     Self: AlphaCompColorKeyImage,
 {
     /// Performs native complement color-key replacement of the pipeline image by `other` with alpha blending.
-    /// `alpha` and `other_alpha` are constant source opacities from zero through 255.
-    /// `color_key` supplies four native key components. `operation` selects native composition;
-    /// the native API excludes premultiplied-alpha operations, and the wrapper forwards the
-    /// selector without validating it.
+    /// `alpha` and `other_alpha` are constant source opacities from zero through 255. `color_key` supplies four native key components.
+    /// `operation` selects native composition; the native API excludes premultiplied-alpha operations, and the wrapper forwards the selector without validating it.
     /// Always allocates a new owned image with the pipeline image dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction can also fail.
     pub fn alpha_comp_color_key(
@@ -156,16 +149,15 @@ where
     <Self as ColorKeyImage<L>>::ColorKey: Copy,
 {
     /// Performs native complement color-key replacement of the pipeline image by `other`.
-    /// The provided C1 implementation takes a scalar key; C3 and C4 take three and four
-    /// key components respectively. Uses the native color-key comparison and replacement rules.
+    /// The provided C1 implementation takes a scalar key; C3 and C4 take three and four key components respectively.
+    /// Uses the native color-key comparison and replacement rules.
     /// Always allocates a new owned image with the pipeline image dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, view construction can also fail.
     pub fn comp_color_key(
@@ -184,6 +176,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source)?;
             }
+
             <Self as ColorKeyImage<L>>::comp_color_key_image(
                 self.stream_context,
                 &source,

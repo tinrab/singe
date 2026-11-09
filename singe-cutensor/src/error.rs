@@ -33,8 +33,7 @@ status_enum! {
         InternalError = CUTENSOR_STATUS_INTERNAL_ERROR,
         /// The requested operation is not supported.
         NotSupported = CUTENSOR_STATUS_NOT_SUPPORTED,
-        /// The requested operation requires a license, and an error was detected
-        /// when checking the current licensing.
+        /// The requested operation requires a license, and an error was detected when checking the current licensing.
         LicenseError = CUTENSOR_STATUS_LICENSE_ERROR,
         /// A call to cuBLAS did not succeed.
         CublasError = CUTENSOR_STATUS_CUBLAS_ERROR,
@@ -65,13 +64,24 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cutensor_sys::LoadError),
+
+    /// A lock was poisoned by a thread that panicked while holding it.
+    #[error("`{name}` lock is poisoned")]
+    LockPoisoned {
+        /// What the lock guards.
+        name: &'static str,
+    },
+
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// An NCCL operation used by multi-process execution failed.
     #[cfg(feature = "mp")]
-    #[error("nccl error: {0}")]
+    #[error(transparent)]
     Nccl(#[from] NcclError),
 
     /// A native cuTENSOR call returned an error status.
@@ -303,6 +313,12 @@ impl Error {
 
 impl From<sys::cutensorStatus_t> for Error {
     fn from(status: sys::cutensorStatus_t) -> Self {
+        if status == sys::cutensorStatus_t::CUTENSOR_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cutensor_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let code = Status::from(status);
         Self::from(code)
     }

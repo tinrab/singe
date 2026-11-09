@@ -44,9 +44,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimension, or batch size are invalid, or if
-/// cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimension, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -102,9 +100,7 @@ pub unsafe fn spotrf_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimension, or batch size are invalid, or if
-/// cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimension, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -160,9 +156,7 @@ pub unsafe fn dpotrf_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimension, or batch size are invalid, or if
-/// cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimension, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -218,9 +212,7 @@ pub unsafe fn cpotrf_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimension, or batch size are invalid, or if
-/// cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimension, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -275,9 +267,7 @@ pub unsafe fn zpotrf_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, right-hand-side count, leading dimensions, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, right-hand-side count, leading dimensions, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -299,6 +289,7 @@ pub unsafe fn spotrs_batched(
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+
     // SAFETY: `cusolverDnSpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnSpotrsBatched(
@@ -341,9 +332,7 @@ pub unsafe fn spotrs_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, right-hand-side count, leading dimensions, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, right-hand-side count, leading dimensions, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -365,6 +354,7 @@ pub unsafe fn dpotrs_batched(
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+
     // SAFETY: `cusolverDnDpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnDpotrsBatched(
@@ -407,9 +397,7 @@ pub unsafe fn dpotrs_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, right-hand-side count, leading dimensions, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, right-hand-side count, leading dimensions, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -431,6 +419,7 @@ pub unsafe fn zpotrs_batched(
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+
     // SAFETY: `cusolverDnZpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnZpotrsBatched(
@@ -451,8 +440,8 @@ pub unsafe fn zpotrs_batched(
 
 /// Solves one right-hand side for each complex single-precision Cholesky factor.
 ///
-/// `info` produces one status for the call. Each right-hand side is overwritten
-/// by its solution; the unused triangle of each factor may be used as scratch.
+/// `info` produces one status for the call.
+/// Each right-hand side is overwritten by its solution; the unused triangle of each factor may be used as scratch.
 ///
 /// # Safety
 ///
@@ -479,6 +468,7 @@ pub unsafe fn cpotrs_batched(
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+
     // SAFETY: `cusolverDnCpotrsBatched` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnCpotrsBatched(
@@ -644,9 +634,7 @@ pub fn zpotri_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -710,9 +698,7 @@ pub unsafe fn spotri(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -776,9 +762,7 @@ pub unsafe fn dpotri(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -842,9 +826,7 @@ pub unsafe fn cpotri(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).

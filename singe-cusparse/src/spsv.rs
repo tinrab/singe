@@ -21,8 +21,7 @@ use crate::{
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -69,8 +68,7 @@ pub unsafe fn spsv_buffer_size<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -121,8 +119,7 @@ pub unsafe fn spsv_analysis<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -166,8 +163,7 @@ pub unsafe fn spsv_solve<Compute: DataTypeLike>(
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///
@@ -184,6 +180,7 @@ pub unsafe fn spsv_update_matrix<T: DataTypeLike>(
     if new_values.context() != context.cuda_context() {
         return Err(Error::PlanContextMismatch);
     }
+
     context.bind()?;
     // SAFETY: `cusparseSpSV_updateMatrix` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
     unsafe {

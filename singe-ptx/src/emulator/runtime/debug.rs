@@ -1,5 +1,5 @@
-//! Breakpoint control. These commands bypass the user command queue, and holding a
-//! breakpoint identifier does not keep the emulator alive.
+//! Breakpoint control.
+//! These commands bypass the user command queue, and holding a breakpoint identifier does not keep the emulator alive.
 
 use std::{
     collections::BTreeMap,
@@ -132,6 +132,7 @@ impl Registration {
                     inspection.producer.completion.publish(Err(error.clone()));
                 }
             }
+
             shared.changed.notify_all();
         }
     }
@@ -160,12 +161,14 @@ impl Registration {
                 request.producer.finished = true;
                 continue;
             }
+
             let result = (|| {
                 if !active {
                     return Err(ExecutionError::Invalid(
                         "breakpoint has been resumed".into(),
                     ));
                 }
+
                 let storage = shared.execution_budget.reserve(engine.snapshot_storage(
                     request.cta,
                     request.lane,
@@ -195,16 +198,14 @@ fn allowed(phase: Phase, faulted: bool) -> Result<(), SubmitError> {
 impl Emulator {
     /// Copies the registers and call stack of one lane in a suspended launch.
     ///
-    /// `cta` selects a CTA in the grid and `lane` a thread in that CTA; any lane can be
-    /// inspected, not only the one that hit the breakpoint. Inspection does not resume the
-    /// launch, and it works while the command queue is full or the emulator is draining.
+    /// `cta` selects a CTA in the grid and `lane` a thread in that CTA; any lane can be inspected, not only the one that hit the breakpoint.
+    /// Inspection does not resume the launch, and it works while the command queue is full or the emulator is draining.
     /// The snapshot is owned and stays valid after the launch resumes.
     ///
     /// # Errors
     ///
-    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the
-    /// emulator is closed or faulted, or the request cannot be stored. Invalid coordinates,
-    /// or a resume that wins the race, are reported through the submission.
+    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the emulator is closed or faulted, or the request cannot be stored.
+    /// Invalid coordinates, or a resume that wins the race, are reported through the submission.
     pub fn inspect_lane(
         &self,
         id: &BreakpointId,
@@ -215,6 +216,7 @@ impl Emulator {
         if !id.device.ptr_eq(&Arc::downgrade(shared)) {
             return Err(SubmitError::ForeignResource);
         }
+
         let mut state = lock(&shared.admission);
         allowed(state.phase, state.debug.faulted)?;
         let pause = state
@@ -253,13 +255,12 @@ impl Emulator {
 
     /// Returns a submission that completes when a launch next stops at `brkpt`.
     ///
-    /// It does not use a stream or a command queue slot. Dropping the submission leaves the
-    /// launch suspended; use [`paused_breakpoints`](Self::paused_breakpoints) to find it.
+    /// It does not use a stream or a command queue slot.
+    /// Dropping the submission leaves the launch suspended; use [`paused_breakpoints`](Self::paused_breakpoints) to find it.
     ///
     /// # Errors
     ///
-    /// Returns an error if the emulator is closed or faulted, or the request cannot be
-    /// stored.
+    /// Returns an error if the emulator is closed or faulted, or the request cannot be stored.
     pub fn next_breakpoint(&self) -> Result<Submission<Breakpoint>, SubmitError> {
         let shared = &self.client.shared;
         let mut state = lock(&shared.admission);
@@ -312,17 +313,18 @@ impl Emulator {
 
     /// Resumes the launch suspended at `id`.
     ///
-    /// Resuming works while the emulator is draining. An identifier can be resumed once.
+    /// Resuming works while the emulator is draining.
+    /// An identifier can be resumed once.
     ///
     /// # Errors
     ///
-    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the
-    /// emulator is closed or faulted, or the request cannot be stored.
+    /// Returns an error if `id` belongs to another emulator or is no longer suspended, the emulator is closed or faulted, or the request cannot be stored.
     pub fn resume(&self, id: &BreakpointId) -> Result<Submission<()>, SubmitError> {
         let shared = &self.client.shared;
         if !id.device.ptr_eq(&Arc::downgrade(shared)) {
             return Err(SubmitError::ForeignResource);
         }
+
         let state = lock(&shared.admission);
         allowed(state.phase, state.debug.faulted)?;
         let pause =
@@ -338,6 +340,7 @@ impl Emulator {
                 "breakpoint has already been resumed".into(),
             ));
         }
+
         drop(state);
         let completion = Arc::new(Completion::create(Some(storage), false));
         completion.publish(Ok(Box::new(|_| ()) as Pending<()>));
@@ -361,6 +364,7 @@ pub fn register(
         shared.cancel.store(true, Ordering::Release);
         return Err(ExecutionError::Cancelled);
     }
+
     let record = shared.execution_budget.reserve(node::<Paused>())?;
     let notification_storage = shared
         .execution_budget
@@ -425,8 +429,8 @@ pub fn register(
     })
 }
 
-/// Debug queue entries whose observers are gone. They are removed under the admission
-/// lock and dropped after it is released, since dropping them releases charged storage.
+/// Debug queue entries whose observers are gone.
+/// They are removed under the admission lock and dropped after it is released, since dropping them releases charged storage.
 #[derive(Debug, Default)]
 pub struct Reclaimed {
     observers: ChargedQueue<Observer>,
@@ -486,12 +490,13 @@ pub fn close(shared: &Shared, error: &ExecutionError) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::emulator::{EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
     use std::{
         thread,
         time::{Duration, Instant},
     };
+
+    use super::*;
+    use crate::emulator::{EmulatorOptions, LaunchConfig, ParsedModule, ShutdownMode};
 
     #[test]
     fn test_debug_observer_bursts_release_all_queue_storage() {
@@ -580,6 +585,7 @@ mod tests {
         device.shutdown(ShutdownMode::Drain).wait().unwrap();
         assert_eq!(budget.used(), 0);
     }
+
     #[test]
     fn test_resumed_unobserved_notifications_release_queue_storage() {
         let device = Emulator::create(EmulatorOptions::default()).unwrap();

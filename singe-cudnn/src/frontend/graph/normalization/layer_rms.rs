@@ -39,6 +39,7 @@ impl Graph {
             }
             .into());
         }
+
         let scale_shape = scale
             .map(|id| self.tensor_spec(id).map(|tensor| &tensor.shape))
             .transpose()?;
@@ -48,6 +49,7 @@ impl Graph {
         for shape in scale_shape.into_iter().chain(statistics_shape) {
             validate_normalization_broadcast_shape(input_shape, shape)?;
         }
+
         let normalized = if let Some(axes) = axes {
             if axes.is_empty() {
                 return Err(FrontendError::NormalizationAxes {
@@ -55,6 +57,7 @@ impl Graph {
                 }
                 .into());
             }
+
             let mut selected = vec![false; rank];
             for &axis in axes {
                 if axis >= rank || selected[axis] {
@@ -64,6 +67,7 @@ impl Graph {
                     }
                     .into());
                 }
+
                 selected[axis] = true;
             }
             selected
@@ -103,6 +107,7 @@ impl Graph {
             }
             .into());
         }
+
         if let Some(scale) = scale_shape {
             for ((&scale_dimension, &input_dimension), &reduce) in
                 scale.dimensions().iter().zip(dimensions).zip(&normalized)
@@ -162,6 +167,7 @@ impl Graph {
         if let Some(bias) = inputs.affine.bias() {
             validate_normalization_broadcast_shape(self.shape(inputs.input)?, self.shape(bias)?)?;
         }
+
         if let Some(statistics) = statistics {
             self.validate_tensor_dimensions(
                 statistics.mean,
@@ -205,7 +211,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor. Inferred statistic strides must also be representable.
+    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor.
+    /// Inferred statistic strides must also be representable.
     pub fn layer_normalization(
         &mut self,
         inputs: LayerNormalizationInputs,
@@ -263,6 +270,7 @@ impl Graph {
         if let Some(bias) = inputs.bias {
             validate_normalization_broadcast_shape(self.shape(inputs.input)?, self.shape(bias)?)?;
         }
+
         if let Some(statistics) = statistics {
             self.validate_tensor_dimensions(
                 statistics,
@@ -300,7 +308,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor. Inferred statistic strides must also be representable.
+    /// Returns an error for unknown tensor identities, input rank below two, invalid or ambiguous normalization axes, incompatible affine broadcast dimensions, mismatched output or saved-statistic dimensions, or a nonscalar epsilon tensor.
+    /// Inferred statistic strides must also be representable.
     pub fn rms_normalization(
         &mut self,
         inputs: RmsNormalizationInputs,
@@ -360,6 +369,7 @@ impl Graph {
             }
             .into());
         }
+
         let statistics_dimensions = self.normalization_statistics_dimensions(
             inputs.input,
             config.axes(),
@@ -494,6 +504,7 @@ impl Graph {
             }
             .into());
         }
+
         self.normalization_statistics_dimensions(
             inputs.input,
             config.axes(),

@@ -24,7 +24,8 @@ use crate::{
 
 /// Shared ownership of a finalized native execution plan, cached requirements, and retained code dependencies.
 ///
-/// Clones share native resources and successful metadata queries. Live targets retain their CUDA context; deviceless plans retain execution contexts when used.
+/// Clones share native resources and successful metadata queries.
+/// Live targets retain their CUDA context; deviceless plans retain execution contexts when used.
 #[derive(Debug, Clone)]
 pub struct ExecutionPlan {
     inner: Arc<GraphRetainedResource<ExecutionPlanOwner>>,
@@ -100,6 +101,7 @@ impl RetainedExecution {
         if self.plan.needs_cuda_graph_retention() || has_deferred_graph_resources() {
             self.plan.retain_on_capturing_stream(&context.stream()?)?;
         }
+
         self.variant_pack.initialize_workspace(context)?;
         // SAFETY: construction validated this exact immutable plan/pack pair and retained its CUDA context.
         // The caller supplies live buffers and ordered accesses through completion or capture replay.
@@ -140,7 +142,8 @@ impl ExecutionPlan {
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails. cuDNN validates engine, cache, and target compatibility.
+    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails.
+    /// cuDNN validates engine, cache, and target compatibility.
     pub fn create(context: &Context, engine_config: &EngineConfig) -> Result<Self> {
         Self::create_for_target(Some(context), engine_config, None, None)
     }
@@ -149,7 +152,8 @@ impl ExecutionPlan {
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails. cuDNN validates engine, cache, and target compatibility.
+    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails.
+    /// cuDNN validates engine, cache, and target compatibility.
     pub fn create_with_config(
         context: &Context,
         engine_config: &EngineConfig,
@@ -170,7 +174,8 @@ impl ExecutionPlan {
     ///
     /// # Errors
     ///
-    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails. cuDNN validates engine, cache, and target compatibility.
+    /// Returns an error if live contexts disagree or cannot be bound, or native descriptor creation, attribute assignment, or plan finalization fails.
+    /// cuDNN validates engine, cache, and target compatibility.
     pub fn create_deviceless(
         engine_config: &EngineConfig,
         kernel_cache: Option<&KernelCache>,
@@ -205,6 +210,7 @@ impl ExecutionPlan {
                 )
             }?;
         }
+
         descriptor.set_attribute_descriptor(
             BackendAttributeName::ExecutionPlanEngineConfig,
             engine_config.descriptor(),
@@ -215,12 +221,14 @@ impl ExecutionPlan {
                 kernel_cache.descriptor(),
             )?;
         }
+
         if let Some(device_properties) = device_properties {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::ExecutionPlanDeviceProp,
                 device_properties.descriptor(),
             )?;
         }
+
         descriptor.finalize()?;
 
         let retained_config = read_engine_config(&descriptor, cuda_context.map(Arc::clone))
@@ -275,18 +283,21 @@ impl ExecutionPlan {
                 )
             }?;
         }
+
         if let Some(properties) = &device_properties {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::ExecutionPlanDeviceProp,
                 properties.descriptor(),
             )?;
         }
+
         if let Some(cache) = &kernel_cache {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::ExecutionPlanKernelCache,
                 cache.descriptor(),
             )?;
         }
+
         descriptor.finalize()?;
 
         let retained_config = read_engine_config(&descriptor, cuda_context.clone())
@@ -318,6 +329,7 @@ impl ExecutionPlan {
         if let Some(&size) = self.inner.workspace_size.get() {
             return Ok(size);
         }
+
         bind_context(self.cuda_context())?;
         let size = to_usize(
             self.inner
@@ -351,6 +363,7 @@ impl ExecutionPlan {
         if !variant_pack.has_overrides() {
             return self.workspace_size();
         }
+
         self.retain_execution_context(context.cuda_context())?;
         context.bind()?;
         let mut required = 0;
@@ -439,6 +452,7 @@ impl ExecutionPlan {
         if let Some(config) = self.inner.engine_config.get() {
             return Ok(config);
         }
+
         bind_context(self.cuda_context())?;
         let config = Arc::new(read_engine_config(
             &self.inner.descriptor,
@@ -462,12 +476,14 @@ impl ExecutionPlan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding, native cache-descriptor extraction, or cache-payload querying fails. An absent cache attribute or the native no-cache status returns `None`.
+    /// Returns an error if context binding, native cache-descriptor extraction, or cache-payload querying fails.
+    /// An absent cache attribute or the native no-cache status returns `None`.
     pub fn kernel_cache_json(&self) -> Result<Option<KernelCacheJson>> {
         bind_context(self.cuda_context())?;
         if let Some(cache) = &self.inner.restored_kernel_cache {
             return cache.json_representation().map(Some);
         }
+
         // SAFETY: the named attribute requires the explicitly selected native class.
         let descriptor = match unsafe {
             self.inner.descriptor.attribute_descriptor(
@@ -495,12 +511,10 @@ impl ExecutionPlan {
     /// Enqueues this plan with the supplied variant pack.
     ///
     /// # Safety
-    /// All native accesses require live plan code and valid, initialized inputs or writable outputs,
-    /// with compatible layouts, permitted aliases and established producer dependencies.
+    /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
-    /// Retain previous device bindings and workspace through executable snapshots
-    /// and pending launches that still reference them.
+    /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
     ///
     /// # Errors
     ///
@@ -534,12 +548,10 @@ impl ExecutionPlan {
     /// Populates a CUDA graph using the supplied bindings and workspace.
     ///
     /// # Safety
-    /// All native accesses require live plan code and valid, initialized inputs or writable outputs,
-    /// with compatible layouts, permitted aliases and established producer dependencies.
+    /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
-    /// Retain previous device bindings and workspace through executable snapshots
-    /// and pending launches that still reference them.
+    /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
     ///
     /// # Errors
     ///
@@ -563,17 +575,14 @@ impl ExecutionPlan {
     }
 
     /// Updates a native CUDA graph with replacement bindings and workspace.
-    /// Graphs with frontend workspace initializers publish a complete replacement child
-    /// only after every initializer and native update succeeds. Preparation errors leave
-    /// their previous definition unchanged; existing executables retain their own snapshots.
+    /// Graphs with frontend workspace initializers publish a complete replacement child only after every initializer and native update succeeds.
+    /// Preparation errors leave their previous definition unchanged; existing executables retain their own snapshots.
     ///
     /// # Safety
-    /// All native accesses require live plan code and valid, initialized inputs or writable outputs,
-    /// with compatible layouts, permitted aliases and established producer dependencies.
+    /// All native accesses require live plan code and valid, initialized inputs or writable outputs, with compatible layouts, permitted aliases and established producer dependencies.
     /// Keep device storage and code alive through completion and every captured replay.
     /// Host argument storage must remain valid while cuDNN consumes it.
-    /// Retain previous device bindings and workspace through executable snapshots
-    /// and pending launches that still reference them.
+    /// Retain previous device bindings and workspace through executable snapshots and pending launches that still reference them.
     ///
     /// # Errors
     ///
@@ -603,8 +612,7 @@ impl ExecutionPlan {
         self.inner.runtime_compiled
     }
 
-    /// Retains the native plan and its restored dependencies in a graph,
-    /// including clones, executable snapshots and pending launches.
+    /// Retains the native plan and its restored dependencies in a graph, including clones, executable snapshots and pending launches.
     /// Application buffers and workspace retain their separate replay contracts.
     ///
     /// # Errors
@@ -616,9 +624,11 @@ impl ExecutionPlan {
             if let Some(context) = graph.context() {
                 self.retain_execution_context(context)?;
             }
+
             if let Some(context) = self.cuda_context() {
                 context.bind()?;
             }
+
             self.inner.retain_on_graph(graph)?;
         }
         Ok(())
@@ -700,6 +710,7 @@ impl ExecutionPlan {
         if self.cuda_context().is_some() {
             return Ok(());
         }
+
         let mut contexts = self.inner.execution_contexts.lock().map_err(|_| {
             Error::Cuda(CudaError::ResourcePoisoned {
                 name: "execution plan contexts",
@@ -711,6 +722,7 @@ impl ExecutionPlan {
         {
             contexts.push(Arc::clone(context));
         }
+
         drop(contexts);
         Ok(())
     }
@@ -718,6 +730,7 @@ impl ExecutionPlan {
 
 impl Drop for ExecutionPlanOwner {
     fn drop(&mut self) {
+        // Cleanup must bind a context to release the plan, whatever a panic left in this list.
         let contexts = self
             .execution_contexts
             .get_mut()

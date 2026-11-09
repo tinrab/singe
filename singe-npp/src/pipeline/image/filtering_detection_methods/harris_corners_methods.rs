@@ -20,24 +20,23 @@ where
 {
     /// Computes Harris corner responses into a C1 `f32` image.
     ///
-    /// The provided implementation accepts C1 `u8` input. `filter_type` selects Sobel or
-    /// Scharr derivatives. `mask_size` selects the differential mask; `average_window_size`
-    /// selects the averaging window. Both must be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
-    /// Only `BorderType::Replicate` is accepted. `k` is the Harris constant, commonly 0.04;
-    /// `scale` scales the response. These two values are forwarded without validation.
+    /// The provided implementation accepts C1 `u8` input.
+    /// `filter_type` selects Sobel or Scharr derivatives.
+    /// `mask_size` selects the differential mask; `average_window_size` selects the averaging window.
+    /// Both must be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+    /// Only `BorderType::Replicate` is accepted.
+    /// `k` is the Harris constant, commonly 0.04; `scale` scales the response.
+    /// These two values are forwarded without validation.
     /// Allocates temporary device scratch and retains it through native completion.
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// Writes all logical output samples; row padding remains unwritten.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail. The source offset
-    /// must address a source pixel; output-sized ROI endpoints must not overflow or exceed
-    /// the source image.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must address a source pixel; output-sized ROI endpoints must not overflow or exceed the source image.
     /// Both masks must be 3-by-3 or 5-by-5, and the border type must be replicate.
     /// Scratch-size queries, checked size conversions, or scratch allocation can fail.
     pub fn filter_harris_corners_border_into(
@@ -76,24 +75,23 @@ where
 {
     /// Computes Harris corner responses into a C1 `f32` image.
     ///
-    /// The provided implementation accepts C1 `u8` input. `filter_type` selects Sobel or
-    /// Scharr derivatives. `mask_size` selects the differential mask; `average_window_size`
-    /// selects the averaging window. Both must be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
-    /// Only `BorderType::Replicate` is accepted. `k` is the Harris constant, commonly 0.04;
-    /// `scale` scales the response. These two values are forwarded without validation.
+    /// The provided implementation accepts C1 `u8` input.
+    /// `filter_type` selects Sobel or Scharr derivatives.
+    /// `mask_size` selects the differential mask; `average_window_size` selects the averaging window.
+    /// Both must be `MaskSize::Mask3x3` or `MaskSize::Mask5x5`.
+    /// Only `BorderType::Replicate` is accepted.
+    /// `k` is the Harris constant, commonly 0.04; `scale` scales the response.
+    /// These two values are forwarded without validation.
     /// Allocates temporary device scratch and retains it through native completion.
-    /// `source_offset` locates the output ROI in the full source image. The new owned
-    /// output extends from that offset to the lower-right source edge.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The new owned output extends from that offset to the lower-right source edge.
     /// Writes all logical output samples; row padding remains unwritten.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail. The source offset
-    /// must address a source pixel; output-sized ROI endpoints must not overflow or exceed
-    /// the source image.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must address a source pixel; output-sized ROI endpoints must not overflow or exceed the source image.
     /// Both masks must be 3-by-3 or 5-by-5, and the border type must be replicate.
     /// Scratch-size queries, checked size conversions, or scratch allocation can fail.
     /// Output allocation or image view construction can also fail.

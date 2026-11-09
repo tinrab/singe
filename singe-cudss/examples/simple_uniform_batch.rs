@@ -82,6 +82,7 @@ fn main() -> Result<()> {
     unsafe {
         a.set_values_raw(ptr_at(&a_values, batch_index as usize * nnz as usize))?;
     }
+
     let mut x = dense_output::<f64>(n, nrhs, n, DeviceOutputView::from_output(&mut x_values))?;
 
     let mut b_one = b;

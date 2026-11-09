@@ -13,23 +13,21 @@ where
 {
     /// Applies one color-twist matrix per image in a batch.
     ///
-    /// Uses one row-major three-by-four matrix per image. For AC4, alpha is not processed.
-    /// The common top-left ROI uses the smallest image width and smallest image height
-    /// in the batch. Pixels outside that ROI retain their previous values when initialized;
-    /// otherwise they remain unwritten. `min` and `max` specify native saturation/clamp
-    /// bounds and are forwarded without validation.
-    /// Uploads temporary device coefficient and descriptor arrays and retains them through
-    /// native completion. Each source/destination pair must have matching dimensions.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Uses one row-major three-by-four matrix per image.
+    /// For AC4, alpha is not processed.
+    /// The common top-left ROI uses the smallest image width and smallest image height in the batch.
+    /// Pixels outside that ROI retain their previous values when initialized; otherwise they remain unwritten.
+    /// `min` and `max` specify native saturation/clamp bounds and are forwarded without validation.
+    /// Uploads temporary device coefficient and descriptor arrays and retains them through native completion.
+    /// Each source/destination pair must have matching dimensions.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native color transformation, or synchronization fail.
-    /// The batch must contain at least two images and fit `i32`; exactly one twist must
-    /// be supplied per image. Source and destination batch lengths and each pair
-    /// of image dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native color transformation, or synchronization fail.
+    /// The batch must contain at least two images and fit `i32`; exactly one twist must be supplied per image.
+    /// Source and destination batch lengths and each pair of image dimensions must match.
     /// Descriptor or coefficient allocation/upload and checked size conversions can fail.
     pub fn color_twist_batch(
         stream_context: &StreamContext,
@@ -51,22 +49,20 @@ where
 
     /// Applies one color-twist matrix per image in a batch.
     ///
-    /// Uses one row-major three-by-four matrix per image. For AC4, alpha is not processed.
-    /// The common top-left ROI uses the smallest image width and smallest image height
-    /// in the batch. Pixels outside that ROI retain their previous values when initialized;
-    /// otherwise they remain unwritten. `min` and `max` specify native saturation/clamp
-    /// bounds and are forwarded without validation.
-    /// Uploads temporary device coefficient and descriptor arrays and retains them through
-    /// native completion. Updates the supplied images in place.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Uses one row-major three-by-four matrix per image.
+    /// For AC4, alpha is not processed.
+    /// The common top-left ROI uses the smallest image width and smallest image height in the batch.
+    /// Pixels outside that ROI retain their previous values when initialized; otherwise they remain unwritten.
+    /// `min` and `max` specify native saturation/clamp bounds and are forwarded without validation.
+    /// Uploads temporary device coefficient and descriptor arrays and retains them through native completion.
+    /// Updates the supplied images in place.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native color transformation, or synchronization fail.
-    /// The batch must contain at least two images and fit `i32`; exactly one twist must
-    /// be supplied per image.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native color transformation, or synchronization fail.
+    /// The batch must contain at least two images and fit `i32`; exactly one twist must be supplied per image.
     /// Descriptor or coefficient allocation/upload and checked size conversions can fail.
     pub fn color_twist_batch_in_place(
         stream_context: &StreamContext,

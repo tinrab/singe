@@ -7,8 +7,7 @@ use crate::{
 };
 
 /// Standard `ALiBi` slopes in the head order used by the C++ cuDNN frontend.
-/// The returned FP32 values populate a `[1, heads, 1, 1]` slope tensor for
-/// [`SdpaScoreModifiers::with_alibi_slopes`](crate::frontend::operation::SdpaScoreModifiers::with_alibi_slopes).
+/// The returned FP32 values populate a `[1, heads, 1, 1]` slope tensor for [`SdpaScoreModifiers::with_alibi_slopes`](crate::frontend::operation::SdpaScoreModifiers::with_alibi_slopes).
 /// Non-power-of-two head counts append odd half-steps after the largest power-of-two prefix.
 ///
 /// # Errors
@@ -23,6 +22,7 @@ pub fn alibi_slopes(heads: i64) -> Result<Vec<f32>> {
     if heads == 0 {
         return Err(Error::out_of_range("alibi head count"));
     }
+
     let prefix = 1_usize << heads.ilog2();
     Ok((0..heads)
         .map(|head| {

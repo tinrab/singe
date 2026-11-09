@@ -29,6 +29,10 @@
         cudnnRedistBase = "https://developer.download.nvidia.com/compute/cudnn/redist";
         cudssRedistBase = "https://developer.download.nvidia.com/compute/cudss/redist";
         cutensorRedistBase = "https://developer.download.nvidia.com/compute/cutensor/redist";
+        nvcompRedistBase = "https://developer.download.nvidia.com/compute/nvcomp/redist";
+        nvimgcodecRedistBase = "https://developer.download.nvidia.com/compute/nvimgcodec/redist";
+        nvtiffRedistBase = "https://developer.download.nvidia.com/compute/nvtiff/redist";
+        nvjpeg2000RedistBase = "https://developer.download.nvidia.com/compute/nvjpeg2000/redist";
         ncclGencodeString = lib.concatStringsSep " " [
           "-gencode=arch=compute_120,code=sm_120"
           "-gencode=arch=compute_120,code=compute_120"
@@ -236,6 +240,28 @@
             sha256 = "6e219a5472d28d7e038e88c2a5d1ab18f936f3a13cc8dd4c62f08c0e6233780a";
           };
 
+          libnvjpeg = cudaRedist {
+            name = "libnvjpeg";
+            version = "13.2.3.58";
+            sha256 = "ea46688875d58579f1bac24fa3b2525413843cb7d2e031dffb3d8f89fafd8e5b";
+          };
+
+          libnvjpeg_2k = cudaVariantRedist {
+            base = nvjpeg2000RedistBase;
+            name = "libnvjpeg_2k";
+            version = "0.11.0.51";
+            cudaVersion = "13";
+            sha256 = "23eba41f33fc35018dc48db31ef72e35d711bb1280cdde34e62bcaa555047348";
+          };
+
+          libnvtiff = cudaVariantRedist {
+            base = nvtiffRedistBase;
+            name = "libnvtiff";
+            version = "0.8.0.82";
+            cudaVersion = "13";
+            sha256 = "619422df0b6fe20282eda842cbba066cc2deb2ed95a87624325f0003984d69bc";
+          };
+
           libnvvm = cudaRedist {
             name = "libnvvm";
             version = "13.4.92";
@@ -246,6 +272,14 @@
             name = "libnvjitlink";
             version = "13.4.92";
             sha256 = "e24557473e5e2e1dc591209558523deaca48b32123fe2b822f994b8e691c8ae3";
+          };
+
+          nvimgcodec = cudaVariantRedist {
+            base = nvimgcodecRedistBase;
+            name = "nvimgcodec";
+            version = "0.9.0.20";
+            cudaVersion = "13";
+            sha256 = "dd6328a217324d87673391ab7436c89fa66a8945ca2557ab75fe57fd69fef8cb";
           };
 
           cudnn = cudaVariantRedist {
@@ -270,6 +304,14 @@
             version = "2.8.1.0";
             cudaVersion = "13";
             sha256 = "03051950d98911ce21d977fd7ef697b6ff963b885df8844a326e25b9d400ae7a";
+          };
+
+          nvcomp = cudaVariantRedist {
+            base = nvcompRedistBase;
+            name = "nvcomp";
+            version = "6.0.0.12";
+            cudaVersion = "13";
+            sha256 = "fc46eb005b1ad4d9ff6ee5b7c5b1892021adbe1b8db0ed12e9ded0df102e3611";
           };
 
           # CUDA 13.4 supports GCC through version 15.
@@ -377,8 +419,13 @@
           libcusparse
           libcutensor
           libnpp
+          libnvjpeg
+          libnvjpeg_2k
+          libnvtiff
           libnvjitlink
           libnvvm
+          nvcomp
+          nvimgcodec
           nccl
           pkgs.openssl
           pkgs.zlib
@@ -386,8 +433,12 @@
           pkgs.stdenv.cc.cc.lib
         ];
 
+        nvimgcodecExtensionPath = "${cudaPackages.nvimgcodec}/lib/extensions";
+        extraRuntimeLibraryPaths = [
+          "${cudaPackages.libnvtiff}/lib/13"
+        ];
         driverLibraryPath = "/run/opengl-driver/lib";
-        runtimeLibraryPath = "${lib.makeLibraryPath cudaLibs}";
+        runtimeLibraryPath = "${lib.makeLibraryPath cudaLibs}:${lib.concatStringsSep ":" extraRuntimeLibraryPaths}:${nvimgcodecExtensionPath}";
         frameworkTools = with pkgs; [
           cargo
           rustc
@@ -399,7 +450,6 @@
           protobuf
           python314
           cacert
-          actionlint
           ripgrep
           util-linux
           nixfmt
@@ -408,6 +458,8 @@
       {
         packages = {
           cudaToolkit = cudaPackages.cudatoolkit;
+          nvcomp = cudaPackages.nvcomp;
+          nvimgcodec = cudaPackages.nvimgcodec;
         };
 
         devShells.default = pkgs.mkShell {
@@ -454,6 +506,11 @@
             export NVTX_PATH="${pathOf cudaPackages.cuda_nvtx}"
             export NVTX_INCLUDE_PATH="${includeOf cudaPackages.cuda_nvtx}"
 
+            export NVIMGCODEC_ROOT="${cudaPackages.nvimgcodec}"
+            export NVIMGCODEC_PATH="${pathOf cudaPackages.nvimgcodec}"
+            export NVIMGCODEC_INCLUDE_PATH="${includeOf cudaPackages.nvimgcodec}"
+            export NVIMGCODEC_EXTENSIONS_PATH="${nvimgcodecExtensionPath}"
+
             export NVML_ROOT="${cudaPackages.cuda_nvml_dev}"
             export NVML_PATH="${pathOf cudaPackages.cuda_nvml_dev}/stubs"
             export NVML_INCLUDE_PATH="${includeOf cudaPackages.cuda_nvml_dev}"
@@ -486,6 +543,10 @@
             export NCCL_PATH="${pathOf cudaPackages.nccl}"
             export NCCL_INCLUDE_PATH="${includeOf cudaPackages.nccl}"
 
+            export NVCOMP_ROOT="${cudaPackages.nvcomp}"
+            export NVCOMP_PATH="${pathOf cudaPackages.nvcomp}"
+            export NVCOMP_INCLUDE_PATH="${includeOf cudaPackages.nvcomp}"
+
             export NVVM_ROOT="${cudaPackages.libnvvm}"
             export NVVM_PATH="${pathOf cudaPackages.libnvvm}"
             export NVVM_INCLUDE_PATH="${includeOf cudaPackages.libnvvm}"
@@ -493,6 +554,18 @@
             export NPP_ROOT="${cudaPackages.libnpp}"
             export NPP_PATH="${pathOf cudaPackages.libnpp}"
             export NPP_INCLUDE_PATH="${includeOf cudaPackages.libnpp}"
+
+            export NVJPEG_ROOT="${cudaPackages.libnvjpeg}"
+            export NVJPEG_PATH="${pathOf cudaPackages.libnvjpeg}"
+            export NVJPEG_INCLUDE_PATH="${includeOf cudaPackages.libnvjpeg}"
+
+            export NVJPEG2K_ROOT="${cudaPackages.libnvjpeg_2k}"
+            export NVJPEG2K_PATH="${pathOf cudaPackages.libnvjpeg_2k}"
+            export NVJPEG2K_INCLUDE_PATH="${includeOf cudaPackages.libnvjpeg_2k}"
+
+            export NVTIFF_ROOT="${cudaPackages.libnvtiff}"
+            export NVTIFF_PATH="${pathOf cudaPackages.libnvtiff}"
+            export NVTIFF_INCLUDE_PATH="${includeOf cudaPackages.libnvtiff}"
 
             export CURAND_ROOT="${cudaPackages.libcurand}"
             export CURAND_PATH="${pathOf cudaPackages.libcurand}"
@@ -502,6 +575,32 @@
             export CUFILE_PATH="${pathOf cudaPackages.libcufile}"
             export CUFILE_INCLUDE_PATH="${includeOf cudaPackages.libcufile}"
           '';
+        };
+
+        devShells.cpu = pkgs.mkShell {
+          name = "singe-cpu-dev";
+          packages = frameworkTools ++ [
+            pkgs.stdenv.cc
+            llvmPkgs.clang
+            pkgs.pkg-config
+            pkgs.cmake
+          ];
+          shellHook = ''
+            export LD_LIBRARY_PATH="${
+              lib.makeLibraryPath [
+                pkgs.stdenv.cc.cc.lib
+                pkgs.zlib
+              ]
+            }"
+            export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+            export UV_PYTHON="${pkgs.python314}/bin/python3.14"
+          '';
+        };
+
+        devShells.ci-cuda = pkgs.mkShell {
+          name = "singe-cuda-ci";
+          inputsFrom = [ self.devShells.${system}.default ];
+          packages = frameworkTools;
         };
 
         apps = {

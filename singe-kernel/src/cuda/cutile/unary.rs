@@ -20,7 +20,7 @@ use crate::cuda::cutile::kernel::f64::unary as kernel_f64;
     feature = "dtype_u32",
     feature = "dtype_u64",
 ))]
-use crate::cuda::cutile::{kernel::common as kernel_common, utility::VectorLaunch};
+use crate::cuda::cutile::{kernel::vector as vector_kernels, utility::VectorLaunch};
 use crate::{
     cuda::{
         autotune::KernelCompileConfig,
@@ -38,9 +38,11 @@ fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -184,7 +186,7 @@ macro_rules! unary_common_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -211,7 +213,7 @@ macro_rules! unary_bool_common_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())

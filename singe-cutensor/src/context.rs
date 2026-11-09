@@ -13,8 +13,8 @@ use crate::{
 
 /// A stateful cuTENSOR handle.
 ///
-/// Use one context per host thread or concurrent task. The handle is movable
-/// between threads, but it is intentionally not `Clone` or `Sync`.
+/// Use one context per host thread or concurrent task.
+/// The handle is movable between threads, but it is intentionally not `Clone` or `Sync`.
 #[derive(Debug)]
 pub struct Context {
     handle: Arc<Handle>,
@@ -70,8 +70,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, if cuTENSOR cannot
-    /// create a handle, or if cuTENSOR returns a null handle.
+    /// Returns an error if the CUDA context cannot be bound, if cuTENSOR cannot create a handle, or if cuTENSOR returns a null handle.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
         cuda_context.bind()?;
 
@@ -99,8 +98,7 @@ impl Context {
     /// # Safety
     ///
     /// `handle` must be a valid cuTENSOR handle associated with `cuda_context`.
-    /// Ownership of `handle` is transferred to the returned context, and the
-    /// handle must not be destroyed elsewhere after calling this function.
+    /// Ownership of `handle` is transferred to the returned context, and the handle must not be destroyed elsewhere after calling this function.
     ///
     /// # Errors
     ///
@@ -156,12 +154,12 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `entry_count` cannot
-    /// be represented for cuTENSOR, or cuTENSOR rejects the new cache size.
+    /// Returns an error if the context cannot be bound, `entry_count` cannot be represented for cuTENSOR, or cuTENSOR rejects the new cache size.
     pub fn resize_plan_cache(&mut self, entry_count: usize) -> Result<()> {
         if Arc::get_mut(&mut self.handle).is_none() {
             return Err(Error::OwnershipShared);
         }
+
         self.bind()?;
 
         let entry_count = to_u32(entry_count, "entry_count")?;
@@ -182,9 +180,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `path` cannot be
-    /// converted to a C string, no plan cache is attached, or cuTENSOR cannot
-    /// write the file.
+    /// Returns an error if the context cannot be bound, `path` cannot be converted to a C string, no plan cache is attached, or cuTENSOR cannot write the file.
     pub fn write_plan_cache_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         self.bind()?;
 
@@ -201,17 +197,13 @@ impl Context {
 
     /// Reads a plan cache from file and overwrites this handle's cache lines.
     ///
-    /// A cache is only valid for the same cuTENSOR version, CUDA version, and GPU
-    /// architecture, including multiprocessor count.
+    /// A cache is only valid for the same cuTENSOR version, CUDA version, and GPU architecture, including multiprocessor count.
     ///
     /// This non-blocking call is thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `path` cannot be
-    /// converted to a C string, the file cannot be read, the stored cache is
-    /// incompatible with this cuTENSOR/CUDA/device configuration, the current
-    /// cache is too small for the stored data, or cuTENSOR rejects the cache.
+    /// Returns an error if the context cannot be bound, `path` cannot be converted to a C string, the file cannot be read, the stored cache is incompatible with this cuTENSOR/CUDA/device configuration, the current cache is too small for the stored data, or cuTENSOR rejects the cache.
     pub fn read_plan_cache_from_file(&self, path: impl AsRef<Path>) -> Result<u32> {
         self.bind()?;
 
@@ -237,10 +229,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `path` cannot be
-    /// converted to a C string, JIT kernel caching is unsupported for this
-    /// operating system, CUDA Toolkit, or device, or cuTENSOR cannot write the
-    /// file.
+    /// Returns an error if the context cannot be bound, `path` cannot be converted to a C string, JIT kernel caching is unsupported for this operating system, CUDA Toolkit, or device, or cuTENSOR cannot write the file.
     pub fn write_kernel_cache_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         self.bind()?;
 
@@ -257,18 +246,13 @@ impl Context {
 
     /// Reads a kernel cache from file and adds all non-existing JIT compiled kernels to the kernel cache.
     ///
-    /// A cache is only valid for the same cuTENSOR version, CUDA version, and GPU
-    /// architecture, including multiprocessor count.
+    /// A cache is only valid for the same cuTENSOR version, CUDA version, and GPU architecture, including multiprocessor count.
     ///
     /// This non-blocking call is thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `path` cannot be
-    /// converted to a C string, the file cannot be read, the stored cache is
-    /// incompatible with this cuTENSOR/CUDA/device configuration, JIT kernel
-    /// caching is unsupported for this operating system, CUDA Toolkit, or
-    /// device, or cuTENSOR rejects the cache.
+    /// Returns an error if the context cannot be bound, `path` cannot be converted to a C string, the file cannot be read, the stored cache is incompatible with this cuTENSOR/CUDA/device configuration, JIT kernel caching is unsupported for this operating system, CUDA Toolkit, or device, or cuTENSOR rejects the cache.
     pub fn read_kernel_cache_from_file(&self, path: impl AsRef<Path>) -> Result<()> {
         self.bind()?;
 
@@ -298,8 +282,7 @@ impl Context {
 
     /// Returns the raw cuTENSOR handle.
     ///
-    /// The returned handle is borrowed and remains valid only while this
-    /// context and its underlying CUDA context are alive.
+    /// The returned handle is borrowed and remains valid only while this context and its underlying CUDA context are alive.
     #[must_use]
     pub fn as_raw(&self) -> sys::cutensorHandle_t {
         self.handle.raw
@@ -365,8 +348,7 @@ impl ContextRef {
 
     /// Returns the raw cuTENSOR handle.
     ///
-    /// The returned handle is borrowed and remains valid only while this
-    /// context reference and its underlying CUDA context are alive.
+    /// The returned handle is borrowed and remains valid only while this context reference and its underlying CUDA context are alive.
     pub fn as_raw(&self) -> sys::cutensorHandle_t {
         self.handle.raw
     }
@@ -390,16 +372,21 @@ impl Drop for Handle {
         if self.raw.is_null() {
             return;
         }
+
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cutensor handle: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying cutensor handle: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cutensorDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor context: {error}");
+                eprintln!(
+                    "failed to destroy cutensor context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

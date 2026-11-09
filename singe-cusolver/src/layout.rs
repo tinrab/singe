@@ -30,9 +30,11 @@ impl MatrixLayout {
         if rows == 0 || columns == 0 {
             return Err(Error::InvalidMatrixShape);
         }
+
         if self.leading_dimension < rows {
             return Err(Error::InvalidLeadingDimension);
         }
+
         self.leading_dimension
             .checked_mul(columns)
             .ok_or(Error::InvalidMatrixShape)?;
@@ -99,9 +101,8 @@ pub struct MatrixMut<'a, T: DeviceRepr> {
 
 /// An exclusive destination for a column-major matrix.
 ///
-/// This view does not permit reading existing elements or establish that a solver
-/// writes the entire allocation. Leading-dimension padding remains uninitialized
-/// unless a producer explicitly writes it.
+/// This view does not permit reading existing elements or establish that a solver writes the entire allocation.
+/// Leading-dimension padding remains uninitialized unless a producer explicitly writes it.
 #[derive(Debug)]
 pub struct MatrixOutput<'a, T: DeviceRepr> {
     /// Exclusive output capacity; this view does not establish initialized elements.
@@ -432,7 +433,8 @@ impl<'a, T: DeviceRepr> StridedBatchedVectorMut<'a, T> {
 impl<'a, T: DeviceRepr> BatchedMatrixRef<'a, T> {
     /// Borrows a device pointer table and records its element leading dimension.
     ///
-    /// Does not validate or retain pointees. Callers of unsafe batched operations must establish pointee capacity, context, initialization, and access lifetimes.
+    /// Does not validate or retain pointees.
+    /// Callers of unsafe batched operations must establish pointee capacity, context, initialization, and access lifetimes.
     pub fn new(
         pointers: &'a (impl DeviceSlice<DevicePtr> + ?Sized),
         leading_dimension: usize,
@@ -468,7 +470,8 @@ impl<'a, T: DeviceRepr> BatchedMatrixRef<'a, T> {
 impl<'a, T: DeviceRepr> BatchedVectorRef<'a, T> {
     /// Borrows a device pointer table and records its element leading dimension.
     ///
-    /// Does not validate or retain pointees. Callers of unsafe batched operations must establish pointee capacity, context, initialization, and access lifetimes.
+    /// Does not validate or retain pointees.
+    /// Callers of unsafe batched operations must establish pointee capacity, context, initialization, and access lifetimes.
     pub fn new(
         pointers: &'a (impl DeviceSlice<DevicePtr> + ?Sized),
         leading_dimension: usize,
@@ -525,7 +528,8 @@ impl WorkspaceSizes {
     }
 }
 
-/// Write-only vector storage. Only a producer's documented elements become initialized.
+/// Write-only vector storage.
+/// Only a producer's documented elements become initialized.
 #[derive(Debug)]
 pub struct VectorOutput<'a, T: DeviceRepr> {
     /// Exclusive output capacity; this view does not establish initialized elements.

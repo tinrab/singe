@@ -8,7 +8,6 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -29,6 +28,22 @@ use singe_cuda_sys::{
 
 #[cfg(feature = "curand_13_4")]
 include!("sys_10404.rs");
+
+pub use singe_loader::LoadError;
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::curand();
+
+// Loads cuRAND, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "curand_13_4")]
+singe_loader::missing_status!(
+    curandStatus_t,
+    library: curandStatus_t::CURAND_STATUS_INITIALIZATION_FAILED,
+    symbol: curandStatus_t::CURAND_STATUS_INTERNAL_ERROR,
+);
 
 #[cfg(test)]
 mod tests {

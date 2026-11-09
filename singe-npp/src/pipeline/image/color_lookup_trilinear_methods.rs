@@ -19,22 +19,21 @@ where
     Self: TrilinearLookupTableImage<T, L>,
 {
     /// Converts colors through a three-dimensional lookup table using trilinear interpolation.
-    /// `values` stores device-resident, four-byte packed RGBX grid values as contiguous x/y
-    /// planes along the z axis. `levels` contains three host arrays of source-domain breakpoints,
-    /// one per grid axis. Native ordering and domain requirements are not validated.
-    /// The supplied destination must match the source pixel dimensions. C4 conversion
-    /// copies source alpha unchanged; AC4 leaves destination alpha in its previous
-    /// initialization state, so the call does not initialize AC4 alpha.
+    /// `values` stores device-resident, four-byte packed RGBX grid values as contiguous x/y planes along the z axis.
+    /// `levels` contains three host arrays of source-domain breakpoints, one per grid axis.
+    /// Native ordering and domain requirements are not validated.
+    /// The supplied destination must match the source pixel dimensions.
+    /// C4 conversion copies source alpha unchanged; AC4 leaves destination alpha in its previous initialization state, so the call does not initialize AC4 alpha.
     /// Prepares image and device-value regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
-    /// Each level array must contain at least two entries and have a length representable
-    /// as `i32`. Their checked length product must not exceed `values.len()`.
+    /// Each level array must contain at least two entries and have a length representable as `i32`.
+    /// Their checked length product must not exceed `values.len()`.
     pub fn lookup_table_trilinear_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -58,20 +57,20 @@ where
     Self: CopyImage<u8, AC4>,
 {
     /// Converts colors through a three-dimensional lookup table using trilinear interpolation.
-    /// `values` stores device-resident, four-byte packed RGBX grid values as contiguous x/y
-    /// planes along the z axis. `levels` contains three host arrays of source-domain breakpoints,
-    /// one per grid axis. Native ordering and domain requirements are not validated.
-    /// Reuses owned AC4 backing; borrowed input is copied into a new owned image before
-    /// updating it in place. Alpha remains unchanged.
+    /// `values` stores device-resident, four-byte packed RGBX grid values as contiguous x/y planes along the z axis.
+    /// `levels` contains three host arrays of source-domain breakpoints, one per grid axis.
+    /// Native ordering and domain requirements are not validated.
+    /// Reuses owned AC4 backing; borrowed input is copied into a new owned image before updating it in place.
+    /// Alpha remains unchanged.
     /// Prepares image and device-value regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Each level array must contain at least two entries and have a length representable
-    /// as `i32`. Their checked length product must not exceed `values.len()`.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Each level array must contain at least two entries and have a length representable as `i32`.
+    /// Their checked length product must not exceed `values.len()`.
     /// Image allocation, view construction, or source preservation copies can also fail.
     pub fn lookup_table_trilinear_in_place(
         mut self,
@@ -129,20 +128,20 @@ where
     Self: TrilinearLookupTableImage<T, L>,
 {
     /// Converts colors through a three-dimensional lookup table using trilinear interpolation.
-    /// `values` stores device-resident, four-byte packed RGBX grid values as contiguous x/y
-    /// planes along the z axis. `levels` contains three host arrays of source-domain breakpoints,
-    /// one per grid axis. Native ordering and domain requirements are not validated.
-    /// Always allocates a new owned image with the source pixel dimensions. Preserves
-    /// source alpha for both provided C4 and AC4 conversions.
+    /// `values` stores device-resident, four-byte packed RGBX grid values as contiguous x/y planes along the z axis.
+    /// `levels` contains three host arrays of source-domain breakpoints, one per grid axis.
+    /// Native ordering and domain requirements are not validated.
+    /// Always allocates a new owned image with the source pixel dimensions.
+    /// Preserves source alpha for both provided C4 and AC4 conversions.
     /// Prepares image and device-value regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Each level array must contain at least two entries and have a length representable
-    /// as `i32`. Their checked length product must not exceed `values.len()`.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Each level array must contain at least two entries and have a length representable as `i32`.
+    /// Their checked length product must not exceed `values.len()`.
     /// Image allocation, view construction, or source preservation copies can also fail.
     pub fn lookup_table_trilinear(
         self,
@@ -159,6 +158,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source)?;
             }
+
             <Self as TrilinearLookupTableImage<T, L>>::lookup_table_trilinear_image(
                 self.stream_context,
                 &source,

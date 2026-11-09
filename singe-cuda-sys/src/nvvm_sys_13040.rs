@@ -40,7 +40,7 @@ pub enum nvvmResult {
     /// The operation was cancelled.
     NVVM_ERROR_CANCELLED = 10,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the message string for the given [`nvvmResult`] code.
     ///
     /// # Parameters
@@ -48,7 +48,7 @@ unsafe extern "C" {
     /// - `result`: NVVM API result code.
     pub fn nvvmGetErrorString(result: nvvmResult) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the NVVM version.
     ///
     /// # Parameters
@@ -60,7 +60,7 @@ unsafe extern "C" {
         minor: *mut ::core::ffi::c_int,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the NVVM IR version.
     ///
     /// # Parameters
@@ -76,7 +76,7 @@ unsafe extern "C" {
         minorDbg: *mut ::core::ffi::c_int,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the LLVM IR version guaranteed to be supported by NVVM.
     ///
     /// The valid arch strings are the ones supported by [`nvvmCompileProgram`].
@@ -100,7 +100,7 @@ pub struct _nvvmProgram {
 ///
 /// An opaque handle for a program.
 pub type nvvmProgram = *mut _nvvmProgram;
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Create a program, and set the value of its handle to `*prog`.
     ///
     /// # Parameters
@@ -108,7 +108,7 @@ unsafe extern "C" {
     /// - `prog`: NVVM program.
     pub fn nvvmCreateProgram(prog: *mut nvvmProgram) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Destroy a program.
     ///
     /// # Parameters
@@ -116,7 +116,7 @@ unsafe extern "C" {
     /// - `prog`: NVVM program.
     pub fn nvvmDestroyProgram(prog: *mut nvvmProgram) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Add a module level NVVM IR to a program.
     ///
     /// The `buffer` should contain an NVVM IR module. The module should have NVVM IR either in the LLVM 7.0.1 bitcode representation or in the LLVM 7.0.1 text representation. Support for reading the text representation of NVVM IR is deprecated and may be removed in a later version.
@@ -134,7 +134,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Add a module level NVVM IR to a program.
     ///
     /// The `buffer` should contain an NVVM IR module. The module should have NVVM IR in the LLVM 7.0.1 bitcode representation.
@@ -154,7 +154,7 @@ unsafe extern "C" {
         name: *const ::core::ffi::c_char,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Compile the NVVM program.
     ///
     /// The NVVM IR modules in the program will be linked at the IR level. The linked IR program is compiled to PTX.
@@ -222,7 +222,7 @@ unsafe extern "C" {
         options: *mut *const ::core::ffi::c_char,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Verify the NVVM program.
     ///
     /// The valid compiler options are:
@@ -240,7 +240,7 @@ unsafe extern "C" {
         options: *mut *const ::core::ffi::c_char,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the size of the compiled result.
     ///
     /// # Parameters
@@ -252,7 +252,7 @@ unsafe extern "C" {
         bufferSizeRet: *mut size_t,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the compiled result.
     ///
     /// The result is stored in the memory pointed to by `buffer`.
@@ -266,7 +266,7 @@ unsafe extern "C" {
         buffer: *mut ::core::ffi::c_char,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the Size of Compiler/Verifier Message.
     ///
     /// The size of the message string (including the trailing NULL) is stored into `bufferSizeRet` when the return value is [`nvvmResult::NVVM_SUCCESS`].
@@ -280,7 +280,7 @@ unsafe extern "C" {
         bufferSizeRet: *mut size_t,
     ) -> nvvmResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::NVVM;
     /// Get the Compiler/Verifier Message.
     ///
     /// The NULL terminated message string is stored in the memory pointed to by `buffer` when the return value is [`nvvmResult::NVVM_SUCCESS`].

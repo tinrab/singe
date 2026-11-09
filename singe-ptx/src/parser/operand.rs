@@ -11,11 +11,11 @@ use nom::{
 use crate::{
     ast::{Immediate, Operand, Span},
     parser::{
-        common::{
+        depth,
+        lexical::{
             Input, PResult, comma_sep, displacement, float_literal, identifier, integer_literal,
             lexeme, text, with_span, ws,
         },
-        depth,
     },
 };
 

@@ -7,8 +7,7 @@ use crate::{error::Result, frontend::error::Error as FrontendError, utility::to_
 const DP_WORKSPACE_LIMIT_ENV: &str = "CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT";
 
 /// Optional cap on the probability-gradient workspace used by floating attention backward.
-/// On Hopper, a deterministic request without a bias gradient uses ordered dQ accumulation
-/// when this cap is smaller than the padded dP requirement.
+/// On Hopper, a deterministic request without a bias gradient uses ordered dQ accumulation when this cap is smaller than the padded dP requirement.
 /// This cap is independent of the total allocation limit in `CompileConfig`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttentionBackwardWorkspaceLimit {

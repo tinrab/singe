@@ -51,6 +51,7 @@ impl TimingSamples {
         {
             return None;
         }
+
         let elapsed_ms = if self.sampling == AutotuneSampling::MedianOfThree {
             self.median.sort_unstable_by(f32::total_cmp);
             self.median[1]

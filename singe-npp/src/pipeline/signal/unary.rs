@@ -90,11 +90,11 @@ pub struct TenTimesLog10Scaled;
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the operation selected by `O`.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait UnaryTransformSignal<T, O> {
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -109,7 +109,8 @@ pub unsafe trait UnaryTransformSignal<T, O> {
         destination: &mut SignalOutputView<'_, T>,
     ) -> Result<()>;
 
-    /// Applies the unary operation selected by `O` to each signal element. Updates the signal in place.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -127,11 +128,11 @@ pub unsafe trait UnaryTransformSignal<T, O> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the operation selected by `O`.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledUnaryTransformSignal<T, O> {
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -148,7 +149,8 @@ pub unsafe trait ScaledUnaryTransformSignal<T, O> {
         scale_factor: i32,
     ) -> Result<()>;
 
-    /// Applies the unary operation selected by `O` to each signal element. Updates the signal in place.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Updates the signal in place.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -168,11 +170,11 @@ pub unsafe trait ScaledUnaryTransformSignal<T, O> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the operation selected by `O`.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait UnaryOutputSignal<T, U, O> {
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -192,11 +194,11 @@ pub unsafe trait UnaryOutputSignal<T, U, O> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the operation selected by `O`.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledUnaryOutputSignal<T, U, O> {
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -218,11 +220,11 @@ pub unsafe trait ScaledUnaryOutputSignal<T, U, O> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and the operation selected by `O`.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ParameterizedUnaryTransformSignal<T, P, O> {
-    /// Applies the unary operation selected by `O` to each signal element. Updates the signal in place.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Updates the signal in place.
     /// Passes `parameter` as the constant in the native Cauchy formula for the provided Cauchy operations.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -611,7 +613,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: UnaryTransformSignal<T, Absolute>,
 {
-    /// Computes the absolute value of each element. Returns an owned pipeline containing the result.
+    /// Computes the absolute value of each element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -628,7 +631,8 @@ where
 }
 
 impl<'a> SignalPipeline<'a, f32> {
-    /// Computes the cube root of each element. Returns an owned pipeline containing the result.
+    /// Computes the cube root of each element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Allocates output through the workspace.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -643,7 +647,8 @@ impl<'a> SignalPipeline<'a, f32> {
         self.unary_output::<f32, CubeRoot>()
     }
 
-    /// Computes the native Cauchy error function for each element. Returns an owned pipeline containing the result.
+    /// Computes the native Cauchy error function for each element.
+    /// Returns an owned pipeline containing the result.
     /// Passes `parameter` as the constant in the native Cauchy formula for the provided Cauchy operations.
     ///
     /// Reuses owned signal storage, or copies a borrowed signal into workspace storage before the in-place operation.
@@ -660,7 +665,8 @@ impl<'a> SignalPipeline<'a, f32> {
         self.parameterized_unary_transform::<Cauchy>(parameter)
     }
 
-    /// Computes the first derivative of the native Cauchy error function for each element. Returns an owned pipeline containing the result.
+    /// Computes the first derivative of the native Cauchy error function for each element.
+    /// Returns an owned pipeline containing the result.
     /// Passes `parameter` as the constant in the native Cauchy formula for the provided Cauchy operations.
     ///
     /// Reuses owned signal storage, or copies a borrowed signal into workspace storage before the in-place operation.
@@ -677,7 +683,8 @@ impl<'a> SignalPipeline<'a, f32> {
         self.parameterized_unary_transform::<CauchyDerivative>(parameter)
     }
 
-    /// Computes the natural exponential of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural exponential of each element.
+    /// Returns an owned pipeline containing the result.
     /// Uses `f64` output elements.
     ///
     /// Allocates output through the workspace.
@@ -695,7 +702,8 @@ impl<'a> SignalPipeline<'a, f32> {
 }
 
 impl<'a> SignalPipeline<'a, f64> {
-    /// Computes the natural logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     /// Uses `f32` output elements.
     ///
     /// Allocates output through the workspace.
@@ -713,7 +721,8 @@ impl<'a> SignalPipeline<'a, f64> {
 }
 
 impl<'a> SignalPipeline<'a, i32> {
-    /// Computes the natural logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     /// Uses `i16` output elements.
     ///
@@ -733,7 +742,8 @@ impl<'a> SignalPipeline<'a, i32> {
         self.scaled_unary_output::<i16, NaturalLogarithmToI16Scaled>(scale_factor)
     }
 
-    /// Computes the cube root of each element. Returns an owned pipeline containing the result.
+    /// Computes the cube root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     /// Uses `i16` output elements.
     ///
@@ -750,7 +760,8 @@ impl<'a> SignalPipeline<'a, i32> {
         self.scaled_unary_output::<i16, CubeRootToI16Scaled>(scale_factor)
     }
 
-    /// Computes the square root of each element. Returns an owned pipeline containing the result.
+    /// Computes the square root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     /// Uses `i16` output elements.
     ///
@@ -769,7 +780,8 @@ impl<'a> SignalPipeline<'a, i32> {
 }
 
 impl<'a> SignalPipeline<'a, i64> {
-    /// Computes the square root of each element. Returns an owned pipeline containing the result.
+    /// Computes the square root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     /// Uses `i16` output elements.
     ///
@@ -793,7 +805,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: ScaledUnaryTransformSignal<T, ExponentScaled>,
 {
-    /// Computes the natural exponential of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural exponential of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
@@ -811,7 +824,8 @@ where
 }
 
 impl SignalPipeline<'_, f32> {
-    /// Applies the unary operation selected by `O` to each signal element. Updates the signal in place.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Updates the signal in place.
     /// Passes `parameter` as the constant in the native Cauchy formula for the provided Cauchy operations.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -890,7 +904,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: ScaledUnaryTransformSignal<T, NaturalLogarithmScaled>,
 {
-    /// Computes the natural logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
@@ -908,7 +923,8 @@ where
 }
 
 impl SignalPipeline<'_, i32> {
-    /// Computes ten times the base-ten logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes ten times the base-ten logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
@@ -931,7 +947,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: ScaledUnaryTransformSignal<T, SquareScaled>,
 {
-    /// Squares each element. Returns an owned pipeline containing the result.
+    /// Squares each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
@@ -954,7 +971,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: ScaledUnaryTransformSignal<T, SquareRootScaled>,
 {
-    /// Computes the square root of each element. Returns an owned pipeline containing the result.
+    /// Computes the square root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
@@ -977,7 +995,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: UnaryTransformSignal<T, Arctangent>,
 {
-    /// Computes the arctangent of each element. Returns an owned pipeline containing the result.
+    /// Computes the arctangent of each element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -999,7 +1018,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: UnaryTransformSignal<T, BitNot>,
 {
-    /// Complements every bit of each element. Returns an owned pipeline containing the result.
+    /// Complements every bit of each element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -1020,7 +1040,8 @@ where
     T: Copy,
     Workspace: SignalAllocator<T>,
 {
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -1044,7 +1065,8 @@ where
         )
     }
 
-    /// Applies the unary operation selected by `O` to each signal element. Updates the signal in place.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -1065,7 +1087,8 @@ where
         )
     }
 
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -1090,7 +1113,8 @@ where
         )
     }
 
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -1118,7 +1142,8 @@ where
         )
     }
 
-    /// Applies the unary operation selected by `O` to each signal element. Writes the result to `destination`.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Writes the result to `destination`.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -1145,7 +1170,8 @@ where
         )
     }
 
-    /// Applies the unary operation selected by `O` to each signal element. Updates the signal in place.
+    /// Applies the unary operation selected by `O` to each signal element.
+    /// Updates the signal in place.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -1169,7 +1195,8 @@ where
         )
     }
 
-    /// Computes the natural exponential of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural exponential of each element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
     /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
@@ -1207,7 +1234,8 @@ where
         })
     }
 
-    /// Computes the natural logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
     /// The source must already be ready on the selected stream; this method does not wait for a producer on another stream.
@@ -1249,7 +1277,8 @@ where
         })
     }
 
-    /// Computes the natural logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
@@ -1293,7 +1322,8 @@ where
         })
     }
 
-    /// Computes the natural logarithm of each element. Returns an owned pipeline containing the result.
+    /// Computes the natural logarithm of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
@@ -1313,7 +1343,8 @@ where
         self.natural_logarithm_scaled_to::<U>(scale_factor)
     }
 
-    /// Computes the cube root of each element. Returns an owned pipeline containing the result.
+    /// Computes the cube root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
@@ -1357,7 +1388,8 @@ where
         })
     }
 
-    /// Computes the cube root of each element. Returns an owned pipeline containing the result.
+    /// Computes the cube root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
@@ -1377,7 +1409,8 @@ where
         self.cube_root_scaled_to::<U>(scale_factor)
     }
 
-    /// Computes the square root of each element. Returns an owned pipeline containing the result.
+    /// Computes the square root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.
@@ -1421,7 +1454,8 @@ where
         })
     }
 
-    /// Computes the square root of each element. Returns an owned pipeline containing the result.
+    /// Computes the square root of each element.
+    /// Returns an owned pipeline containing the result.
     /// Applies the selected native operation's scaling with `scale_factor`.
     ///
     /// Allocates output through the workspace and waits for successful stream completion.

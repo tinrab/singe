@@ -17,10 +17,8 @@ use crate::{
 impl Graph {
     /// Adds a block scale quantize operation with explicit outputs.
     ///
-    /// Block scale quantize produces a quantized output tensor and a scale tensor
-    /// from a higher precision input.
-    /// Explicit layouts are passed to native support selection; axis and transpose
-    /// configure inference rather than overriding these declarations.
+    /// Block scale quantize produces a quantized output tensor and a scale tensor from a higher precision input.
+    /// Explicit layouts are passed to native support selection; axis and transpose configure inference rather than overriding these declarations.
     ///
     /// # Errors
     ///
@@ -94,8 +92,7 @@ impl Graph {
 
     /// Adds a block scale dequantize operation with an explicit output.
     ///
-    /// Block scale dequantize combines quantized values with block-broadcast
-    /// scale data to produce a dequantized output.
+    /// Block scale dequantize combines quantized values with block-broadcast scale data to produce a dequantized output.
     /// Caller-declared scale geometry, encoding and layout reach native support selection.
     ///
     /// # Errors

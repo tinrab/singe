@@ -76,6 +76,7 @@ impl WorkspaceLayout {
             {
                 tensor.shape = shape.shape.clone();
             }
+
             let required = tensor.storage_byte_len(byte_capacity)?;
             if let Some(WorkspaceInitializer::Copy(data)) = &tensor.workspace_initializer
                 && data.as_bytes().len() != required
@@ -86,11 +87,13 @@ impl WorkspaceLayout {
                     actual: data.as_bytes().len(),
                 });
             }
+
             let byte_len = required.max(byte_capacity.unwrap_or(0));
             let alignment = to_usize(tensor.byte_alignment, "workspace tensor alignment")?;
             if !alignment.is_power_of_two() {
                 return Err(Error::out_of_range("workspace tensor alignment"));
             }
+
             maximum_alignment = maximum_alignment.max(alignment);
             let offset = layout
                 .byte_len
@@ -107,6 +110,7 @@ impl WorkspaceLayout {
                 initializer: tensor.workspace_initializer.clone(),
             });
         }
+
         if !layout.bindings.is_empty() {
             // Ordinary CUDA allocations cover the backend alignment, but stronger tensor
             // alignments require padding whose size depends on the allocation's address.
@@ -169,6 +173,7 @@ impl WorkspaceLayout {
                 .checked_add(padding)
                 .ok_or_else(|| Error::out_of_range("workspace bytes"))?;
         }
+
         let end = self.bindings.last().map_or(Ok(0_usize), |binding| {
             binding
                 .byte_offset

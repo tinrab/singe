@@ -4,6 +4,12 @@ use std::sync::Arc;
 use cutile::half::f16;
 use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
 
+#[cfg(feature = "dtype_f16")]
+use crate::cuda::cutile::kernel::f16::gather as kernel_f16;
+#[cfg(feature = "dtype_f32")]
+use crate::cuda::cutile::kernel::f32::gather as kernel_f32;
+#[cfg(feature = "dtype_f64")]
+use crate::cuda::cutile::kernel::f64::gather as kernel_f64;
 #[cfg(any(
     feature = "dtype_i8",
     feature = "dtype_u8",
@@ -12,13 +18,7 @@ use cutile::{cuda_async::device_buffer::DevicePointer, cuda_core::Stream};
     feature = "dtype_i64",
     feature = "dtype_u64",
 ))]
-use crate::cuda::cutile::kernel::common as kernel_common;
-#[cfg(feature = "dtype_f16")]
-use crate::cuda::cutile::kernel::f16::gather as kernel_f16;
-#[cfg(feature = "dtype_f32")]
-use crate::cuda::cutile::kernel::f32::gather as kernel_f32;
-#[cfg(feature = "dtype_f64")]
-use crate::cuda::cutile::kernel::f64::gather as kernel_f64;
+use crate::cuda::cutile::kernel::vector as vector_kernels;
 use crate::{
     cuda::cutile::{
         DeviceOpExt, TileKernel,
@@ -66,22 +66,22 @@ gather_fn!(gather_f32, f32, kernel_f32, gather_f32);
 gather_fn!(gather_f64, f64, kernel_f64, gather_f64);
 
 #[cfg(feature = "dtype_u8")]
-gather_fn!(gather_u8, u8, kernel_common, gather_u8);
+gather_fn!(gather_u8, u8, vector_kernels, gather_u8);
 
 #[cfg(feature = "dtype_i8")]
-gather_fn!(gather_i8, i8, kernel_common, gather_i8);
+gather_fn!(gather_i8, i8, vector_kernels, gather_i8);
 
 #[cfg(feature = "dtype_u32")]
-gather_fn!(gather_u32, u32, kernel_common, gather_u32);
+gather_fn!(gather_u32, u32, vector_kernels, gather_u32);
 
 #[cfg(feature = "dtype_i32")]
-gather_fn!(gather_i32, i32, kernel_common, gather_i32);
+gather_fn!(gather_i32, i32, vector_kernels, gather_i32);
 
 #[cfg(feature = "dtype_u64")]
-gather_fn!(gather_u64, u64, kernel_common, gather_u64);
+gather_fn!(gather_u64, u64, vector_kernels, gather_u64);
 
 #[cfg(feature = "dtype_i64")]
-gather_fn!(gather_i64, i64, kernel_common, gather_i64);
+gather_fn!(gather_i64, i64, vector_kernels, gather_i64);
 
 macro_rules! scatter_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -121,22 +121,22 @@ scatter_fn!(scatter_f32, f32, kernel_f32, scatter_f32);
 scatter_fn!(scatter_f64, f64, kernel_f64, scatter_f64);
 
 #[cfg(feature = "dtype_u8")]
-scatter_fn!(scatter_u8, u8, kernel_common, scatter_u8);
+scatter_fn!(scatter_u8, u8, vector_kernels, scatter_u8);
 
 #[cfg(feature = "dtype_i8")]
-scatter_fn!(scatter_i8, i8, kernel_common, scatter_i8);
+scatter_fn!(scatter_i8, i8, vector_kernels, scatter_i8);
 
 #[cfg(feature = "dtype_u32")]
-scatter_fn!(scatter_u32, u32, kernel_common, scatter_u32);
+scatter_fn!(scatter_u32, u32, vector_kernels, scatter_u32);
 
 #[cfg(feature = "dtype_i32")]
-scatter_fn!(scatter_i32, i32, kernel_common, scatter_i32);
+scatter_fn!(scatter_i32, i32, vector_kernels, scatter_i32);
 
 #[cfg(feature = "dtype_u64")]
-scatter_fn!(scatter_u64, u64, kernel_common, scatter_u64);
+scatter_fn!(scatter_u64, u64, vector_kernels, scatter_u64);
 
 #[cfg(feature = "dtype_i64")]
-scatter_fn!(scatter_i64, i64, kernel_common, scatter_i64);
+scatter_fn!(scatter_i64, i64, vector_kernels, scatter_i64);
 
 macro_rules! gather_rows_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -182,22 +182,22 @@ gather_rows_fn!(gather_rows_f32, f32, kernel_f32, gather_rows_f32);
 gather_rows_fn!(gather_rows_f64, f64, kernel_f64, gather_rows_f64);
 
 #[cfg(feature = "dtype_u8")]
-gather_rows_fn!(gather_rows_u8, u8, kernel_common, gather_rows_u8);
+gather_rows_fn!(gather_rows_u8, u8, vector_kernels, gather_rows_u8);
 
 #[cfg(feature = "dtype_i8")]
-gather_rows_fn!(gather_rows_i8, i8, kernel_common, gather_rows_i8);
+gather_rows_fn!(gather_rows_i8, i8, vector_kernels, gather_rows_i8);
 
 #[cfg(feature = "dtype_u32")]
-gather_rows_fn!(gather_rows_u32, u32, kernel_common, gather_rows_u32);
+gather_rows_fn!(gather_rows_u32, u32, vector_kernels, gather_rows_u32);
 
 #[cfg(feature = "dtype_i32")]
-gather_rows_fn!(gather_rows_i32, i32, kernel_common, gather_rows_i32);
+gather_rows_fn!(gather_rows_i32, i32, vector_kernels, gather_rows_i32);
 
 #[cfg(feature = "dtype_u64")]
-gather_rows_fn!(gather_rows_u64, u64, kernel_common, gather_rows_u64);
+gather_rows_fn!(gather_rows_u64, u64, vector_kernels, gather_rows_u64);
 
 #[cfg(feature = "dtype_i64")]
-gather_rows_fn!(gather_rows_i64, i64, kernel_common, gather_rows_i64);
+gather_rows_fn!(gather_rows_i64, i64, vector_kernels, gather_rows_i64);
 
 macro_rules! gather_row_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -242,22 +242,22 @@ gather_row_fn!(gather_row_f32, f32, kernel_f32, gather_row_f32);
 gather_row_fn!(gather_row_f64, f64, kernel_f64, gather_row_f64);
 
 #[cfg(feature = "dtype_u8")]
-gather_row_fn!(gather_row_u8, u8, kernel_common, gather_row_u8);
+gather_row_fn!(gather_row_u8, u8, vector_kernels, gather_row_u8);
 
 #[cfg(feature = "dtype_i8")]
-gather_row_fn!(gather_row_i8, i8, kernel_common, gather_row_i8);
+gather_row_fn!(gather_row_i8, i8, vector_kernels, gather_row_i8);
 
 #[cfg(feature = "dtype_u32")]
-gather_row_fn!(gather_row_u32, u32, kernel_common, gather_row_u32);
+gather_row_fn!(gather_row_u32, u32, vector_kernels, gather_row_u32);
 
 #[cfg(feature = "dtype_i32")]
-gather_row_fn!(gather_row_i32, i32, kernel_common, gather_row_i32);
+gather_row_fn!(gather_row_i32, i32, vector_kernels, gather_row_i32);
 
 #[cfg(feature = "dtype_u64")]
-gather_row_fn!(gather_row_u64, u64, kernel_common, gather_row_u64);
+gather_row_fn!(gather_row_u64, u64, vector_kernels, gather_row_u64);
 
 #[cfg(feature = "dtype_i64")]
-gather_row_fn!(gather_row_i64, i64, kernel_common, gather_row_i64);
+gather_row_fn!(gather_row_i64, i64, vector_kernels, gather_row_i64);
 
 macro_rules! scatter_rows_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -303,22 +303,22 @@ scatter_rows_fn!(scatter_rows_f32, f32, kernel_f32, scatter_rows_f32);
 scatter_rows_fn!(scatter_rows_f64, f64, kernel_f64, scatter_rows_f64);
 
 #[cfg(feature = "dtype_u8")]
-scatter_rows_fn!(scatter_rows_u8, u8, kernel_common, scatter_rows_u8);
+scatter_rows_fn!(scatter_rows_u8, u8, vector_kernels, scatter_rows_u8);
 
 #[cfg(feature = "dtype_i8")]
-scatter_rows_fn!(scatter_rows_i8, i8, kernel_common, scatter_rows_i8);
+scatter_rows_fn!(scatter_rows_i8, i8, vector_kernels, scatter_rows_i8);
 
 #[cfg(feature = "dtype_u32")]
-scatter_rows_fn!(scatter_rows_u32, u32, kernel_common, scatter_rows_u32);
+scatter_rows_fn!(scatter_rows_u32, u32, vector_kernels, scatter_rows_u32);
 
 #[cfg(feature = "dtype_i32")]
-scatter_rows_fn!(scatter_rows_i32, i32, kernel_common, scatter_rows_i32);
+scatter_rows_fn!(scatter_rows_i32, i32, vector_kernels, scatter_rows_i32);
 
 #[cfg(feature = "dtype_u64")]
-scatter_rows_fn!(scatter_rows_u64, u64, kernel_common, scatter_rows_u64);
+scatter_rows_fn!(scatter_rows_u64, u64, vector_kernels, scatter_rows_u64);
 
 #[cfg(feature = "dtype_i64")]
-scatter_rows_fn!(scatter_rows_i64, i64, kernel_common, scatter_rows_i64);
+scatter_rows_fn!(scatter_rows_i64, i64, vector_kernels, scatter_rows_i64);
 
 macro_rules! copy_indexed_rows_fn {
     ($name:ident, $ty:ty, $kernel:ident, $kernel_fn:ident) => {
@@ -393,7 +393,7 @@ copy_indexed_rows_fn!(
 copy_indexed_rows_fn!(
     copy_indexed_rows_u8,
     u8,
-    kernel_common,
+    vector_kernels,
     copy_indexed_rows_u8
 );
 
@@ -401,7 +401,7 @@ copy_indexed_rows_fn!(
 copy_indexed_rows_fn!(
     copy_indexed_rows_i8,
     i8,
-    kernel_common,
+    vector_kernels,
     copy_indexed_rows_i8
 );
 
@@ -409,7 +409,7 @@ copy_indexed_rows_fn!(
 copy_indexed_rows_fn!(
     copy_indexed_rows_u32,
     u32,
-    kernel_common,
+    vector_kernels,
     copy_indexed_rows_u32
 );
 
@@ -417,7 +417,7 @@ copy_indexed_rows_fn!(
 copy_indexed_rows_fn!(
     copy_indexed_rows_i32,
     i32,
-    kernel_common,
+    vector_kernels,
     copy_indexed_rows_i32
 );
 
@@ -425,7 +425,7 @@ copy_indexed_rows_fn!(
 copy_indexed_rows_fn!(
     copy_indexed_rows_u64,
     u64,
-    kernel_common,
+    vector_kernels,
     copy_indexed_rows_u64
 );
 
@@ -433,6 +433,6 @@ copy_indexed_rows_fn!(
 copy_indexed_rows_fn!(
     copy_indexed_rows_i64,
     i64,
-    kernel_common,
+    vector_kernels,
     copy_indexed_rows_i64
 );

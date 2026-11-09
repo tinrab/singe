@@ -1,0 +1,84 @@
+[package]
+name = "singe"
+description = "A machine learning framework that sets tensors ablaze."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+keywords = ["ai", "machine-learning", "deep-learning", "tensor", "cuda"]
+include = ["src/**", "/Cargo.toml", "/README.md", "/LICENSE*", "/dist/katex_header.html"]
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--html-in-header", "dist/katex_header.html"]
+
+[features]
+default = []
+testing = [
+    "singe-cuda?/testing",
+    "singe-cublas?/testing",
+    "singe-cudnn?/testing",
+    "singe-cutensor?/testing",
+]
+cuda = [
+    "dep:libloading",
+    "singe-codegen/tile",
+    "dep:cutile-ir",
+    "dep:singe-cuda",
+    "dep:singe-cublas",
+    "dep:singe-cufft",
+    "dep:singe-cudnn",
+    "dep:singe-cutensor",
+    "dep:sha2",
+    "dep:hex",
+    "singe-cublas/lt",
+]
+cuda_13_4 = ["cuda"]
+cuda_nvtx = ["singe-cuda?/nvtx_3"]
+onnx = ["dep:singe-onnx"]
+
+[dependencies]
+singe-core.workspace = true
+singe-cuda = { workspace = true, optional = true }
+singe-cublas = { workspace = true, optional = true }
+singe-cufft = { workspace = true, optional = true }
+singe-cudnn = { workspace = true, optional = true }
+singe-cutensor = { workspace = true, optional = true }
+singe-kernel.workspace = true
+singe-codegen = { workspace = true, features = ["serde"] }
+cutile-ir = { workspace = true, optional = true }
+singe-onnx = { workspace = true, optional = true }
+thiserror.workspace = true
+sha2 = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+num-traits.workspace = true
+num_enum.workspace = true
+half.workspace = true
+libm.workspace = true
+rand.workspace = true
+libloading = { workspace = true, optional = true }
+rayon.workspace = true
+safetensors.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+prost.workspace = true
+singe-testing.workspace = true
+
+[[bench]]
+name = "operations"
+harness = false
+required-features = ["cuda", "testing"]
+
+[[example]]
+name = "generated_kernels"
+required-features = ["cuda"]
+
+[[example]]
+name = "onnx_inference"
+required-features = ["onnx"]
+
+[[example]]
+name = "onnx_program"
+required-features = ["onnx", "cuda"]

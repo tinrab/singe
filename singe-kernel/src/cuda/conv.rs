@@ -147,6 +147,7 @@ impl Conv1dConfig {
         if output_length == 0 {
             return Err(Error::InvalidLength);
         }
+
         let expected_output = checked_element_count(self.channels_out, output_length)?;
         ensure_len(input_len, expected_input)?;
         ensure_len(weight_len, expected_weight)?;
@@ -197,6 +198,7 @@ impl Conv2dConfig {
         if output_h == 0 || output_w == 0 {
             return Err(Error::InvalidLength);
         }
+
         let expected_input_per_batch = checked_element_count(
             checked_element_count(self.channels_in, self.input_h)?,
             self.input_w,
@@ -239,16 +241,15 @@ macro_rules! causal_conv1d_update_silu_fn {
     ($name:ident, $ty:ty) => {
         /// Depthwise causal conv1d decode step with in-place rolling state and SiLU.
         ///
-        /// `input` and `out` are `[batch, channels]`. `conv_state` is
-        /// `[batch, channels, kernel_size]` and is shifted left by one slot per
-        /// channel before inserting the new input at `kernel_size - 1`.
+        /// `input` and `out` are `[batch, channels]`.
+        /// `conv_state` is `[batch, channels, kernel_size]` and is shifted left by one slot per channel before inserting the new input at `kernel_size - 1`.
         /// `weight` is `[channels, kernel_size]` and `bias` is `[channels]`.
         /// Decode requires initialized rolling state and updates it in place.
         ///
         /// # Safety
         ///
-        /// Retain all ranges and exclusive writable access through completion on
-        /// every path and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive writable access through completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         /// Inputs must be valid when read in the stream's context and disjoint from writes.
         /// Order preceding producers before every read, including graph replay.
         pub unsafe fn $name(
@@ -295,15 +296,14 @@ macro_rules! causal_conv1d_prefill_silu_fn {
     ($name:ident, $ty:ty) => {
         /// Depthwise causal conv1d sequence prefill from an implicit zero state.
         ///
-        /// `input` and `out` use `[batch, channels, time]` layout. Values before
-        /// the beginning of the sequence are zero-padded, and `conv_state`
-        /// receives the final `[batch, channels, kernel_size]` rolling window.
+        /// `input` and `out` use `[batch, channels, time]` layout.
+        /// Values before the beginning of the sequence are zero-padded, and `conv_state` receives the final `[batch, channels, kernel_size]` rolling window.
         /// Prefill fully writes both destinations without reading the prior state.
         ///
         /// # Safety
         ///
-        /// Retain all ranges and exclusive writable access through completion on
-        /// every path and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive writable access through completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         /// Inputs must be valid when read in the stream's context and disjoint from writes.
         /// Order preceding producers before every read, including graph replay.
         pub unsafe fn $name(
@@ -378,8 +378,8 @@ causal_conv1d_prefill_silu_fn!(causal_conv1d_prefill_silu_bf16, bf16);
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv2d_bias_gelu_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -429,8 +429,8 @@ macro_rules! conv2d_bias_gelu_half_fn {
         ///
         /// # Safety
         ///
-        /// Retain all ranges and exclusive writable access through completion on
-        /// every path and throughout replay. Order prior accesses before launch.
+        /// Retain all ranges and exclusive writable access through completion on every path and throughout replay.
+        /// Order prior accesses before launch.
         /// Inputs must be valid when read in the stream's context and disjoint from writes.
         /// Order preceding producers before every read, including graph replay.
         pub unsafe fn $name(
@@ -506,6 +506,7 @@ impl BatchedConv1dConfig {
         if output_length == 0 {
             return Err(Error::InvalidLength);
         }
+
         let expected_weight = conv1d_weight_len(
             self.channels_in,
             self.channels_out,
@@ -558,6 +559,7 @@ impl Conv1dIm2colConfig {
         if output_length == 0 {
             return Err(Error::InvalidLength);
         }
+
         let input_reach = batched_conv1d_reach(
             self.batch,
             self.input_batch_stride,
@@ -603,6 +605,7 @@ impl CausalConv1dConfig {
         if output_length == 0 {
             return Err(Error::InvalidLength);
         }
+
         let expected_output = checked_element_count(self.channels_out, output_length)?;
         ensure_len(input_len, expected_input)?;
         ensure_len(weight_len, expected_weight)?;
@@ -636,8 +639,8 @@ impl CausalConv1dWindowConfig {
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -675,8 +678,8 @@ pub unsafe fn conv1d_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_batched_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -717,8 +720,8 @@ pub unsafe fn conv1d_batched_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -757,8 +760,8 @@ pub unsafe fn conv1d_f16_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_batched_f16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -799,8 +802,8 @@ pub unsafe fn conv1d_batched_f16_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -839,8 +842,8 @@ pub unsafe fn conv1d_bf16_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_batched_bf16_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -880,8 +883,8 @@ pub unsafe fn conv1d_batched_bf16_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_im2col_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -913,8 +916,8 @@ pub unsafe fn conv1d_im2col_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_batched_im2col_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -950,8 +953,8 @@ pub unsafe fn conv1d_batched_im2col_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_bias_activation_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1013,8 +1016,8 @@ pub unsafe fn conv1d_bias_activation_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_causal_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1051,8 +1054,8 @@ pub unsafe fn conv1d_causal_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_causal_bias_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1082,8 +1085,8 @@ pub unsafe fn conv1d_causal_bias_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_causal_bias_activation_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1145,8 +1148,8 @@ pub unsafe fn conv1d_causal_bias_activation_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_causal_bias_gelu_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1176,8 +1179,8 @@ pub unsafe fn conv1d_causal_bias_gelu_f32(
 ///
 /// Inputs must be valid when read in the stream's context and disjoint from writable ranges.
 /// Order preceding producers before every read, including graph replay.
-/// Retain all ranges and exclusive writable access until completion on every path
-/// and throughout graph replay. Order prior accesses before the launch.
+/// Retain all ranges and exclusive writable access until completion on every path and throughout graph replay.
+/// Order prior accesses before the launch.
 pub unsafe fn conv1d_causal_bias_gelu_f32_window(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -1228,6 +1231,7 @@ fn validate_batched_conv1d_config(config: BatchedConv1dConfig) -> Result<()> {
     if config.batch == 0 || config.input_batch_stride == 0 || config.output_batch_stride == 0 {
         return Err(Error::InvalidLength);
     }
+
     validate_conv1d_shape(
         config.channels_in,
         config.channels_out,
@@ -1273,6 +1277,7 @@ fn validate_conv2d_config(config: Conv2dConfig) -> Result<()> {
     {
         return Err(Error::InvalidLength);
     }
+
     let input_item_len = checked_element_count(
         checked_element_count(config.channels_in, config.input_h)?,
         config.input_w,
@@ -1291,6 +1296,7 @@ fn validate_conv1d_im2col_config(config: Conv1dIm2colConfig) -> Result<()> {
     if config.batch == 0 || config.input_batch_stride == 0 {
         return Err(Error::InvalidLength);
     }
+
     validate_conv1d_shape(
         config.channels_in,
         config.channels_in,
@@ -1323,6 +1329,7 @@ fn validate_causal_conv1d_window_config(config: CausalConv1dWindowConfig) -> Res
     if config.output_length == 0 {
         return Err(Error::InvalidLength);
     }
+
     validate_conv1d_shape(
         config.channels_in,
         config.channels_out,
@@ -1356,6 +1363,7 @@ fn validate_causal_conv1d_update_silu(
     if batch == 0 || channels == 0 || kernel_size == 0 {
         return Err(Error::InvalidLength);
     }
+
     let token_len = checked_element_count(batch, channels)?;
     let state_len = checked_element_count(token_len, kernel_size)?;
     let weight_len_expected = checked_element_count(channels, kernel_size)?;
@@ -1381,6 +1389,7 @@ fn validate_causal_conv1d_prefill_silu(
     if batch == 0 || channels == 0 || kernel_size == 0 || input_length == 0 || output_length == 0 {
         return Err(Error::InvalidLength);
     }
+
     let batch_channels = checked_element_count(batch, channels)?;
     ensure_len(
         input_len,
@@ -1417,9 +1426,11 @@ fn validate_conv1d_shape(
     {
         return Err(Error::InvalidLength);
     }
+
     if !channels_in.is_multiple_of(groups) || !channels_out.is_multiple_of(groups) {
         return Err(Error::InvalidLength);
     }
+
     effective_kernel_size(kernel_size, dilation)?;
     Ok(())
 }

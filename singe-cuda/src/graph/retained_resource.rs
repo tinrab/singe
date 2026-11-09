@@ -6,7 +6,7 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
     ptr,
     sync::{
-        Arc, Mutex, OnceLock, PoisonError,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -18,6 +18,7 @@ use crate::{
     graph::Graph,
     stream::{StreamBinding, StreamCaptureStatus},
     try_ffi,
+    utility::lock_for_cleanup,
 };
 
 type ErasedOwner = Arc<dyn Any + Send + Sync>;
@@ -41,7 +42,8 @@ impl<T: Any + Send + Sync> GraphRetainedResource<T> {
 
     /// Retains this resource in the graph through a native CUDA user object.
     ///
-    /// Native graph clones and executable snapshots keep independent references. Final resource destruction is deferred until [`collect_graph_resources`] runs outside capture.
+    /// Native graph clones and executable snapshots keep independent references.
+    /// Final resource destruction is deferred until [`collect_graph_resources`] runs outside capture.
     ///
     /// # Errors
     ///
@@ -55,7 +57,8 @@ impl<T: Any + Send + Sync> GraphRetainedResource<T> {
     ///
     /// # Errors
     ///
-    /// Propagates context binding, capture-query, resource-retention, and deferred collection errors. Implicit capture on the legacy stream and invalidated capture are left unchanged and return success without collecting resources.
+    /// Propagates context binding, capture-query, resource-retention, and deferred collection errors.
+    /// Implicit capture on the legacy stream and invalidated capture are left unchanged and return success without collecting resources.
     pub fn retain_on_capturing_stream(&self, stream: &StreamBinding) -> Result<()> {
         stream.context().bind()?;
         let mut status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
@@ -80,6 +83,7 @@ impl<T: Any + Send + Sync> GraphRetainedResource<T> {
             }
             return Ok(());
         }
+
         try_ffi!(result)?;
         match status {
             runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_ACTIVE => {
@@ -172,8 +176,10 @@ impl Drop for UserObject {
     fn drop(&mut self) {
         // SAFETY: release only this owner's reference; captured graphs and launches retain their own references.
         if let Err(error) = unsafe { try_ffi!(runtime::cudaUserObjectRelease(self.0, 1)) } {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to release cuda graph user object: {error}");
+            eprintln!(
+                "failed to release cuda graph user object: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }
@@ -193,28 +199,28 @@ unsafe extern "C" fn defer_resource_release(payload: *mut c_void) {
     // SAFETY: successful user-object creation passes exactly one Box<ErasedOwner> to this callback.
     let owner = unsafe { *Box::from_raw(payload.cast::<ErasedOwner>()) };
     let deferred = deferred_resources();
-    let mut owners = deferred
-        .owners
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
+    let mut owners = lock_for_cleanup(&deferred.owners);
     owners.push(owner);
     drop(owners);
     deferred.pending.store(true, Ordering::Release);
 }
 
 /// Releases graph resources whose native graph and launch references have ended.
-/// Active or implicit capture leaves them queued. Destruction uses relaxed thread capture mode
-/// so it cannot invalidate an unrelated global capture. Only resources already returned by CUDA's asynchronous
-/// destruction callbacks are collected; callers may collect again after graph destruction when no later execution is planned.
+/// Active or implicit capture leaves them queued.
+/// Destruction uses relaxed thread capture mode so it cannot invalidate an unrelated global capture.
+/// Only resources already returned by CUDA's asynchronous destruction callbacks are collected; callers may collect again after graph destruction when no later execution is planned.
 ///
 /// # Errors
 ///
-/// Returns an error if capture status cannot be queried, the thread capture mode cannot be exchanged, or the original stream context cannot be rebound after destruction. Returns `Error::ResourceDestructionPanicked` if any resource destructor panics and rebinding succeeds. Resources queued during active, invalidated, or implicit capture remain deferred without an error.
+/// Returns an error if capture status cannot be queried, the thread capture mode cannot be exchanged, or the original stream context cannot be rebound after destruction.
+/// Returns `Error::ResourceDestructionPanicked` if any resource destructor panics and rebinding succeeds.
+/// Resources queued during active, invalidated, or implicit capture remain deferred without an error.
 pub fn collect_graph_resources(stream: &StreamBinding) -> Result<()> {
     let deferred = deferred_resources();
     if !deferred.pending.load(Ordering::Acquire) {
         return Ok(());
     }
+
     match stream.capture_status() {
         Ok(StreamCaptureStatus::None) => {}
         Err(Error::Cuda {
@@ -230,17 +236,16 @@ pub fn collect_graph_resources(stream: &StreamBinding) -> Result<()> {
         Ok(_) => return Ok(()),
         Err(error) => return Err(error),
     }
+
     let mut mode = runtime::cudaStreamCaptureMode::CU_STREAM_CAPTURE_MODE_RELAXED;
     // SAFETY: this thread temporarily permits native destruction of resources no recorded graph can still use.
     unsafe {
         try_ffi!(runtime::cudaThreadExchangeStreamCaptureMode(&raw mut mode))?;
     }
+
     let _restore = CaptureModeRestore(mode);
     let owners = {
-        let mut owners = deferred
-            .owners
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut owners = lock_for_cleanup(&deferred.owners);
         deferred.pending.store(false, Ordering::Release);
         take(&mut *owners)
     };
@@ -248,6 +253,7 @@ pub fn collect_graph_resources(stream: &StreamBinding) -> Result<()> {
     for owner in owners {
         panicked |= catch_unwind(AssertUnwindSafe(|| drop(owner))).is_err();
     }
+
     // A resource destructor may bind a different CUDA context.
     stream.context().bind()?;
     if panicked {
@@ -271,8 +277,10 @@ impl Drop for CaptureModeRestore {
         if let Err(error) =
             unsafe { try_ffi!(runtime::cudaThreadExchangeStreamCaptureMode(&raw mut mode)) }
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to restore cuda thread capture mode: {error}");
+            eprintln!(
+                "failed to restore cuda thread capture mode: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
     }
 }

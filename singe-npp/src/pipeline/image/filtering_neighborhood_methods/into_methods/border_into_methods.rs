@@ -18,19 +18,16 @@ where
     /// Writes into the supplied `destination` without allocating output image storage.
     /// The destination-sized ROI starts at `source_offset` within the full source image.
     /// Border handling uses `border_type`.
-    /// AC4 destination alpha retains its previous initialization state; completion does not
-    /// initialize that channel.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// AC4 destination alpha retains its previous initialization state; completion does not initialize that channel.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Mask dimensions must be positive and `anchor` must lie inside the mask.
     /// Native scratch-size queries and temporary scratch allocation can also fail.
-    /// The source offset must be valid, ROI endpoints must not overflow, and the destination-sized
-    /// ROI must fit within the full source image.
+    /// The source offset must be valid, ROI endpoints must not overflow, and the destination-sized ROI must fit within the full source image.
     pub fn filter_median_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -62,18 +59,15 @@ where
     /// Writes into the supplied `destination` without allocating output image storage.
     /// The destination-sized ROI starts at `source_offset` within the full source image.
     /// Border handling uses `border_type`.
-    /// AC4 destination alpha retains its previous initialization state; completion does not
-    /// initialize that channel.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// AC4 destination alpha retains its previous initialization state; completion does not initialize that channel.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Mask dimensions must be positive and `anchor` must lie inside the mask.
-    /// The source offset must be valid, ROI endpoints must not overflow, and the destination-sized
-    /// ROI must fit within the full source image.
+    /// The source offset must be valid, ROI endpoints must not overflow, and the destination-sized ROI must fit within the full source image.
     pub fn filter_box_border_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

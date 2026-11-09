@@ -96,6 +96,10 @@ impl Status {
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Error {
+    // NVML would not load.
+    #[error(transparent)]
+    Load(#[from] sys::LoadError),
+
     /// NVML returned a non-success status.
     #[error("nvml error ({code}): {message}")]
     Nvml {

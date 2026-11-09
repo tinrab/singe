@@ -18,7 +18,7 @@ use crate::{
         cutile::{
             DeviceOpExt, TileKernel,
             adapter::TensorAdapter,
-            kernel::common as kernel_common,
+            kernel::vector as vector_kernels,
             utility::{VectorLaunch, checked_device_pointer},
         },
     },
@@ -47,10 +47,12 @@ impl SoftmaxWide {
         if cols == 0 {
             return Err(Error::InvalidLength);
         }
+
         let len = checked_element_count(rows, cols)?;
         if len == 0 {
             return Ok(None);
         }
+
         let chunks = cols.div_ceil(SOFTMAX_WIDE_TILE_WIDTH);
         if chunks > SOFTMAX_WIDE_MAX_CHUNKS {
             return Err(Error::UnsupportedWidth {
@@ -58,6 +60,7 @@ impl SoftmaxWide {
                 width: cols,
             });
         }
+
         let rows_u32 = u32::try_from(rows).map_err(|_| Error::SizeOverflow)?;
         let chunks_u32 = u32::try_from(chunks).map_err(|_| Error::SizeOverflow)?;
         Ok(Some(Self {
@@ -95,9 +98,11 @@ fn softmax_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -455,30 +460,30 @@ macro_rules! softmax_wide_fn {
             checked_device_pointer(&row_sum)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$partial_max(partial, input, params.cols, params.chunks) }
+            unsafe { vector_kernels::$partial_max(partial, input, params.cols, params.chunks) }
                 .grid(params.chunk_grid)
                 .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$reduce_max(row_max, partial, params.chunks) }
+            unsafe { vector_kernels::$reduce_max(row_max, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$partial_sum(partial, input, row_max, params.cols, params.chunks)
+                vector_kernels::$partial_sum(partial, input, row_max, params.cols, params.chunks)
             }
             .grid(params.chunk_grid)
             .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$reduce_sum(row_sum, partial, params.chunks) }
+            unsafe { vector_kernels::$reduce_sum(row_sum, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$normalize(out, input, row_max, row_sum, params.cols, params.len)
+                vector_kernels::$normalize(out, input, row_max, row_sum, params.cols, params.len)
             }
             .grid(params.len_grid)
             .enqueue_on(stream)?;
@@ -522,29 +527,29 @@ macro_rules! softmax_lse_wide_fn {
             checked_device_pointer(&row_sum)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$partial_max(partial, input, params.cols, params.chunks) }
+            unsafe { vector_kernels::$partial_max(partial, input, params.cols, params.chunks) }
                 .grid(params.chunk_grid)
                 .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$reduce_max(row_max, partial, params.chunks) }
+            unsafe { vector_kernels::$reduce_max(row_max, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
-                kernel_common::$partial_sum(partial, input, row_max, params.cols, params.chunks)
+                vector_kernels::$partial_sum(partial, input, row_max, params.cols, params.chunks)
             }
             .grid(params.chunk_grid)
             .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$reduce_sum(row_sum, partial, params.chunks) }
+            unsafe { vector_kernels::$reduce_sum(row_sum, partial, params.chunks) }
                 .grid(params.row_grid)
                 .enqueue_on(stream)?;
 
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$finalize(out, row_max, row_sum, params.rows) }
+            unsafe { vector_kernels::$finalize(out, row_max, row_sum, params.rows) }
                 .grid(params.row_vector_grid)
                 .enqueue_on(stream)?;
             Ok::<(), $crate::error::Error>(())

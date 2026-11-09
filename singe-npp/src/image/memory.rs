@@ -28,12 +28,10 @@ use crate::{
 
 /// RAII owner for pitched image memory allocated by NPP.
 ///
-/// The shared [`Allocation`] retains the actual CUDA context, allocation identity,
-/// and full pitched capacity. The last allocation owner releases the native base
-/// with [`sys::nppiFree`].
+/// The shared [`Allocation`] retains the actual CUDA context, allocation identity, and full pitched capacity.
+/// The last allocation owner releases the native base with [`sys::nppiFree`].
 /// The raw pointer must not be freed by callers.
-/// `step` is the NPP row pitch in bytes and can be larger than the logical ROI
-/// row size.
+/// `step` is the NPP row pitch in bytes and can be larger than the logical ROI row size.
 #[derive(Debug)]
 pub struct Image<T, L = C1> {
     allocation: Arc<Allocation>,
@@ -153,15 +151,13 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the raw allocation metadata is invalid, its allocator family is not
-    /// `Image`, or its dimensions, byte pitch, alignment, or capacity cannot form a valid image.
+    /// Returns an error if the raw allocation metadata is invalid, its allocator family is not `Image`, or its dimensions, byte pitch, alignment, or capacity cannot form a valid image.
     ///
     /// # Safety
     ///
-    /// The allocation must satisfy [`Allocation::from_raw`] and contain valid `T` values in every
-    /// logical pixel channel, including alpha for AC4. Padding need not be initialized. Preserve
-    /// allocation identity and context, retain owners through queued access and replay, and
-    /// order producing work before consumers and readback.
+    /// The allocation must satisfy [`Allocation::from_raw`] and contain valid `T` values in every logical pixel channel, including alpha for AC4.
+    /// Padding need not be initialized.
+    /// Preserve allocation identity and context, retain owners through queued access and replay, and order producing work before consumers and readback.
     pub unsafe fn from_raw(parts: RawAllocation, size: Size, step: i32) -> Result<Self>
     where
         T: DeviceRepr,
@@ -172,6 +168,7 @@ where
         if allocation.kind() != AllocationKind::Image {
             return Err(Error::out_of_range("native image allocation kind"));
         }
+
         // SAFETY: the caller upholds this function's safety contract.
         let _ = unsafe { ImageView::<T, L>::from_raw_parts(allocation.region(), size, step)? };
         Ok(Self {
@@ -186,8 +183,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if stored dimensions, byte stride, element alignment, or allocation
-    /// bounds cannot form a valid output view.
+    /// Returns an error if stored dimensions, byte stride, element alignment, or allocation bounds cannot form a valid output view.
     pub fn output_view(&mut self) -> Result<ImageOutputView<'_, T, L>> {
         // SAFETY: exclusive ownership grants writable pixel storage.
         unsafe { ImageOutputView::from_raw_parts(self.region(), self.size, self.step) }
@@ -198,9 +194,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error during stream capture, if allocation or view construction fails,
-    /// if context binding, region preparation, or producer waits fail, or if the native fill
-    /// or stream synchronization fails.
+    /// Returns an error during stream capture, if allocation or view construction fails, if context binding, region preparation, or producer waits fail, or if the native fill or stream synchronization fails.
     pub fn filled(
         stream_context: &StreamContext,
         size: Size,
@@ -228,9 +222,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if dimensions are nonpositive, CUDA context binding fails, the native
-    /// allocator returns null, allocation-size arithmetic overflows, or the returned byte pitch
-    /// and allocation bounds cannot form a valid image.
+    /// Returns an error if dimensions are nonpositive, CUDA context binding fails, the native allocator returns null, allocation-size arithmetic overflows, or the returned byte pitch and allocation bounds cannot form a valid image.
     pub fn create_uninit(context: &Arc<CudaContext>, size: Size) -> Result<Image<MaybeUninit<T>, L>>
     where
         T: SupportedImage<L>,
@@ -249,9 +241,8 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error unless `pixels` has exactly width times height times physical channel
-    /// count elements. Dimension or size arithmetic, device allocation, output-view construction,
-    /// row slicing, host-access coordination, or row upload can also fail.
+    /// Returns an error unless `pixels` has exactly width times height times physical channel count elements.
+    /// Dimension or size arithmetic, device allocation, output-view construction, row slicing, host-access coordination, or row upload can also fail.
     pub fn from_slice(context: &Arc<CudaContext>, size: Size, pixels: &[T]) -> Result<Self>
     where
         T: SupportedImage<L>,
@@ -264,6 +255,7 @@ where
                 actual: pixels.len(),
             });
         }
+
         let mut image = Self::create_uninit(context, size)?;
         let row_len = expected / size.height as usize;
         {
@@ -280,8 +272,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if allocating the destination or constructing its output view fails,
-    /// or if the completed image copy or its host-access coordination fails.
+    /// Returns an error if allocating the destination or constructing its output view fails, or if the completed image copy or its host-access coordination fails.
     pub fn from_view(source: &ImageView<'_, T, L>) -> Result<Self>
     where
         T: SupportedImage<L>,
@@ -297,8 +288,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if compact sample-count arithmetic, destination allocation, view or
-    /// row construction, host-access coordination, or a device copy fails.
+    /// Returns an error if compact sample-count arithmetic, destination allocation, view or row construction, host-access coordination, or a device copy fails.
     pub fn copy_to_device_memory(&self) -> Result<DeviceMemory<T>>
     where
         T: DeviceRepr,
@@ -314,8 +304,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if compact sample-count arithmetic, image-view or row construction,
-    /// host-access coordination, or downloading any row fails.
+    /// Returns an error if compact sample-count arithmetic, image-view or row construction, host-access coordination, or downloading any row fails.
     pub fn copy_to_host_vec(&self) -> Result<Vec<T>>
     where
         T: AnyBitPatternDeviceRepr,
@@ -337,9 +326,8 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error unless the destination has the same CUDA context and exactly width
-    /// times height times physical channel count elements. Size arithmetic, view construction,
-    /// row slicing, host-access coordination, and device copies can also fail.
+    /// Returns an error unless the destination has the same CUDA context and exactly width times height times physical channel count elements.
+    /// Size arithmetic, view construction, row slicing, host-access coordination, and device copies can also fail.
     pub fn copy_into_device_memory(
         &self,
         destination: &mut (impl DeviceOutput<T> + ?Sized),
@@ -350,6 +338,7 @@ where
         if destination.context() != self.context() {
             return Err(Error::StreamContextMismatch);
         }
+
         let len = checked_len(self.size, L::CHANNELS)?;
         if destination.len() != len {
             return Err(Error::LengthMismatch {
@@ -358,6 +347,7 @@ where
                 actual: destination.len(),
             });
         }
+
         let image = self.view()?;
         let mut output = DeviceOutputView::from_output(destination);
         let row_len = self.size.width as usize * L::CHANNELS;
@@ -391,8 +381,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the stored size or pitch is not valid for an NPP image
-    /// view.
+    /// Returns an error if the stored size or pitch is not valid for an NPP image view.
     pub fn view(&self) -> Result<ImageView<'_, T, L>> {
         // SAFETY: the image owns this region and was allocated with this size and step.
         unsafe { ImageView::from_raw_parts(self.region(), self.size, self.step) }
@@ -402,8 +391,7 @@ where
     ///
     /// # Errors
     ///
-    /// Returns an error if the stored size or pitch is not valid for an NPP image
-    /// view.
+    /// Returns an error if the stored size or pitch is not valid for an NPP image view.
     pub fn view_mut(&mut self) -> Result<ImageViewMut<'_, T, L>> {
         // SAFETY: the image owns this region and was allocated with this size and step.
         unsafe { ImageViewMut::from_raw_parts(self.region(), self.size, self.step) }
@@ -411,8 +399,7 @@ where
 
     /// Returns the raw device pointer owned by this allocation.
     ///
-    /// The pointer remains owned by `self` and is freed with `nppiFree` when the
-    /// last allocation owner is dropped.
+    /// The pointer remains owned by `self` and is freed with `nppiFree` when the last allocation owner is dropped.
     #[must_use]
     pub fn as_ptr(&self) -> *const T {
         self.allocation.as_ptr().cast()
@@ -420,8 +407,7 @@ where
 
     /// Returns the mutable raw device pointer owned by this allocation.
     ///
-    /// The pointer remains owned by `self` and is freed with `nppiFree` when the
-    /// last allocation owner is dropped.
+    /// The pointer remains owned by `self` and is freed with `nppiFree` when the last allocation owner is dropped.
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.allocation.as_ptr().cast()
     }
@@ -497,9 +483,7 @@ impl_image_create!(AC4, [
 ///
 /// # Errors
 ///
-/// Returns an error if dimensions are nonpositive, CUDA context binding fails, the native
-/// allocator returns null, allocation-size arithmetic overflows, or the returned byte pitch
-/// and allocation bounds cannot form a valid image.
+/// Returns an error if dimensions are nonpositive, CUDA context binding fails, the native allocator returns null, allocation-size arithmetic overflows, or the returned byte pitch and allocation bounds cannot form a valid image.
 pub fn create_uninit<T, L>(
     allocation_context: &Arc<CudaContext>,
     size: Size,
@@ -530,8 +514,7 @@ impl<T, L: ChannelLayout> Image<MaybeUninit<T>, L> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the stored dimensions, byte stride, element alignment, or allocation
-    /// bounds cannot form a valid output view.
+    /// Returns an error if the stored dimensions, byte stride, element alignment, or allocation bounds cannot form a valid output view.
     pub fn output(&mut self) -> Result<ImageOutputView<'_, T, L>> {
         // SAFETY: MaybeUninit<T> has T's layout and the owner is exclusively borrowed.
         unsafe { ImageOutputView::from_raw_parts(self.region(), self.size, self.step) }
@@ -540,8 +523,7 @@ impl<T, L: ChannelLayout> Image<MaybeUninit<T>, L> {
     /// Promotes completed logical pixels without promoting pitch padding.
     ///
     /// # Safety
-    /// Every logical pixel channel must contain a valid T, including alpha for
-    /// AC4, and production must be ordered before every consumer and readback.
+    /// Every logical pixel channel must contain a valid T, including alpha for AC4, and production must be ordered before every consumer and readback.
     /// Native submission success alone does not establish completed initialization.
     #[must_use]
     pub unsafe fn assume_init(self) -> Image<T, L> {

@@ -49,7 +49,9 @@ impl Assembler {
     ///
     /// # Errors
     ///
-    /// Returns an I/O error if the assembler process cannot be started or its output cannot be collected. Returns `Error::Compiler` with the process's stderr if the command exits unsuccessfully. Successful stdout is decoded with invalid UTF-8 replaced.
+    /// Returns an I/O error if the assembler process cannot be started or its output cannot be collected.
+    /// Returns `Error::Compiler` with the process's stderr if the command exits unsuccessfully.
+    /// Successful stdout is decoded with invalid UTF-8 replaced.
     pub fn supported_versions(&self) -> Result<String> {
         let output = Command::new(&self.executable)
             .arg("--list-versions")
@@ -66,11 +68,14 @@ impl Assembler {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for a virtual architecture. Also propagates errors from creating temporary storage, writing the input, running [`Self::assemble_file`], or reading the output binary. Temporary files are removed on drop when possible.
+    /// Returns `Error::InvalidValue` for a virtual architecture.
+    /// Also propagates errors from creating temporary storage, writing the input, running [`Self::assemble_file`], or reading the output binary.
+    /// Temporary files are removed on drop when possible.
     pub fn assemble(&self, bytecode: &[u8]) -> Result<ModuleImage<'static>> {
         if self.architecture.is_virtual() {
             return Err(Error::InvalidValue);
         }
+
         let directory = WorkDirectory::create()?;
         let input = directory.0.join("input.tileir");
         let output = directory.0.join("output.cubin");
@@ -83,11 +88,13 @@ impl Assembler {
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for a virtual architecture. Returns an I/O error if the assembler cannot be started or its output collected, or `Error::Compiler` containing stderr if it exits unsuccessfully, including when it rejects the input or cannot write `output`.
+    /// Returns `Error::InvalidValue` for a virtual architecture.
+    /// Returns an I/O error if the assembler cannot be started or its output collected, or `Error::Compiler` containing stderr if it exits unsuccessfully, including when it rejects the input or cannot write `output`.
     pub fn assemble_file(&self, input: &Path, output: &Path) -> Result<()> {
         if self.architecture.is_virtual() {
             return Err(Error::InvalidValue);
         }
+
         let mut command = Command::new(&self.executable);
         command
             .arg(format!("--gpu-name={}", self.architecture))
@@ -97,6 +104,7 @@ impl Assembler {
         if self.line_info {
             command.arg("--lineinfo");
         }
+
         let result = command.output()?;
         if result.status.success() {
             Ok(())

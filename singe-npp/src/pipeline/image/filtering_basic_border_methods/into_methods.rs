@@ -14,20 +14,18 @@ where
 {
     /// Applies the native high-pass filter with source border control.
     ///
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// Forwards `mask_size` and `border_type` to NPP, which may reject unsupported values.
     /// For AC4, writes the three color channels and leaves destination alpha untouched.
     /// Row padding remains unwritten.
-    /// Prepares image regions and waits for producers on other streams. Rejects stream
-    /// capture and returns after successful stream completion.
+    /// Prepares image regions and waits for producers on other streams.
+    /// Rejects stream capture and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source offset must address a source pixel; destination-sized ROI endpoints must
-    /// not overflow or exceed the source image.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must address a source pixel; destination-sized ROI endpoints must not overflow or exceed the source image.
     pub fn filter_high_pass_border_partial_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -48,20 +46,18 @@ where
 
     /// Applies the native low-pass filter with source border control.
     ///
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// Forwards `mask_size` and `border_type` to NPP, which may reject unsupported values.
     /// For AC4, writes the three color channels and leaves destination alpha untouched.
     /// Row padding remains unwritten.
-    /// Prepares image regions and waits for producers on other streams. Rejects stream
-    /// capture and returns after successful stream completion.
+    /// Prepares image regions and waits for producers on other streams.
+    /// Rejects stream capture and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source offset must address a source pixel; destination-sized ROI endpoints must
-    /// not overflow or exceed the source image.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must address a source pixel; destination-sized ROI endpoints must not overflow or exceed the source image.
     pub fn filter_low_pass_border_partial_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -82,20 +78,18 @@ where
 
     /// Applies the native Gaussian filter with source border control.
     ///
-    /// `source_offset` locates the output ROI in the full source image. The destination
-    /// dimensions select its extent.
+    /// `source_offset` locates the output ROI in the full source image.
+    /// The destination dimensions select its extent.
     /// Forwards `mask_size` and `border_type` to NPP, which may reject unsupported values.
     /// For AC4, writes the three color channels and leaves destination alpha untouched.
     /// Row padding remains unwritten.
-    /// Prepares image regions and waits for producers on other streams. Rejects stream
-    /// capture and returns after successful stream completion.
+    /// Prepares image regions and waits for producers on other streams.
+    /// Rejects stream capture and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or stream synchronization fail.
-    /// The source offset must address a source pixel; destination-sized ROI endpoints must
-    /// not overflow or exceed the source image.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must address a source pixel; destination-sized ROI endpoints must not overflow or exceed the source image.
     pub fn filter_gauss_border_partial_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

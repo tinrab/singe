@@ -21,16 +21,14 @@ where
     /// Computes the native mean and standard deviation of one selected channel.
     /// The provided implementation processes C3 with zero-based `channel` in `0..3`.
     /// Each supplied result view must contain exactly one `f64` element.
-    /// Only pixels with nonzero mask values participate. Source and mask pixel dimensions
-    /// must match.
+    /// Only pixels with nonzero mask values participate.
+    /// Source and mask pixel dimensions must match.
     /// Queries and allocates temporary device scratch for the native reduction.
-    /// Prepares participating image and result regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion.
+    /// Prepares participating image and result regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Scratch-size queries and device scratch allocation can also fail.
     /// Each result view must contain exactly one element.
     /// `channel` must be less than three.
@@ -59,16 +57,14 @@ where
     /// Computes the native mean and standard deviation of one selected channel.
     /// The provided implementation processes C3 with zero-based `channel` in `0..3`.
     /// Allocates owned device storage containing one `f64` mean and one `f64` standard deviation.
-    /// Only pixels with nonzero mask values participate. Source and mask pixel dimensions
-    /// must match.
+    /// Only pixels with nonzero mask values participate.
+    /// Source and mask pixel dimensions must match.
     /// Queries and allocates temporary device scratch for the native reduction.
-    /// Prepares participating image and result regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion.
+    /// Prepares participating image and result regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Scratch-size queries and device scratch allocation can also fail.
     /// Result allocation or source view construction can also fail.
     /// `channel` must be less than three.

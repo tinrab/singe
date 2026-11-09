@@ -42,6 +42,7 @@ fn run() -> Result<()> {
             name: "--groups".into(),
         });
     }
+
     let filter_channels = c / groups;
     let example = common::ExampleContext::create()?;
 

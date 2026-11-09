@@ -21,14 +21,12 @@ where
     /// Every destination channel receives the same source sample.
     /// Source and destination pixel dimensions must match.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// Source and destination pixel dimensions must match.
     pub fn duplicate_to_c4_into(
         stream_context: &StreamContext,
@@ -49,14 +47,12 @@ where
     /// Every destination channel receives the same source sample.
     /// Allocates a new source-sized owned image in the destination layout.
     /// The provided implementations retain sample type: `u8`, `u16`, `i16`, `i32`, or `f32`.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
     /// Output allocation or image view construction can also fail.
     pub fn duplicate_to_c4(self) -> Result<ImagePipeline<'a, T, C4>> {
         self.ensure_eager()?;

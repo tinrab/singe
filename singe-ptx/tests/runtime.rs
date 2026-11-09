@@ -1,12 +1,11 @@
+mod support;
+
 use std::{error::Error, result::Result as StdResult};
 
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, KernelArg, LaunchConfig, ParsedModule, ShutdownMode,
     SubmitError,
 };
-
-mod support;
-
 use support::{Observe, block_on};
 
 type Result = StdResult<(), Box<dyn Error>>;

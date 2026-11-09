@@ -105,6 +105,7 @@ impl BuildRequest {
                 metadata,
             });
         }
+
         // Native finalization with a shared cache remains serialized; engine setup runs in parallel.
         let build_result = (|| {
             let cache = lock_kernel_cache(kernel_cache)?;
@@ -184,12 +185,14 @@ pub fn build_execution_plan_entries(
             entry.exclusion = None;
         }
     }
+
     let mut admitted = 0;
     if width == 1 {
         for entry in entries.iter_mut() {
             if entry.exclusion.is_some() {
                 continue;
             }
+
             if !matches!(entry.outcome, PlanBuildOutcome::Built(_)) {
                 build_execution_plan_entry(
                     context,
@@ -201,11 +204,13 @@ pub fn build_execution_plan_entries(
                     config,
                 );
             }
+
             admitted += usize::from(entry.is_available());
             if limit.is_some_and(|limit| admitted >= limit.get()) {
                 break;
             }
         }
+
         exclude_plans_over_limit(entries, limit);
         return;
     }
@@ -231,6 +236,7 @@ pub fn build_execution_plan_entries(
                 }
             }
         }
+
         let results = thread::scope(|scope| {
             #[expect(
                 clippy::needless_collect,
@@ -283,11 +289,13 @@ pub fn build_execution_plan_entries(
                 }
             }
         }
+
         admitted += window.iter().filter(|entry| entry.is_available()).count();
         if limit.is_some_and(|limit| admitted >= limit.get()) {
             break;
         }
     }
+
     exclude_plans_over_limit(entries, limit);
 }
 
@@ -311,6 +319,7 @@ pub fn build_execution_plan_entry(
         if request.planning == inherited {
             return Ok(None);
         }
+
         let engine_config = request
             .create_engine_config(context, operation_graph, device_properties)
             .map_err(|error| (PlanFailureStage::Build, error))?;
@@ -330,10 +339,12 @@ pub fn build_execution_plan_entry(
             return;
         }
     }
+
     entry.exclusion = entry.candidate.metadata.exclusion(config);
     if entry.exclusion.is_some() {
         return;
     }
+
     let result = (|| {
         let cache = lock_kernel_cache(kernel_cache)?;
         ExecutionPlan::create_for_target(

@@ -18,7 +18,7 @@ use crate::{
         cutile::{
             DeviceOpExt, TileKernel,
             adapter::TensorAdapter,
-            kernel::common as kernel_common,
+            kernel::vector as vector_kernels,
             utility::{VectorLaunch, checked_device_pointer, vector_tile_size},
         },
     },
@@ -30,9 +30,11 @@ fn vector_compile_options(compile: KernelCompileConfig) -> CompileOptions {
     if let Some(occupancy) = compile.occupancy {
         options = options.occupancy(occupancy);
     }
+
     if let Some(num_cta_in_cga) = compile.num_cta_in_cga {
         options = options.num_cta_in_cga(num_cta_in_cga);
     }
+
     if let Some(max_divisibility) = compile.max_divisibility {
         options = options.max_divisibility(max_divisibility);
     }
@@ -243,7 +245,7 @@ macro_rules! scalar_bool_common_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, scalar, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, scalar, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())
@@ -402,7 +404,7 @@ macro_rules! scalar_common_fn {
             checked_device_pointer(&input)?;
             let launch = VectorLaunch::create(len)?;
             // SAFETY: the caller upholds this function's safety contract.
-            unsafe { kernel_common::$kernel_fn(out, input, scalar, launch.len_i32) }
+            unsafe { vector_kernels::$kernel_fn(out, input, scalar, launch.len_i32) }
                 .grid(launch.grid)
                 .enqueue_on(stream)?;
             Ok(())

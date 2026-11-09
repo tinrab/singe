@@ -6,7 +6,8 @@ use crate::{error::Result, try_ffi};
 
 /// A guard that starts profiler collection and attempts to stop it when dropped.
 ///
-/// Collection is controlled for CUDA's current context. The guard tracks its own stop obligation; it does not isolate profiling from other guards or native profiler calls.
+/// Collection is controlled for CUDA's current context.
+/// The guard tracks its own stop obligation; it does not isolate profiling from other guards or native profiler calls.
 #[derive(Debug)]
 pub struct Profiler {
     active: bool,
@@ -35,7 +36,8 @@ impl Profiler {
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot stop profiler collection. On failure, dropping the consumed guard attempts the stop call again; that cleanup result is discarded.
+    /// Returns an error if CUDA cannot stop profiler collection.
+    /// On failure, dropping the consumed guard attempts the stop call again; that cleanup result is discarded.
     pub fn stop(mut self) -> Result<()> {
         if self.active {
             stop()?;

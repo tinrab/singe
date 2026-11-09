@@ -27,8 +27,8 @@ macro_rules! embedding_lookup_fn {
         ///
         /// Token IDs must select valid table rows with signed 32-bit flattened offsets.
         /// Inputs must be initialized before device reads in the stream's context.
-        /// Keep all allocations live and writable output exclusive until completion
-        /// on every path and throughout replay. Order previous accesses before launch.
+        /// Keep all allocations live and writable output exclusive until completion on every path and throughout replay.
+        /// Order previous accesses before launch.
         pub unsafe fn $name(
             stream: &Arc<Stream>,
             out: DevicePointer<$ty>,

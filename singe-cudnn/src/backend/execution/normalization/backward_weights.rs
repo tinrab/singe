@@ -184,6 +184,7 @@ impl BatchNormalizationBackwardWeightsOperation {
                 return Err(Error::DescriptorAttributeNotFound(attribute));
             }
         }
+
         let mut descriptor =
             BackendDescriptor::create(BackendDescriptorType::OperationBnBwdWeights)?;
         descriptor.set_attribute_enum(
@@ -236,6 +237,7 @@ impl BatchNormalizationBackwardWeightsOperation {
                 descriptor.set_attribute_descriptor(attribute, tensor.descriptor())?;
             }
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

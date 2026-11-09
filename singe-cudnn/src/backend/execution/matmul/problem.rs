@@ -8,14 +8,13 @@ use crate::{
 
 /// Hashable native matmul declaration for execution-plan caching.
 ///
-/// Includes A/B/C and supplied M/N/K override tensor snapshots, compute precision,
-/// optional padding and irregular batch addressing. Padding compares by its exact
-/// double-precision bits, distinguishing omission, signed zero and NaN payloads.
+/// Includes A/B/C and supplied M/N/K override tensor snapshots, compute precision, optional padding and irregular batch addressing.
+/// Padding compares by its exact double-precision bits, distinguishing omission, signed zero and NaN payloads.
 /// Device addresses and runtime scalar values do not participate in equality.
 ///
-/// Scope the cache to a compatible device/context, complete operation graph and
-/// compilation policy. Additional fused operations and runtime shape overrides
-/// require additional key information. The key owns no native descriptors.
+/// Scope the cache to a compatible device/context, complete operation graph and compilation policy.
+/// Additional fused operations and runtime shape overrides require additional key information.
+/// The key owns no native descriptors.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MatmulProblemKey {
     tensors: [TensorProblemKey; 3],

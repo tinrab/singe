@@ -1,9 +1,8 @@
 //! PTX parsing, validation, and a CPU emulator for `sm_80` kernels.
 //!
-//! [`parser::parse_module`] builds an owned [`ast`] that keeps the source byte span of
-//! every node. [`emulator::ParsedModule::compile`] checks that a kernel can execute, and an
-//! [`emulator::Emulator`] runs it. Emulator commands return submissions that can be waited
-//! on or awaited.
+//! [`parser::parse_module`] builds an owned [`ast`] that keeps the source byte span of every node.
+//! [`emulator::ParsedModule::compile`] checks that a kernel can execute, and an [`emulator::Emulator`] runs it.
+//! Emulator commands return submissions that can be waited on or awaited.
 //!
 //! # Example
 //!
@@ -27,9 +26,12 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-/// Owned PTX syntax tree. Every node records its source byte range.
+/// Owned PTX syntax tree.
+/// Every node records its source byte range.
 pub mod ast;
+
 pub mod diagnostic;
 pub mod emulator;
+
 /// PTX parser producing the [`ast`] syntax tree.
 pub mod parser;

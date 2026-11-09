@@ -76,8 +76,8 @@ impl FeatureScalar for f16 {}
 impl FeatureScalar for bf16 {}
 
 /// CSC-format graph with validated device indices.
-/// Remapping arrays identify positions in an edge-feature table when its order differs
-/// from CSC or reversed-CSC order. All index arrays have the same integer type.
+/// Remapping arrays identify positions in an edge-feature table when its order differs from CSC or reversed-CSC order.
+/// All index arrays have the same integer type.
 #[derive(Debug)]
 pub struct CscGraph<I: GraphIndex> {
     offsets: DeviceMemory<I>,
@@ -90,8 +90,8 @@ pub struct CscGraph<I: GraphIndex> {
 }
 
 impl<I: GraphIndex> CscGraph<I> {
-    /// Uploads a CSC graph. Offsets have length `destination_nodes + 1`, start at
-    /// zero, are nondecreasing, and end at the number of indices.
+    /// Uploads a CSC graph.
+    /// Offsets have length `destination_nodes + 1`, start at zero, are nondecreasing, and end at the number of indices.
     ///
     /// # Errors
     ///
@@ -116,6 +116,7 @@ impl<I: GraphIndex> CscGraph<I> {
         {
             return Err(Error::InvalidDataShape);
         }
+
         for mapping in [csc_to_coo, reverse_to_coo].into_iter().flatten() {
             if mapping.len() != indices.len()
                 || mapping.iter().any(|&i| i.into() < 0 || i.into() >= edges)
@@ -123,6 +124,7 @@ impl<I: GraphIndex> CscGraph<I> {
                 return Err(Error::InvalidDataShape);
             }
         }
+
         stream.context().bind()?;
         Ok(Self {
             offsets: DeviceMemory::from_slice(stream.context(), offsets)?,
@@ -161,12 +163,10 @@ impl<I: GraphIndex> CscGraph<I> {
         }
     }
 
-    /// Performs neighborhood aggregation on a CSC-format graph using NVRTC-compiled
-    /// kernels (JIT-compiled on first call per (dataType, idxType), cached thereafter).
+    /// Performs neighborhood aggregation on a CSC-format graph using NVRTC-compiled kernels (JIT-compiled on first call per (dataType, idxType), cached thereafter).
     /// The JIT cache is process-global and thread-safe.
     ///
-    /// For each destination node, aggregates features from its source neighbors
-    /// using the specified operation (sum, mean, max, min).
+    /// For each destination node, aggregates features from its source neighbors using the specified operation (sum, mean, max, min).
     ///
     /// Completes queued work before returning, including failure and unwind.
     /// Only the required output prefix is produced; tails remain unchanged.
@@ -227,10 +227,11 @@ impl<I: GraphIndex> CscGraph<I> {
     /// Enqueues aggregation with caller-owned output and optional max/min positions.
     ///
     /// # Safety
-    /// Retain the graph, feature ranges, output and positions through completion,
-    /// submission failure and replay. Writes must stay exclusive. Order input
-    /// producers before this call; every input must be valid when read. Only the required contiguous prefixes are
-    /// produced; tails remain unchanged. Positions are required only for max/min.
+    /// Retain the graph, feature ranges, output and positions through completion, submission failure and replay.
+    /// Writes must stay exclusive.
+    /// Order input producers before this call; every input must be valid when read.
+    /// Only the required contiguous prefixes are produced; tails remain unchanged.
+    /// Positions are required only for max/min.
     ///
     /// # Errors
     ///
@@ -252,6 +253,7 @@ impl<I: GraphIndex> CscGraph<I> {
         if dims[0] == 0 && dims[1] == 0 {
             return Err(Error::InvalidDataShape);
         }
+
         for (feature, rows) in [
             (node.as_ref(), self.source_nodes),
             (edge.as_ref(), self.indices.len()),
@@ -261,9 +263,11 @@ impl<I: GraphIndex> CscGraph<I> {
                 if feature.width == 0 {
                     return Err(Error::InvalidDataShape);
                 }
+
                 require(&feature.values, rows, feature.width)?;
             }
         }
+
         let width = dims.iter().try_fold(0usize, |a, &b| {
             a.checked_add(b).ok_or(Error::InvalidDataShape)
         })?;
@@ -272,9 +276,11 @@ impl<I: GraphIndex> CscGraph<I> {
         if matches!(op, AggregationOp::Max | AggregationOp::Min) != positions.is_some() {
             return Err(Error::InvalidDataShape);
         }
+
         if let Some(positions) = &positions {
             require(positions, self.destination_nodes, dims[0] + dims[1])?;
         }
+
         let mut regions = vec![output.region()];
         for feature in [node.as_ref(), edge.as_ref(), concat.as_ref()]
             .into_iter()
@@ -282,15 +288,18 @@ impl<I: GraphIndex> CscGraph<I> {
         {
             regions.push(feature.values.region());
         }
+
         if let Some(positions) = &positions {
             regions.push(positions.region());
         }
+
         if regions
             .iter()
             .any(|region| region.context() != self.stream.context())
         {
             return Err(CudaError::MemoryContextMismatch.into());
         }
+
         self.stream.join_regions(&regions)?;
         let raw = self.raw();
         // SAFETY: `cudnnGnnAggSimpleForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
@@ -319,11 +328,10 @@ impl<I: GraphIndex> CscGraph<I> {
     /// `dimensions` contains the node, edge and concat feature widths, in that order.
     ///
     /// # Safety
-    /// Retain the graph, positions, gradient and destinations through completion,
-    /// failure and replay. Positions and dimensions must match the forward call;
-    /// max/min require its valid position prefix. Order all reads and keep writes
-    /// exclusive. Initialize every gradient destination before use, usually to zero:
-    /// this SDK accumulates into concat gradients as well as node and edge gradients.
+    /// Retain the graph, positions, gradient and destinations through completion, failure and replay.
+    /// Positions and dimensions must match the forward call; max/min require its valid position prefix.
+    /// Order all reads and keep writes exclusive.
+    /// Initialize every gradient destination before use, usually to zero: this SDK accumulates into concat gradients as well as node and edge gradients.
     ///
     /// # Errors
     ///
@@ -346,12 +354,15 @@ impl<I: GraphIndex> CscGraph<I> {
         if n == 0 && e == 0 {
             return Err(Error::InvalidDataShape);
         }
+
         if matches!(op, AggregationOp::Max | AggregationOp::Min) != positions.is_some() {
             return Err(Error::InvalidDataShape);
         }
+
         if let Some(positions) = &positions {
             require(positions, self.destination_nodes, n + e)?;
         }
+
         require(gradient, self.destination_nodes, width)?;
         for (buffer, rows, width) in [
             (node.as_ref(), self.source_nodes, n),
@@ -365,6 +376,7 @@ impl<I: GraphIndex> CscGraph<I> {
                 require(buffer, rows, width)?;
             }
         }
+
         let mut regions = vec![gradient.region()];
         for buffer in [node.as_ref(), edge.as_ref(), concat.as_ref()]
             .into_iter()
@@ -372,15 +384,18 @@ impl<I: GraphIndex> CscGraph<I> {
         {
             regions.push(buffer.region());
         }
+
         if let Some(positions) = &positions {
             regions.push(positions.region());
         }
+
         if regions
             .iter()
             .any(|region| region.context() != self.stream.context())
         {
             return Err(CudaError::MemoryContextMismatch.into());
         }
+
         self.stream.join_regions(&regions)?;
         self.stream.context().bind()?;
         let raw = self.raw();
@@ -442,19 +457,17 @@ pub struct Aggregation<'a, I: GraphIndex, T: FeatureScalar> {
 }
 
 impl<I: GraphIndex, T: FeatureScalar> Aggregation<'_, I, T> {
-    /// Computes gradients for [`CscGraph::forward`]. For each destination node, reads
-    /// the upstream gradient and scatters contributions back to source neighbors via
-    /// atomic-add (non-deterministic across runs; order of atomics is not guaranteed).
+    /// Computes gradients for [`CscGraph::forward`].
+    /// For each destination node, reads the upstream gradient and scatters contributions back to source neighbors via atomic-add (non-deterministic across runs; order of atomics is not guaranteed).
     ///
-    /// Requires SM 8.0 (Ampere) or later. Returns `CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH`
-    /// on older devices.
+    /// Requires SM 8.0 (Ampere) or later.
+    /// Returns `CUDNN_STATUS_NOT_SUPPORTED_ARCH_MISMATCH` on older devices.
     ///
     /// # Safety
-    /// Keep the aggregation state, gradient and destination ranges alive through
-    /// completion, submission failure and replay. All gradient destinations must
-    /// be initialized before this call, usually to zero. This SDK accumulates into
-    /// concat gradients as well as node and edge gradients. Order all prior accesses
-    /// and keep writes exclusive.
+    /// Keep the aggregation state, gradient and destination ranges alive through completion, submission failure and replay.
+    /// All gradient destinations must be initialized before this call, usually to zero.
+    /// This SDK accumulates into concat gradients as well as node and edge gradients.
+    /// Order all prior accesses and keep writes exclusive.
     ///
     /// # Errors
     ///

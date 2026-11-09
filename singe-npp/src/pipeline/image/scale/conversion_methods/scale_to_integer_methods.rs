@@ -18,21 +18,17 @@ where
 {
     /// Linearly scales image samples into the destination numeric range.
     ///
-    /// The provided implementations map the full `u8` range `0..=255` onto the full
-    /// numeric range of `i32` output, including the negative half of signed
-    /// destination ranges.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// The provided implementations map the full `u8` range `0..=255` onto the full numeric range of `i32` output, including the negative half of signed destination ranges.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Source and destination pixel dimensions must match.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
     pub fn scale_to_i32_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, u8, L>,
@@ -50,21 +46,17 @@ where
 {
     /// Linearly scales image samples into the destination numeric range.
     ///
-    /// The provided implementations map the full `u8` range `0..=255` onto the full
-    /// numeric range of `i32` output, including the negative half of signed
-    /// destination ranges.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// The provided implementations map the full `u8` range `0..=255` onto the full numeric range of `i32` output, including the negative half of signed destination ranges.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Allocates a new source-sized, owned image with the same channel layout.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
     /// Output allocation or image view construction can also fail.
     pub fn scale_to_i32(self) -> Result<ImagePipeline<'a, i32, L>> {
         self.ensure_eager()?;
@@ -98,20 +90,17 @@ where
 {
     /// Linearly scales image samples into the destination numeric range.
     ///
-    /// The provided implementations map the full `u8` range `0..=255` onto the full
-    /// `u16` range `0..=65535`.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// The provided implementations map the full `u8` range `0..=255` onto the full `u16` range `0..=65535`.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Source and destination pixel dimensions must match.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
     pub fn scale_to_u16_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, u8, L>,
@@ -129,20 +118,17 @@ where
 {
     /// Linearly scales image samples into the destination numeric range.
     ///
-    /// The provided implementations map the full `u8` range `0..=255` onto the full
-    /// `u16` range `0..=65535`.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// The provided implementations map the full `u8` range `0..=255` onto the full `u16` range `0..=65535`.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Allocates a new source-sized, owned image with the same channel layout.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
     /// Output allocation or image view construction can also fail.
     pub fn scale_to_u16(self) -> Result<ImagePipeline<'a, u16, L>> {
         self.ensure_eager()?;

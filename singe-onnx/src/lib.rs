@@ -144,8 +144,7 @@ pub fn read_structure_path(path: impl AsRef<Path>) -> Result<Model> {
 
 /// Decodes and parses ONNX protobuf bytes using the structure-only protobuf view.
 ///
-/// Inline tensor payload fields are omitted from this schema, so `prost` skips
-/// them as unknown protobuf fields instead of allocating weight buffers.
+/// Inline tensor payload fields are omitted from this schema, so `prost` skips them as unknown protobuf fields instead of allocating weight buffers.
 ///
 /// # Errors
 ///
@@ -182,8 +181,7 @@ pub fn read_structure_proto_path(
 
 /// Decodes ONNX protobuf bytes using the structure-only protobuf view.
 ///
-/// Inline tensor payload fields are omitted from this schema, so `prost` skips
-/// them as unknown protobuf fields instead of allocating weight buffers.
+/// Inline tensor payload fields are omitted from this schema, so `prost` skips them as unknown protobuf fields instead of allocating weight buffers.
 ///
 /// # Errors
 ///

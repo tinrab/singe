@@ -68,10 +68,12 @@ mod kernels {
             let weight_shift: Tile<f32, { [BM, BN] }> = broadcast_scalar(offset, shape);
             value = value * (w + weight_shift);
         }
+
         if has_bias != 0 {
             let b: Tile<f32, { [BM, BN] }> = convert_tile(unsafe { load_2d(bias, col, valid_col) });
             value = value + b;
         }
+
         let value: Tile<T, { [BM, BN] }> = convert_tile(value);
         unsafe { store_2d(out, offsets, value, valid) };
     }

@@ -32,6 +32,7 @@ pub fn c2c(input: &[Complex32], batch: usize, n: usize, direction: FftDirection)
                 real += value.im.mul_add(-angle.sin(), value.re * angle.cos());
                 imag += value.im.mul_add(angle.cos(), value.re * angle.sin());
             }
+
             output[base + frequency] = Complex32::new(real, imag);
         }
     }
@@ -58,6 +59,7 @@ pub fn r2c(input: &[f32], batch: usize, n: usize) -> Vec<Complex32> {
                 real = value.mul_add(angle.cos(), real);
                 imag = value.mul_add(angle.sin(), imag);
             }
+
             output[output_base + frequency] = Complex32::new(real, imag);
         }
     }
@@ -84,6 +86,7 @@ pub fn c2r_unscaled(input: &[Complex32], batch: usize, n: usize) -> Vec<f32> {
                 let angle = 2.0 * PI * frequency as f32 * sample as f32 / n as f32;
                 value = 2.0f32.mul_add(bin.im.mul_add(-angle.sin(), bin.re * angle.cos()), value);
             }
+
             output[output_base + sample] = value;
         }
     }
@@ -111,6 +114,7 @@ pub fn dft_c2c_f32_interleaved(input: &[f32], batch: usize, n: usize) -> Vec<f32
                 real += input_imag.mul_add(-twiddle_imag, input_real * twiddle_real);
                 imag += input_imag.mul_add(twiddle_real, input_real * twiddle_imag);
             }
+
             let output_offset = (batch_index * n + k) * 2;
             output[output_offset] = real;
             output[output_offset + 1] = imag;

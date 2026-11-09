@@ -25,8 +25,7 @@ use crate::{
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive, Serialize, Deserialize,
 )]
-/// Mathematical mode that converts batch normalization statistics and trained scale/bias
-/// into equivalent scale/bias for the next normalization stage.
+/// Mathematical mode that converts batch normalization statistics and trained scale/bias into equivalent scale/bias for the next normalization stage.
 #[repr(u32)]
 #[non_exhaustive]
 pub enum BatchNormalizationFinalizeStatsMode {
@@ -356,6 +355,7 @@ impl BatchNormalizationFinalizeStatsOperation {
                 descriptor.set_attribute_descriptor(attribute, tensor.descriptor())?;
             }
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

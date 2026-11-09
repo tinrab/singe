@@ -6,8 +6,7 @@ use singe_cuda::{
 /// A supported solver matrix element with its corresponding real and complex result types.
 ///
 /// Implementations cover f32, f64, Complex32, and Complex64.
-/// Associated types prevent unsupported precision combinations in matrix,
-/// vector, and scalar results.
+/// Associated types prevent unsupported precision combinations in matrix, vector, and scalar results.
 pub trait SolverElement: DataTypeLike + private::Sealed {
     /// Real result precision corresponding to this matrix element type.
     type Real: SolverReal;

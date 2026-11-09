@@ -8,7 +8,6 @@
     unnecessary_transmutes,
     unused_imports,
     unused_qualifications,
-    clippy::all,
     clippy::correctness,
     clippy::suspicious,
     clippy::complexity,
@@ -24,6 +23,22 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 
 #[cfg(feature = "cupti_13_4")]
 include!("cupti_sys_130401.rs");
+
+pub use singe_loader::LoadError;
+
+static LIBRARY: singe_loader::Library = singe_loader::Library::cupti();
+
+// Loads CUPTI, which each of its functions otherwise does on first call.
+pub fn load() -> Result<(), LoadError> {
+    LIBRARY.load()
+}
+
+#[cfg(feature = "cupti_13_4")]
+singe_loader::missing_status!(
+    CUptiResult,
+    library: CUptiResult::CUPTI_ERROR_NOT_INITIALIZED,
+    symbol: CUptiResult::CUPTI_ERROR_API_NOT_IMPLEMENTED,
+);
 
 #[cfg(test)]
 mod tests {

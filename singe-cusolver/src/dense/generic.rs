@@ -60,13 +60,11 @@ pub fn xpotrf_buffer_size<TA: DataTypeLike>(
     ))
 }
 
-/// Use [`xpotrf_buffer_size`] to calculate the sizes needed for pre-allocated
-/// workspace.
+/// Use [`xpotrf_buffer_size`] to calculate the sizes needed for pre-allocated workspace.
 ///
 /// Computes the Cholesky factorization of a Hermitian positive-definite matrix.
 ///
-/// `A` is an $n \times n$ Hermitian matrix; only its lower or upper triangular
-/// part is meaningful.
+/// `A` is an $n \times n$ Hermitian matrix; only its lower or upper triangular part is meaningful.
 /// `fill_mode` indicates which part of the matrix is used.
 /// The operation leaves the other part untouched.
 ///
@@ -75,12 +73,9 @@ pub fn xpotrf_buffer_size<TA: DataTypeLike>(
 /// If `fill_mode` is [`FillMode::Upper`], only the upper triangular part of `A` is processed and replaced by the upper triangular Cholesky factor `U`.
 ///
 /// Provide device and host workspace through `workspace`.
-/// Use [`xpotrf_buffer_size`] to determine the required sizes for
-/// `workspace.device` and `workspace.host`.
+/// Use [`xpotrf_buffer_size`] to determine the required sizes for `workspace.device` and `workspace.host`.
 ///
-/// If Cholesky factorization fails, some leading minor of `A` is not positive
-/// definite, or equivalently some diagonal element of `L` or `U` is not a real
-/// number.
+/// If Cholesky factorization fails, some leading minor of `A` is not positive definite, or equivalently some diagonal element of `L` or `U` is not a real number.
 /// `dev_info` reports the smallest leading minor of `A` that is not positive definite.
 ///
 /// If the reported `info` value is `-i`, the `i`th parameter is invalid.
@@ -95,9 +90,7 @@ pub fn xpotrf_buffer_size<TA: DataTypeLike>(
 ///
 /// List of input arguments for [`xpotrf_buffer_size`] and [`xpotrf`]:
 ///
-/// The generic cuSOLVER routine separates matrix and compute data types: `data_type_a` is
-/// the data type of matrix `A`, and `compute_type` is the operation's compute
-/// type.
+/// The generic cuSOLVER routine separates matrix and compute data types: `data_type_a` is the data type of matrix `A`, and `compute_type` is the operation's compute type.
 /// [`xpotrf`] only supports the following four combinations.
 ///
 /// **Valid combination of data type and compute type**
@@ -111,9 +104,7 @@ pub fn xpotrf_buffer_size<TA: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, or if cuSOLVER reports
-/// an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -167,8 +158,7 @@ pub unsafe fn xpotrf<TA: DataTypeLike>(
 
 /// Solves a system of linear equations.
 ///
-/// Here `A` is an $n \times n$ Hermitian matrix; only its lower or upper
-/// triangular part is meaningful.
+/// Here `A` is an $n \times n$ Hermitian matrix; only its lower or upper triangular part is meaningful.
 /// `fill_mode` indicates which part of the matrix is used.
 /// The operation leaves the other part untouched.
 ///
@@ -190,8 +180,7 @@ pub unsafe fn xpotrf<TA: DataTypeLike>(
 ///
 /// List of input arguments for [`xpotrs`]:
 ///
-/// The generic cuSOLVER routine separates matrix data types: `data_type_a` is the data type
-/// of matrix `A`, and `data_type_b` is the data type of matrix `B`.
+/// The generic cuSOLVER routine separates matrix data types: `data_type_a` is the data type of matrix `A`, and `data_type_b` is the data type of matrix `B`.
 /// [`xpotrs`] only supports the following four combinations.
 ///
 /// **Valid combination of data type and compute type**
@@ -205,9 +194,7 @@ pub unsafe fn xpotrf<TA: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, right-hand-side count, or leading dimensions are
-/// invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, right-hand-side count, or leading dimensions are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -313,8 +300,7 @@ pub fn xtrtri_buffer_size<TA: DataTypeLike>(
 /// If `fill_mode` is [`FillMode::Upper`], only the upper triangular part of `A` is processed and replaced by the upper triangular inverse.
 ///
 /// Provide device and host workspace through `workspace`.
-/// Use [`xtrtri_buffer_size`] to determine the required sizes for
-/// `workspace.device` and `workspace.host`.
+/// Use [`xtrtri_buffer_size`] to determine the required sizes for `workspace.device` and `workspace.host`.
 ///
 /// If matrix inversion fails, `dev_info = i` shows `A(i, i) = 0`.
 ///
@@ -334,9 +320,7 @@ pub fn xtrtri_buffer_size<TA: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the data type is not
-/// supported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the data type is not supported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -437,12 +421,11 @@ pub fn xgetrf_buffer_size<TA: DataTypeLike>(
 /// If `pivots` is `None`, no pivoting is performed.
 /// The factorization is `A=L*U`, which is not numerically stable.
 ///
-/// Whether LU factorization succeeds or fails, `pivots` contains the pivoting
-/// sequence. Row `i` is interchanged with row `pivots[i]`.
+/// Whether LU factorization succeeds or fails, `pivots` contains the pivoting sequence.
+/// Row `i` is interchanged with row `pivots[i]`.
 ///
 /// Provide device and host workspace through `workspace`.
-/// Use [`xgetrf_buffer_size`] to determine the required sizes for
-/// `workspace.device` and `workspace.host`.
+/// Use [`xgetrf_buffer_size`] to determine the required sizes for `workspace.device` and `workspace.host`.
 ///
 /// Callers can combine [`xgetrf`] and [`xgetrs`] to complete a linear solver.
 ///
@@ -472,9 +455,7 @@ pub fn xgetrf_buffer_size<TA: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, or if cuSOLVER reports
-/// an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -495,6 +476,7 @@ pub unsafe fn xgetrf<TA: DataTypeLike>(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     context.validate_region(&workspace.device)?;
     let a_type = TA::data_type();
     validate_x_matrix(
@@ -507,6 +489,7 @@ pub unsafe fn xgetrf<TA: DataTypeLike>(
     if let Some(pivots) = pivots.as_ref() {
         require_pivot64_buffer(pivots.len(), m.min(n))?;
     }
+
     require_info_buffer(dev_info.len())?;
     let workspace_sizes =
         xgetrf_buffer_size::<TA>(context, params, m, n, a.layout(), compute_type)?;
@@ -572,9 +555,7 @@ pub unsafe fn xgetrf<TA: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimensions are invalid, or if cuSOLVER reports
-/// an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimensions are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -685,19 +666,15 @@ pub fn xsytrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
 /// `A` contains the factorization produced by [`xsytrf`].
 /// Only the lower or upper part is meaningful; the other part is left untouched.
 ///
-/// Provide the pivot indices returned by the matching [`xsytrf`] operation, along
-/// with device and host workspace through `workspace`.
-/// Use [`xsytrs_buffer_size`] to determine the required sizes for
-/// `workspace.device` and `workspace.host`.
-/// To factorize and solve the symmetric system without pivoting, pass `None`
-/// for the pivot buffer to both the matching [`xsytrf`] operation and [`xsytrs`].
+/// Provide the pivot indices returned by the matching [`xsytrf`] operation, along with device and host workspace through `workspace`.
+/// Use [`xsytrs_buffer_size`] to determine the required sizes for `workspace.device` and `workspace.host`.
+/// To factorize and solve the symmetric system without pivoting, pass `None` for the pivot buffer to both the matching [`xsytrf`] operation and [`xsytrs`].
 ///
 /// If the reported `dev_info` value is `-i`, the `i`th parameter is invalid.
 ///
 /// List of input arguments for [`xsytrs_buffer_size`] and [`xsytrs`]:
 ///
-/// The generic cuSOLVER routine has two data types: `data_type_a` is the data type of the
-/// matrix `A`, and `data_type_b` is the data type of the matrix `B`.
+/// The generic cuSOLVER routine has two data types: `data_type_a` is the data type of the matrix `A`, and `data_type_b` is the data type of the matrix `B`.
 /// [`xsytrs`] only supports the following four combinations:
 ///
 /// **Valid combination of data type and compute type**
@@ -711,9 +688,7 @@ pub fn xsytrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the matrix data type
-/// is not supported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the matrix data type is not supported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -735,6 +710,7 @@ pub unsafe fn xsytrs<TA: DataTypeLike, TB: DataTypeLike>(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     context.validate_region(&workspace.device)?;
     validate_x_matrix(
         n,
@@ -753,6 +729,7 @@ pub unsafe fn xsytrs<TA: DataTypeLike, TB: DataTypeLike>(
     if let Some(pivots) = pivots {
         require_pivot64_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let workspace_sizes =
         xsytrs_buffer_size::<TA, TB>(context, fill_mode, n, nrhs, a.layout(), b.layout())?;
@@ -845,17 +822,13 @@ pub fn xlarft_buffer_size<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike
 
 /// Use the matching buffer-size helper to calculate the sizes needed for pre-allocated workspace.
 ///
-/// Forms the triangular factor `T` of a real block reflector `H` of order `n`,
-/// which is defined as a product of `k` elementary reflectors.
+/// Forms the triangular factor `T` of a real block reflector `H` of order `n`, which is defined as a product of `k` elementary reflectors.
 ///
-/// Only [`StorevMode::Columnwise`] storage is supported. This means the vector
-/// defining the elementary reflector `H(i)` is stored in the `i`th column of
-/// `V`, and $H = I - V \cdot T \cdot V^{T}$ ($H = I - V \cdot T \cdot V^{H}$
-/// for complex types).
+/// Only [`StorevMode::Columnwise`] storage is supported.
+/// This means the vector defining the elementary reflector `H(i)` is stored in the `i`th column of `V`, and $H = I - V \cdot T \cdot V^{T}$ ($H = I - V \cdot T \cdot V^{H}$ for complex types).
 ///
 /// Provide device and host workspace through `workspace`.
-/// Use [`xlarft_buffer_size`] to determine the required sizes for
-/// `workspace.device` and `workspace.host`.
+/// Use [`xlarft_buffer_size`] to determine the required sizes for `workspace.device` and `workspace.host`.
 ///
 /// Currently, only the `n >= k` scenario is supported.
 ///
@@ -874,9 +847,7 @@ pub fn xlarft_buffer_size<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// reflector dimensions or storage mode are invalid, or if cuSOLVER reports an
-/// internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the reflector dimensions or storage mode are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -995,15 +966,14 @@ pub fn xsytrf_buffer_size<TA: DataTypeLike>(
     ))
 }
 
-/// Computes the factorization of a symmetric indefinite matrix using
-/// Bunch-Kaufman diagonal pivoting and the generic API interface.
+/// Computes the factorization of a symmetric indefinite matrix using Bunch-Kaufman diagonal pivoting and the generic API interface.
 ///
-/// Only the lower or upper triangular part of `a` is meaningful. The other
-/// triangular part may also be used as workspace. If `pivots` is `None`, no
-/// pivoting is performed, which is not numerically stable.
+/// Only the lower or upper triangular part of `a` is meaningful.
+/// The other triangular part may also be used as workspace.
+/// If `pivots` is `None`, no pivoting is performed, which is not numerically stable.
 /// Each block of the diagonal factor is either a 1×1 or 2×2 block.
-/// `dev_info` reports an invalid parameter as a negative index, or a singular
-/// diagonal factor as a positive index. Use [`xsytrf_buffer_size`] for workspace.
+/// `dev_info` reports an invalid parameter as a negative index, or a singular diagonal factor as a positive index.
+/// Use [`xsytrf_buffer_size`] for workspace.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -1028,6 +998,7 @@ pub unsafe fn xsytrf<TA: DataTypeLike>(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     context.validate_region(&workspace.device)?;
     let a_type = TA::data_type();
     validate_x_matrix(
@@ -1040,6 +1011,7 @@ pub unsafe fn xsytrf<TA: DataTypeLike>(
     if let Some(pivots) = pivots.as_ref() {
         require_pivot64_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let workspace_sizes =
         xsytrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
@@ -1108,15 +1080,14 @@ pub fn xhetrf_buffer_size<TA: DataTypeLike>(
     ))
 }
 
-/// Computes the factorization of a Hermitian indefinite matrix using
-/// Bunch-Kaufman diagonal pivoting and the generic API interface.
+/// Computes the factorization of a Hermitian indefinite matrix using Bunch-Kaufman diagonal pivoting and the generic API interface.
 ///
-/// Only the lower or upper triangular part of `a` is meaningful. The other
-/// triangular part may also be used as workspace. If `pivots` is `None`, no
-/// pivoting is performed, which is not numerically stable.
+/// Only the lower or upper triangular part of `a` is meaningful.
+/// The other triangular part may also be used as workspace.
+/// If `pivots` is `None`, no pivoting is performed, which is not numerically stable.
 /// Each block of the diagonal factor is either a 1×1 or 2×2 block.
-/// `dev_info` reports an invalid parameter as a negative index, or a singular
-/// diagonal factor as a positive index. Use [`xhetrf_buffer_size`] for workspace.
+/// `dev_info` reports an invalid parameter as a negative index, or a singular diagonal factor as a positive index.
+/// Use [`xhetrf_buffer_size`] for workspace.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -1141,6 +1112,7 @@ pub unsafe fn xhetrf<TA: DataTypeLike>(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     context.validate_region(&workspace.device)?;
     let a_type = TA::data_type();
     validate_x_matrix(
@@ -1153,6 +1125,7 @@ pub unsafe fn xhetrf<TA: DataTypeLike>(
     if let Some(pivots) = pivots.as_ref() {
         require_pivot64_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let workspace_sizes =
         xhetrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
@@ -1227,11 +1200,11 @@ pub fn xhetrs_buffer_size<TA: DataTypeLike, TB: DataTypeLike>(
 
 /// Solves a system of linear equations with a Hermitian indefinite coefficient matrix.
 ///
-/// `a` contains the factorization from [`xhetrf`]; only its lower or upper
-/// triangular part is meaningful. Provide the pivot indices from that operation,
-/// or `None` when both factorization and solve omit pivoting.
-/// Supports complex single and double precision. Use [`xhetrs_buffer_size`]
-/// to size device and host workspace. Negative `dev_info` identifies an invalid parameter.
+/// `a` contains the factorization from [`xhetrf`]; only its lower or upper triangular part is meaningful.
+/// Provide the pivot indices from that operation, or `None` when both factorization and solve omit pivoting.
+/// Supports complex single and double precision.
+/// Use [`xhetrs_buffer_size`] to size device and host workspace.
+/// Negative `dev_info` identifies an invalid parameter.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -1258,6 +1231,7 @@ pub unsafe fn xhetrs<TA: DataTypeLike, TB: DataTypeLike>(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     context.validate_region(&workspace.device)?;
     validate_x_matrix(
         n,
@@ -1276,6 +1250,7 @@ pub unsafe fn xhetrs<TA: DataTypeLike, TB: DataTypeLike>(
     if let Some(pivots) = pivots {
         require_pivot64_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let workspace_sizes =
         xhetrs_buffer_size::<TA, TB>(context, params, fill_mode, n, nrhs, a.layout(), b.layout())?;

@@ -72,6 +72,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     for (id, value) in [(mean, 0.0_f32), (inv_variance, 1.0), (scale, 1.0)] {
         let memory =
             DeviceMemory::from_slice(cuda, &vec![value; graph.shape(id)?.storage_span()?])?;
@@ -81,6 +82,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     let dx_dev =
         DeviceMemory::<f16>::zeroed(cuda, graph.shape(outputs.input_gradient)?.storage_span()?)?;
     bindings.set_owned_region(
@@ -96,6 +98,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: bindings retain initialized operands and independent writable results.
     // The plan, buffers and workspace remain live through stream completion, including enqueue failure.

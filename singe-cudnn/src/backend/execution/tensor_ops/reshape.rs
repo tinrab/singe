@@ -98,6 +98,7 @@ impl ReshapeOperation {
                 name: "reshape data type".into(),
             });
         }
+
         if !x.has_same_logical_element_count(y) {
             return Err(Error::DescriptorMismatch {
                 name: "reshape element count".into(),

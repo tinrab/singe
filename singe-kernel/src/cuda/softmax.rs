@@ -998,6 +998,7 @@ where
             if let Some(tuning) = autotune::cache().get(&key)? {
                 return Ok(Some(tuning));
             }
+
             let report = tune(options, candidates())?;
             autotune::cache().insert(key, report.best);
             Ok(Some(report.best))
@@ -1018,12 +1019,14 @@ fn validate_softmax<T: DeviceRepr>(
     if config.columns == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.columns > 1024 {
         return Err(Error::UnsupportedWidth {
             op: "softmax".into(),
             width: config.columns,
         });
     }
+
     let len = checked_element_count(config.rows, config.columns)?;
     ensure_len(out.len(), len)?;
     ensure_len(input.len(), len)?;
@@ -1213,6 +1216,7 @@ where
     if cols == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(rows, cols)?;
     ensure_len(out.len(), len)?;
     ensure_len(input.len(), len)?;
@@ -1246,12 +1250,14 @@ fn validate_softmax_lse<Input: DeviceRepr, Output: DeviceRepr>(
     if config.columns == 0 {
         return Err(Error::InvalidLength);
     }
+
     if config.columns > 1024 {
         return Err(Error::UnsupportedWidth {
             op: "softmax".into(),
             width: config.columns,
         });
     }
+
     let len = checked_element_count(config.rows, config.columns)?;
     ensure_len(out.len(), config.rows)?;
     ensure_len(input.len(), len)?;
@@ -1464,6 +1470,7 @@ where
     if cols == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(rows, cols)?;
     ensure_len(out.len(), rows)?;
     ensure_len(input.len(), len)?;

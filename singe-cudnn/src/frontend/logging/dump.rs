@@ -76,6 +76,7 @@ pub unsafe fn dump_tensor(context: &Context, dump: &TensorDump<'_>) -> Result<()
         ))?;
         return Ok(());
     }
+
     let bytes = dump
         .element_count
         .checked_mul(dump.element_bytes)
@@ -88,6 +89,7 @@ pub unsafe fn dump_tensor(context: &Context, dump: &TensorDump<'_>) -> Result<()
     unsafe {
         read_bytes(dump.pointer, &mut host)?;
     }
+
     let host = host
         .into_iter()
         // SAFETY: the caller upholds this function's safety contract.
@@ -113,12 +115,14 @@ pub unsafe fn log_variant_pack(
             name: "variant pack logging".into(),
         });
     }
+
     if context.stream()?.capture_status()? != StreamCaptureStatus::None {
         logger.diagnostic(format_args!(
             "tensor readback skipped during CUDA graph capture"
         ));
         return Ok(());
     }
+
     context.bind()?;
     let records = tensors
         .values()
@@ -146,12 +150,14 @@ pub unsafe fn log_variant_pack(
         {
             continue;
         }
+
         if record.tensor.ragged_offset.is_some() {
             logger.diagnostic(format_args!(
                 "tensor dump uid: {uid} skipped: packed metadata cannot be gathered from nominal dimensions"
             ));
             continue;
         }
+
         let spec = effective_spec(pack, record);
         let bytes = spec.storage_byte_len(None)?;
         let range = pointer_range(pointer, bytes)?;
@@ -165,16 +171,19 @@ pub unsafe fn log_variant_pack(
             ));
             continue;
         }
+
         if !synchronized {
             context.stream()?.synchronize()?;
             synchronized = true;
         }
+
         let mut storage = vec![MaybeUninit::uninit(); bytes];
         // SAFETY: caller-supplied entry metadata is initialized before execution; graph-written and automatic workspace values are excluded above.
         // Padding is copied as MaybeUninit and never interpreted as a value.
         unsafe {
             read_bytes(pointer, &mut storage)?;
         }
+
         let width = to_usize(spec.data_type.size(), "metadata element bytes")?;
         let dimensions = spec.logical_dimensions()?;
         let mut values = Vec::new();
@@ -187,6 +196,7 @@ pub unsafe fn log_variant_pack(
             // SAFETY: these bytes describe one initialized metadata element, excluding all stride gaps.
             values.extend(element.iter().map(|byte| unsafe { byte.assume_init() }));
         }
+
         let data = TensorDumpDisplay::create(&values, width, TensorDumpFormat::Decimal)?;
         let name = spec.name.as_deref().unwrap_or("");
         logger.diagnostic(format_args!(
@@ -219,11 +229,13 @@ fn written_ranges(
         {
             continue;
         }
+
         let spec = effective_spec(pack, record);
         // An undeclared ragged write span cannot establish that other metadata is initialized at entry.
         if spec.ragged_offset.is_some() && spec.ragged_byte_capacity.is_none() {
             return Ok(None);
         }
+
         let bytes = spec.storage_byte_len(None)?;
         if bytes != 0 {
             writes.push(pointer_range(pointer, bytes)?);
@@ -244,6 +256,7 @@ unsafe fn read_bytes(pointer: DevicePtr, destination: &mut [MaybeUninit<u8>]) ->
     if destination.is_empty() {
         return Ok(());
     }
+
     let attributes = PointerAttributes::query(pointer.as_raw())?;
     match attributes.memory_type {
         // SAFETY: the caller upholds this function's safety contract.
@@ -290,6 +303,7 @@ fn scalar_offset(spec: &TensorSpec, dimensions: &[i64], mut index: usize) -> Res
             lane = coordinate % lanes;
             coordinate /= lanes;
         }
+
         vector = coordinate
             .checked_mul(to_usize(spec.shape.strides()[axis], "tensor stride")?)
             .and_then(|offset| vector.checked_add(offset))
@@ -328,6 +342,7 @@ impl<'a> TensorDumpDisplay<'a> {
         if !bytes.len().is_multiple_of(width) {
             return Err(Error::InvalidDataShape);
         }
+
         if format == TensorDumpFormat::Base64 {
             bytes
                 .len()
@@ -374,6 +389,7 @@ impl fmt::Display for TensorDumpDisplay<'_> {
                     if index != 0 {
                         formatter.write_str(", ")?;
                     }
+
                     let value = element
                         .iter()
                         .enumerate()

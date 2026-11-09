@@ -18,32 +18,29 @@ use crate::{
 ///
 /// # Safety
 ///
-/// Implementations must preserve native complex and real element representations and
-/// the declared output type. Uphold the method's geometry, memory-access, and queued
-/// execution contracts.
+/// Implementations must preserve native complex and real element representations and the declared output type.
+/// Uphold the method's geometry, memory-access, and queued execution contracts.
 pub unsafe trait MagnitudeC1: DataTypeLike + Sized {
     /// Real element type used for each output magnitude sample.
     type Output: DataTypeLike;
 
-    /// Computes the complex magnitude `sqrt(real * real + imaginary * imaginary)`
-    /// for each source pixel, writing the real-valued result to `destination`.
+    /// Computes the complex magnitude `sqrt(real * real + imaginary * imaginary)` for each source pixel, writing the real-valued result to `destination`.
     ///
-    /// Queues work on the selected stream without synchronizing. Source and destination
-    /// must have equal pixel dimensions. Row padding remains unwritten.
+    /// Queues work on the selected stream without synchronizing.
+    /// Source and destination must have equal pixel dimensions.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA context binding fails, either image belongs to another CUDA
-    /// context, image dimensions differ, or NPP rejects the magnitude operation.
+    /// Returns an error if CUDA context binding fails, either image belongs to another CUDA context, image dimensions differ, or NPP rejects the magnitude operation.
     ///
     /// # Safety
     ///
-    /// Follow the [raw image execution contract](crate::image::raw). Source samples must be
-    /// initialized and ready for the selected stream. Keep source storage read-only and
-    /// destination storage exclusively writable and disjoint from the source during native use.
-    /// Retain both allocations through queued completion, including captured graph replay and
-    /// submission errors. Image layouts, byte strides, alignment, and allocation bounds must
-    /// satisfy the native operation.
+    /// Follow the [raw image execution contract](crate::image::raw).
+    /// Source samples must be initialized and ready for the selected stream.
+    /// Keep source storage read-only and destination storage exclusively writable and disjoint from the source during native use.
+    /// Retain both allocations through queued completion, including captured graph replay and submission errors.
+    /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native operation.
     unsafe fn magnitude(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -51,25 +48,23 @@ pub unsafe trait MagnitudeC1: DataTypeLike + Sized {
     ) -> Result<()>;
 }
 
-/// Computes the complex magnitude `sqrt(real * real + imaginary * imaginary)`
-/// for each source pixel, writing the real-valued result to `destination`.
+/// Computes the complex magnitude `sqrt(real * real + imaginary * imaginary)` for each source pixel, writing the real-valued result to `destination`.
 ///
-/// Queues work on the selected stream without synchronizing. Source and destination
-/// must have equal pixel dimensions. Row padding remains unwritten.
+/// Queues work on the selected stream without synchronizing.
+/// Source and destination must have equal pixel dimensions.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, either image belongs to another CUDA
-/// context, image dimensions differ, or NPP rejects the magnitude operation.
+/// Returns an error if CUDA context binding fails, either image belongs to another CUDA context, image dimensions differ, or NPP rejects the magnitude operation.
 ///
 /// # Safety
 ///
-/// Follow the [raw image execution contract](crate::image::raw). Source samples must be
-/// initialized and ready for the selected stream. Keep source storage read-only and
-/// destination storage exclusively writable and disjoint from the source during native use.
-/// Retain both allocations through queued completion, including captured graph replay and
-/// submission errors. Image layouts, byte strides, alignment, and allocation bounds must
-/// satisfy the native operation.
+/// Follow the [raw image execution contract](crate::image::raw).
+/// Source samples must be initialized and ready for the selected stream.
+/// Keep source storage read-only and destination storage exclusively writable and disjoint from the source during native use.
+/// Retain both allocations through queued completion, including captured graph replay and submission errors.
+/// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native operation.
 pub unsafe fn magnitude<T>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,
@@ -86,32 +81,29 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve native complex and real element representations and
-/// the declared output type. Uphold the method's geometry, memory-access, and queued
-/// execution contracts.
+/// Implementations must preserve native complex and real element representations and the declared output type.
+/// Uphold the method's geometry, memory-access, and queued execution contracts.
 pub unsafe trait MagnitudeSquaredC1: DataTypeLike + Sized {
     /// Real element type used for each output magnitude sample.
     type Output: DataTypeLike;
 
-    /// Computes the squared magnitude `real * real + imaginary * imaginary`
-    /// for each source pixel, writing the real-valued result to `destination`.
+    /// Computes the squared magnitude `real * real + imaginary * imaginary` for each source pixel, writing the real-valued result to `destination`.
     ///
-    /// Queues work on the selected stream without synchronizing. Source and destination
-    /// must have equal pixel dimensions. Row padding remains unwritten.
+    /// Queues work on the selected stream without synchronizing.
+    /// Source and destination must have equal pixel dimensions.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA context binding fails, either image belongs to another CUDA
-    /// context, image dimensions differ, or NPP rejects the magnitude operation.
+    /// Returns an error if CUDA context binding fails, either image belongs to another CUDA context, image dimensions differ, or NPP rejects the magnitude operation.
     ///
     /// # Safety
     ///
-    /// Follow the [raw image execution contract](crate::image::raw). Source samples must be
-    /// initialized and ready for the selected stream. Keep source storage read-only and
-    /// destination storage exclusively writable and disjoint from the source during native use.
-    /// Retain both allocations through queued completion, including captured graph replay and
-    /// submission errors. Image layouts, byte strides, alignment, and allocation bounds must
-    /// satisfy the native operation.
+    /// Follow the [raw image execution contract](crate::image::raw).
+    /// Source samples must be initialized and ready for the selected stream.
+    /// Keep source storage read-only and destination storage exclusively writable and disjoint from the source during native use.
+    /// Retain both allocations through queued completion, including captured graph replay and submission errors.
+    /// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native operation.
     unsafe fn magnitude_squared(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, C1>,
@@ -119,25 +111,23 @@ pub unsafe trait MagnitudeSquaredC1: DataTypeLike + Sized {
     ) -> Result<()>;
 }
 
-/// Computes the squared magnitude `real * real + imaginary * imaginary`
-/// for each source pixel, writing the real-valued result to `destination`.
+/// Computes the squared magnitude `real * real + imaginary * imaginary` for each source pixel, writing the real-valued result to `destination`.
 ///
-/// Queues work on the selected stream without synchronizing. Source and destination
-/// must have equal pixel dimensions. Row padding remains unwritten.
+/// Queues work on the selected stream without synchronizing.
+/// Source and destination must have equal pixel dimensions.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, either image belongs to another CUDA
-/// context, image dimensions differ, or NPP rejects the magnitude operation.
+/// Returns an error if CUDA context binding fails, either image belongs to another CUDA context, image dimensions differ, or NPP rejects the magnitude operation.
 ///
 /// # Safety
 ///
-/// Follow the [raw image execution contract](crate::image::raw). Source samples must be
-/// initialized and ready for the selected stream. Keep source storage read-only and
-/// destination storage exclusively writable and disjoint from the source during native use.
-/// Retain both allocations through queued completion, including captured graph replay and
-/// submission errors. Image layouts, byte strides, alignment, and allocation bounds must
-/// satisfy the native operation.
+/// Follow the [raw image execution contract](crate::image::raw).
+/// Source samples must be initialized and ready for the selected stream.
+/// Keep source storage read-only and destination storage exclusively writable and disjoint from the source during native use.
+/// Retain both allocations through queued completion, including captured graph replay and submission errors.
+/// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native operation.
 pub unsafe fn magnitude_squared<T>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, C1>,
@@ -150,25 +140,23 @@ where
     unsafe { T::magnitude_squared(stream_context, source, destination) }
 }
 
-/// Computes the complex magnitude `sqrt(real * real + imaginary * imaginary)`
-/// for each source pixel, writing the real-valued result to `destination`.
+/// Computes the complex magnitude `sqrt(real * real + imaginary * imaginary)` for each source pixel, writing the real-valued result to `destination`.
 ///
-/// Queues work on the selected stream without synchronizing. Source and destination
-/// must have equal pixel dimensions. Row padding remains unwritten.
+/// Queues work on the selected stream without synchronizing.
+/// Source and destination must have equal pixel dimensions.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, either image belongs to another CUDA
-/// context, image dimensions differ, or NPP rejects the magnitude operation.
+/// Returns an error if CUDA context binding fails, either image belongs to another CUDA context, image dimensions differ, or NPP rejects the magnitude operation.
 ///
 /// # Safety
 ///
-/// Follow the [raw image execution contract](crate::image::raw). Source samples must be
-/// initialized and ready for the selected stream. Keep source storage read-only and
-/// destination storage exclusively writable and disjoint from the source during native use.
-/// Retain both allocations through queued completion, including captured graph replay and
-/// submission errors. Image layouts, byte strides, alignment, and allocation bounds must
-/// satisfy the native operation.
+/// Follow the [raw image execution contract](crate::image::raw).
+/// Source samples must be initialized and ready for the selected stream.
+/// Keep source storage read-only and destination storage exclusively writable and disjoint from the source during native use.
+/// Retain both allocations through queued completion, including captured graph replay and submission errors.
+/// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native operation.
 pub unsafe fn magnitude_f32_complex_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, Complex32, C1>,
@@ -194,25 +182,23 @@ pub unsafe fn magnitude_f32_complex_c1(
     Ok(())
 }
 
-/// Computes the squared magnitude `real * real + imaginary * imaginary`
-/// for each source pixel, writing the real-valued result to `destination`.
+/// Computes the squared magnitude `real * real + imaginary * imaginary` for each source pixel, writing the real-valued result to `destination`.
 ///
-/// Queues work on the selected stream without synchronizing. Source and destination
-/// must have equal pixel dimensions. Row padding remains unwritten.
+/// Queues work on the selected stream without synchronizing.
+/// Source and destination must have equal pixel dimensions.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, either image belongs to another CUDA
-/// context, image dimensions differ, or NPP rejects the magnitude operation.
+/// Returns an error if CUDA context binding fails, either image belongs to another CUDA context, image dimensions differ, or NPP rejects the magnitude operation.
 ///
 /// # Safety
 ///
-/// Follow the [raw image execution contract](crate::image::raw). Source samples must be
-/// initialized and ready for the selected stream. Keep source storage read-only and
-/// destination storage exclusively writable and disjoint from the source during native use.
-/// Retain both allocations through queued completion, including captured graph replay and
-/// submission errors. Image layouts, byte strides, alignment, and allocation bounds must
-/// satisfy the native operation.
+/// Follow the [raw image execution contract](crate::image::raw).
+/// Source samples must be initialized and ready for the selected stream.
+/// Keep source storage read-only and destination storage exclusively writable and disjoint from the source during native use.
+/// Retain both allocations through queued completion, including captured graph replay and submission errors.
+/// Image layouts, byte strides, alignment, and allocation bounds must satisfy the native operation.
 pub unsafe fn magnitude_squared_f32_complex_c1(
     stream_context: &StreamContext,
     source: &ImageView<'_, Complex32, C1>,

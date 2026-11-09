@@ -1,7 +1,7 @@
 [package]
 name = "singe-cufile-sys"
 description = "Low-level FFI bindings for the NVIDIA cuFile GPUDirect Storage library."
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
@@ -19,9 +19,6 @@ cufile_1_19 = ["singe-cuda-sys/driver_13_4"]
 cuda_13_4 = ["cufile_1_19"]
 
 [dependencies]
+singe-loader.workspace = true
 singe-cuda-sys.workspace = true
 num_enum.workspace = true
-
-[build-dependencies]
-singe-cuda-find.workspace = true
-anyhow.workspace = true

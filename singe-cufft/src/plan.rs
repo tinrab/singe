@@ -19,13 +19,11 @@ use crate::{
 
 /// A stateful cuFFT plan handle.
 ///
-/// Use one plan per host thread or concurrent task. The plan is movable
-/// between threads, but it is intentionally not `Clone` or `Sync`.
-/// Planning methods mutate the handle's transform configuration and return the
-/// required workspace size in bytes. Execution methods optionally bind a CUDA
-/// stream before launching work, and launches are ordered by that stream.
-/// When automatic allocation is disabled, the caller-provided work area must
-/// remain valid for every execution that uses the plan.
+/// Use one plan per host thread or concurrent task.
+/// The plan is movable between threads, but it is intentionally not `Clone` or `Sync`.
+/// Planning methods mutate the handle's transform configuration and return the required workspace size in bytes.
+/// Execution methods optionally bind a CUDA stream before launching work, and launches are ordered by that stream.
+/// When automatic allocation is disabled, the caller-provided work area must remain valid for every execution that uses the plan.
 #[derive(Debug)]
 pub struct Plan {
     handle: Handle,
@@ -33,8 +31,8 @@ pub struct Plan {
 
 /// Collects a transform definition before creating and configuring a cuFFT plan.
 ///
-/// Shape setters replace the previous definition. Dimensions are checked when
-/// [`create`](Self::create) builds the native plan.
+/// Shape setters replace the previous definition.
+/// Dimensions are checked when [`create`](Self::create) builds the native plan.
 #[derive(Debug)]
 pub struct PlanBuilder<'a> {
     cuda_context: &'a Arc<CudaContext>,
@@ -182,9 +180,7 @@ impl<'a> PlanBuilder<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if no definition was selected, a dimension or stride cannot
-    /// fit the native integer interface, an embedding length differs from the rank,
-    /// the CUDA context cannot be bound, or cuFFT cannot create or configure the plan.
+    /// Returns an error if no definition was selected, a dimension or stride cannot fit the native integer interface, an embedding length differs from the rank, the CUDA context cannot be bound, or cuFFT cannot create or configure the plan.
     pub fn create(self) -> Result<Plan> {
         let plan = Plan::create(self.cuda_context)?;
         match self.definition.ok_or(Error::MissingPlanDefinition)? {
@@ -250,9 +246,9 @@ impl<'a> PlanBuilder<'a> {
 
 /// Batched transform dimensions and element strides for cuFFT's 32-bit planning interface.
 ///
-/// Dimensions are ordered from outermost to innermost. An absent embedding uses
-/// the native contiguous layout; cuFFT ignores the associated advanced strides
-/// and distances. Values are validated when passed to a plan or size query.
+/// Dimensions are ordered from outermost to innermost.
+/// An absent embedding uses the native contiguous layout; cuFFT ignores the associated advanced strides and distances.
+/// Values are validated when passed to a plan or size query.
 #[derive(Debug, Clone, Copy)]
 pub struct ManyPlanConfigI32<'a> {
     /// Logical transform extents, ordered from outermost to innermost; the rank must be nonzero.
@@ -277,9 +273,9 @@ pub struct ManyPlanConfigI32<'a> {
 
 /// Batched transform dimensions and element strides for cuFFT's 64-bit planning interface.
 ///
-/// Dimensions are ordered from outermost to innermost. An absent embedding uses
-/// the native contiguous layout; cuFFT ignores the associated advanced strides
-/// and distances. Values are validated when passed to a plan or size query.
+/// Dimensions are ordered from outermost to innermost.
+/// An absent embedding uses the native contiguous layout; cuFFT ignores the associated advanced strides and distances.
+/// Values are validated when passed to a plan or size query.
 #[derive(Debug, Clone, Copy)]
 pub struct ManyPlanConfigI64<'a> {
     /// Logical transform extents, ordered from outermost to innermost; the rank must be nonzero.
@@ -304,8 +300,7 @@ pub struct ManyPlanConfigI64<'a> {
 
 /// Selects the native integer width for a batched FFT definition.
 ///
-/// Estimation uses the 32-bit native interface for both variants; values in an
-/// `I64` definition must therefore also fit `i32` when estimating workspace.
+/// Estimation uses the 32-bit native interface for both variants; values in an `I64` definition must therefore also fit `i32` when estimating workspace.
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub enum ManyPlanConfig<'a> {
@@ -337,15 +332,13 @@ impl Plan {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `cufftHandle` associated with `cuda_context` and
-    /// must not be owned by any other wrapper. The returned plan destroys it
-    /// with `cufftDestroy`.
+    /// `handle` must be a valid `cufftHandle` associated with `cuda_context` and must not be owned by any other wrapper.
+    /// The returned plan destroys it with `cufftDestroy`.
     ///
     /// # Errors
     ///
-    /// Returns an error if `handle` is `CUFFT_PLAN_NULL` or any retained stream
-    /// belongs to a different CUDA context. No native destruction is performed on
-    /// the rejected handle.
+    /// Returns an error if `handle` is `CUFFT_PLAN_NULL` or any retained stream belongs to a different CUDA context.
+    /// No native destruction is performed on the rejected handle.
     pub unsafe fn from_raw_parts(
         handle: sys::cufftHandle,
         cuda_context: Arc<CudaContext>,
@@ -357,6 +350,7 @@ impl Plan {
         {
             return Err(Error::StreamContextMismatch);
         }
+
         if handle == sys::CUFFT_PLAN_NULL {
             return Err(Error::NullHandle);
         }
@@ -372,13 +366,12 @@ impl Plan {
 
     /// Creates an unconfigured cuFFT plan in `cuda_context`.
     ///
-    /// Configure its transform before execution. Automatic workspace allocation is
-    /// enabled by cuFFT unless changed with [`set_auto_allocation`](Self::set_auto_allocation).
+    /// Configure its transform before execution.
+    /// Automatic workspace allocation is enabled by cuFFT unless changed with [`set_auto_allocation`](Self::set_auto_allocation).
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound, cuFFT cannot create
-    /// the plan, or the returned handle is null.
+    /// Returns an error if the CUDA context cannot be bound, cuFFT cannot create the plan, or the returned handle is null.
     pub fn create(cuda_context: &Arc<CudaContext>) -> Result<Self> {
         cuda_context.bind()?;
 
@@ -405,8 +398,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream belongs to another CUDA context, context
-    /// binding fails, or cuFFT rejects the stream association.
+    /// Returns an error if the stream belongs to another CUDA context, context binding fails, or cuFFT rejects the stream association.
     pub fn set_stream(&self, stream: Option<&Stream>) -> Result<()> {
         self.with_stream(stream)
     }
@@ -442,8 +434,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, the supplied region belongs to
-    /// another CUDA context, or cuFFT rejects the workspace pointer.
+    /// Returns an error if context binding fails, the supplied region belongs to another CUDA context, or cuFFT rejects the workspace pointer.
     pub unsafe fn set_work_area(&self, work_area: Option<DeviceOutputView<'_, u8>>) -> Result<()> {
         self.bind()?;
         let pointer = if let Some(work_area) = work_area {
@@ -468,8 +459,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails or cuFFT rejects the property,
-    /// value, or current planning state.
+    /// Returns an error if context binding fails or cuFFT rejects the property, value, or current planning state.
     pub fn set_plan_property(&self, property: PlanProperty, value: i64) -> Result<()> {
         self.bind()?;
 
@@ -510,8 +500,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails or cuFFT rejects the property
-    /// or the current planning state.
+    /// Returns an error if context binding fails or cuFFT rejects the property or the current planning state.
     pub fn reset_plan_property(&self, property: PlanProperty) -> Result<()> {
         self.bind()?;
 
@@ -527,8 +516,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, an argument does not fit `i32`,
-    /// cuFFT cannot plan the requested transform, or the workspace size does not fit `usize`.
+    /// Returns an error if context binding fails, an argument does not fit `i32`, cuFFT cannot plan the requested transform, or the workspace size does not fit `usize`.
     pub fn plan_1d(&self, nx: usize, kind: TransformType, batch: usize) -> Result<usize> {
         self.bind()?;
 
@@ -551,8 +539,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, an argument does not fit `i32`,
-    /// cuFFT cannot plan the requested transform, or the workspace size does not fit `usize`.
+    /// Returns an error if context binding fails, an argument does not fit `i32`, cuFFT cannot plan the requested transform, or the workspace size does not fit `usize`.
     pub fn plan_2d(&self, nx: usize, ny: usize, kind: TransformType) -> Result<usize> {
         self.bind()?;
 
@@ -575,8 +562,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, an argument does not fit `i32`,
-    /// cuFFT cannot plan the requested transform, or the workspace size does not fit `usize`.
+    /// Returns an error if context binding fails, an argument does not fit `i32`, cuFFT cannot plan the requested transform, or the workspace size does not fit `usize`.
     pub fn plan_3d(&self, nx: usize, ny: usize, nz: usize, kind: TransformType) -> Result<usize> {
         self.bind()?;
 
@@ -602,10 +588,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if the rank is zero or does not fit `i32`, an embedding
-    /// length differs from the rank, a value exceeds the selected native integer
-    /// width, context binding fails, cuFFT cannot plan the transform, or the
-    /// workspace size does not fit `usize`.
+    /// Returns an error if the rank is zero or does not fit `i32`, an embedding length differs from the rank, a value exceeds the selected native integer width, context binding fails, cuFFT cannot plan the transform, or the workspace size does not fit `usize`.
     pub fn plan_many(&self, config: ManyPlanConfig<'_>) -> Result<usize> {
         match config {
             ManyPlanConfig::I32(config) => self.plan_many_i32(config),
@@ -693,8 +676,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, an argument does not fit `i32`,
-    /// cuFFT cannot compute the workspace size, or the result does not fit `usize`.
+    /// Returns an error if context binding fails, an argument does not fit `i32`, cuFFT cannot compute the workspace size, or the result does not fit `usize`.
     pub fn workspace_size_1d(&self, nx: usize, kind: TransformType, batch: usize) -> Result<usize> {
         self.bind()?;
 
@@ -717,8 +699,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, an argument does not fit `i32`,
-    /// cuFFT cannot compute the workspace size, or the result does not fit `usize`.
+    /// Returns an error if context binding fails, an argument does not fit `i32`, cuFFT cannot compute the workspace size, or the result does not fit `usize`.
     pub fn workspace_size_2d(&self, nx: usize, ny: usize, kind: TransformType) -> Result<usize> {
         self.bind()?;
 
@@ -741,8 +722,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, an argument does not fit `i32`,
-    /// cuFFT cannot compute the workspace size, or the result does not fit `usize`.
+    /// Returns an error if context binding fails, an argument does not fit `i32`, cuFFT cannot compute the workspace size, or the result does not fit `usize`.
     pub fn workspace_size_3d(
         &self,
         nx: usize,
@@ -772,10 +752,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if the rank is zero or does not fit `i32`, an embedding
-    /// length differs from the rank, a value exceeds the selected native integer
-    /// width, context binding fails, cuFFT cannot compute the workspace size, or
-    /// the result does not fit `usize`.
+    /// Returns an error if the rank is zero or does not fit `i32`, an embedding length differs from the rank, a value exceeds the selected native integer width, context binding fails, cuFFT cannot compute the workspace size, or the result does not fit `usize`.
     pub fn workspace_size_many(&self, config: ManyPlanConfig<'_>) -> Result<usize> {
         match config {
             ManyPlanConfig::I32(config) => self.workspace_size_many_i32(config),
@@ -863,8 +840,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails, cuFFT cannot query the configured
-    /// plan, or the workspace size does not fit `usize`.
+    /// Returns an error if context binding fails, cuFFT cannot query the configured plan, or the workspace size does not fit `usize`.
     pub fn workspace_size(&self) -> Result<usize> {
         self.bind()?;
 
@@ -883,8 +859,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if an argument does not fit `i32`, cuFFT cannot estimate
-    /// the workspace size, or the result does not fit `usize`.
+    /// Returns an error if an argument does not fit `i32`, cuFFT cannot estimate the workspace size, or the result does not fit `usize`.
     pub fn estimate_1d(nx: usize, kind: TransformType, batch: usize) -> Result<usize> {
         let mut work_size: sys::size_t = 0;
         // SAFETY: `cufftEstimate1d` receives valid output locations.
@@ -906,8 +881,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if an argument does not fit `i32`, cuFFT cannot estimate
-    /// the workspace size, or the result does not fit `usize`.
+    /// Returns an error if an argument does not fit `i32`, cuFFT cannot estimate the workspace size, or the result does not fit `usize`.
     pub fn estimate_2d(nx: usize, ny: usize, kind: TransformType) -> Result<usize> {
         let mut work_size: sys::size_t = 0;
         // SAFETY: `cufftEstimate2d` receives valid output locations.
@@ -929,8 +903,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if an argument does not fit `i32`, cuFFT cannot estimate
-    /// the workspace size, or the result does not fit `usize`.
+    /// Returns an error if an argument does not fit `i32`, cuFFT cannot estimate the workspace size, or the result does not fit `usize`.
     pub fn estimate_3d(nx: usize, ny: usize, nz: usize, kind: TransformType) -> Result<usize> {
         let mut work_size: sys::size_t = 0;
         // SAFETY: `cufftEstimate3d` receives valid output locations.
@@ -949,14 +922,12 @@ impl Plan {
 
     /// Estimates batched-transform workspace bytes through the 32-bit cuFFT interface.
     ///
-    /// Both configuration variants must fit `i32`. The estimate may differ from
-    /// the size returned by actual planning.
+    /// Both configuration variants must fit `i32`.
+    /// The estimate may differ from the size returned by actual planning.
     ///
     /// # Errors
     ///
-    /// Returns an error if the rank is zero, an embedding length differs from the
-    /// rank, a configuration value does not fit `i32`, cuFFT cannot estimate the
-    /// workspace size, or the result does not fit `usize`.
+    /// Returns an error if the rank is zero, an embedding length differs from the rank, a configuration value does not fit `i32`, cuFFT cannot estimate the workspace size, or the result does not fit `usize`.
     pub fn estimate_many(config: ManyPlanConfig<'_>) -> Result<usize> {
         match config {
             ManyPlanConfig::I32(config) => Self::estimate_many_i32(config),
@@ -1046,10 +1017,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1088,10 +1058,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1128,10 +1097,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1168,10 +1136,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1208,10 +1175,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1250,10 +1216,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1290,10 +1255,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1330,10 +1294,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if a memory region or stream belongs to a different CUDA
-    /// context, context binding or dependency ordering fails, or cuFFT rejects
-    /// the transform submission. With no explicit stream, synchronizing input
-    /// dependencies can also fail. Success reports submission, not device completion.
+    /// Returns an error if a memory region or stream belongs to a different CUDA context, context binding or dependency ordering fails, or cuFFT rejects the transform submission.
+    /// With no explicit stream, synchronizing input dependencies can also fail.
+    /// Success reports submission, not device completion.
     #[expect(
         clippy::cast_ptr_alignment,
         reason = "the unsafe execution contract requires native alignment after region type erasure"
@@ -1369,6 +1332,7 @@ impl Plan {
         {
             return Err(Error::StreamContextMismatch);
         }
+
         self.with_stream(stream)?;
         if let Some(stream) = stream {
             stream.join_regions(regions)?;
@@ -1386,11 +1350,13 @@ impl Plan {
             if self.cuda_context() != stream.context() {
                 return Err(Error::StreamContextMismatch);
             }
+
             let mut streams = self.handle.streams.borrow_mut();
             if !streams.contains(stream) {
                 streams.push(stream.clone());
             }
         }
+
         self.bind()?;
         // SAFETY: the live plan retains the optional stream before native configuration.
         unsafe {
@@ -1431,8 +1397,8 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if the transferred handle is null or any retained stream
-    /// belongs to a different CUDA context. The rejected native handle is not destroyed.
+    /// Returns an error if the transferred handle is null or any retained stream belongs to a different CUDA context.
+    /// The rejected native handle is not destroyed.
     pub unsafe fn from_raw(raw: RawPlan) -> Result<Self> {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe { Self::from_raw_parts(raw.handle, raw.cuda_context, raw.streams) }
@@ -1454,16 +1420,21 @@ impl Drop for Handle {
         if self.raw == sys::CUFFT_PLAN_NULL {
             return;
         }
+
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying cufft handle: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying cufft handle: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         // SAFETY: `cufftDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cufftDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cufft handle: {error}");
+                eprintln!(
+                    "failed to destroy cufft handle: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

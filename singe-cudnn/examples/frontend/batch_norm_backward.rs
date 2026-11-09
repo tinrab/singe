@@ -84,6 +84,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     for (id, value) in [
         (mean, 0.0_f32),
         (inv_variance, 1.0),
@@ -98,6 +99,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     let dx_dev =
         DeviceMemory::<f16>::zeroed(cuda, graph.shape(outputs.input_gradient)?.storage_span()?)?;
     bindings.set_owned_region(
@@ -113,6 +115,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: bindings retain initialized inputs and independent writable results.
     // Native intermediates need no caller bindings, and the plan, buffers and workspace

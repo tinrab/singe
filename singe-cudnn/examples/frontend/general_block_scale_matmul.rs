@@ -135,6 +135,7 @@ fn run_problem(example: &common::ExampleContext, index: usize, case: MatmulProbl
         let values = encoded_ones(spec.data_type, spec.storage_byte_len(None)?)?;
         inputs.push((tensor, DeviceMemory::from_slice(cuda, &values)?));
     }
+
     let mut tensor_d_dev =
         DeviceMemory::<u8>::zeroed(cuda, graph.tensor_spec(tensor_d)?.storage_byte_len(None)?)?;
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
@@ -143,6 +144,7 @@ fn run_problem(example: &common::ExampleContext, index: usize, case: MatmulProbl
     for (tensor, memory) in &inputs {
         bindings.set_encoded_input_bytes(*tensor, memory)?;
     }
+
     bindings.set_encoded_bytes(tensor_d, &mut tensor_d_dev)?;
     // SAFETY: the plan and all allocations remain live until stream completion,
     // including when native execution returns an enqueue error.

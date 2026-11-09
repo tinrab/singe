@@ -31,6 +31,7 @@ fn main() -> Result<()> {
     for (actual, expected) in x_result.iter().zip([8.1, 11.4, 14.7, 18.0]) {
         assert!((actual - expected).abs() < 1.0e-12);
     }
+
     for (actual, expected) in y_result.iter().zip([9.3, 10.2, 11.1, 12.0]) {
         assert!((actual - expected).abs() < 1.0e-12);
     }

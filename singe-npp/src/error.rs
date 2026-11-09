@@ -15,8 +15,7 @@ use crate::types::Size;
 status_enum! {
     /// Status returned by NPP calls.
     ///
-    /// NPP statuses are signed: negative values are errors and positive values are warnings,
-    /// so raw codes are `i32` rather than the `u32` used by other wrappers.
+    /// NPP statuses are signed: negative values are errors and positive values are warnings, so raw codes are `i32` rather than the `u32` used by other wrappers.
     pub enum Status: i32 => sys::NppStatus, unknown = "UNKNOWN_NPP_STATUS" {
         /// The native call succeeded.
         Success = NPP_SUCCESS,
@@ -244,12 +243,16 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_npp_sys::LoadError),
+
     /// Another owner retains a resource that must be consumed exclusively.
     #[error("resource is shared and cannot be consumed")]
     OwnershipShared,
 
     /// An error propagated from the CUDA wrapper.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(
         /// Underlying CUDA error.
         #[from]
@@ -341,6 +344,12 @@ impl Error {
 
 impl From<sys::NppStatus> for Error {
     fn from(status: sys::NppStatus) -> Self {
+        if status == sys::NppStatus::NPP_NOT_IMPLEMENTED_ERROR
+            && let Err(error) = singe_npp_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let code = Status::from(status);
         Self::from(code)
     }
@@ -363,7 +372,8 @@ impl From<NulError> for Error {
 
 /// Converts a raw NPP status-returning expression into a crate [`Result`](crate::error::Result).
 ///
-/// Evaluates the expression once. Only `NPP_SUCCESS` produces `Ok(())`; every other status, including positive NPP warnings, becomes an `Error::Npp` result.
+/// Evaluates the expression once.
+/// Only `NPP_SUCCESS` produces `Ok(())`; every other status, including positive NPP warnings, becomes an `Error::Npp` result.
 #[macro_export]
 macro_rules! try_ffi {
     ($expr:expr) => {{

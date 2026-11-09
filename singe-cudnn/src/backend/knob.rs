@@ -5,12 +5,8 @@ use crate::metadata::backend_metadata_enum;
 backend_metadata_enum! {
     /// Type of performance knob.
     /// Performance knobs are runtime engine settings that affect performance.
-    /// Query performance knobs and their valid ranges from a finalized
-    /// [`BackendDescriptorType::Engine`](crate::backend::descriptor::BackendDescriptorType::Engine) with
-    /// [`BackendDescriptor::attribute_descriptor_slice`](crate::backend::descriptor::BackendDescriptor::attribute_descriptor_slice).
-    /// Configure the selected value for each knob on a
-    /// [`BackendDescriptorType::KnobChoice`](crate::backend::descriptor::BackendDescriptorType::KnobChoice)
-    /// with [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods.
+    /// Query performance knobs and their valid ranges from a finalized [`BackendDescriptorType::Engine`](crate::backend::descriptor::BackendDescriptorType::Engine) with [`BackendDescriptor::attribute_descriptor_slice`](crate::backend::descriptor::BackendDescriptor::attribute_descriptor_slice).
+    /// Configure the selected value for each knob on a [`BackendDescriptorType::KnobChoice`](crate::backend::descriptor::BackendDescriptorType::KnobChoice) with [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods.
     pub enum BackendKnobType: sys::cudnnBackendKnobType_t {
         SplitK => CUDNN_KNOB_TYPE_SPLIT_K => "Deprecated: Split-K factor.",
         Swizzle => CUDNN_KNOB_TYPE_SWIZZLE => "Memory access swizzle pattern for coalescing.",

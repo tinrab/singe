@@ -126,6 +126,7 @@ fn run() -> Result<()> {
     if let Some((id, memory)) = &mut index_buffer {
         bindings.set(*id, memory)?;
     }
+
     // SAFETY: initialized input, writable outputs and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(
@@ -183,10 +184,12 @@ fn run() -> Result<()> {
     if let (Some(indices), Some((_, memory))) = (saved_indices, &index_buffer) {
         backward_bindings.set_input(indices, &memory.view())?;
     }
+
     if let Some((input, output)) = saved_forward {
         backward_bindings.set_input(input, &x_dev.view())?;
         backward_bindings.set_input(output, &y_dev.view())?;
     }
+
     backward_bindings.set(dx, &mut dx_dev)?;
     // SAFETY: saved state and gradient inputs are initialized, and all buffers remain live through completion.
     example.execute_and_wait(|context| unsafe {

@@ -82,10 +82,8 @@ impl CopyDescriptor {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg copy descriptor associated with
-    /// `context` and created for `dst_pointer_count` destination pointers and
-    /// `src_pointer_count` source pointers. The returned value takes ownership
-    /// of `handle` and destroys it on drop.
+    /// `handle` must be a valid cuTENSORMg copy descriptor associated with `context` and created for `dst_pointer_count` destination pointers and `src_pointer_count` source pointers.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -187,10 +185,9 @@ impl CopyPlan {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg copy plan associated with `context`
-    /// and `workspace`. Pointer counts must match the descriptors used to
-    /// create the plan. The returned value takes ownership of `handle` and
-    /// destroys it on drop.
+    /// `handle` must be a valid cuTENSORMg copy plan associated with `context` and `workspace`.
+    /// Pointer counts must match the descriptors used to create the plan.
+    /// The returned value takes ownership of `handle` and destroys it on drop.
     ///
     /// # Errors
     ///
@@ -228,7 +225,10 @@ impl CopyPlan {
     /// The pointer arrays must match the tensor descriptors used to create the plan.
     /// Device workspace pointers and streams must be ordered like the MG context devices.
     ///
-    /// Tensor pointer arrays follow their respective descriptor device order. Device workspace pointers and streams follow context device order. Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path. Host transfers, when involved, complete before the native call returns.
+    /// Tensor pointer arrays follow their respective descriptor device order.
+    /// Device workspace pointers and streams follow context device order.
+    /// Native submission can leave CUDA work pending; retain tensor storage, workspace, plans, and streams and preserve producer ordering and exclusive output access through completion on every path.
+    /// Host transfers, when involved, complete before the native call returns.
     ///
     /// # Errors
     ///
@@ -302,8 +302,10 @@ impl Drop for CopyDescriptor {
         // SAFETY: `cutensorMgDestroyCopyDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroyCopyDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg copy descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg copy descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -314,8 +316,10 @@ impl Drop for CopyPlan {
         // SAFETY: `cutensorMgDestroyCopyPlan` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroyCopyPlan(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg copy plan: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg copy plan: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

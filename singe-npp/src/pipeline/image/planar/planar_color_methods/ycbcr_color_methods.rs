@@ -25,7 +25,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`rgb_to_ycbcr_u8_p3`](crate::image::raw::color::rgb_to_ycbcr_u8_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -45,7 +46,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`ycbcr_to_rgb_u8_p3`](crate::image::raw::color::ycbcr_to_rgb_u8_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -65,7 +67,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`rgb_to_ycbcr444_jpeg_u8_p3`](crate::image::raw::color::rgb_to_ycbcr444_jpeg_u8_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -85,7 +88,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`bgr_to_ycbcr444_jpeg_u8_p3`](crate::image::raw::color::bgr_to_ycbcr444_jpeg_u8_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -105,7 +109,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`ycbcr444_to_rgb_jpeg_u8_p3`](crate::image::raw::color::ycbcr444_to_rgb_jpeg_u8_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -125,7 +130,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`ycbcr444_to_bgr_jpeg_u8_p3`](crate::image::raw::color::ycbcr444_to_bgr_jpeg_u8_p3).
     /// Allocates new owned full-resolution planes with the same dimensions as the source.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -143,7 +149,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`rgb_to_ycbcr422_p3_to_c2`](crate::image::raw::color::rgb_to_ycbcr422_p3_to_c2).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -160,7 +167,8 @@ impl PlanarImage<u8, 3> {
     /// Uses [`rgb_to_ycrcb422_p3_to_c2`](crate::image::raw::color::rgb_to_ycrcb422_p3_to_c2).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

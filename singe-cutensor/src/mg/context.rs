@@ -47,8 +47,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device count cannot be represented by cuTENSORMg,
-    /// if cuTENSORMg cannot create a handle, or if it returns a null handle.
+    /// Returns an error if the device count cannot be represented by cuTENSORMg, if cuTENSORMg cannot create a handle, or if it returns a null handle.
     pub fn create(devices: &[i32]) -> Result<Self> {
         let num_devices = to_u32(devices.len(), "devices")?;
         let cuda_contexts = devices
@@ -82,9 +81,8 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid cuTENSORMg handle for the supplied CUDA contexts, in their device order. The returned
-    /// context takes ownership of `handle` and destroys it when the last clone
-    /// is dropped.
+    /// `handle` must be a valid cuTENSORMg handle for the supplied CUDA contexts, in their device order.
+    /// The returned context takes ownership of `handle` and destroys it when the last clone is dropped.
     ///
     /// # Errors
     ///
@@ -148,8 +146,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::OwnershipShared`] if cloned contexts or context references
-    /// still point at the same handle.
+    /// Returns [`Error::OwnershipShared`] if cloned contexts or context references still point at the same handle.
     pub fn into_raw(self) -> Result<(sys::cutensorMgHandle_t, Vec<Arc<CudaContext>>)> {
         let handle = Arc::try_unwrap(self.handle).map_err(|_| Error::OwnershipShared)?;
         let mut handle = ManuallyDrop::new(handle);
@@ -196,16 +193,20 @@ impl Drop for Handle {
     fn drop(&mut self) {
         for context in &self.cuda_contexts {
             if let Err(error) = context.synchronize() {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to synchronize cutensormg context: {error}");
+                eprintln!(
+                    "failed to synchronize cutensormg context: {}",
+                    singe_core::ErrorChain(&error)
+                );
                 return;
             }
         }
         // SAFETY: `cutensorMgDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorMgDestroy(self.raw)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensormg context: {error}");
+                eprintln!(
+                    "failed to destroy cutensormg context: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

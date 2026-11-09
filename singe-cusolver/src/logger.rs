@@ -11,8 +11,7 @@ use crate::{error::Result, try_ffi};
 ///
 /// # Safety
 ///
-/// `callback`, if present, must remain valid for use by cuSOLVER and must
-/// follow the callback ABI expected by the library.
+/// `callback`, if present, must remain valid for use by cuSOLVER and must follow the callback ABI expected by the library.
 ///
 /// # Errors
 ///
@@ -53,8 +52,7 @@ pub fn set_mask(mask: i32) -> Result<()> {
 
 /// Sets the FILE handle used for cuSOLVER logging.
 ///
-/// Once registered, the file handle must remain open until another handle is
-/// installed or logging is disabled.
+/// Once registered, the file handle must remain open until another handle is installed or logging is disabled.
 ///
 /// # Safety
 ///
@@ -75,8 +73,7 @@ pub unsafe fn set_file(file: *mut sys::FILE) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be converted to a C string or if
-/// cuSOLVER cannot open the log file.
+/// Returns an error if `path` cannot be converted to a C string or if cuSOLVER cannot open the log file.
 pub fn open_file(path: impl AsRef<Path>) -> Result<()> {
     let path = path_to_cstring(path.as_ref())?;
     // SAFETY: `cusolverDnLoggerOpenFile` receives pointers into buffers borrowed for the call.

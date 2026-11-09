@@ -269,6 +269,7 @@ impl SdpaBackwardOperation {
                 tensor.descriptor(),
             )?;
         }
+
         if let Some(lengths) = config.sequence.key_value {
             let SequenceLength::PerBatch(tensor) = lengths else {
                 return Err(FrontendError::SdpaUnsupported {
@@ -283,6 +284,7 @@ impl SdpaBackwardOperation {
                 tensor.descriptor(),
             )?;
         }
+
         if let Some(subgraph) = config.subgraph {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSdpaBwdSubgraph,
@@ -297,6 +299,7 @@ impl SdpaBackwardOperation {
                 subgraph.output_id.as_i64(),
             )?;
         }
+
         descriptor.set_attribute_descriptor(
             BackendAttributeName::OperationSdpaBwdDqDesc,
             d_q.descriptor(),
@@ -325,12 +328,14 @@ impl SdpaBackwardOperation {
                 )?;
             }
         }
+
         if let Some(max_total_sequence_length_query) = config.max_total_sequence_length_query {
             descriptor.set_attribute_i64(
                 BackendAttributeName::OperationSdpaBwdMaxTotalSeqLenQ,
                 max_total_sequence_length_query,
             )?;
         }
+
         if let Some(max_total_sequence_length_key_value) =
             config.max_total_sequence_length_key_value
         {
@@ -339,6 +344,7 @@ impl SdpaBackwardOperation {
                 max_total_sequence_length_key_value,
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

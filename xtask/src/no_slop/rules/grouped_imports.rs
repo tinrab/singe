@@ -17,9 +17,9 @@ struct Node {
 }
 
 impl Node {
-    fn insert(&mut self, path: &[String], alias: Option<String>, imports_parent: bool) {
+    fn insert(&mut self, path: &[String], alias: Option<String>, type_only: bool) {
         let Some((name, rest)) = path.split_first() else {
-            self.aliases.push((alias, imports_parent));
+            self.aliases.push((alias, type_only));
             return;
         };
         let index = self
@@ -33,7 +33,7 @@ impl Node {
                 });
                 self.children.len() - 1
             });
-        self.children[index].insert(rest, alias, imports_parent);
+        self.children[index].insert(rest, alias, type_only);
     }
 
     fn render(&self) -> Vec<String> {
@@ -46,18 +46,15 @@ impl Node {
             return self
                 .aliases
                 .iter()
-                .map(|(alias, imports_parent)| {
+                .map(|(alias, type_only)| {
                     named(
-                        &format!(
-                            "{}{}",
-                            self.name,
-                            if *imports_parent { "::self" } else { "" }
-                        ),
+                        &format!("{}{}", self.name, if *type_only { "::self" } else { "" }),
                         alias,
                     )
                 })
                 .collect();
         }
+
         let mut children: Vec<_> = self.children.iter().flat_map(Self::render).collect();
         // Preserve explicit self imports: they bind only the type namespace.
         // Plain terminal imports must remain separate from their child paths.
@@ -71,6 +68,7 @@ impl Node {
                 separate.push(named(&name, alias));
             }
         }
+
         let tail = if children.len() == 1 {
             children.pop().unwrap()
         } else {
@@ -103,6 +101,7 @@ fn grouped(leaves: impl Iterator<Item = Import>) -> Vec<(u8, String)> {
         if leaf.glob {
             path.push("*".to_owned());
         }
+
         let root = path[0].clone();
         let index = groups
             .iter()
@@ -125,8 +124,9 @@ fn grouped(leaves: impl Iterator<Item = Import>) -> Vec<(u8, String)> {
             });
         groups[index]
             .tree
-            .insert(&path[1..], leaf.alias, leaf.imports_parent);
+            .insert(&path[1..], leaf.alias, leaf.type_only);
     }
+
     groups.sort_by_key(|group| category(&group.root));
     groups
         .into_iter()
@@ -210,6 +210,7 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
                 run.iter()
                     .flat_map(|item| imports::flatten(item, context.source)),
             );
+
             let range = imports::range(run);
             let newline = fix::newline(context.source, range.start);
             let line_start = context.source[..range.start]
@@ -219,6 +220,7 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
                 .chars()
                 .take_while(|c| *c == ' ' || *c == '\t')
                 .collect();
+
             let mut replacement = String::new();
             let mut previous = None;
             for (category, text) in groups {
@@ -227,11 +229,14 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
                     if previous != category {
                         replacement.push_str(newline);
                     }
+
                     replacement.push_str(&indent);
                 }
+
                 replacement.push_str(&text);
                 previous = Some(category);
             }
+
             let expected = syn::parse_file(&replacement).expect("rendered use trees parse");
             let expected: Vec<_> = expected
                 .items

@@ -2,10 +2,9 @@
 //!
 //! # Thread safety
 //!
-//! Wrappers around raw CUPTI handles, such as [`callback::Subscriber`], are neither `Send`
-//! nor `Sync`. CUPTI requires each subscriber to serialize access to its callback state,
-//! so these wrappers stay on the thread that created them. Callbacks themselves must be
-//! `Send` because CUPTI invokes them on whichever thread makes the traced CUDA call.
+//! Wrappers around raw CUPTI handles, such as [`callback::Subscriber`], are neither `Send` nor `Sync`.
+//! CUPTI requires each subscriber to serialize access to its callback state, so these wrappers stay on the thread that created them.
+//! Callbacks themselves must be `Send` because CUPTI invokes them on whichever thread makes the traced CUDA call.
 
 /// Activity tracing APIs and decoded activity record types.
 pub mod activity;
@@ -66,6 +65,7 @@ pub fn version() -> Result<LibraryVersion> {
     unsafe {
         try_ffi!(sys::cuptiGetVersion(&raw mut version))?;
     }
+
     let version = u64::from(version);
     Ok(LibraryVersion::new(
         version / 10000,

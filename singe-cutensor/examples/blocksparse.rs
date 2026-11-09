@@ -82,9 +82,11 @@ fn main() -> Result<()> {
     for &size in &a_block_sizes {
         a_offsets.push(a_offsets.last().copied().unwrap() + size);
     }
+
     for &size in &b_block_sizes {
         b_offsets.push(b_offsets.last().copied().unwrap() + size);
     }
+
     for &size in &c_block_sizes {
         c_offsets.push(c_offsets.last().copied().unwrap() + size);
     }

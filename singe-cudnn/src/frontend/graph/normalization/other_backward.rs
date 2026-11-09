@@ -82,7 +82,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions. Inferred output or statistic layouts can also fail if their strides are unrepresentable.
+    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions.
+    /// Inferred output or statistic layouts can also fail if their strides are unrepresentable.
     pub fn instance_normalization_backward(
         &mut self,
         inputs: InstanceNormalizationBackwardInputs,
@@ -190,7 +191,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions. Inferred output or statistic layouts can also fail if their strides are unrepresentable.
+    /// Returns an error if tensor identities are unknown, input rank or affine/statistic dimensions are incompatible, or activation or gradient destinations have invalid dimensions.
+    /// Inferred output or statistic layouts can also fail if their strides are unrepresentable.
     pub fn adaptive_layer_normalization_backward(
         &mut self,
         inputs: AdaptiveLayerNormalizationBackwardInputs,

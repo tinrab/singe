@@ -15,23 +15,20 @@ where
 {
     /// Linearly scales image samples into the destination numeric range.
     ///
-    /// The provided implementations map `u8` values from `0..=255` into `min..=max` in
-    /// `f32` output, or map `f32` values from `min..=max` into `0..=255` in `u8` output.
+    /// The provided implementations map `u8` values from `0..=255` into `min..=max` in `f32` output, or map `f32` values from `min..=max` into `0..=255` in `u8` output.
     /// NPP clamps results to the destination range.
     /// `min` and `max` must be finite with `min < max`.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Source and destination pixel dimensions must match.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match. Nonfinite or unordered bounds
-    /// are rejected.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
+    /// Nonfinite or unordered bounds are rejected.
     pub fn scale_range_to_into<U>(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -54,23 +51,20 @@ where
 
     /// Linearly scales image samples into the destination numeric range.
     ///
-    /// The provided implementations map `u8` values from `0..=255` into `min..=max` in
-    /// `f32` output, or map `f32` values from `min..=max` into `0..=255` in `u8` output.
+    /// The provided implementations map `u8` values from `0..=255` into `min..=max` in `f32` output, or map `f32` values from `min..=max` into `0..=255` in `u8` output.
     /// NPP clamps results to the destination range.
     /// `min` and `max` must be finite with `min < max`.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Allocates a new source-sized, owned image with the same channel layout.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match. Nonfinite or unordered bounds
-    /// are rejected.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
+    /// Nonfinite or unordered bounds are rejected.
     /// Output allocation or image view construction can also fail.
     pub fn scale_range_to<U>(self, min: f32, max: f32) -> Result<ImagePipeline<'a, U, L>>
     where

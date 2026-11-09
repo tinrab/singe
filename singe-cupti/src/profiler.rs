@@ -38,8 +38,10 @@ fn initialize() -> Result<()> {
         unsafe {
             try_ffi!(sys::cuptiProfilerInitialize(&raw mut params))?;
         }
+
         *initialized = true;
     }
+
     drop(initialized);
     Ok(())
 }
@@ -52,6 +54,7 @@ pub(crate) fn finalize_process() -> Result<()> {
     unsafe {
         try_ffi!(sys::cuptiFinalize())?;
     }
+
     *initialized = false;
     drop(initialized);
     Ok(())
@@ -65,7 +68,8 @@ pub(crate) fn finalize_process() -> Result<()> {
 pub enum ClockControlMode {
     /// Lock GPU clocks to the base (rated TDP) frequency.
     Base,
-    /// Lock GPU clocks to the boost frequency. No automatic fallback to base.
+    /// Lock GPU clocks to the boost frequency.
+    /// No automatic fallback to base.
     Boost,
 }
 
@@ -86,8 +90,9 @@ pub enum ClockControlStatus {
 
 /// A process-wide CUPTI clock lock released when this value is dropped.
 ///
-/// The lock affects all contexts on the GPU. A pre-existing external lock remains
-/// untouched. Clocks are not automatically unlocked if the process exits.
+/// The lock affects all contexts on the GPU.
+/// A pre-existing external lock remains untouched.
+/// Clocks are not automatically unlocked if the process exits.
 #[derive(Debug)]
 pub struct ClockLock<'a> {
     _context: &'a Context,
@@ -169,6 +174,7 @@ impl ClockLock<'_> {
         unsafe {
             try_ffi!(sys::cuptiClockControlUnlock())?;
         }
+
         self.guard.take();
         Ok(())
     }
@@ -180,8 +186,10 @@ impl Drop for ClockLock<'_> {
             // SAFETY: `cuptiClockControlUnlock` takes no arguments.
             unsafe {
                 if let Err(error) = try_ffi!(sys::cuptiClockControlUnlock()) {
-                    #[cfg(debug_assertions)]
-                    eprintln!("failed to unlock cupti clock control: {error}");
+                    eprintln!(
+                        "failed to unlock cupti clock control: {}",
+                        singe_core::ErrorChain(&error)
+                    );
                 }
             }
         }
@@ -191,7 +199,8 @@ impl Drop for ClockLock<'_> {
 /// Cache control resets supported GPU cache state before each profiling pass.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum CacheControl {
-    /// Disable cache control. Passes may observe cache state from earlier passes.
+    /// Disable cache control.
+    /// Passes may observe cache state from earlier passes.
     #[default]
     None,
     /// Reset all cache state supported by this CUPTI version before each pass.
@@ -247,8 +256,7 @@ pub struct ProfilerHost {
 impl ProfilerHost {
     /// Creates and initializes a profiler host object for the context's device.
     ///
-    /// The nvperf host and target libraries shipped alongside CUPTI must be
-    /// discoverable by the dynamic linker.
+    /// The nvperf host and target libraries shipped alongside CUPTI must be discoverable by the dynamic linker.
     ///
     /// # Errors
     ///
@@ -261,6 +269,7 @@ impl ProfilerHost {
         unsafe {
             try_ffi!(sys::cuptiDeviceGetChipName(&raw mut chip))?;
         }
+
         let chip_name = copy_string(chip.pChipName)?;
         let mut availability = params!(CUpti_Profiler_GetCounterAvailability_Params, bAllowDeviceLevelCounters,
             ctx: context.as_raw());
@@ -270,6 +279,7 @@ impl ProfilerHost {
                 &raw mut availability
             ))?;
         }
+
         let mut image = vec![
             0;
             to_usize(
@@ -289,8 +299,7 @@ impl ProfilerHost {
 
     /// Creates a profiler host object for a chip supported at the time of release.
     ///
-    /// A counter availability image is required for future chip support; use
-    /// [`Self::create`] to obtain that image from an actual device context.
+    /// A counter availability image is required for future chip support; use [`Self::create`] to obtain that image from an actual device context.
     ///
     /// # Errors
     ///
@@ -330,8 +339,7 @@ impl ProfilerHost {
         copy_strings(params.ppChipNames, params.numChips)
     }
 
-    /// Get the maximum number of hardware metrics (metric names which do not
-    /// include `_sass_`) that can be scheduled in a single pass for a chip.
+    /// Get the maximum number of hardware metrics (metric names which do not include `_sass_`) that can be scheduled in a single pass for a chip.
     /// Practical constraints may prevent reaching this theoretical upper limit.
     ///
     /// # Errors
@@ -363,16 +371,19 @@ impl ProfilerHost {
         unsafe {
             try_ffi!(sys::cuptiProfilerHostGetSinglePassSets(&raw mut params))?;
         }
+
         let mut names =
             vec![ptr::null(); to_usize(params.numOfSinglePassSets, "single pass set count")?];
         if names.is_empty() {
             return Ok(Vec::new());
         }
+
         params.ppSinglePassSets = names.as_mut_ptr();
         // SAFETY: `cuptiProfilerHostGetSinglePassSets` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiProfilerHostGetSinglePassSets(&raw mut params))?;
         }
+
         if params.numOfSinglePassSets > names.len() as u64 {
             return Err(Status::InvalidParameter.into());
         }
@@ -394,11 +405,13 @@ impl ProfilerHost {
                 &raw mut params
             ))?;
         }
+
         let mut indices = vec![0; to_usize(params.numOfMetricsInSinglePassSet, "metric count")?];
         let mut buffer = vec![0; to_usize(params.metricsBufferSize, "metrics buffer size")?];
         if indices.is_empty() {
             return Ok(Vec::new());
         }
+
         params.pMetricsIndicesBuffer = indices.as_mut_ptr();
         params.pMetricsBuffer = buffer.as_mut_ptr();
         // SAFETY: `cuptiProfilerHostGetMetricsInSinglePassSet` receives valid output locations.
@@ -407,11 +420,13 @@ impl ProfilerHost {
                 &raw mut params
             ))?;
         }
+
         if params.numOfMetricsInSinglePassSet > indices.len() as u64
             || params.metricsBufferSize > buffer.len() as u64
         {
             return Err(Status::InvalidParameter.into());
         }
+
         indices.truncate(to_usize(
             params.numOfMetricsInSinglePassSet,
             "metric count",
@@ -477,6 +492,7 @@ impl ProfilerHost {
         unsafe {
             try_ffi!(sys::cuptiProfilerHostGetMetricProperties(&raw mut params))?;
         }
+
         let metric_type = match params.metricType {
             sys::CUpti_MetricType::CUPTI_METRIC_TYPE_COUNTER => MetricType::Counter,
             sys::CUpti_MetricType::CUPTI_METRIC_TYPE_RATIO => MetricType::Ratio,
@@ -520,6 +536,7 @@ impl ProfilerHost {
         unsafe {
             try_ffi!(sys::cuptiProfilerHostGetConfigImageSize(&raw mut size))?;
         }
+
         let mut image = vec![0; to_usize(size.configImageSize, "configuration size")?];
         let mut params = params!(CUpti_Profiler_Host_GetConfigImage_Params, pConfigImage,
             pHostObject: self.handle.as_ptr(), configImageSize: image.len() as _, pConfigImage: image.as_mut_ptr());
@@ -577,8 +594,10 @@ impl Drop for ProfilerHost {
         // SAFETY: `cuptiProfilerHostDeinitialize` receives valid output locations.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuptiProfilerHostDeinitialize(&raw mut params)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to deinitialize cupti profiler host: {error}");
+                eprintln!(
+                    "failed to deinitialize cupti profiler host: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -685,7 +704,8 @@ pub struct RangeOptions {
     pub max_ranges: usize,
     /// Maximum number of range tree nodes; must be at least `max_ranges`.
     pub max_range_tree_nodes: u32,
-    /// Number of nesting levels to be profiled. For auto range mode, this should be 1.
+    /// Number of nesting levels to be profiled.
+    /// For auto range mode, this should be 1.
     pub nesting_levels: u16,
     /// Minimum nesting level to be profiled.
     pub min_nesting_level: u16,
@@ -774,6 +794,7 @@ impl RangeProfiler {
         if self.running {
             return Err(Status::InvalidOperation.into());
         }
+
         let mut names: Vec<_> = metrics.iter().map(|name| name.as_ptr()).collect();
         let mut size = params!(CUpti_RangeProfiler_GetCounterDataSize_Params, counterDataSize,
             pRangeProfilerObject: self.handle.as_ptr(), pMetricNames: names.as_mut_ptr(), numMetrics: names.len() as _, maxNumOfRanges: options.max_ranges as _, maxNumRangeTreeNodes: options.max_range_tree_nodes);
@@ -781,6 +802,7 @@ impl RangeProfiler {
         unsafe {
             try_ffi!(sys::cuptiRangeProfilerGetCounterDataSize(&raw mut size))?;
         }
+
         let mut data = CounterImage {
             image: vec![0; to_usize(size.counterDataSize, "counter data size")?],
         };
@@ -792,6 +814,7 @@ impl RangeProfiler {
                 &raw mut init
             ))?;
         }
+
         let range = match options.range {
             RangeMode::Auto => sys::CUpti_ProfilerRange::CUPTI_AutoRange,
             RangeMode::User => sys::CUpti_ProfilerRange::CUPTI_UserRange,
@@ -807,6 +830,7 @@ impl RangeProfiler {
         unsafe {
             try_ffi!(sys::cuptiRangeProfilerSetConfig(&raw mut params))?;
         }
+
         self.configuration = Some(configuration);
         self.data = Some(data);
         Ok(())
@@ -821,11 +845,13 @@ impl RangeProfiler {
         if self.running || self.configuration.is_none() {
             return Err(Status::InvalidOperation.into());
         }
+
         let mut params = params!(CUpti_RangeProfiler_Start_Params, pRangeProfilerObject, pRangeProfilerObject: self.handle.as_ptr());
         // SAFETY: `cuptiRangeProfilerStart` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiRangeProfilerStart(&raw mut params))?;
         }
+
         self.running = true;
         Ok(())
     }
@@ -839,11 +865,13 @@ impl RangeProfiler {
         if !self.running {
             return Err(Status::InvalidOperation.into());
         }
+
         let mut params = params!(CUpti_RangeProfiler_Stop_Params, isAllPassSubmitted, pRangeProfilerObject: self.handle.as_ptr());
         // SAFETY: `cuptiRangeProfilerStop` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiRangeProfilerStop(&raw mut params))?;
         }
+
         self.running = false;
         Ok(ReplayProgress {
             pass_index: to_usize(params.passIndex, "pass index")?,
@@ -883,6 +911,7 @@ impl RangeProfiler {
         if self.running {
             return Err(Status::InvalidOperation.into());
         }
+
         let mut params = params!(CUpti_RangeProfiler_DecodeData_Params, numOfRangeDropped, pRangeProfilerObject: self.handle.as_ptr());
         // SAFETY: `cuptiRangeProfilerDecodeData` receives valid output locations.
         unsafe {
@@ -918,6 +947,7 @@ impl RangeProfiler {
                 &raw mut params
             ))?;
         }
+
         let mut image = vec![0; to_usize(params.devicePartitionInfoSize, "device partition info")?];
         params.pDevicePartitionInfo = image.as_mut_ptr();
         // SAFETY: `cuptiRangeProfilerGetDevicePartitionInfo` receives valid output locations.
@@ -938,12 +968,14 @@ impl RangeProfiler {
         if self.running {
             self.stop()?;
         }
+
         self.decode()?;
         let mut params = params!(CUpti_RangeProfiler_Disable_Params, pRangeProfilerObject, pRangeProfilerObject: self.handle.as_ptr());
         // SAFETY: `cuptiRangeProfilerDisable` receives valid output locations.
         unsafe {
             try_ffi!(sys::cuptiRangeProfilerDisable(&raw mut params))?;
         }
+
         self.enabled = false;
         let data = self
             .data
@@ -958,18 +990,24 @@ impl Drop for RangeProfiler {
         if !self.enabled {
             return;
         }
+
         if self.running
             && let Err(error) = self.stop()
         {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to stop cupti range profiler: {error}");
+            eprintln!(
+                "failed to stop cupti range profiler: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
+
         let mut params = params!(CUpti_RangeProfiler_Disable_Params, pRangeProfilerObject, pRangeProfilerObject: self.handle.as_ptr());
         // SAFETY: `cuptiRangeProfilerDisable` receives valid output locations.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuptiRangeProfilerDisable(&raw mut params)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to disable cupti range profiler: {error}");
+                eprintln!(
+                    "failed to disable cupti range profiler: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -988,6 +1026,7 @@ fn copy_strings(values: *const *const ffi::c_char, count: u64) -> Result<Vec<CSt
     if count == 0 {
         return Ok(Vec::new());
     }
+
     if values.is_null() {
         return Err(Error::NullHandle);
     }

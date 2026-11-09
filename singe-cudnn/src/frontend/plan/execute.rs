@@ -135,7 +135,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if the parent graph context is incompatible, creating or populating the child graph fails, or CUDA rejects the dependencies or child-node insertion. Population can fail for an unknown plan, invalid overrides or bindings, insufficient workspace, or native graph preparation failure.
+    /// Returns an error if the parent graph context is incompatible, creating or populating the child graph fails, or CUDA rejects the dependencies or child-node insertion.
+    /// Population can fail for an unknown plan, invalid overrides or bindings, insufficient workspace, or native graph preparation failure.
     pub unsafe fn append_to_cuda_graph(
         &self,
         context: &Context,
@@ -201,6 +202,7 @@ impl CompiledGraph {
         if let Some(exec) = exec.as_deref() {
             exec.validate_child_graph_node_update(node, &child_graph)?;
         }
+
         // SAFETY: the caller upholds the Bindings execution contract.
         unsafe { self.update_cuda_graph(context, args, &child_graph) }?;
         node.set_child_graph(&child_graph)?;

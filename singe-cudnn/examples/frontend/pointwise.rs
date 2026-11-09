@@ -32,9 +32,11 @@ fn run() -> Result<()> {
     if args().any(|argument| argument == "--index-grid") {
         return run_index_generation(&context);
     }
+
     if args().any(|argument| argument == "--broadcast-select") {
         return run_broadcast_select(&context);
     }
+
     if args().any(|argument| argument == "--inferred-activation") {
         return run_inferred_activation(&context);
     }
@@ -176,6 +178,7 @@ fn run_inferred_activation(example: &common::ExampleContext) -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
     // SAFETY: initialized inputs, byte-addressed boolean predicates, retained writable outputs
     // and workspace remain live through stream completion, including enqueue failure.
@@ -265,9 +268,11 @@ fn run_reduction(example: &common::ExampleContext) -> Result<()> {
     if args().any(|argument| argument == "--unordered-reduction-axes") {
         config = config.with_axes(ReductionAxes::Dimensions(vec![3, 1]));
     }
+
     if args().any(|argument| argument == "--default-reduction-geometry") {
         config = config.with_axes(None);
     }
+
     let c = if args().any(|argument| argument == "--explicit-reduction") {
         // A row-major output reduces the last axis of the NHWC input.
         let output = graph.tensor(TensorSpec::new(

@@ -20,17 +20,14 @@ where
     Self: ExtremumStatisticImage<T, L>,
 {
     /// Computes native minimum samples independently for each channel.
-    /// The provided C1, C3, and C4 implementations return one result per channel in channel order,
-    /// using the source element type.
+    /// The provided C1, C3, and C4 implementations return one result per channel in channel order, using the source element type.
     /// Each output view must contain exactly one element per processed channel.
     /// The native reduction owns its temporary scratch.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Each output length must equal the dispatch channel count.
     /// Scratch-size queries and allocation can also fail.
     pub fn min_into(
@@ -42,17 +39,14 @@ where
     }
 
     /// Computes native maximum samples independently for each channel.
-    /// The provided C1, C3, and C4 implementations return one result per channel in channel order,
-    /// using the source element type.
+    /// The provided C1, C3, and C4 implementations return one result per channel in channel order, using the source element type.
     /// Each output view must contain exactly one element per processed channel.
     /// The native reduction owns its temporary scratch.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Each output length must equal the dispatch channel count.
     /// Scratch-size queries and allocation can also fail.
     pub fn max_into(
@@ -64,17 +58,14 @@ where
     }
 
     /// Computes native minimum and maximum samples independently for each channel.
-    /// The provided C1, C3, and C4 implementations return one result per channel in channel order,
-    /// using the source element type.
+    /// The provided C1, C3, and C4 implementations return one result per channel in channel order, using the source element type.
     /// Each output view must contain exactly one element per processed channel.
     /// The native reduction owns its temporary scratch.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Each output length must equal the dispatch channel count.
     /// Scratch-size queries and allocation can also fail.
     pub fn min_max_into(
@@ -87,17 +78,14 @@ where
     }
 
     /// Computes native minimum samples independently for each channel.
-    /// The provided C1, C3, and C4 implementations return one result per channel in channel order,
-    /// using the source element type.
+    /// The provided C1, C3, and C4 implementations return one result per channel in channel order, using the source element type.
     /// Allocates owned device result storage.
     /// The native reduction owns its temporary scratch.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Allocating result buffers and constructing the source view can also fail.
     /// Scratch-size queries and allocation can also fail.
     pub fn min(self) -> Result<ImageStatistic<T>> {
@@ -105,17 +93,14 @@ where
     }
 
     /// Computes native maximum samples independently for each channel.
-    /// The provided C1, C3, and C4 implementations return one result per channel in channel order,
-    /// using the source element type.
+    /// The provided C1, C3, and C4 implementations return one result per channel in channel order, using the source element type.
     /// Allocates owned device result storage.
     /// The native reduction owns its temporary scratch.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Allocating result buffers and constructing the source view can also fail.
     /// Scratch-size queries and allocation can also fail.
     pub fn max(self) -> Result<ImageStatistic<T>> {
@@ -123,17 +108,14 @@ where
     }
 
     /// Computes native minimum and maximum samples independently for each channel.
-    /// The provided C1, C3, and C4 implementations return one result per channel in channel order,
-    /// using the source element type.
+    /// The provided C1, C3, and C4 implementations return one result per channel in channel order, using the source element type.
     /// Allocates owned device result storage for each of the two results.
     /// The native reduction owns its temporary scratch.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Allocating result buffers and constructing the source view can also fail.
     /// Scratch-size queries and allocation can also fail.
     pub fn min_max(self) -> Result<ImageMinMax<T>> {

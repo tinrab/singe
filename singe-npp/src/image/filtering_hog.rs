@@ -20,8 +20,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if either ROI dimension is nonpositive, the location count does not fit
-/// `i32`, NPP rejects the request, or the returned byte count cannot be represented as `usize`.
+/// Returns an error if either ROI dimension is nonpositive, the location count does not fit `i32`, NPP rejects the request, or the returned byte count cannot be represented as `usize`.
 pub fn histogram_of_gradients_border_buffer_size(
     config: HistogramOfGradientsConfig,
     locations: &[Point],
@@ -46,14 +45,14 @@ pub fn histogram_of_gradients_border_buffer_size(
 
 /// Returns the total device output capacity in bytes for HOG descriptors.
 ///
-/// NPP validates `config` and `location_count`. Each location produces one descriptor window;
-/// the windows are stored consecutively without padding as `f32` values. The returned size
-/// counts bytes, not `f32` elements. This query does not allocate memory.
+/// NPP validates `config` and `location_count`.
+/// Each location produces one descriptor window; the windows are stored consecutively without padding as `f32` values.
+/// The returned size counts bytes, not `f32` elements.
+/// This query does not allocate memory.
 ///
 /// # Errors
 ///
-/// Returns an error if `location_count` does not fit `i32`, NPP rejects the request,
-/// or the returned byte count cannot be represented as `usize`.
+/// Returns an error if `location_count` does not fit `i32`, NPP rejects the request, or the returned byte count cannot be represented as `usize`.
 pub fn histogram_of_gradients_border_descriptors_size(
     config: HistogramOfGradientsConfig,
     location_count: usize,
@@ -76,37 +75,32 @@ macro_rules! impl_histogram_of_gradients_border {
     ($name:ident, $pixel_ty:ty, $layout:ty, $ffi_name:ident) => {
         /// Enqueues histogram-of-oriented-gradients descriptors for the requested source windows.
         ///
-        /// `locations` is a host slice of source pixel starting locations. `source_offset` identifies
-        /// the pixel within the full source image at which the ROI begins; the wrapper offsets the
-        /// native source pointer accordingly. Only [`BorderType::Replicate`] is supported by NPP.
+        /// `locations` is a host slice of source pixel starting locations.
+        /// `source_offset` identifies the pixel within the full source image at which the ROI begins; the wrapper offsets the native source pointer accordingly.
+        /// Only [`BorderType::Replicate`] is supported by NPP.
         ///
-        /// The operation uses centered derivatives, unsigned orientations from 0 to 180 degrees,
-        /// linear interpolation between the two nearest bins, and overlapping blocks with L2
-        /// normalization. It performs no threshold clipping or Gaussian smoothing. For three-channel
-        /// images, the channel with the greatest gradient magnitude supplies each pixel's gradient.
+        /// The operation uses centered derivatives, unsigned orientations from 0 to 180 degrees, linear interpolation between the two nearest bins, and overlapping blocks with L2 normalization.
+        /// It performs no threshold clipping or Gaussian smoothing.
+        /// For three-channel images, the channel with the greatest gradient magnitude supplies each pixel's gradient.
         /// Descriptor windows contain `f32` bins in row order and are packed consecutively without padding.
         ///
-        /// `descriptors` must have at least the byte capacity returned by
-        /// [`histogram_of_gradients_border_descriptors_size`]. `scratch` must have at least the
-        /// capacity returned by [`histogram_of_gradients_border_buffer_size`] for the same request.
-        /// NPP validates configuration and window limits through these queries. This call checks
-        /// capacities and CUDA contexts, then queues work without synchronizing the stream.
+        /// `descriptors` must have at least the byte capacity returned by [`histogram_of_gradients_border_descriptors_size`].
+        /// `scratch` must have at least the capacity returned by [`histogram_of_gradients_border_buffer_size`] for the same request.
+        /// NPP validates configuration and window limits through these queries.
+        /// This call checks capacities and CUDA contexts, then queues work without synchronizing the stream.
         ///
         /// # Errors
         ///
-        /// Returns an error if the source offset or ROI is invalid, a size query fails, either output
-        /// capacity is too small, a location count cannot fit `i32`, binding the CUDA context fails,
-        /// a source or output region belongs to a different CUDA context, or NPP rejects the operation.
+        /// Returns an error if the source offset or ROI is invalid, a size query fails, either output capacity is too small, a location count cannot fit `i32`, binding the CUDA context fails, a source or output region belongs to a different CUDA context, or NPP rejects the operation.
         ///
         /// # Safety
         ///
         /// The source pixels must be initialized and ready for reading on `stream_context`.
-        /// Keep the source, descriptors, and scratch allocations valid until queued work completes,
-        /// including every replay if captured. Prevent conflicting access from other streams or the
-        /// host during that time; source, descriptor output, and scratch storage must not overlap.
-        /// The descriptor and scratch regions must permit exclusive device writes. The host
-        /// `locations` slice must remain readable for this call. Uphold the native configuration and
-        /// window requirements not established by the size queries.
+        /// Keep the source, descriptors, and scratch allocations valid until queued work completes, including every replay if captured.
+        /// Prevent conflicting access from other streams or the host during that time; source, descriptor output, and scratch storage must not overlap.
+        /// The descriptor and scratch regions must permit exclusive device writes.
+        /// The host `locations` slice must remain readable for this call.
+        /// Uphold the native configuration and window requirements not established by the size queries.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &ImageView<'_, $pixel_ty, $layout>,
@@ -228,42 +222,36 @@ impl_histogram_of_gradients_border!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve the pixel ABI and channel layout expected by the selected
-/// native operation and uphold the method's validation and queued execution contract.
+/// Implementations must preserve the pixel ABI and channel layout expected by the selected native operation and uphold the method's validation and queued execution contract.
 pub unsafe trait HistogramOfGradientsBorder<L: ChannelLayout>: DataTypeLike {
     /// Enqueues histogram-of-oriented-gradients descriptors for the requested source windows.
     ///
-    /// `locations` is a host slice of source pixel starting locations. `source_offset` identifies
-    /// the pixel within the full source image at which the ROI begins; the wrapper offsets the
-    /// native source pointer accordingly. Only [`BorderType::Replicate`] is supported by NPP.
+    /// `locations` is a host slice of source pixel starting locations.
+    /// `source_offset` identifies the pixel within the full source image at which the ROI begins; the wrapper offsets the native source pointer accordingly.
+    /// Only [`BorderType::Replicate`] is supported by NPP.
     ///
-    /// The operation uses centered derivatives, unsigned orientations from 0 to 180 degrees,
-    /// linear interpolation between the two nearest bins, and overlapping blocks with L2
-    /// normalization. It performs no threshold clipping or Gaussian smoothing. For three-channel
-    /// images, the channel with the greatest gradient magnitude supplies each pixel's gradient.
+    /// The operation uses centered derivatives, unsigned orientations from 0 to 180 degrees, linear interpolation between the two nearest bins, and overlapping blocks with L2 normalization.
+    /// It performs no threshold clipping or Gaussian smoothing.
+    /// For three-channel images, the channel with the greatest gradient magnitude supplies each pixel's gradient.
     /// Descriptor windows contain `f32` bins in row order and are packed consecutively without padding.
     ///
-    /// `descriptors` must have at least the byte capacity returned by
-    /// [`histogram_of_gradients_border_descriptors_size`]. `scratch` must have at least the
-    /// capacity returned by [`histogram_of_gradients_border_buffer_size`] for the same request.
-    /// NPP validates configuration and window limits through these queries. This call checks
-    /// capacities and CUDA contexts, then queues work without synchronizing the stream.
+    /// `descriptors` must have at least the byte capacity returned by [`histogram_of_gradients_border_descriptors_size`].
+    /// `scratch` must have at least the capacity returned by [`histogram_of_gradients_border_buffer_size`] for the same request.
+    /// NPP validates configuration and window limits through these queries.
+    /// This call checks capacities and CUDA contexts, then queues work without synchronizing the stream.
     ///
     /// # Errors
     ///
-    /// Returns an error if the source offset or ROI is invalid, a size query fails, either output
-    /// capacity is too small, a location count cannot fit `i32`, binding the CUDA context fails,
-    /// a source or output region belongs to a different CUDA context, or NPP rejects the operation.
+    /// Returns an error if the source offset or ROI is invalid, a size query fails, either output capacity is too small, a location count cannot fit `i32`, binding the CUDA context fails, a source or output region belongs to a different CUDA context, or NPP rejects the operation.
     ///
     /// # Safety
     ///
     /// The source pixels must be initialized and ready for reading on `stream_context`.
-    /// Keep the source, descriptors, and scratch allocations valid until queued work completes,
-    /// including every replay if captured. Prevent conflicting access from other streams or the
-    /// host during that time; source, descriptor output, and scratch storage must not overlap.
-    /// The descriptor and scratch regions must permit exclusive device writes. The host
-    /// `locations` slice must remain readable for this call. Uphold the native configuration and
-    /// window requirements not established by the size queries.
+    /// Keep the source, descriptors, and scratch allocations valid until queued work completes, including every replay if captured.
+    /// Prevent conflicting access from other streams or the host during that time; source, descriptor output, and scratch storage must not overlap.
+    /// The descriptor and scratch regions must permit exclusive device writes.
+    /// The host `locations` slice must remain readable for this call.
+    /// Uphold the native configuration and window requirements not established by the size queries.
     unsafe fn histogram_of_gradients_border(
         stream_context: &StreamContext,
         source: &ImageView<'_, Self, L>,
@@ -328,37 +316,32 @@ impl_histogram_of_gradients_border_dispatch!(f32, C3, histogram_of_gradients_bor
 
 /// Enqueues histogram-of-oriented-gradients descriptors for the requested source windows.
 ///
-/// `locations` is a host slice of source pixel starting locations. `source_offset` identifies
-/// the pixel within the full source image at which the ROI begins; the wrapper offsets the
-/// native source pointer accordingly. Only [`BorderType::Replicate`] is supported by NPP.
+/// `locations` is a host slice of source pixel starting locations.
+/// `source_offset` identifies the pixel within the full source image at which the ROI begins; the wrapper offsets the native source pointer accordingly.
+/// Only [`BorderType::Replicate`] is supported by NPP.
 ///
-/// The operation uses centered derivatives, unsigned orientations from 0 to 180 degrees,
-/// linear interpolation between the two nearest bins, and overlapping blocks with L2
-/// normalization. It performs no threshold clipping or Gaussian smoothing. For three-channel
-/// images, the channel with the greatest gradient magnitude supplies each pixel's gradient.
+/// The operation uses centered derivatives, unsigned orientations from 0 to 180 degrees, linear interpolation between the two nearest bins, and overlapping blocks with L2 normalization.
+/// It performs no threshold clipping or Gaussian smoothing.
+/// For three-channel images, the channel with the greatest gradient magnitude supplies each pixel's gradient.
 /// Descriptor windows contain `f32` bins in row order and are packed consecutively without padding.
 ///
-/// `descriptors` must have at least the byte capacity returned by
-/// [`histogram_of_gradients_border_descriptors_size`]. `scratch` must have at least the
-/// capacity returned by [`histogram_of_gradients_border_buffer_size`] for the same request.
-/// NPP validates configuration and window limits through these queries. This call checks
-/// capacities and CUDA contexts, then queues work without synchronizing the stream.
+/// `descriptors` must have at least the byte capacity returned by [`histogram_of_gradients_border_descriptors_size`].
+/// `scratch` must have at least the capacity returned by [`histogram_of_gradients_border_buffer_size`] for the same request.
+/// NPP validates configuration and window limits through these queries.
+/// This call checks capacities and CUDA contexts, then queues work without synchronizing the stream.
 ///
 /// # Errors
 ///
-/// Returns an error if the source offset or ROI is invalid, a size query fails, either output
-/// capacity is too small, a location count cannot fit `i32`, binding the CUDA context fails,
-/// a source or output region belongs to a different CUDA context, or NPP rejects the operation.
+/// Returns an error if the source offset or ROI is invalid, a size query fails, either output capacity is too small, a location count cannot fit `i32`, binding the CUDA context fails, a source or output region belongs to a different CUDA context, or NPP rejects the operation.
 ///
 /// # Safety
 ///
 /// The source pixels must be initialized and ready for reading on `stream_context`.
-/// Keep the source, descriptors, and scratch allocations valid until queued work completes,
-/// including every replay if captured. Prevent conflicting access from other streams or the
-/// host during that time; source, descriptor output, and scratch storage must not overlap.
-/// The descriptor and scratch regions must permit exclusive device writes. The host
-/// `locations` slice must remain readable for this call. Uphold the native configuration and
-/// window requirements not established by the size queries.
+/// Keep the source, descriptors, and scratch allocations valid until queued work completes, including every replay if captured.
+/// Prevent conflicting access from other streams or the host during that time; source, descriptor output, and scratch storage must not overlap.
+/// The descriptor and scratch regions must permit exclusive device writes.
+/// The host `locations` slice must remain readable for this call.
+/// Uphold the native configuration and window requirements not established by the size queries.
 pub unsafe fn histogram_of_gradients_border<T, L>(
     stream_context: &StreamContext,
     source: &ImageView<'_, T, L>,

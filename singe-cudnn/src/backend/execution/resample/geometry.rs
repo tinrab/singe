@@ -23,8 +23,7 @@ impl ResampleGeometry {
     /// Creates spatial geometry without changing the supplied fractions or their units.
     ///
     /// # Errors
-    /// Returns an error for empty geometry, mismatched ranks, nonpositive denominators,
-    /// or nonpositive window and stride values.
+    /// Returns an error for empty geometry, mismatched ranks, nonpositive denominators, or nonpositive window and stride values.
     pub fn create(
         pre_paddings: impl Into<Vec<Fraction>>,
         post_paddings: impl Into<Vec<Fraction>>,
@@ -39,6 +38,7 @@ impl ResampleGeometry {
         if spatial_dims == 0 {
             return Err(Error::InvalidDataShape);
         }
+
         if post_paddings.len() != spatial_dims {
             return Err(Error::LengthMismatch {
                 name: "post_paddings".into(),
@@ -46,6 +46,7 @@ impl ResampleGeometry {
                 actual: post_paddings.len(),
             });
         }
+
         if strides.len() != spatial_dims {
             return Err(Error::LengthMismatch {
                 name: "strides".into(),
@@ -53,6 +54,7 @@ impl ResampleGeometry {
                 actual: strides.len(),
             });
         }
+
         if window_dimensions.len() != spatial_dims {
             return Err(Error::LengthMismatch {
                 name: "window_dims".into(),
@@ -60,16 +62,20 @@ impl ResampleGeometry {
                 actual: window_dimensions.len(),
             });
         }
+
         for value in &pre_paddings {
             value.validate("resample pre paddings")?;
         }
+
         for value in &post_paddings {
             value.validate("resample post paddings")?;
         }
+
         for value in &strides {
             value.validate("resample strides")?;
             check_range!("resample strides", value.numerator() > 0)?;
         }
+
         for value in &window_dimensions {
             value.validate("resample window dims")?;
             check_range!("resample window dims", value.numerator() > 0)?;
@@ -119,8 +125,7 @@ impl ResampleGeometry {
     /// Native support selection still determines executable mode and geometry combinations.
     ///
     /// # Errors
-    /// Returns an error for mismatched ranks, nonpositive input dimensions,
-    /// a negative padded window span, or response dimensions exceeding INT64.
+    /// Returns an error for mismatched ranks, nonpositive input dimensions, a negative padded window span, or response dimensions exceeding INT64.
     pub fn infer_forward_dimensions(&self, input: &[i64]) -> Result<Vec<i64>> {
         if input.len() < 3 {
             return Err(Error::LengthMismatch {
@@ -129,6 +134,7 @@ impl ResampleGeometry {
                 actual: input.len(),
             });
         }
+
         let spatial_dims = input.len() - 2;
         if self.spatial_dims() != spatial_dims {
             return Err(Error::LengthMismatch {
@@ -137,6 +143,7 @@ impl ResampleGeometry {
                 actual: self.spatial_dims(),
             });
         }
+
         check_range!(
             "resample shape",
             input.iter().all(|&dimension| dimension > 0)

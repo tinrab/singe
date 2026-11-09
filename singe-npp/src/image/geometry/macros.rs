@@ -613,8 +613,7 @@ macro_rules! impl_generic_resize_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element and layout ABI and preserve
-        /// the dispatch method's access, ROI, status, and queued-lifetime contracts.
+        /// Implementations must match the native element and layout ABI and preserve the dispatch method's access, ROI, status, and queued-lifetime contracts.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///
@@ -708,8 +707,7 @@ macro_rules! impl_generic_resize_sqr_pixel_operation {
         ///
         /// # Safety
         ///
-        /// Implementations must match the native element and layout ABI and preserve
-        /// the dispatch method's access, ROI, status, and queued-lifetime contracts.
+        /// Implementations must match the native element and layout ABI and preserve the dispatch method's access, ROI, status, and queued-lifetime contracts.
         pub unsafe trait $trait<Layout>: DataTypeLike + Sized {
             #[doc = $doc]
             ///

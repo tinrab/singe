@@ -18,11 +18,11 @@ pub enum SubmitError {
     /// The emulator is shutting down or closed.
     #[error("device is closed")]
     Closed,
-    /// An earlier fault stopped the emulator. Downloads are still accepted.
+    /// An earlier fault stopped the emulator.
+    /// Downloads are still accepted.
     #[error("device is faulted")]
     Faulted,
-    /// [`EmulatorOptions::queued_commands`](crate::emulator::EmulatorOptions::queued_commands)
-    /// commands are already waiting.
+    /// [`EmulatorOptions::queued_commands`](crate::emulator::EmulatorOptions::queued_commands) commands are already waiting.
     #[error("command queue is full")]
     QueueFull,
     /// The command needs more staging storage than remains.
@@ -34,8 +34,7 @@ pub enum SubmitError {
     /// A buffer, stream, event, or kernel belongs to another emulator.
     #[error("resource belongs to another emulator")]
     ForeignResource,
-    /// An argument is invalid, such as a launch argument that does not match its
-    /// parameter.
+    /// An argument is invalid, such as a launch argument that does not match its parameter.
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
     /// The module layout or kernel failed validation.
@@ -92,13 +91,13 @@ pub enum ExecutionError {
     /// The submission's result was already taken.
     #[error("submission result already consumed")]
     ResultConsumed,
+    // The failure is what a reader needs, with a report of what ran attached, so it prints as the failure and is not its source too.
     /// A launch failed after it started.
     #[error("{cause}")]
     Launch {
         /// Counts for the part of the launch that ran.
         report: Arc<ExecutionReport>,
         /// The failure.
-        #[source]
         cause: Arc<Self>,
     },
     /// A cancelling shutdown stopped the command.
@@ -110,8 +109,7 @@ pub enum ExecutionError {
     /// An earlier fault stopped the emulator before this command ran.
     #[error("device is faulted")]
     Faulted,
-    /// The allocation exceeds the device storage limit, or host memory could not be
-    /// reserved.
+    /// The allocation exceeds the device storage limit, or host memory could not be reserved.
     #[error("memory limit exceeded")]
     MemoryLimit,
     /// The address window of a state space (named in the error) has no free range left.
@@ -120,12 +118,10 @@ pub enum ExecutionError {
     /// The launch needs more execution storage than remains.
     #[error("execution-state storage limit exceeded")]
     ExecutionStateLimit,
-    /// The launch reached
-    /// [`EmulatorOptions::launch_instructions`](crate::emulator::EmulatorOptions::launch_instructions).
+    /// The launch reached [`EmulatorOptions::launch_instructions`](crate::emulator::EmulatorOptions::launch_instructions).
     #[error("instruction budget exhausted")]
     InstructionLimit,
-    /// A lane exceeded
-    /// [`EmulatorOptions::call_depth`](crate::emulator::EmulatorOptions::call_depth).
+    /// A lane exceeded [`EmulatorOptions::call_depth`](crate::emulator::EmulatorOptions::call_depth).
     #[error("call depth exhausted")]
     CallDepth,
     /// A memory access was out of bounds, misaligned, or used the wrong state space.
@@ -137,8 +133,7 @@ pub enum ExecutionError {
     /// A lane executed `trap`.
     #[error("trap instruction")]
     Trap,
-    /// The kernel broke a PTX execution rule, such as an out-of-range barrier number
-    /// or a `ret` from a `.noreturn` function.
+    /// The kernel broke a PTX execution rule, such as an out-of-range barrier number or a `ret` from a `.noreturn` function.
     #[error("invalid execution: {0}")]
     Invalid(String),
     /// Every remaining lane is waiting at a barrier or collective that cannot complete.
@@ -158,8 +153,8 @@ pub enum ExecutionError {
 }
 
 impl ExecutionError {
-    /// Returns a display of this error that quotes the source line of the failing
-    /// instruction. Errors without a source location display normally.
+    /// Returns a display of this error that quotes the source line of the failing instruction.
+    /// Errors without a source location display normally.
     #[must_use]
     pub fn with_source<'a>(&'a self, source: &'a str) -> SourceDiagnostic<'a> {
         let span = match self {

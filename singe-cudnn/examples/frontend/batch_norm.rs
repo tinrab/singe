@@ -70,6 +70,7 @@ fn run() -> Result<()> {
         });
         channel_inputs.extend([(mean, 0.0), (variance, 1.0)]);
     }
+
     let channel_output = TensorOutputConfig::new()
         .with_data_type(DataType::F32)
         .output_tensor();
@@ -132,6 +133,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     for (id, value) in channel_inputs {
         let memory =
             DeviceMemory::from_slice(cuda, &vec![value; graph.shape(id)?.storage_span()?])?;
@@ -141,6 +143,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadOnly,
         )?;
     }
+
     for id in [peer_stats_0, peer_stats_1] {
         let mut values = common::init_f32_image(graph.shape(id)?.storage_span()?, &mut seed);
         if id == peer_stats_0 {
@@ -148,6 +151,7 @@ fn run() -> Result<()> {
                 values[index] = f32::from_bits(1);
             }
         }
+
         let memory = DeviceMemory::from_slice(cuda, &values)?;
         bindings.set_owned_region(
             id,
@@ -155,10 +159,12 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let mut channel_outputs = vec![outputs.statistics.mean, outputs.statistics.inv_variance];
     if let Some(running) = outputs.running {
         channel_outputs.extend([running.mean, running.variance]);
     }
+
     for id in &channel_outputs {
         let memory = DeviceMemory::<f32>::zeroed(cuda, graph.shape(*id)?.storage_span()?)?;
         bindings.set_owned_region(
@@ -167,6 +173,7 @@ fn run() -> Result<()> {
             BindingAccess::ReadWrite,
         )?;
     }
+
     let y_dev = DeviceMemory::<f16>::zeroed(cuda, graph.shape(y)?.storage_span()?)?;
     bindings.set_owned_region(
         y,

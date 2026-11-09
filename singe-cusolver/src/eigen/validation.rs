@@ -20,6 +20,7 @@ pub fn batch_layout(
     if batch == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     let values = n.checked_mul(batch).ok_or(Error::InvalidMatrixShape)?;
     layout.validate(n, values)?;
     if native_limit {
@@ -65,6 +66,7 @@ pub fn native_selection<T: SolverReal>(
             if range.start >= range.end || range.end > n {
                 return Err(Error::InvalidEigenRange);
             }
+
             let first = range.start.checked_add(1).ok_or(Error::InvalidEigenRange)?;
             Ok((
                 EigenRange::Index,

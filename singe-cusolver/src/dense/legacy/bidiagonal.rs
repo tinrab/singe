@@ -121,23 +121,16 @@ pub fn zgebrd_buffer_size(context: &Context, m: usize, n: usize) -> Result<usize
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Reduces a general $m \times n$ matrix `A` to a real upper or lower
-/// bidiagonal form `B` by an orthogonal transformation:
-/// $Q^{H}\cdot A\cdot P = B$.
+/// Reduces a general $m \times n$ matrix `A` to a real upper or lower bidiagonal form `B` by an orthogonal transformation: $Q^{H}\cdot A\cdot P = B$.
 ///
-/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower
-/// bidiagonal.
+/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower bidiagonal.
 ///
 /// The matrix `Q` and `P` are overwritten into matrix `A` in the following sense:
 ///
-/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with
-///   the upper bidiagonal matrix `B`. Elements below the diagonal, together
-///   with `tauq`, represent `Q`; elements above the first superdiagonal,
-///   together with `taup`, represent `P`.
-/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the
-///   lower bidiagonal matrix `B`. Elements below the first subdiagonal,
-///   together with `tauq`, represent `Q`; elements above the diagonal,
-///   together with `taup`, represent `P`.
+/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with the upper bidiagonal matrix `B`.
+///   Elements below the diagonal, together with `tauq`, represent `Q`; elements above the first superdiagonal, together with `taup`, represent `P`.
+/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the lower bidiagonal matrix `B`.
+///   Elements below the first subdiagonal, together with `tauq`, represent `Q`; elements above the diagonal, together with `taup`, represent `P`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -148,9 +141,7 @@ pub fn zgebrd_buffer_size(context: &Context, m: usize, n: usize) -> Result<usize
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -205,23 +196,16 @@ pub unsafe fn sgebrd(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Reduces a general $m \times n$ matrix `A` to a real upper or lower
-/// bidiagonal form `B` by an orthogonal transformation:
-/// $Q^{H}\cdot A\cdot P = B$.
+/// Reduces a general $m \times n$ matrix `A` to a real upper or lower bidiagonal form `B` by an orthogonal transformation: $Q^{H}\cdot A\cdot P = B$.
 ///
-/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower
-/// bidiagonal.
+/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower bidiagonal.
 ///
 /// The matrix `Q` and `P` are overwritten into matrix `A` in the following sense:
 ///
-/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with
-///   the upper bidiagonal matrix `B`. Elements below the diagonal, together
-///   with `tauq`, represent `Q`; elements above the first superdiagonal,
-///   together with `taup`, represent `P`.
-/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the
-///   lower bidiagonal matrix `B`. Elements below the first subdiagonal,
-///   together with `tauq`, represent `Q`; elements above the diagonal,
-///   together with `taup`, represent `P`.
+/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with the upper bidiagonal matrix `B`.
+///   Elements below the diagonal, together with `tauq`, represent `Q`; elements above the first superdiagonal, together with `taup`, represent `P`.
+/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the lower bidiagonal matrix `B`.
+///   Elements below the first subdiagonal, together with `tauq`, represent `Q`; elements above the diagonal, together with `taup`, represent `P`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -232,9 +216,7 @@ pub unsafe fn sgebrd(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -289,23 +271,16 @@ pub unsafe fn dgebrd(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Reduces a general $m \times n$ matrix `A` to a real upper or lower
-/// bidiagonal form `B` by an orthogonal transformation:
-/// $Q^{H}\cdot A\cdot P = B$.
+/// Reduces a general $m \times n$ matrix `A` to a real upper or lower bidiagonal form `B` by an orthogonal transformation: $Q^{H}\cdot A\cdot P = B$.
 ///
-/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower
-/// bidiagonal.
+/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower bidiagonal.
 ///
 /// The matrix `Q` and `P` are overwritten into matrix `A` in the following sense:
 ///
-/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with
-///   the upper bidiagonal matrix `B`. Elements below the diagonal, together
-///   with `tauq`, represent `Q`; elements above the first superdiagonal,
-///   together with `taup`, represent `P`.
-/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the
-///   lower bidiagonal matrix `B`. Elements below the first subdiagonal,
-///   together with `tauq`, represent `Q`; elements above the diagonal,
-///   together with `taup`, represent `P`.
+/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with the upper bidiagonal matrix `B`.
+///   Elements below the diagonal, together with `tauq`, represent `Q`; elements above the first superdiagonal, together with `taup`, represent `P`.
+/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the lower bidiagonal matrix `B`.
+///   Elements below the first subdiagonal, together with `tauq`, represent `Q`; elements above the diagonal, together with `taup`, represent `P`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -316,9 +291,7 @@ pub unsafe fn dgebrd(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -373,23 +346,16 @@ pub unsafe fn cgebrd(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Reduces a general $m \times n$ matrix `A` to a real upper or lower
-/// bidiagonal form `B` by an orthogonal transformation:
-/// $Q^{H}\cdot A\cdot P = B$.
+/// Reduces a general $m \times n$ matrix `A` to a real upper or lower bidiagonal form `B` by an orthogonal transformation: $Q^{H}\cdot A\cdot P = B$.
 ///
-/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower
-/// bidiagonal.
+/// If `m >= n`, `B` is upper bidiagonal; if `m < n`, `B` is lower bidiagonal.
 ///
 /// The matrix `Q` and `P` are overwritten into matrix `A` in the following sense:
 ///
-/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with
-///   the upper bidiagonal matrix `B`. Elements below the diagonal, together
-///   with `tauq`, represent `Q`; elements above the first superdiagonal,
-///   together with `taup`, represent `P`.
-/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the
-///   lower bidiagonal matrix `B`. Elements below the first subdiagonal,
-///   together with `tauq`, represent `Q`; elements above the diagonal,
-///   together with `taup`, represent `P`.
+/// - If `m >= n`, the diagonal and first superdiagonal are overwritten with the upper bidiagonal matrix `B`.
+///   Elements below the diagonal, together with `tauq`, represent `Q`; elements above the first superdiagonal, together with `taup`, represent `P`.
+/// - If `m < n`, the diagonal and first subdiagonal are overwritten with the lower bidiagonal matrix `B`.
+///   Elements below the first subdiagonal, together with `tauq`, represent `Q`; elements above the diagonal, together with `taup`, represent `P`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -400,9 +366,7 @@ pub unsafe fn cgebrd(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -601,12 +565,9 @@ pub fn zungbr_buffer_size(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Generates one of the unitary matrices `Q` or $P^{H}$ determined by `gebrd`
-/// when reducing matrix `A` to bidiagonal form:
-/// $Q^{H}\cdot A\cdot P = B$.
+/// Generates one of the unitary matrices `Q` or $P^{H}$ determined by `gebrd` when reducing matrix `A` to bidiagonal form: $Q^{H}\cdot A\cdot P = B$.
 ///
-/// `Q` and $P^{H}$ are defined as products of elementary reflectors `H(i)`
-/// or `G(i)`, respectively.
+/// `Q` and $P^{H}$ are defined as products of elementary reflectors `H(i)` or `G(i)`, respectively.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -616,9 +577,7 @@ pub fn zungbr_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -668,12 +627,9 @@ pub unsafe fn sorgbr(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Generates one of the unitary matrices `Q` or $P^{H}$ determined by `gebrd`
-/// when reducing matrix `A` to bidiagonal form:
-/// $Q^{H}\cdot A\cdot P = B$.
+/// Generates one of the unitary matrices `Q` or $P^{H}$ determined by `gebrd` when reducing matrix `A` to bidiagonal form: $Q^{H}\cdot A\cdot P = B$.
 ///
-/// `Q` and $P^{H}$ are defined as products of elementary reflectors `H(i)`
-/// or `G(i)`, respectively.
+/// `Q` and $P^{H}$ are defined as products of elementary reflectors `H(i)` or `G(i)`, respectively.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -683,9 +639,7 @@ pub unsafe fn sorgbr(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).

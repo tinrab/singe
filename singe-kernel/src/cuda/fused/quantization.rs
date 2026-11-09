@@ -26,10 +26,10 @@ pub struct FusedRmsNormFp8Config {
 
 macro_rules! fused_fp8 {
     ($ty:ty, $norm:ident, $silu:ident) => {
-        /// Adds and rounds the residual in the storage dtype, RMS-normalizes in f32,
-        /// rounds back to storage, and emits FP8 with float32 dequantization scales.
+        /// Adds and rounds the residual in the storage dtype, RMS-normalizes in f32, rounds back to storage, and emits FP8 with float32 dequantization scales.
         /// # Safety
-        /// Inputs must be initialized. Writable ranges must not overlap each other or any input.
+        /// Inputs must be initialized.
+        /// Writable ranges must not overlap each other or any input.
         /// Order producers and retain every allocation until completion and throughout replay.
         pub unsafe fn $norm(
             stream: &Stream,
@@ -72,7 +72,8 @@ macro_rules! fused_fp8 {
 
         /// Computes `SwiGLU`, rounds to storage, and emits FP8 with float32 scales.
         /// # Safety
-        /// Inputs must be initialized. Writable ranges must not overlap each other or any input.
+        /// Inputs must be initialized.
+        /// Writable ranges must not overlap each other or any input.
         /// Order producers and retain every allocation until completion and throughout replay.
         pub unsafe fn $silu(
             stream: &Stream,

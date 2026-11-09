@@ -1,4 +1,5 @@
-//! Opt-in, result-checked CPU benchmarks. Run with --release --ignored --nocapture.
+//! Opt-in, result-checked CPU benchmarks.
+//! Run with --release --ignored --nocapture.
 
 use std::{error::Error, result::Result as StdResult, time::Instant};
 
@@ -66,7 +67,7 @@ fn benchmark_dispatch(name: &str, body: &str, threads: u32, rounds: u32) -> Resu
 
 #[test]
 #[ignore = "release-mode throughput benchmark; no timing thresholds"]
-fn dispatch_throughput() -> Result {
+fn test_dispatch_throughput() -> Result {
     require_release()?;
     benchmark_dispatch("arithmetic", "add.u32 r,r,1;", 32, 2000)?;
     benchmark_dispatch(
@@ -85,7 +86,7 @@ fn dispatch_throughput() -> Result {
 
 #[test]
 #[ignore = "release-mode throughput benchmark; no timing thresholds"]
-fn barrier_throughput() -> Result {
+fn test_barrier_throughput() -> Result {
     require_release()?;
     benchmark_dispatch(
         "1024-lane barriers",
@@ -97,7 +98,7 @@ fn barrier_throughput() -> Result {
 
 #[test]
 #[ignore = "release-mode throughput benchmark; no timing thresholds"]
-fn grid_retirement_throughput() -> Result {
+fn test_grid_retirement_throughput() -> Result {
     require_release()?;
     let parsed = ParsedModule::parse(
         ".version 9.3 .target sm_80 .address_size 64
@@ -133,7 +134,7 @@ fn grid_retirement_throughput() -> Result {
 
 #[test]
 #[ignore = "release-mode throughput benchmark; no timing thresholds"]
-fn grid_scaling_throughput() -> Result {
+fn test_grid_scaling_throughput() -> Result {
     require_release()?;
     let parsed = ParsedModule::parse(
         ".version 9.3 .target sm_80 .address_size 64

@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
     ops::Range,
     rc::Rc,
-    sync::{Arc, Condvar, Mutex, OnceLock, PoisonError, Weak},
+    sync::{Arc, Condvar, Mutex, OnceLock, Weak},
 };
 
 use crate::{
@@ -12,6 +12,7 @@ use crate::{
     event::Event,
     stream::Stream,
     submission::{Access, AccessMode, Resources},
+    utility::lock_for_cleanup,
     view::{AllocationId, DeviceRegion, ranges_overlap},
 };
 
@@ -70,20 +71,25 @@ pub struct AccessTracker {
 
 impl AccessTracker {
     // Multiple primary-context wrappers share failure state for the actual CUDA context.
-    pub(crate) fn for_context(handle: usize) -> Arc<Mutex<Self>> {
+    pub(crate) fn for_context(handle: usize) -> Result<Arc<Mutex<Self>>> {
         static TRACKERS: OnceLock<Mutex<HashMap<usize, Weak<Mutex<AccessTracker>>>>> =
             OnceLock::new();
-        let mut trackers = TRACKERS
-            .get_or_init(Mutex::default)
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut trackers =
+            TRACKERS
+                .get_or_init(Mutex::default)
+                .lock()
+                .map_err(|_| Error::ResourcePoisoned {
+                    name: "access trackers",
+                })?;
         trackers.retain(|_, tracker| tracker.strong_count() != 0);
         if let Some(tracker) = trackers.get(&handle).and_then(Weak::upgrade) {
-            return tracker;
+            return Ok(tracker);
         }
+
         let tracker = Arc::new(Mutex::new(Self::default()));
         trackers.insert(handle, Arc::downgrade(&tracker));
-        tracker
+        drop(trackers);
+        Ok(tracker)
     }
 
     pub(crate) fn fail(&mut self) {
@@ -109,6 +115,7 @@ pub fn lock_access<'a>(
     if ACCESS_HELD.get() {
         return Err(Error::ReentrantAccess);
     }
+
     if tracker
         .lock()
         .map_err(|_| Error::AccessTrackingPoisoned)?
@@ -116,6 +123,7 @@ pub fn lock_access<'a>(
     {
         return Err(Error::AccessTrackingPoisoned);
     }
+
     let cells = {
         let mut allocations = ALLOCATIONS
             .get_or_init(Mutex::default)
@@ -131,6 +139,7 @@ pub fn lock_access<'a>(
                 if let Some(cell) = allocations.get(&id).and_then(Weak::upgrade) {
                     return cell;
                 }
+
                 let cell = Arc::new(AccessCell {
                     id,
                     state: Mutex::new(AccessState::default()),
@@ -161,13 +170,16 @@ pub fn lock_access<'a>(
                 .wait(state)
                 .map_err(|_| Error::AccessTrackingPoisoned)?;
         }
+
         if state.failed {
             return Err(Error::AccessTrackingPoisoned);
         }
+
         state.occupied = true;
         drop(state);
         guard.acquired += 1;
     }
+
     if tracker
         .lock()
         .map_err(|_| Error::AccessTrackingPoisoned)?
@@ -214,6 +226,7 @@ impl AccessGuard<'_> {
                 stream.join(ready)?;
             }
         }
+
         let keys: Vec<_> = accesses.iter().map(AccessKey::from).collect();
         for cell in &self.cells {
             let mut state = cell
@@ -252,14 +265,10 @@ impl AccessGuard<'_> {
                 .filter(|access| access.id == cell.id)
                 .map(AccessKey::from)
                 .collect();
-            cell.state
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .pending
-                .push(PendingAccess {
-                    accesses,
-                    event: Arc::downgrade(event),
-                });
+            lock_for_cleanup(&cell.state).pending.push(PendingAccess {
+                accesses,
+                event: Arc::downgrade(event),
+            });
         }
     }
 
@@ -268,15 +277,9 @@ impl AccessGuard<'_> {
         reason = "ordering and recording require exclusive access to the tracking transaction guard"
     )]
     pub(crate) fn fail(&mut self) {
-        self.tracker
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .fail();
+        lock_for_cleanup(self.tracker).fail();
         for cell in &self.cells {
-            cell.state
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .failed = true;
+            lock_for_cleanup(&cell.state).failed = true;
         }
     }
 
@@ -305,6 +308,7 @@ impl AccessGuard<'_> {
                     event.synchronize()?;
                 }
             }
+
             state.prune_completed()?;
         }
         Ok(())
@@ -314,12 +318,10 @@ impl AccessGuard<'_> {
 impl Drop for AccessGuard<'_> {
     fn drop(&mut self) {
         for cell in &self.cells[..self.acquired] {
-            cell.state
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .occupied = false;
+            lock_for_cleanup(&cell.state).occupied = false;
             cell.available.notify_all();
         }
+
         ACCESS_HELD.set(false);
     }
 }

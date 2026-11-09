@@ -99,21 +99,17 @@ where
 {
     /// Copies samples at fractional pixel shifts using native linear interpolation.
     ///
-    /// Both `x_shift` and `y_shift` must be finite and in `0.0..1.0`. The source window
-    /// must retain a two-by-two parent-image footprint anchored at `(0, 0)`, including one
-    /// extra source column on the right and row below, even when a shift is zero.
-    /// Destination width and height must not exceed the source window dimensions. For AC4,
-    /// alpha remains unwritten.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful native execution and stream completion.
+    /// Both `x_shift` and `y_shift` must be finite and in `0.0..1.0`.
+    /// The source window must retain a two-by-two parent-image footprint anchored at `(0, 0)`, including one extra source column on the right and row below, even when a shift is zero.
+    /// Destination width and height must not exceed the source window dimensions.
+    /// For AC4, alpha remains unwritten.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native interpolation, or synchronization fail. Invalid shifts,
-    /// missing parent halo, or destination dimensions larger than the source window are
-    /// rejected.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native interpolation, or synchronization fail.
+    /// Invalid shifts, missing parent halo, or destination dimensions larger than the source window are rejected.
     pub fn copy_subpixel_into(
         stream_context: &StreamContext,
         source: &ImageWindow<'_, T, L>,
@@ -139,23 +135,18 @@ where
 {
     /// Copies samples at fractional pixel shifts using native linear interpolation.
     ///
-    /// Both `x_shift` and `y_shift` must be finite and in `0.0..1.0`. The source window
-    /// must retain a two-by-two parent-image footprint anchored at `(0, 0)`, including one
-    /// extra source column on the right and row below, even when a shift is zero.
-    /// Uses a top-left source window with the requested `size` and allocates a new owned
-    /// image of that size. For AC4, copies the source window first to preserve its alpha.
-    /// Prepares source and destination regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful native execution and stream completion.
+    /// Both `x_shift` and `y_shift` must be finite and in `0.0..1.0`.
+    /// The source window must retain a two-by-two parent-image footprint anchored at `(0, 0)`, including one extra source column on the right and row below, even when a shift is zero.
+    /// Uses a top-left source window with the requested `size` and allocates a new owned image of that size.
+    /// For AC4, copies the source window first to preserve its alpha.
+    /// Prepares source and destination regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native interpolation, or synchronization fail. Invalid shifts,
-    /// missing parent halo, or destination dimensions larger than the source window are
-    /// rejected.
-    /// Source window construction, allocation, output view construction, or copying source
-    /// alpha can also fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native interpolation, or synchronization fail.
+    /// Invalid shifts, missing parent halo, or destination dimensions larger than the source window are rejected.
+    /// Source window construction, allocation, output view construction, or copying source alpha can also fail.
     pub fn copy_subpixel(self, size: Size, x_shift: f32, y_shift: f32) -> Result<Self> {
         self.ensure_eager()?;
         let source = self.view()?.window(Rectangle {
@@ -173,6 +164,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source.view())?;
             }
+
             <Self as CopySubpixelImage<T, L>>::copy_subpixel_image(
                 self.stream_context,
                 &source,

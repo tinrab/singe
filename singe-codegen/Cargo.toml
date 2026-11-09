@@ -1,0 +1,21 @@
+[package]
+name = "singe-codegen"
+description = "Kernel IR, schedules, and code emitters for Singe's generated kernels."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+readme = "README.md"
+keywords = ["singe", "codegen", "kernel", "ir"]
+include.workspace = true
+
+[features]
+tile = ["dep:cutile-ir"]
+serde = ["dep:serde"]
+
+[dependencies]
+thiserror.workspace = true
+half.workspace = true
+libm.workspace = true
+cutile-ir = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }

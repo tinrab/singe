@@ -525,7 +525,7 @@ impl Default for CUfileDescr_t {
 }
 /// File handle type
 pub type CUfileHandle_t = *mut ::core::ffi::c_void;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Register an open file.
     /// * [`cuFileHandleRegister`] is required and performs extra checking that is memoized to provide increased
     ///   performance on later cuFile operations.
@@ -570,7 +570,7 @@ unsafe extern "C" {
         descr: *mut CUfileDescr_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The API is used to release resources that are claimed by [`cuFileHandleRegister`].
     ///
     ///   This API should be invoked only after the application ensures there are no outstanding IO operations
@@ -594,7 +594,7 @@ unsafe extern "C" {
     /// - `fh`: The file handle obtained from [`cuFileHandleRegister`].
     pub fn cuFileHandleDeregister(fh: CUfileHandle_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Based on the memory type, this API registers existing `cuMemAlloc`’d (pinned) memory for GDS IO
     ///   operations or host memory for IO operations.
     ///
@@ -630,7 +630,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_int,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Based on the memory type, this API either deregisters CUDA memory or the host memory registered using
     ///   the [`cuFileBufRegister`] API.
     ///
@@ -648,7 +648,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on a successful deregistration.
     pub fn cuFileBufDeregister(bufPtr_base: *const ::core::ffi::c_void) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads specified bytes from the file descriptor into the device memory or the host memory.
     ///
     /// This API reads the data from a specified file handle at a specified offset and size bytes into the GPU memory by
@@ -685,7 +685,7 @@ unsafe extern "C" {
         bufPtr_offset: off_t,
     ) -> ssize_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes specified bytes from the device memory into the file descriptor using GDS.
     ///
     /// This API writes the data from the GPU memory or the host memory to a file specified by the file handle
@@ -725,7 +725,7 @@ unsafe extern "C" {
         bufPtr_offset: off_t,
     ) -> ssize_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Opens the Driver session to support GDS IO operations.
     ///
     /// * This API opens the session with the NVFS kernel driver to communicate from userspace to kernel space and calls
@@ -753,7 +753,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on a successful open, or if the driver is already open.
     pub fn cuFileDriverOpen() -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Closes the driver session and frees any associated resources for GDS.
     /// * This happens implicitly upon process exit.
     /// * The driver can be reopened once it is closed.
@@ -768,7 +768,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on a successful close.
     pub fn cuFileDriverClose() -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// reset the cuFile library and release the nvidia-fs driver
     ///
     ///
@@ -786,11 +786,11 @@ unsafe extern "C" {
     /// See also: cuFileDriverOpen
     pub fn cuFileDriverClose_v2() -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// returns use count of cufile drivers at that moment by the process.
     pub fn cuFileUseCount() -> ::core::ffi::c_long;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The `cuFileDrvProps_t` structure can be queried with [`cuFileDriverGetProperties`] and selectively
     /// modified with `cuFileDriverSetProperties`. The structure is self-describing, and its fields are
     /// consistent with the major and minor API version parameters.
@@ -839,7 +839,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on a successful completion.
     pub fn cuFileDriverGetProperties(props: *mut CUfileDrvProps_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `cuFileDriverSetPollMode(bool poll, size_t poll_threshold_size)` API
     ///
     /// * Sets whether the Read/Write APIs use polling to complete IO operations. If poll mode is enabled, an IO
@@ -871,7 +871,7 @@ unsafe extern "C" {
         poll_threshold_size: size_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the max IO size, in KB.
     ///
     ///   This parameter is used by the nvidia-fs driver as the maximum IO chunk size in which IO is issued to the
@@ -902,7 +902,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on successful completion.
     pub fn cuFileDriverSetMaxDirectIOSize(max_direct_io_size: size_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Control parameter to set maximum GPU memory reserved per device by the library for internal buffering This takes place before the driver is opened. No-op if driver is already open.
     ///
     ///
@@ -938,7 +938,7 @@ unsafe extern "C" {
     /// - `max_cache_size`: The maximum GPU buffer space per device used for internal use in KB
     pub fn cuFileDriverSetMaxCacheSize(max_cache_size: size_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the maximum GPU buffer space, in KB, that is pinned and mapped. This value might be rounded down to the nearest GPU page size.
     /// * The max pinned size must be 4K aligned.
     /// * The default value corresponds to the maximum `PinnedMemory` or the physical memory size of the device.
@@ -1099,7 +1099,7 @@ impl Default for CUfileIOEvents {
 pub type CUfileIOEvents_t = CUfileIOEvents;
 /// Opaque handle owning a batch I/O context created by [`cuFileBatchIOSetUp`] and released by [`cuFileBatchIODestroy`].
 pub type CUfileBatchHandle_t = *mut ::core::ffi::c_void;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This interface should be the first call in the sequence of batch I/O operation. This takes the maximum
     /// number of batch entries the caller intends to use and returns a `CUFileBatchHandle_t` which should
     /// be used by the caller for subsequent batch I/O calls.
@@ -1127,7 +1127,7 @@ unsafe extern "C" {
         nr: ::core::ffi::c_uint,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This API will need to be used to submit a read/write operation on an array of GPU/CPU data pointers from
     ///   their respective file handle, offset, and size bytes.
     ///
@@ -1174,7 +1174,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This is a batch API to monitor the status of batch IO operations by using the `batch_id` that was returned by
     ///   [`cuFileBatchIOSubmit`]. The operation will be canceled automatically if [`cuFileBatchIOCancel`] is called and the
     ///   status will reflect `CU_FILE_CANCELED` for all canceled IO operations.
@@ -1215,7 +1215,7 @@ unsafe extern "C" {
         timeout: *mut timespec,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This is a batch API to cancel an ongoing IO batch operation by using the `batch_id` that was returned
     ///   by [`cuFileBatchIOSubmit`]. This API tries to cancel an individual IO operation in the batch if
     ///   possible and provides no guarantee about canceling an ongoing operation.
@@ -1236,7 +1236,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on success.
     pub fn cuFileBatchIOCancel(batch_idp: CUfileBatchHandle_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This is a batch API that destroys a batch context and the resources that are allocated with `cuFileBatchIOSetup`.
     ///
     /// Refer to the following for more information:
@@ -1250,7 +1250,7 @@ unsafe extern "C" {
     /// - `batch_idp`: The batch handle to be destroyed.
     pub fn cuFileBatchIODestroy(batch_idp: CUfileBatchHandle_t);
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enqueues a read operation for the specified bytes from the cuFile handle into the device memory
     ///   by using GDS functionality or to the host memory based on the type of memory pointer.
     /// * If non-NULL, the action is ordered in the stream.
@@ -1316,7 +1316,7 @@ unsafe extern "C" {
         stream: CUstream,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queues Write operation for the specified bytes from the device memory into the cuFile handle by using GDS.
     ///
     /// * This API writes the data from the GPU memory to a file specified by the file handle at a specified offset and
@@ -1373,7 +1373,7 @@ unsafe extern "C" {
         stream: CUstream,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Defines the input behavior for stream I/O APIs.
     ///
     /// This optional API registers the stream with the cuFile subsystem.
@@ -1400,7 +1400,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This optional API deregisters the stream with the cuFile subsystem.
     ///
     /// This API will free allocated cuFile resources associated with the stream.
@@ -1442,7 +1442,7 @@ impl Default for CUfileIOVec {
 }
 /// Structure for scatter/gather I/O
 pub type CUfileIOVec_t = CUfileIOVec;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reads data from an offset in a registered file handle to one or more buffers in a specified device or host memory
     ///
     ///
@@ -1492,7 +1492,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> ssize_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes data to an offset in a registered file handle from one or more buffers in a specified device or host memory
     ///
     ///
@@ -1542,7 +1542,7 @@ unsafe extern "C" {
         flags: ::core::ffi::c_uint,
     ) -> ssize_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Retrieves the cuFile library version.
     /// * The version is returned as (1000 \* major + 10 \* minor).
     /// * For example, cuFile 1.7.0 would be represented by 1070.
@@ -1561,7 +1561,7 @@ unsafe extern "C" {
     /// - [`CUfileOpError::CU_FILE_SUCCESS`]: [`CUfileOpError::CU_FILE_SUCCESS`] on successful completion.
     pub fn cuFileGetVersion(version: *mut ::core::ffi::c_int) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Exports a copy of the detected PCIe topology to a specified file in JSON format.
     ///
     ///
@@ -1703,7 +1703,7 @@ pub enum CUFileStringConfigParameter_t {
     /// Selects the RDMA transport string.
     CUFILE_PARAM_RDMA_TRANSPORT = 3,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Fetch cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.
     /// * If the driver is open, `cuFileGetParameter*()` returns the current runtime
@@ -1729,7 +1729,7 @@ unsafe extern "C" {
         value: *mut size_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Fetch cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.
     /// * If the driver is open, `cuFileGetParameter*()` returns the current runtime
@@ -1754,7 +1754,7 @@ unsafe extern "C" {
         value: *mut bool,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Fetch cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.
     /// * If the driver is open, `cuFileGetParameter*()` returns the current runtime
@@ -1780,7 +1780,7 @@ unsafe extern "C" {
         len: ::core::ffi::c_int,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get both the minimum and maximum settable values for a given `size_t`
     ///   parameter in a single call.
     ///
@@ -1803,7 +1803,7 @@ unsafe extern "C" {
         max_value: *mut size_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Allows setting of cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.
     /// * Should be called before the driver opens and the values take effect after the driver is opened.
@@ -1830,7 +1830,7 @@ unsafe extern "C" {
         value: size_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Allows setting of cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.
     /// * Should be called before the driver opens and the values take effect after the driver is opened.
@@ -1856,7 +1856,7 @@ unsafe extern "C" {
         value: bool,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Allows setting of cuFile configuration parameters in a program.
     /// * Based on the parameter type, the corresponding API can be chosen.
     /// * Should be called before the driver opens and the values take effect after the driver is opened.
@@ -1882,7 +1882,7 @@ unsafe extern "C" {
         desc_str: *const ::core::ffi::c_char,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the level of statistics collection for cuFile operations. This overrides
     /// the `cufile.json` settings for stats. Higher stats levels may impact
     /// performance. Level 0 disables statistics collection. Changes to stats level
@@ -1894,7 +1894,7 @@ unsafe extern "C" {
     /// - `level`: Statistics level (0 = disabled, 1 = basic, 2 = detailed, 3 = verbose).
     pub fn cuFileSetStatsLevel(level: ::core::ffi::c_int) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the current level of statistics collection for cuFile operations. Returns
     /// the currently configured stats level (0–3) in the provided pointer.
     ///
@@ -2124,28 +2124,28 @@ pub struct CUfileStatsLevel3 {
 }
 /// Level 3 Statistics: Includes Level 2 plus per-GPU and subsystem statistics
 pub type CUfileStatsLevel3_t = CUfileStatsLevel3;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Start collecting cuFile statistics. The statistics level must be set with a
     /// level greater than 0 before calling this function. Statistics counters begin
     /// accumulating from this point and can be stopped and restarted without resetting
     /// counters unless [`cuFileStatsReset`] is called.
     pub fn cuFileStatsStart() -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Stop collecting cuFile statistics. Accumulated statistics remain available for
     /// querying until reset or driver close. Statistics counters are preserved and can
     /// still be queried. Collection can be restarted with [`cuFileStatsStart`] to
     /// continue accumulating. Use [`cuFileStatsReset`] to clear all counters.
     pub fn cuFileStatsStop() -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Reset all cuFile statistics counters to zero. This clears all accumulated
     /// statistics data across all levels. Can be called while statistics collection is
     /// active or stopped. Useful for measuring statistics over specific time periods
     /// or operation sets.
     pub fn cuFileStatsReset() -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get Level 1 cuFile statistics. Level 1 provides basic I/O and operation
     /// counters including read and write operations, bytes transferred, bandwidth,
     /// latency, and batch operation statistics.
@@ -2155,7 +2155,7 @@ unsafe extern "C" {
     /// - `stats`: Pointer to `CUfileStatsLevel1_t` structure to be filled.
     pub fn cuFileGetStatsL1(stats: *mut CUfileStatsLevel1_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get Level 2 cuFile statistics. Level 2 includes all Level 1 statistics plus
     /// size histograms for read and write operations. The histograms track the
     /// distribution of I/O operation sizes, useful for analyzing I/O size patterns and
@@ -2166,7 +2166,7 @@ unsafe extern "C" {
     /// - `stats`: Pointer to `CUfileStatsLevel2_t` structure to be filled.
     pub fn cuFileGetStatsL2(stats: *mut CUfileStatsLevel2_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get Level 3 cuFile statistics. Level 3 includes all Level 2 statistics plus
     /// per-GPU breakdown of operations, bandwidth, utilization, and buffer
     /// registration statistics. This level provides detailed analysis of which GPUs
@@ -2181,7 +2181,7 @@ unsafe extern "C" {
     /// - `stats`: Pointer to `CUfileStatsLevel3_t` structure to be filled.
     pub fn cuFileGetStatsL3(stats: *mut CUfileStatsLevel3_t) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the BAR size for a specific GPU in KB.
     ///
     /// This API is used to get the BAR size of the GPU passed in as a parameter.
@@ -2201,7 +2201,7 @@ unsafe extern "C" {
         barSize: *mut size_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets POSIX pool slabs for compat mode I/O.
     /// * `size_values` and `count_values` parameters are treated as a pair.
     /// * Should be set before [`cuFileDriverOpen`] is called.
@@ -2226,7 +2226,7 @@ unsafe extern "C" {
         len: ::core::ffi::c_int,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get POSIX pool slab array.
     /// * `size_values` and `count_values` parameters are returned as a pair.
     ///
@@ -2248,7 +2248,7 @@ unsafe extern "C" {
         len: ::core::ffi::c_int,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set GPU bounce buffer slab size and count parameters as a pair
     ///
     /// This allows programmatic configuration of GPU bounce buffer slab pools before the driver is opened. Must be called before cuFileDriverOpen().
@@ -2280,7 +2280,7 @@ unsafe extern "C" {
         len: ::core::ffi::c_int,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get GPU bounce buffer slab size and count parameters as a pair
     ///
     /// Retrieves the configured or staged GPU bounce buffer slab configuration. Can be called before or after cuFileDriverOpen().
@@ -2308,7 +2308,7 @@ unsafe extern "C" {
         len: ::core::ffi::c_int,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Gets the P2P flags for a specific filesystem or block device.
     ///
     /// This API is used to query what P2P modes are supported by cuFile for a certain
@@ -2330,7 +2330,7 @@ unsafe extern "C" {
         p2p_flags: *mut CUfileP2PFlags_t,
     ) -> CUfileError_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the P2P flags for a specific filesystem or block device.
     /// * The `p2p_flags` parameter should be a bitmask of the desired P2P
     ///   capabilities.

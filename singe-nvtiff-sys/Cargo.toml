@@ -1,0 +1,21 @@
+[package]
+name = "singe-nvtiff-sys"
+description = "Low-level FFI bindings for the NVIDIA nvTIFF library."
+version = "0.1.0-alpha.1"
+edition.workspace = true
+repository.workspace = true
+license-file.workspace = true
+readme = "README.md"
+keywords = ["cuda", "nvtiff", "tiff", "bindings", "ffi"]
+include.workspace = true
+
+[features]
+default = ["nvtiff_0_8"]
+
+nvtiff_0_8 = ["singe-cuda-sys/runtime_13_4"]
+testing = []
+
+[dependencies]
+singe-loader.workspace = true
+singe-cuda-sys.workspace = true
+num_enum.workspace = true

@@ -19,20 +19,19 @@ where
     Self: MaskedMeanStandardDeviationImage<T, L>,
 {
     /// Computes the native mean and standard deviation over pixels selected by `mask`.
-    /// Only nonzero mask samples select pixels. Image and mask dimensions must match.
-    /// The provided implementations process single-channel images and produce one `f64`
-    /// result for each of the mean and standard deviation.
+    /// Only nonzero mask samples select pixels.
+    /// Image and mask dimensions must match.
+    /// The provided implementations process single-channel images and produce one `f64` result for each of the mean and standard deviation.
     /// Each supplied output view must contain exactly one element.
-    /// Prepares all participating images, masks, and outputs, waits for producers on other
-    /// streams, rejects capture, and returns after successful native completion.
+    /// Prepares all participating images, masks, and outputs, waits for producers on other streams, rejects capture, and returns after successful native completion.
     /// The native reduction owns its temporary scratch.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Each output view must have length one.
-    /// Image and mask dimensions must match. Scratch-size queries and allocation can also fail.
+    /// Image and mask dimensions must match.
+    /// Scratch-size queries and allocation can also fail.
     pub fn mean_standard_deviation_masked_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -50,20 +49,19 @@ where
     }
 
     /// Computes the native mean and standard deviation over pixels selected by `mask`.
-    /// Only nonzero mask samples select pixels. Image and mask dimensions must match.
-    /// The provided implementations process single-channel images and produce one `f64`
-    /// result for each of the mean and standard deviation.
+    /// Only nonzero mask samples select pixels.
+    /// Image and mask dimensions must match.
+    /// The provided implementations process single-channel images and produce one `f64` result for each of the mean and standard deviation.
     /// Allocates owned device result storage.
-    /// Prepares all participating images, masks, and outputs, waits for producers on other
-    /// streams, rejects capture, and returns after successful native completion.
+    /// Prepares all participating images, masks, and outputs, waits for producers on other streams, rejects capture, and returns after successful native completion.
     /// The native reduction owns its temporary scratch.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Result allocation and constructing the source view can also fail.
-    /// Image and mask dimensions must match. Scratch-size queries and allocation can also fail.
+    /// Image and mask dimensions must match.
+    /// Scratch-size queries and allocation can also fail.
     pub fn mean_standard_deviation_masked(
         self,
         mask: &MaskView<'_>,

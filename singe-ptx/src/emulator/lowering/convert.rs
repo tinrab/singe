@@ -66,6 +66,7 @@ pub fn convert(
     if head.take("pack") {
         return pack(compiler, instruction, head);
     }
+
     let control = conversion_control(head)?;
     let name = head.next()?;
     let packed = ir::FloatFormat::parse(name).filter(|f| f.packed());
@@ -100,6 +101,7 @@ pub fn convert(
             low: compiler.source(b, from)?,
         }));
     }
+
     validate_scalar(span, from, to, control)?;
     let [d, a] = operands(instruction)?;
     Ok(Operation::Data(DataOperation::Convert {
@@ -179,6 +181,7 @@ fn validate_half(
             compiler.require_version(PtxVersion::new(7, 1), span)?;
         }
     }
+
     require(
         !special || (from == ScalarType::F32 && matches!(to, ScalarType::F16 | ScalarType::Bf16)),
         span,
@@ -187,6 +190,7 @@ fn validate_half(
     if control.finite {
         compiler.require_version(PtxVersion::new(8, 1), span)?;
     }
+
     if packed || special {
         require(
             matches!(

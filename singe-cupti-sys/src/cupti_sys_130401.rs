@@ -1292,7 +1292,7 @@ pub enum CUptiResult {
     /// ABI sentinel that forces a 32-bit C representation for [`CUptiResult`]. This is not a selectable API value.
     CUPTI_ERROR_FORCE_INT = 2147483647,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the descriptive string for a CUptiResult.
     ///
     /// Return the descriptive string for a CUptiResult in `*str`.
@@ -1311,7 +1311,7 @@ unsafe extern "C" {
         str_: *mut *const ::core::ffi::c_char,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the descriptive message corresponding to error codes returned by CUPTI.
     ///
     /// Return the descriptive error message for a CUptiResult in `*str`.
@@ -1330,7 +1330,7 @@ unsafe extern "C" {
         str_: *mut *const ::core::ffi::c_char,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the CUPTI API version.
     ///
     /// Return the API version in `*version`.
@@ -1771,7 +1771,7 @@ pub struct CUpti_Subscriber_st {
 pub type CUpti_SubscriberHandle = *mut CUpti_Subscriber_st;
 /// Pointer to an array of callback domains.
 pub type CUpti_DomainTable = *mut CUpti_CallbackDomain;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the available callback domains.
     ///
     /// Returns in `*domainTable` an array of size `*domainCount` of all the available callback domains.
@@ -1791,7 +1791,7 @@ unsafe extern "C" {
         domainTable: *mut CUpti_DomainTable,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initialize a callback subscriber with a callback function and user data.
     ///
     /// Initializes a callback subscriber with a callback function and (optionally) a pointer to user data. The returned subscriber handle can be used to enable and disable the callback for specific domains and callback IDs.
@@ -1850,7 +1850,7 @@ impl Default for CUpti_SubscriberParams {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initialize a callback subscriber with a callback function and user data.
     ///
     /// Initializes a callback subscriber with a callback function and (optionally) a pointer to user data. The returned subscriber handle can be used to enable and disable the callback for specific domains and callback IDs.
@@ -1877,7 +1877,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_SubscriberParams,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Unregister a callback subscriber.
     ///
     /// Removes a callback subscriber so that no future callbacks will be issued to that subscriber.
@@ -1893,7 +1893,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_SUCCESS`]: on success.
     pub fn cuptiUnsubscribe(subscriber: CUpti_SubscriberHandle) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the current enabled/disabled state of a callback for a specific domain and function ID.
     ///
     /// Returns non-zero in `*enable` if the callback for a domain and callback ID is enabled, and zero if not enabled.
@@ -1917,7 +1917,7 @@ unsafe extern "C" {
         cbid: CUpti_CallbackId,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the enabled callbacks for a subscriber.
     ///
     /// # Parameters
@@ -1940,7 +1940,7 @@ unsafe extern "C" {
         enabledCallbacksCount: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable or disabled callbacks for a specific domain and callback ID.
     ///
     /// Enable or disabled callbacks for a subscriber for a specific domain and callback ID.
@@ -1964,7 +1964,7 @@ unsafe extern "C" {
         cbid: CUpti_CallbackId,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable or disabled all callbacks for a specific domain.
     ///
     /// Enable or disabled all callbacks for a specific domain.
@@ -1986,7 +1986,7 @@ unsafe extern "C" {
         domain: CUpti_CallbackDomain,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable or disable all callbacks in all domains.
     ///
     /// Enable or disable all callbacks in all domains.
@@ -2006,7 +2006,7 @@ unsafe extern "C" {
         subscriber: CUpti_SubscriberHandle,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the name of a callback for a specific domain and callback ID.
     ///
     /// Returns a pointer to the name c_string in `**name`.
@@ -2277,7 +2277,7 @@ impl Default for CUpti_EventGroupSets {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the event collection mode.
     ///
     /// Set the event collection mode for a `context`.  The `mode` controls the event collection behavior of all events in event groups created in the `context`. This API is invalid in kernel replay mode.
@@ -2309,7 +2309,7 @@ unsafe extern "C" {
         mode: CUpti_EventCollectionMode,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read a device attribute.
     ///
     /// Read a device attribute and return it in `*value`.
@@ -2345,7 +2345,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of domains for a device.
     ///
     /// Returns the number of domains in `numDomains` for a device.
@@ -2375,7 +2375,7 @@ unsafe extern "C" {
         numDomains: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the event domains for a device.
     ///
     /// Returns the event domains IDs in `domainArray` for a device.  The size of the `domainArray` buffer is given by `*arraySizeBytes`. The size of the `domainArray` buffer must be at least `numdomains` * sizeof(CUpti_EventDomainID) or else all domains will not be returned. The value returned in `*arraySizeBytes` contains the number of bytes returned in `domainArray`.
@@ -2407,7 +2407,7 @@ unsafe extern "C" {
         domainArray: *mut CUpti_EventDomainID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read an event domain attribute.
     ///
     /// Returns an event domain attribute in `*value`. The size of the `value` buffer is given by `*valueSize`. The value returned in `*valueSize` contains the number of bytes returned in `value`.
@@ -2449,7 +2449,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of event domains available on any device.
     ///
     /// Returns the total number of event domains available on any CUDA-capable device.
@@ -2471,7 +2471,7 @@ unsafe extern "C" {
     /// - `numDomains`: Returns the number of domains
     pub fn cuptiGetNumEventDomains(numDomains: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the event domains available on any device.
     ///
     /// Returns all the event domains available on any CUDA-capable device. Event domain IDs are returned in `domainArray`. The size of the `domainArray` buffer is given by `*arraySizeBytes`. The size of the `domainArray` buffer must be at least `numDomains` * sizeof(CUpti_EventDomainID) or all domains will not be returned. The value returned in `*arraySizeBytes` contains the number of bytes returned in `domainArray`.
@@ -2497,7 +2497,7 @@ unsafe extern "C" {
         domainArray: *mut CUpti_EventDomainID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read an event domain attribute.
     ///
     /// Returns an event domain attribute in `*value`. The size of the `value` buffer is given by `*valueSize`. The value returned in `*valueSize` contains the number of bytes returned in `value`.
@@ -2535,7 +2535,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get number of events in a domain.
     ///
     /// Returns the number of events in `numEvents` for a domain.
@@ -2565,7 +2565,7 @@ unsafe extern "C" {
         numEvents: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the events in a domain.
     ///
     /// Returns the event IDs in `eventArray` for a domain.  The size of the `eventArray` buffer is given by `*arraySizeBytes`. The size of the `eventArray` buffer must be at least `numdomainevents` * sizeof(CUpti_EventID) or else all events will not be returned. The value returned in `*arraySizeBytes` contains the number of bytes returned in `eventArray`.
@@ -2597,7 +2597,7 @@ unsafe extern "C" {
         eventArray: *mut CUpti_EventID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get an event attribute.
     ///
     /// Returns an event attribute in `*value`. The size of the `value` buffer is given by `*valueSize`. The value returned in `*valueSize` contains the number of bytes returned in `value`.
@@ -2635,7 +2635,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Find an event by name.
     ///
     /// Find an event by name and return the event ID in `*event`.
@@ -2669,7 +2669,7 @@ unsafe extern "C" {
         event: *mut CUpti_EventID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Create a new event group for a context.
     ///
     /// Creates a new event group for `context` and returns the new group in `*eventGroup`.
@@ -2705,7 +2705,7 @@ unsafe extern "C" {
         flags: u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroy an event group.
     ///
     /// Destroy an `eventGroup` and free its resources. An event group cannot be destroyed if it is enabled.
@@ -2731,7 +2731,7 @@ unsafe extern "C" {
     /// - `eventGroup`: The event group to destroy
     pub fn cuptiEventGroupDestroy(eventGroup: CUpti_EventGroup) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read an event group attribute.
     ///
     /// Read an event group attribute and return it in `*value`.
@@ -2765,7 +2765,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Write an event group attribute.
     ///
     /// Write an event group attribute.
@@ -2799,7 +2799,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Add an event to an event group.
     ///
     /// Add an event to an event group. The event add can fail for a number of reasons:
@@ -2847,7 +2847,7 @@ unsafe extern "C" {
         event: CUpti_EventID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Remove an event from an event group.
     ///
     /// Remove `event` from the an event group. The event cannot be removed if the event group is enabled.
@@ -2879,7 +2879,7 @@ unsafe extern "C" {
         event: CUpti_EventID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Remove all events from an event group.
     ///
     /// Remove all events from an event group. Events cannot be removed if the event group is enabled.
@@ -2905,7 +2905,7 @@ unsafe extern "C" {
     /// - `eventGroup`: The event group
     pub fn cuptiEventGroupRemoveAllEvents(eventGroup: CUpti_EventGroup) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Zero all the event counts in an event group.
     ///
     /// Zero all the event counts in an event group.
@@ -2931,7 +2931,7 @@ unsafe extern "C" {
     /// - `eventGroup`: The event group
     pub fn cuptiEventGroupResetAllEvents(eventGroup: CUpti_EventGroup) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable an event group.
     ///
     /// Enable an event group. Enabling an event group zeros the value of all the events in the group and then starts collection of those events.
@@ -2963,7 +2963,7 @@ unsafe extern "C" {
     /// - `eventGroup`: The event group
     pub fn cuptiEventGroupEnable(eventGroup: CUpti_EventGroup) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable an event group.
     ///
     /// Disable an event group. Disabling an event group stops collection of events contained in the group.
@@ -2989,7 +2989,7 @@ unsafe extern "C" {
     /// - `eventGroup`: The event group
     pub fn cuptiEventGroupDisable(eventGroup: CUpti_EventGroup) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read the value for an event in an event group.
     ///
     /// Read the value for an event in an event group. The event value is returned in the `eventValueBuffer` buffer. `eventValueBufferSizeBytes` indicates the size of the `eventValueBuffer` buffer. The buffer must be at least sizeof(uint64) if ::CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES is not set on the group containing the event.  The buffer must be at least (sizeof(uint64) * number of domain instances) if ::CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES is set on the group.
@@ -3037,7 +3037,7 @@ unsafe extern "C" {
         eventValueBuffer: *mut u64,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read the values for all the events in an event group.
     ///
     /// Read the values for all the events in an event group. The event values are returned in the `eventValueBuffer` buffer. `eventValueBufferSizeBytes` indicates the size of `eventValueBuffer`. The buffer must be at least (sizeof(uint64) * number of events in group) if ::CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES is not set on the group containing the events.  The buffer must be at least (sizeof(uint64) * number of domain instances * number of events in group) if ::CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES is set on the group.
@@ -3095,7 +3095,7 @@ unsafe extern "C" {
         numEventIdsRead: *mut size_t,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// For a set of events, get the grouping that indicates the number of passes and the event groups necessary to collect the events.
     ///
     /// The number of events that can be collected simultaneously varies by device and by the type of the events. When events can be collected simultaneously, they may need to be grouped into multiple event groups because they are from different event domains. This function takes a set of events and determines how many passes are required to collect all those events, and which events can be collected simultaneously in each pass.
@@ -3131,7 +3131,7 @@ unsafe extern "C" {
         eventGroupPasses: *mut *mut CUpti_EventGroupSets,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Destroy a event group sets object.
     ///
     /// Destroy a CUpti_EventGroupSets object.
@@ -3159,7 +3159,7 @@ unsafe extern "C" {
         eventGroupSets: *mut CUpti_EventGroupSets,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable an event group set.
     ///
     /// Enable a set of event groups. Enabling a set of event groups zeros the value of all the events in all the groups and then starts collection of those events.
@@ -3193,7 +3193,7 @@ unsafe extern "C" {
         eventGroupSet: *mut CUpti_EventGroupSet,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable an event group set.
     ///
     /// Disable a set of event groups. Disabling a set of event groups stops collection of events contained in the groups.
@@ -3221,7 +3221,7 @@ unsafe extern "C" {
         eventGroupSet: *mut CUpti_EventGroupSet,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable kernel replay mode.
     ///
     /// Set profiling mode for the context to replay mode. In this mode, any number of events can be collected in one run of the kernel. The event collection mode will automatically switch to CUPTI_EVENT_COLLECTION_MODE_KERNEL.  In this mode, [`cuptiSetEventCollectionMode`] will return CUPTI_ERROR_INVALID_OPERATION.
@@ -3241,7 +3241,7 @@ unsafe extern "C" {
     /// - `context`: The context
     pub fn cuptiEnableKernelReplayMode(context: CUcontext) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable kernel replay mode.
     ///
     /// Set profiling mode for the context to non-replay (default) mode. Event collection mode will be set to CUPTI_EVENT_COLLECTION_MODE_KERNEL.  All previously enabled event groups and event group sets will be disabled.
@@ -3277,7 +3277,7 @@ pub type CUpti_KernelReplayUpdateFunc = ::core::option::Option<
         customData: *mut ::core::ffi::c_void,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Subscribe to kernel replay updates.
     ///
     /// When subscribed, the function pointer passed in will be called each time a kernel run is finished during kernel replay. Previously subscribed function pointer will be replaced. Pass in NULL as the function pointer unsubscribes the update.
@@ -3514,7 +3514,7 @@ pub enum CUpti_MetricPropertyID {
     /// of cuptiDeviceGetAttribute.
     CUPTI_METRIC_PROPERTY_GPU_CPU_NVLINK_BANDWIDTH = 15,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the total number of metrics available on any device.
     ///
     /// Returns the total number of metrics available on any CUDA-capable devices.
@@ -3534,7 +3534,7 @@ unsafe extern "C" {
     /// - `numMetrics`: Returns the number of metrics
     pub fn cuptiGetNumMetrics(numMetrics: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get all the metrics available on any device.
     ///
     /// Returns the metric IDs in `metricArray` for all CUDA-capable devices.  The size of the `metricArray` buffer is given by `*arraySizeBytes`. The size of the `metricArray` buffer must be at least `numMetrics` * sizeof(CUpti_MetricID) or all metric IDs will not be returned. The value returned in `*arraySizeBytes` contains the number of bytes returned in `metricArray`. Starting with CUDA 13.0, this function is unsupported and should not be used. It always returns the error code CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED.
@@ -3556,7 +3556,7 @@ unsafe extern "C" {
         metricArray: *mut CUpti_MetricID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of metrics for a device.
     ///
     /// Returns the number of metrics available for a device.
@@ -3584,7 +3584,7 @@ unsafe extern "C" {
         numMetrics: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the metrics for a device.
     ///
     /// Returns the metric IDs in `metricArray` for a device.  The size of the `metricArray` buffer is given by `*arraySizeBytes`. The size of the `metricArray` buffer must be at least `numMetrics` * sizeof(CUpti_MetricID) or else all metric IDs will not be returned. The value returned in `*arraySizeBytes` contains the number of bytes returned in `metricArray`. Starting with CUDA 13.0, this function is unsupported and should not be used. It always returns the error code CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED.
@@ -3612,7 +3612,7 @@ unsafe extern "C" {
         metricArray: *mut CUpti_MetricID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get a metric attribute.
     ///
     /// Returns a metric attribute in `*value`. The size of the `value` buffer is given by `*valueSize`. The value returned in `*valueSize` contains the number of bytes returned in `value`.
@@ -3648,7 +3648,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Find an metric by name.
     ///
     /// Find a metric by name and return the metric ID in `*metric`. Starting with CUDA 13.0, this function is unsupported and should not be used. It always returns the error code CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED.
@@ -3678,7 +3678,7 @@ unsafe extern "C" {
         metric: *mut CUpti_MetricID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get number of events required to calculate a metric.
     ///
     /// Returns the number of events in `numEvents` that are required to calculate a metric.
@@ -3706,7 +3706,7 @@ unsafe extern "C" {
         numEvents: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the events required to calculating a metric.
     ///
     /// Gets the event IDs in `eventIdArray` required to calculate a `metric`. The size of the `eventIdArray` buffer is given by `*eventIdArraySizeBytes` and must be at least `numEvents` * sizeof(CUpti_EventID) or all events will not be returned. The value returned in `*eventIdArraySizeBytes` contains the number of bytes returned in `eventIdArray`. Starting with CUDA 13.0, this function is unsupported and should not be used. It always returns the error code CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED.
@@ -3734,7 +3734,7 @@ unsafe extern "C" {
         eventIdArray: *mut CUpti_EventID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get number of properties required to calculate a metric.
     ///
     /// Returns the number of properties in `numProp` that are required to calculate a metric.
@@ -3762,7 +3762,7 @@ unsafe extern "C" {
         numProp: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the properties required to calculating a metric.
     ///
     /// Gets the property IDs in `propIdArray` required to calculate a `metric`. The size of the `propIdArray` buffer is given by `*propIdArraySizeBytes` and must be at least `numProp` * sizeof(CUpti_DeviceAttribute) or all properties will not be returned. The value returned in `*propIdArraySizeBytes` contains the number of bytes returned in `propIdArray`. Starting with CUDA 13.0, this function is unsupported and should not be used. It always returns the error code CUPTI_ERROR_LEGACY_PROFILER_NOT_SUPPORTED.
@@ -3790,7 +3790,7 @@ unsafe extern "C" {
         propIdArray: *mut CUpti_MetricPropertyID,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// For a metric get the groups of events that must be collected in the same pass.
     ///
     /// For a metric get the groups of events that must be collected in the same pass to ensure that the metric is calculated correctly. If the events are not collected as specified then the metric value may be inaccurate.
@@ -3818,7 +3818,7 @@ unsafe extern "C" {
         eventGroupSets: *mut *mut CUpti_EventGroupSets,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// For a set of metrics, get the grouping that indicates the number of passes and the event groups necessary to collect the events required for those metrics.
     ///
     /// For a set of metrics, get the grouping that indicates the number of passes and the event groups necessary to collect the events required for those metrics.
@@ -3856,7 +3856,7 @@ unsafe extern "C" {
         eventGroupPasses: *mut *mut CUpti_EventGroupSets,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Calculate the value for a metric.
     ///
     /// Use the events collected for a metric to calculate the metric value. Metric value evaluation depends on the evaluation mode [`CUpti_MetricEvaluationMode`] that the metric supports. If a metric has evaluation mode as CUPTI_METRIC_EVALUATION_MODE_PER_INSTANCE, then it assumes that the input event value is for one domain instance. If a metric has evaluation mode as CUPTI_METRIC_EVALUATION_MODE_AGGREGATE, it assumes that input event values are normalized to represent all domain instances on a device. For the most accurate metric collection, the events required for the metric should be collected for all profiled domain instances. For example, to collect all instances of an event, set the CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES attribute on the group containing the event to 1. The normalized value for the event is then: (`sum_event_values` * `totalInstanceCount)` / `instanceCount`, where `sum_event_values` is the summation of the event values across all profiled domain instances, `totalInstanceCount` is obtained from querying CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT and `instanceCount` is obtained from querying CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT (or CUPTI_EVENT_DOMAIN_ATTR_INSTANCE_COUNT).
@@ -3904,7 +3904,7 @@ unsafe extern "C" {
         metricValue: *mut CUpti_MetricValue,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Calculate the value for a metric.
     ///
     /// Use the events and properties collected for a metric to calculate the metric value. Metric value evaluation depends on the evaluation mode [`CUpti_MetricEvaluationMode`] that the metric supports.  If a metric has evaluation mode as CUPTI_METRIC_EVALUATION_MODE_PER_INSTANCE, then it assumes that the input event value is for one domain instance.  If a metric has evaluation mode as CUPTI_METRIC_EVALUATION_MODE_AGGREGATE, it assumes that input event values are normalized to represent all domain instances on a device. For the most accurate metric collection, the events required for the metric should be collected for all profiled domain instances. For example, to collect all instances of an event, set the CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES attribute on the group containing the event to 1. The normalized value for the event is then: (`sum_event_values` * `totalInstanceCount)` / `instanceCount`, where `sum_event_values` is the summation of the event values across all profiled domain instances, `totalInstanceCount` is obtained from querying CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT and `instanceCount` is obtained from querying CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT (or CUPTI_EVENT_DOMAIN_ATTR_INSTANCE_COUNT).
@@ -11009,7 +11009,7 @@ pub enum CUpti_ActivityThreadIdType {
     /// ABI sentinel that forces a 32-bit C representation for [`CUpti_ActivityThreadIdType`]. This is not a selectable API value.
     CUPTI_ACTIVITY_THREAD_ID_TYPE_FORCE_INT = 2147483647,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the CUPTI timestamp.
     ///
     /// Returns a timestamp normalized to correspond with the start and end timestamps reported in the CUPTI activity records. The timestamp is reported in nanoseconds.
@@ -11024,7 +11024,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `timestamp` is NULL.
     pub fn cuptiGetTimestamp(timestamp: *mut u64) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the CUPTI timestamp (API currently in beta).
     ///
     /// If a subscriber registers a particular timestamp callback, this API will use that callback to get the timestamp. In CUDA 13.3, this will fall back to [`cuptiGetTimestamp`]. In future versions, this will provide the timestamp callback registered by the requesting subscriber, and fallback to [`cuptiGetTimestamp`] if no callback is registered.
@@ -11045,7 +11045,7 @@ unsafe extern "C" {
         timestamp: *mut u64,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the ID of a context.
     ///
     /// Get the ID of a context.
@@ -11063,7 +11063,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `contextId` is NULL.
     pub fn cuptiGetContextId(context: CUcontext, contextId: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the ID of a stream.
     ///
     /// Get the ID of a stream. The stream ID is unique within a context (i.e. all streams within a context will have unique stream IDs).
@@ -11088,7 +11088,7 @@ unsafe extern "C" {
         streamId: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the ID of a stream.
     ///
     /// Get the ID of a stream. The stream ID is unique within a context (i.e. all streams within a context will have unique stream IDs).
@@ -11113,7 +11113,7 @@ unsafe extern "C" {
         streamId: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the ID of a device.
     ///
     /// If `context` is NULL, returns the ID of the device that contains the currently active context. If `context` is non-NULL, returns the ID of the device which contains that context. Operates in a similar manner to cudaGetDevice() or cuCtxGetDevice() but may be called from within callback functions.
@@ -11131,7 +11131,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `deviceId` is NULL.
     pub fn cuptiGetDeviceId(context: CUcontext, deviceId: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the unique ID of a graph node.
     ///
     /// Returns the unique ID of the CUDA graph node.
@@ -11148,7 +11148,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `node` is NULL.
     pub fn cuptiGetGraphNodeId(node: CUgraphNode, nodeId: *mut u64) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the unique ID of graph.
     ///
     /// Returns the unique ID of CUDA graph.
@@ -11165,7 +11165,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `graph` is NULL.
     pub fn cuptiGetGraphId(graph: CUgraph, pId: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the unique ID of executable graph.
     ///
     /// Returns the unique ID of executable CUDA graph.
@@ -11182,7 +11182,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `graph` is NULL.
     pub fn cuptiGetGraphExecId(graphExec: CUgraphExec, pId: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the unique ID of a CUDA event
     ///
     /// Returns the unique ID of the CUDA event. The ID matches the eventId field reported in [`CUpti_ActivityCudaEvent2`] activity records.
@@ -11203,7 +11203,7 @@ unsafe extern "C" {
     /// - `pEventId`: Returns the unique ID of the event.
     pub fn cuptiGetCudaEventId(event: CUevent, pEventId: *mut u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable collection of a specific kind of activity record.
     ///
     /// Enable collection of a specific kind of activity record. Multiple kinds can be enabled by calling this function multiple times. By default all activity kinds are disabled for collection.
@@ -11220,7 +11220,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_NOT_COMPATIBLE`]: if the activity kind cannot be enabled.
     pub fn cuptiActivityEnable(kind: CUpti_ActivityKind) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable collection of a specific kind of activity record.
     ///
     /// For certain activity kinds it dumps existing records.
@@ -11244,7 +11244,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_UNKNOWN`]: if buffer is not initialized.
     pub fn cuptiActivityEnableAndDump(kind: CUpti_ActivityKind) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable collection of a specific kind of activity record.
     ///
     /// Disable collection of a specific kind of activity record. Multiple kinds can be disabled by calling this function multiple times. By default all activity kinds are disabled for collection.
@@ -11282,7 +11282,7 @@ impl Default for CUpti_ActivityConfig {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable collection of a specific kind of activity record for the subscriber.
     ///
     /// Enable collection of a specific kind of activity record. Multiple kinds can be enabled by calling this function multiple times. By default all activity kinds are disabled for collection.
@@ -11305,7 +11305,7 @@ unsafe extern "C" {
         pActivityConfig: *mut CUpti_ActivityConfig,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable collection of a specific kind of activity record for the subscriber.
     ///
     /// Disable collection of a specific kind of activity record. Multiple kinds can be disabled by calling this function multiple times. By default all activity kinds are disabled for collection.
@@ -11327,7 +11327,7 @@ unsafe extern "C" {
         pActivityConfig: *mut CUpti_ActivityConfig,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable collection of a specific kind of activity record.
     ///
     /// For certain activity kinds it dumps existing records.
@@ -11357,7 +11357,7 @@ unsafe extern "C" {
         activityConfig: *mut CUpti_ActivityConfig,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the enabled activity kinds for a subscriber.
     ///
     /// # Parameters
@@ -11378,7 +11378,7 @@ unsafe extern "C" {
         enabledKindsCount: *mut u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the size of the activity struct for a given CUPTI version.
     ///
     /// This API is applicable only for predefined activity structs.
@@ -11401,7 +11401,7 @@ unsafe extern "C" {
         activityStructSize: *mut size_t,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Check whether a CUPTI tracing session is still running.
     ///
     /// This API returns true if a CUPTI library is already loaded by another CUPTI user by using any CUPTI API. This API returns false when CUPTI is finalized and there is no CUPTI currently loaded and active. Can be used to determine if it is safe to unload your CUPTI based tool. Note that this API itself does not load the CUPTI library, it merely checks if a CUPTI library is already loaded by another CUPTI user.
@@ -11417,7 +11417,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_UNKNOWN`]: if an unknown error occurred.
     pub fn cuptiIsTracingSessionRunning(isRunning: *mut u8) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable collection of a specific kind of activity record for a context.
     ///
     /// Enable collection of a specific kind of activity record for a context. This setting done by this API will supersede the global settings for activity records enabled by [`cuptiActivityEnable`]. Multiple kinds can be enabled by calling this function multiple times.
@@ -11438,7 +11438,7 @@ unsafe extern "C" {
         kind: CUpti_ActivityKind,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable collection of a specific kind of activity record for a context.
     ///
     /// Disable collection of a specific kind of activity record for a context. This setting done by this API will supersede the global settings for activity records. Multiple kinds can be enabled by calling this function multiple times.
@@ -11458,7 +11458,7 @@ unsafe extern "C" {
         kind: CUpti_ActivityKind,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of activity records that were dropped of insufficient buffer space.
     ///
     /// Get the number of records that were dropped because of insufficient buffer space. The dropped count includes records that could not be recorded because CUPTI did not have activity buffer space available for the record (because the CUpti_BuffersCallbackRequestFunc callback did not return an empty buffer of sufficient size) and also CDP records that could not be record because the device-size buffer was full (size is controlled by the [`CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_DEVICE_BUFFER_SIZE_CDP`] attribute). The dropped count maintained for the queue is reset to zero when this function is called.
@@ -11480,7 +11480,7 @@ unsafe extern "C" {
         dropped: *mut size_t,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of dropped activity records for a specific subscriber.
     ///
     /// This is the per-subscriber version of [`cuptiActivityGetNumDroppedRecords`].
@@ -11503,7 +11503,7 @@ unsafe extern "C" {
         dropped: *mut size_t,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Iterate over the activity records in a buffer.
     ///
     /// This is a helper function to iterate over the activity records in a buffer. A buffer of activity records is typically obtained by receiving a CUpti_BuffersCallbackCompleteFunc callback. Stop iterating the buffer when an error occurs.
@@ -11547,7 +11547,7 @@ unsafe extern "C" {
         record: *mut *mut CUpti_Activity,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Iterate over the activity records in the supplied buffer.
     ///
     /// This function is similar to [`cuptiActivityGetNextRecord`] and accepts a subscriber handle. It should be used instead of [`cuptiActivityGetNextRecord`] when using subscriber-aware V2 APIs.
@@ -11615,7 +11615,7 @@ pub type CUpti_BuffersCallbackCompleteFunc = ::core::option::Option<
         validSize: size_t,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Registers callback functions with CUPTI for activity buffer handling.
     ///
     /// This function registers two callback functions to be used in asynchronous buffer handling. If registered, activity record buffers are handled using asynchronous requested/completed callbacks from CUPTI.
@@ -11697,7 +11697,7 @@ pub type CUpti_BuffersCallbackCompleteFunc_v2 = ::core::option::Option<
         pBufferCompleteInfo: *mut CUpti_BufferCallbackCompleteInfo,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Registers callback functions with CUPTI for activity buffer handling for the subscriber.
     ///
     /// This function registers two callback functions to be used in asynchronous buffer handling. If registered, activity record buffers are handled using asynchronous requested/completed callbacks from CUPTI.
@@ -11720,7 +11720,7 @@ unsafe extern "C" {
         funcBufferCompleted: CUpti_BuffersCallbackCompleteFunc_v2,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Wait for all activity records to be delivered via the completion callback.
     ///
     /// This function does not return until all activity records associated with the specified context/stream are returned to the CUPTI client using the callback registered in cuptiActivityRegisterCallbacks. To ensure that all activity records are complete, the requested stream(s), if any, are synchronized.
@@ -11749,7 +11749,7 @@ unsafe extern "C" {
         flag: u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Request to deliver activity records via the buffer completion callback.
     ///
     /// This function returns the activity records associated with all contexts/streams (and the global buffers not associated with any stream) to the CUPTI client using the callback registered in cuptiActivityRegisterCallbacks.
@@ -11778,7 +11778,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_UNKNOWN`]: an internal error occurred.
     pub fn cuptiActivityFlushAll(flag: u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read an activity API attribute.
     ///
     /// Read an activity API attribute and return it in `*value`. In case of multiple subscribers, use cuptiActivityGetAttribute_v2 to read the attribute for the subscriber.
@@ -11801,7 +11801,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Read an activity API attribute.
     ///
     /// This function is similar to cuptiActivityGetAttribute. Note that in case of multiple subscribers, only cuptiActivityGetAttribute_v2 can be used to read the attribute for the subscriber.
@@ -11828,7 +11828,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Write an activity API attribute.
     ///
     /// Write an activity API attribute. In case of multiple subscribers, use cuptiActivitySetAttribute_v2 to write the attribute for the subscriber.
@@ -11852,7 +11852,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Write an activity API attribute.
     ///
     /// Write an activity API attribute. In case of multiple subscribers, use cuptiActivitySetAttribute_v2 to write the attribute for the subscriber.
@@ -11877,7 +11877,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_void,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set Unified Memory Counter configuration.
     ///
     /// Set the configuration before enabling the corresponding activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_UNIFIED_MEMORY_COUNTER`]. The API should be called after CUDA driver initialization.
@@ -11900,7 +11900,7 @@ unsafe extern "C" {
         count: u32,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get auto boost state.
     ///
     /// The profiling results can be inconsistent in case auto boost is enabled. CUPTI tries to disable auto boost while profiling. It can fail to disable in cases where user does not have the permissions or CUDA_AUTO_BOOST env variable is set. The function can be used to query whether auto boost is enabled.
@@ -11921,7 +11921,7 @@ unsafe extern "C" {
         state: *mut CUpti_ActivityAutoBoostState,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set PC sampling configuration.
     ///
     /// For Pascal and older GPU architectures this API must be called before enabling activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_PC_SAMPLING`]. There is no such requirement for Volta and newer GPU architectures.
@@ -11946,13 +11946,13 @@ unsafe extern "C" {
         config: *mut CUpti_ActivityPCSamplingConfig,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the last error from a cupti call or callback.
     ///
     /// Returns the last error that has been produced by any of the cupti api calls or the callback in the same host thread and resets it to [`CUptiResult::CUPTI_SUCCESS`].
     pub fn cuptiGetLastError() -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the thread-id type.
     ///
     /// CUPTI uses the method corresponding to set type to generate the thread-id. See enum [`CUpti_ActivityThreadIdType`] for the list of methods. Activity records having thread-id field contain the same value. Thread id type must not be changed during the profiling session to avoid thread-id value mismatch across activity records. This API is not supported when multiple subscribers are allowed. Use the corresponding attribute instead: [`CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_THREAD_ID_TYPE`].
@@ -11963,7 +11963,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_NOT_SUPPORTED`]: if `type` is not supported on the platform.
     pub fn cuptiSetThreadIdType(type_: CUpti_ActivityThreadIdType) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the thread-id type.
     ///
     /// Returns the thread-id type used in CUPTI This API is not supported when multiple subscribers are allowed. Use the corresponding attribute instead: [`CUpti_ActivityAttribute::CUPTI_ACTIVITY_ATTR_THREAD_ID_TYPE`].
@@ -11974,7 +11974,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_INVALID_PARAMETER`]: if `type` is NULL.
     pub fn cuptiGetThreadIdType(type_: *mut CUpti_ActivityThreadIdType) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Check support for a compute capability.
     ///
     /// This function is used to check the support for a device based on it’s compute capability. It sets the `support` when the compute capability is supported by the current version of CUPTI, and clears it otherwise. This version of CUPTI might not support all GPUs sharing the same compute capability. It is suggested to use API [`cuptiDeviceSupported`] which provides correct information.
@@ -11999,7 +11999,7 @@ unsafe extern "C" {
         support: *mut ::core::ffi::c_int,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Check support for a compute device.
     ///
     /// This function is used to check the support for a compute device. It sets the `support` when the device is supported by the current version of CUPTI, and clears it otherwise.
@@ -12042,7 +12042,7 @@ pub enum CUpti_DeviceVirtualizationMode {
     /// ABI sentinel that forces a 32-bit C representation for [`CUpti_DeviceVirtualizationMode`]. This is not a selectable API value.
     CUPTI_DEVICE_VIRTUALIZATION_MODE_FORCE_INT = 2147483647,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Query the virtualization mode of the device.
     ///
     /// This function is used to query the virtualization mode of the CUDA device.
@@ -12062,7 +12062,7 @@ unsafe extern "C" {
         mode: *mut CUpti_DeviceVirtualizationMode,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Detach CUPTI from the running process.
     ///
     /// This API detaches the CUPTI from the running process. It destroys and cleans up all the resources associated with CUPTI in the current process. After CUPTI detaches from the process, the process will keep on running with no CUPTI attached to it. For safe operation of the API, it is recommended this API is invoked from the exit callsite of any of the CUDA Driver or Runtime API. Otherwise CUPTI client needs to make sure that required CUDA synchronization and CUPTI activity buffer flush is done before calling the API. Sample code showing the usage of the API in the cupti callback handler code:
@@ -12093,7 +12093,7 @@ unsafe extern "C" {
     /// ```
     pub fn cuptiFinalize() -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Push an external correlation id for the calling thread.
     ///
     /// This function notifies CUPTI that the calling thread is entering an external API region. When a CUPTI activity API record is created while within an external API region and [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_EXTERNAL_CORRELATION`] is enabled, the activity API record will be preceded by a [`CUpti_ActivityExternalCorrelation`] record for each [`CUpti_ExternalCorrelationKind`].
@@ -12112,7 +12112,7 @@ unsafe extern "C" {
         id: u64,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Pop an external correlation id for the calling thread.
     ///
     /// This function notifies CUPTI that the calling thread is leaving an external API region.
@@ -12132,7 +12132,7 @@ unsafe extern "C" {
         lastId: *mut u64,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Push an external correlation id for a specific subscriber.
     ///
     /// Subscriber aware V2 version of [`cuptiActivityPushExternalCorrelationId`]. This allows each subscriber to maintain its own external correlation context.
@@ -12153,7 +12153,7 @@ unsafe extern "C" {
         id: u64,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Pop an external correlation id for a specific subscriber.
     ///
     /// Subscriber aware V2 version of [`cuptiActivityPopExternalCorrelationId`]. This allows each subscriber to maintain its own external correlation context.
@@ -12175,7 +12175,7 @@ unsafe extern "C" {
         lastId: *mut u64,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of queued and submitted timestamps for kernels.
     ///
     /// This API is used to control the collection of queued and submitted timestamps for kernels whose records are provided through the struct [`CUpti_ActivityKernel12`]. Default value is 0, i.e. these timestamps are not collected. This API needs to be called before initialization of CUDA and this setting should not be changed during the profiling session.
@@ -12192,7 +12192,7 @@ unsafe extern "C" {
     /// - `- **CUPTI_SUCCESS** –`: **[`CUptiResult::CUPTI_SUCCESS`]** –.
     pub fn cuptiActivityEnableLatencyTimestamps(enable: u8) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sets the flush period for the worker thread.
     ///
     /// CUPTI creates a worker thread to minimize the perturbance for the application created threads. CUPTI offloads certain operations from the application threads to the worker thread, this includes synchronization of profiling resources between host and device, delivery of the activity buffers to the client using the callback registered in cuptiActivityRegisterCallbacks. For performance reasons, CUPTI wakes up the worker thread based on certain heuristics.
@@ -12217,7 +12217,7 @@ unsafe extern "C" {
     /// - `- **CUPTI_SUCCESS** –`: **[`CUptiResult::CUPTI_SUCCESS`]** –.
     pub fn cuptiActivityFlushPeriod(time: u32) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of launch attributes for kernels.
     ///
     /// This API is used to control the collection of launch attributes for kernels whose records are provided through the struct [`CUpti_ActivityKernel12`]. Default value is 0, i.e. these attributes are not collected.
@@ -12237,7 +12237,7 @@ unsafe extern "C" {
 pub type CUpti_TimestampCallbackFunc = ::core::option::Option<
     unsafe extern "C" fn() -> u64,
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Registers callback function with CUPTI for providing timestamp.
     ///
     /// This function registers a callback function to obtain timestamp of user’s choice instead of using CUPTI provided timestamp. By default CUPTI uses different methods, based on the underlying platform, to retrieve the timestamp Linux (x86_64, aarch64 sbsa, aarch64) uses clock_gettime(CLOCK_REALTIME) Windows uses QueryPerformanceCounter() WSL (Windows Subsystem for Linux) uses clock_gettime(CLOCK_MONOTONIC_RAW) as CLOCK_REALTIME can cause backward jumps. QNX uses ClockCycles() Timestamps retrieved using these methods are converted to nanosecond if needed before usage.
@@ -12261,7 +12261,7 @@ unsafe extern "C" {
         funcTimestamp: CUpti_TimestampCallbackFunc,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of records for device launched graphs.
     ///
     /// This API is used to control the collection of records for device launched graphs. Default value is 0, i.e. these records are not collected. This API needs to be called before initialization of CUDA and this setting should not be changed during the profiling session.
@@ -12276,7 +12276,7 @@ unsafe extern "C" {
     /// - `- **CUPTI_SUCCESS** –`: **[`CUptiResult::CUPTI_SUCCESS`]** –.
     pub fn cuptiActivityEnableDeviceGraph(enable: u8) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of activity records for specific CUDA Driver APIs.
     ///
     /// Activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_DRIVER`] controls the collection of either all CUDA Driver APIs or none. API cuptiActivityEnableDriverApi can be used for fine-grained control, it allows enabling/disabling tracing of a specific set of CUDA Driver APIs. To disable collection of a small set of CUDA Driver APIs, user can first enable the collection of all Driver APIs using the activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_DRIVER`] and call this API to disable specific Driver APIs. And to enable the collection of a small set of CUDA Driver APIs, user can call this API without using the activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_DRIVER`].
@@ -12297,7 +12297,7 @@ unsafe extern "C" {
         enable: u8,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of activity records for specific CUDA Driver APIs for a given subscriber.
     ///
     /// This is the per-subscriber version of [`cuptiActivityEnableDriverApi`]. It allows each subscriber to independently enable or disable tracing of specific CUDA Driver APIs.
@@ -12319,7 +12319,7 @@ unsafe extern "C" {
         enable: u8,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of activity records for specific CUDA Runtime APIs.
     ///
     /// Activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_RUNTIME`] controls the collection of either all CUDA Runtime APIs or none. API cuptiActivityEnableRuntimeApi can be used for fine-grained control, it allows enabling/disabling tracing of a specific set of CUDA Runtime APIs. To disable collection of a small set of CUDA Runtime APIs, user can first enable the collection of all Runtime APIs using the activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_RUNTIME`] and call this API to disable specific Runtime APIs. And to enable the collection of a small set of CUDA Runtime APIs, user can call this API without using the activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_RUNTIME`].
@@ -12340,7 +12340,7 @@ unsafe extern "C" {
         enable: u8,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Controls the collection of activity records for specific CUDA Runtime APIs for a given subscriber.
     ///
     /// This is the per-subscriber version of [`cuptiActivityEnableRuntimeApi`]. It allows each subscriber to independently enable or disable tracing of specific CUDA Runtime APIs.
@@ -12362,7 +12362,7 @@ unsafe extern "C" {
         enable: u8,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enables CUDA kernel timestamp collection via Hardware Event System (HES).
     ///
     /// This API enables hardware-based collection of CUDA kernel timestamps as an alternative to the traditional software instrumentation and semaphore-based approach. HES-based collection provides lower overhead and more accurate timing measurements.
@@ -12388,7 +12388,7 @@ unsafe extern "C" {
     /// - [`CUptiResult::CUPTI_ERROR_NOT_SUPPORTED`]: if HW trace cannot be enabled on the current platform.
     pub fn cuptiActivityEnableHWTrace(enable: u8) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enables tracking the source library for memory allocation requests.
     ///
     /// This API is used to control whether or not we track the source library of memory allocation requests. Default value is 0, i.e. it is not tracked. The activity kind [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_MEMORY2`] needs to be enabled, and if this flag is set, we get the full path of the shared object responsible for the GPU memory allocation request in the member source in the [`CUpti_ActivityMemory4`] records. Also note that this feature adds runtime overhead.
@@ -12403,7 +12403,7 @@ unsafe extern "C" {
     /// - `- **CUPTI_SUCCESS** –`: **[`CUptiResult::CUPTI_SUCCESS`]** –.
     pub fn cuptiActivityEnableAllocationSource(enable: u8) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enables collecting records for all synchronization operations.
     ///
     /// CUPTI provides CUDA event query and stream query records via [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_SYNCHRONIZATION`]. Using this API, CUPTI client can disable to record CUDA event query and stream query records for queries for which the operations have not yet been completed on the CUDA event/stream.
@@ -12420,7 +12420,7 @@ unsafe extern "C" {
     /// - `- **CUPTI_SUCCESS** –`: **[`CUptiResult::CUPTI_SUCCESS`]** –.
     pub fn cuptiActivityEnableAllSyncRecords(enable: u8) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enable/Disable collecting device timestamp for [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_CUDA_EVENT`] record.
     ///
     /// CUPTI provides device timestamps via ‘deviceTimestamp’ field in [`CUpti_ActivityKind::CUPTI_ACTIVITY_KIND_CUDA_EVENT`] records. Using this API, CUPTI client can enable or disable the collection of CUDA event device timestamps. By default, the collection of CUDA event device timestamps is disabled.
@@ -21932,7 +21932,7 @@ impl Default for CUpti_Profiler_Host_Initialize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Create and initialize the profiler host object (CUpti_Profiler_Host_Object).
     ///
     /// # Parameters
@@ -21968,7 +21968,7 @@ impl Default for CUpti_Profiler_Host_Deinitialize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Deinitialize and destroy the profiler host object (CUpti_Profiler_Host_Object).
     ///
     /// # Parameters
@@ -22006,7 +22006,7 @@ impl Default for CUpti_Profiler_Host_GetSupportedChips_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the list of supported chips.
     ///
     /// # Parameters
@@ -22048,7 +22048,7 @@ impl Default for CUpti_Profiler_Host_GetBaseMetrics_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the list of supported base metrics for the chip.
     ///
     /// # Parameters
@@ -22092,7 +22092,7 @@ impl Default for CUpti_Profiler_Host_GetSubMetrics_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the list of supported sub-metrics for the metric.
     ///
     /// # Parameters
@@ -22141,7 +22141,7 @@ impl Default for CUpti_Profiler_Host_GetMetricProperties_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the properties of the metric.
     ///
     /// # Parameters
@@ -22186,7 +22186,7 @@ impl Default for CUpti_Profiler_Host_GetRangeName_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the range name for the range index stored in the counter data.
     ///
     /// In Range profiler, for Auto range mode the range name will be numeric value assigned to the kernel based on execution order. For user range mode, the name of range will be based on the range name provided by the user using Push range API.
@@ -22236,7 +22236,7 @@ impl Default for CUpti_Profiler_Host_EvaluateToGpuValues_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Evaluate the metric values for the range index stored in the counter data.
     ///
     /// # Parameters
@@ -22277,7 +22277,7 @@ impl Default for CUpti_Profiler_Host_ConfigAddMetrics_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Add the metrics to the profiler host object for generating the config image.
     ///
     /// The config image will have the required information to schedule the metrics for collecting the profiling data. Note:
@@ -22323,7 +22323,7 @@ impl Default for CUpti_Profiler_Host_GetConfigImageSize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the size of the config image for the metrics added to the profiler host object.
     ///
     /// Users need to allocate the buffer for storing the config image.
@@ -22365,7 +22365,7 @@ impl Default for CUpti_Profiler_Host_GetConfigImage_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the config image for the metrics added to the profiler host object.
     ///
     /// User will pass the allocated buffer to store the config image.
@@ -22407,7 +22407,7 @@ impl Default for CUpti_Profiler_Host_GetNumOfPasses_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of passes required for profiling the scheduled metrics in the config image.
     ///
     /// # Parameters
@@ -22449,7 +22449,7 @@ impl Default for CUpti_Profiler_Host_GetMaxNumHardwareMetricsPerPass_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the maximum number of hardware metrics (metric names which doesn’t include `sass` keyword) that can be scheduled in a single pass for a chip.
     ///
     /// While this represents a theoretical upper limit, practical constraints may prevent reaching this threshold for a specific set of metrics. Furthermore, the maximum achievable value is contingent upon the characteristics and architecture of the chip in question.
@@ -22493,7 +22493,7 @@ impl Default for CUpti_Profiler_Host_GetSinglePassSets_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the single pass metric sets defined in the metric config file.
     ///
     /// Profiling data for the metrics in a single pass metric set can be collected in a single pass.
@@ -22541,7 +22541,7 @@ impl Default for CUpti_Profiler_Host_GetMetricsInSinglePassSet_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get all the metrics defined in the single pass metric set.
     ///
     /// Profiling data for the metrics in a single pass metric set can be collected in a single pass.
@@ -22596,7 +22596,7 @@ impl Default for CUpti_Profiler_Host_SetDevicePartitionInfo_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the device partition information for metric evaluation on Green Contexts.
     ///
     /// When profiling workloads running on Green Contexts, the device resources (such as Streaming Multiprocessors) are partitioned among multiple Green Contexts. This partition information is essential for correctly evaluating and scaling metric values from the collected counter data.
@@ -22686,7 +22686,7 @@ impl Default for CUpti_Profiler_DeInitialize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initializes the profiler interface.
     ///
     /// Loads the required libraries in the process address space. Sets up the hooks with the CUDA driver.
@@ -22694,7 +22694,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_Initialize_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// DeInitializes the profiler interface.
     pub fn cuptiProfilerDeInitialize(
         pParams: *mut CUpti_Profiler_DeInitialize_Params,
@@ -22780,7 +22780,7 @@ impl Default for CUpti_Profiler_CounterDataImage_Initialize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// A CounterData image allocates space for values for each counter for each range.
     ///
     /// User borne the resposibility of managing the counterDataImage allocations. CounterDataPrefix contains meta data about the metrics that will be stored in counterDataImage. Use these APIs to calculate the allocation size and initialize counterData image.
@@ -22791,7 +22791,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_CounterDataImage_CalculateSize_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initializes caller-allocated counter-data image storage using the image options in `pParams`. Allocate at least the byte size returned by [`cuptiProfilerCounterDataImageCalculateSize`] before initialization.
     pub fn cuptiProfilerCounterDataImageInitialize(
         pParams: *mut CUpti_Profiler_CounterDataImage_Initialize_Params,
@@ -22847,7 +22847,7 @@ impl Default for CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params 
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// A temporary storage for CounterData image needed for internal operations.
     ///
     /// Use these APIs to calculate the allocation size and initialize counterData image scratch buffer.
@@ -22858,7 +22858,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_CounterDataImage_CalculateScratchBufferSize_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initializes caller-allocated scratch storage for a counter-data image. Use the scratch byte size returned by [`cuptiProfilerCounterDataImageCalculateScratchBufferSize`] and retain the associated counter-data image.
     pub fn cuptiProfilerCounterDataImageInitializeScratchBuffer(
         pParams: *mut CUpti_Profiler_CounterDataImage_InitializeScratchBuffer_Params,
@@ -22924,7 +22924,7 @@ impl Default for CUpti_Profiler_EndSession_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Begin profiling session sets up the profiling on the device.
     ///
     /// Although, it doesn’t start the profiling but GPU resources needed for profiling are allocated. Outside of a session, the GPU will return to its normal operating state.
@@ -22935,7 +22935,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_BeginSession_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Ends profiling session.
     ///
     /// Frees up the GPU resources acquired for profiling. Outside of a session, the GPU will return to it’s normal operating state.
@@ -22998,7 +22998,7 @@ impl Default for CUpti_Profiler_UnsetConfig_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set metrics configuration to be profiled.
     ///
     /// Use these APIs to set the config to profile in a session. It can be used for advanced cases such as where multiple configurations are collected into a single CounterData Image on the need basis, without restarting the session.
@@ -23009,7 +23009,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_SetConfig_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Unset metrics configuration profiled.
     ///
     /// **DEPRECATED**.
@@ -23066,7 +23066,7 @@ impl Default for CUpti_Profiler_EndPass_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Replay API: used for multipass collection.
     ///
     /// These APIs are used if user chooses to replay by itself [`CUpti_ProfilerReplayMode::CUPTI_UserReplay`] or [`CUpti_ProfilerReplayMode::CUPTI_ApplicationReplay`] for multipass collection of the metrics configurations. It’s a no-op in case of [`CUpti_ProfilerReplayMode::CUPTI_KernelReplay`].
@@ -23077,7 +23077,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_BeginPass_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Replay API: used for multipass collection.
     ///
     /// These APIs are used if user chooses to replay by itself [`CUpti_ProfilerReplayMode::CUPTI_UserReplay`] or [`CUpti_ProfilerReplayMode::CUPTI_ApplicationReplay`] for multipass collection of the metrics configurations. Its a no-op in case of [`CUpti_ProfilerReplayMode::CUPTI_KernelReplay`]. Returns information for next pass.
@@ -23128,7 +23128,7 @@ impl Default for CUpti_Profiler_DisableProfiling_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Enables Profiling.
     ///
     /// In [`CUpti_ProfilerRange::CUPTI_AutoRange`], these APIs are used to enable/disable profiling for the kernels to be executed in a profiling session.
@@ -23139,7 +23139,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_EnableProfiling_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable Profiling.
     ///
     /// In [`CUpti_ProfilerRange::CUPTI_AutoRange`], these APIs are used to enable/disable profiling for the kernels to be executed in a profiling session.
@@ -23178,7 +23178,7 @@ impl Default for CUpti_Profiler_IsPassCollected_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Asynchronous call to query if the submitted pass to GPU is collected.
     ///
     /// **DEPRECATED**.
@@ -23211,7 +23211,7 @@ impl Default for CUpti_Profiler_FlushCounterData_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Decode all the submitted passes.
     ///
     /// Flush Counter data API to ensure every pass is decoded into the counterDataImage passed at beginSession. This will cause the CPU/GPU sync to collect all the undecoded pass.
@@ -23266,7 +23266,7 @@ impl Default for CUpti_Profiler_PopRange_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Range API’s : Push user range.
     ///
     /// Counter data is collected per unique range-stack. Identified by a string label passsed by the user. It’s an invalid operation in case of [`CUpti_ProfilerRange::CUPTI_AutoRange`].
@@ -23277,7 +23277,7 @@ unsafe extern "C" {
         pParams: *mut CUpti_Profiler_PushRange_Params,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Range API’s : Pop user range.
     ///
     /// Counter data is collected per unique range-stack. Identified by a string label passsed by the user. It’s an invalid operation in case of [`CUpti_ProfilerRange::CUPTI_AutoRange`].
@@ -23314,7 +23314,7 @@ impl Default for CUpti_Profiler_GetCounterAvailability_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Query counter availibility.
     ///
     /// Use this API to query counter availability information in a buffer which can be used to filter unavailable raw metrics on host. Note: This API may fail, if any profiling or sampling session is active on the specified context or its device.
@@ -23390,7 +23390,7 @@ impl Default for CUpti_Profiler_DeviceSupported_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Query device compatibility with Profiling API.
     ///
     /// Use this call to determine whether a compute device and configuration are compatible with the Profiling API. If the configuration does not support profiling, one of several flags will indicate why.
@@ -23446,7 +23446,7 @@ pub enum CUpti_ClockControl_Status {
     /// ABI sentinel that forces a 32-bit C representation for [`CUpti_ClockControl_Status`]. This is not a selectable API value.
     CUPTI_CLOCK_CONTROL_STATUS_FORCE_INT = 2147483647,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Query the device-global GPU clock-control status.
     ///
     /// Queries the driver for the current clock-control state of the GPU associated with `ctx` and stores the result in `pStatus`. The returned status is device-global: it applies to the GPU, not just to `ctx`, and it can reflect locks created outside CUPTI.
@@ -23478,7 +23478,7 @@ unsafe extern "C" {
         pStatus: *mut CUpti_ClockControl_Status,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Lock GPU clocks to the requested frequency.
     ///
     /// Lock GPU clocks to a fixed level (base/rated-TDP or boost) so profiling sessions collect deterministic metrics. Clocks remain locked until [`cuptiClockControlUnlock`] is called. If the process exits beforehand, clocks are not automatically unlocked.
@@ -23516,7 +23516,7 @@ unsafe extern "C" {
         mode: CUpti_ClockControl_Mode,
     ) -> CUptiResult;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Unlock GPU clocks previously locked via [`cuptiClockControlLock`].
     ///
     /// Releases any clock lock created by CUPTI in this process. No-op if no lock is currently held. Safe to call even without a matching lock (e.g., as a defensive cleanup). This API does not release a pre-existing external lock that was observed by [`cuptiClockControlLock`].
@@ -23582,7 +23582,7 @@ impl Default for CUpti_RangeProfiler_SetConfig_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Set the configuration for range profiler like maximum number of ranges per pass, number of nesting levels, range and replay mode and the config image which has scheduling info for metric collection.
     ///
     /// # Parameters
@@ -23642,7 +23642,7 @@ impl Default for CUpti_RangeProfiler_Enable_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Create a range profiler object and enable range profiling on the CUDA context.
     ///
     /// # Parameters
@@ -23680,7 +23680,7 @@ impl Default for CUpti_RangeProfiler_Disable_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disable the range profiler on the CUDA context and destroy the range profiler object.
     ///
     /// # Parameters
@@ -23715,7 +23715,7 @@ impl Default for CUpti_RangeProfiler_Start_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Start the range profiler.
     ///
     /// # Parameters
@@ -23758,7 +23758,7 @@ impl Default for CUpti_RangeProfiler_Stop_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Stop the range profiler.
     ///
     /// # Parameters
@@ -23797,7 +23797,7 @@ impl Default for CUpti_RangeProfiler_PushRange_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Add a new range to the Range Profiler with a given range name.
     ///
     /// For nested ranges, this API should be called again for the innermost range. For profiling the nested range, users need to set the values for minNestingLevel and numNestingLevels in the SetConfig API.
@@ -23836,7 +23836,7 @@ impl Default for CUpti_RangeProfiler_PopRange_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// pop the current range to the Range Profiler.
     ///
     /// The number of pop range API call should be same as number of push ranges in the same order.
@@ -23877,7 +23877,7 @@ impl Default for CUpti_RangeProfiler_DecodeData_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Decode the profiling data stored in the hardware to the counter data image passed in the SetConfig API.
     ///
     /// This API should be called after cuptiRangeProfilerStop. The counter data image will be updated with the profiling data for the ranges profiled.
@@ -23928,7 +23928,7 @@ impl Default for CUpti_RangeProfiler_GetCounterDataSize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the size of the counter data image required to store the profiling data for the ranges profiled.
     ///
     /// # Parameters
@@ -23969,7 +23969,7 @@ impl Default for CUpti_RangeProfiler_CounterDataImage_Initialize_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Initialize the counter data image with the profiling data for the ranges profiled.
     ///
     /// # Parameters
@@ -24010,7 +24010,7 @@ impl Default for CUpti_RangeProfiler_GetCounterDataInfo_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the number of ranges stored in the counter data image.
     ///
     /// # Parameters
@@ -24054,7 +24054,7 @@ impl Default for CUpti_RangeProfiler_CounterData_GetRangeInfo_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the range name for the given range index.
     ///
     /// # Parameters
@@ -24094,7 +24094,7 @@ impl Default for CUpti_RangeProfiler_GetDevicePartitionInfo_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Get the device partition information for a Green Context.
     ///
     /// Green Contexts are created by partitioning device resources such as Streaming Multiprocessors (SMs) using CUDA APIs like cuDevSmResourceSplitByCount and cuGreenCtxCreate. When range profiling is enabled on a Green Context, the device partition information encodes how the device resources are divided among the Green Contexts.
@@ -24141,7 +24141,7 @@ impl Default for CUpti_Device_GetChipName_Params {
         }
     }
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the native chip name for `pParams->deviceIndex` and writes its string pointer to `pParams->pChipName`. Initialize `structSize` to `CUpti_Device_GetChipName_Params_STRUCT_SIZE` and `pPriv` to null.
     pub fn cuptiDeviceGetChipName(
         pParams: *mut CUpti_Device_GetChipName_Params,

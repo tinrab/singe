@@ -69,12 +69,12 @@ where
     /// Each native result is the square root of the sum of the squared real and imaginary components.
     /// Writes every logical sample of the equally sized destination.
     /// Prepares image regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     pub fn magnitude_into(
         stream_context: &StreamContext,
@@ -88,12 +88,12 @@ where
     /// Each native result is the squared real component plus the squared imaginary component.
     /// Writes every logical sample of the equally sized destination.
     /// Prepares image regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Source and destination image dimensions must match.
     pub fn magnitude_squared_into(
         stream_context: &StreamContext,
@@ -113,12 +113,12 @@ where
     /// Each native result is the square root of the sum of the squared real and imaginary components.
     /// Always allocates a new owned C1 image with the source pixel dimensions.
     /// Prepares image regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Image allocation, view construction can also fail.
     pub fn magnitude(self) -> Result<ImagePipeline<'a, f32, C1>> {
         self.linear_to_f32(<Self as MagnitudeImage>::magnitude_image)
@@ -128,12 +128,12 @@ where
     /// Each native result is the squared real component plus the squared imaginary component.
     /// Always allocates a new owned C1 image with the source pixel dimensions.
     /// Prepares image regions and waits for producers on other streams.
-    /// Rejects capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// Image allocation, view construction can also fail.
     pub fn magnitude_squared(self) -> Result<ImagePipeline<'a, f32, C1>> {
         self.linear_to_f32(<Self as MagnitudeImage>::magnitude_squared_image)

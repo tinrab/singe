@@ -13,8 +13,7 @@ use crate::{
 
 /// # Safety
 ///
-/// Uphold the [raw execution contract](crate#raw-execution), including the
-/// selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
+/// Uphold the [raw execution contract](crate#raw-execution), including the selected operation's descriptor ABI, sparse index bounds, and resource lifetimes.
 ///
 /// # Errors
 ///

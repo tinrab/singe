@@ -13,8 +13,7 @@ pub struct Instruction {
     pub operands: Vec<Operand>,
 }
 
-/// Guard that runs an instruction only in lanes where a predicate is true, or false
-/// for `@!%p`.
+/// Guard that runs an instruction only in lanes where a predicate is true, or false for `@!%p`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PredicateGuard {
     /// Byte range of this syntax node in the original PTX source.

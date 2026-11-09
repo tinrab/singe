@@ -32,11 +32,9 @@ impl From<&Graph> for RuntimeShapePolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum BuildPlanPolicy {
-    /// Build candidates sequentially and return the first successfully built
-    /// plan.
+    /// Build candidates sequentially and return the first successfully built plan.
     FirstSupported,
-    /// Build candidates in parallel windows and return the first successful
-    /// plan in collection order from the earliest successful window.
+    /// Build candidates in parallel windows and return the first successful plan in collection order from the earliest successful window.
     FirstSupportedParallel {
         /// Maximum number of candidates built concurrently within each ordered search window.
         window_size: NonZeroUsize,
@@ -145,8 +143,7 @@ impl CompileConfig {
     /// Caps the successful plans admitted by batch compilation, in candidate collection order.
     /// Failed and excluded candidates do not consume this limit.
     /// First-supported policies still select one plan.
-    /// Parallel workers can finish additional plans in their last window; those plans
-    /// remain in the build collection, excluded from automatic selection.
+    /// Parallel workers can finish additional plans in their last window; those plans remain in the build collection, excluded from automatic selection.
     /// Explicit incremental builds can select them without recompilation.
     /// `None` removes the cap without changing the build policy.
     #[must_use]
@@ -167,10 +164,8 @@ impl CompileConfig {
 
     /// Sets a dynamic shared-memory budget in bytes.
     /// Zero uses the device limit.
-    /// Runtime-fusion engines use this budget when resolving pipeline stages;
-    /// other engines ignore it.
-    /// Supplying a new budget at build time reconfigures the candidate before its
-    /// resource requirements and filters are applied, including incremental builds.
+    /// Runtime-fusion engines use this budget when resolving pipeline stages; other engines ignore it.
+    /// Supplying a new budget at build time reconfigures the candidate before its resource requirements and filters are applied, including incremental builds.
     /// `None` removes the override, retaining an existing candidate's budget during reconstruction.
     #[must_use]
     pub fn with_shared_memory_limit(mut self, bytes: impl Into<Option<u32>>) -> Self {

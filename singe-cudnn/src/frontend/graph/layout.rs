@@ -64,6 +64,7 @@ impl GraphLayout {
                 &subgraph.captured_tensors,
             )?;
         }
+
         for subgraph in subgraphs.values() {
             for (&id, bounds) in &subgraph.graph.expanded.runtime_shape_constraints {
                 let record = bindings.tensor_record(id)?;
@@ -75,11 +76,13 @@ impl GraphLayout {
                 graph.runtime_shape_constraints.insert(id, bounds);
             }
         }
+
         for &(id, _) in &bindings.scalar_bindings {
             if !bindings.binding_template_ids.contains(&id) {
                 bindings.binding_template_ids.push(id);
             }
         }
+
         for binding in &graph.storage_views {
             let source_id = bindings.tensor_record(binding.source)?.id;
             let target_id = bindings.tensor_record(binding.target)?.id;
@@ -90,6 +93,7 @@ impl GraphLayout {
                 byte_offset: binding.byte_offset,
             });
         }
+
         graph.annotate_initial_reads(&mut bindings.tensors, subgraphs);
         let workspace_layout =
             WorkspaceLayout::create(&bindings.tensors, &bindings.binding_template_ids, &[])?;
@@ -153,6 +157,7 @@ impl BindingCollector {
         for &id in &subgraph.binding_template_ids {
             imported.insert(resolve_binding_source(&subgraph.binding_replacements, id)?.0);
         }
+
         for id in imported {
             let record = subgraph.tensor_record(id)?;
             if let Some(&source) = sources.get(&id) {
@@ -192,6 +197,7 @@ impl BindingCollector {
                 self.binding_template_ids.push(record.id);
             }
         }
+
         for (&id, record) in &subgraph.tensors {
             self.tensors
                 .entry(id)
@@ -199,6 +205,7 @@ impl BindingCollector {
                     if existing.access.is_none() && record.access.is_some() {
                         existing.tensor = record.tensor.clone();
                     }
+
                     existing.access = match (existing.access, record.access) {
                         (Some(parent), Some(child)) => Some(parent.merge(child)),
                         (None, access) | (access, None) => access,
@@ -209,6 +216,7 @@ impl BindingCollector {
                 })
                 .or_insert_with(|| record.clone());
         }
+
         self.binding_replacements
             .extend(subgraph.binding_replacements.iter().copied());
         self.scalar_bindings

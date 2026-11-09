@@ -131,6 +131,7 @@ fn run() -> Result<()> {
             *elements = (*elements).max(graph.shape(tensor)?.storage_span()?);
         }
     }
+
     let [max_x, max_w, max_y] = max_elements;
     let cuda = example.cudnn.cuda_context();
     let mut seed = 123_456_789_u32;

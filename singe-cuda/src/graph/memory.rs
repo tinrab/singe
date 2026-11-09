@@ -20,7 +20,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns `Error::GraphContextMismatch` if the graph has no associated context, `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for null or misaligned wait or write addresses. Also returns an error for a dependency from another graph, an unrepresentable dependency count, or CUDA rejecting batch-node creation.
+    /// Returns `Error::GraphContextMismatch` if the graph has no associated context, `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for null or misaligned wait or write addresses.
+    /// Also returns an error for a dependency from another graph, an unrepresentable dependency count, or CUDA rejecting batch-node creation.
     pub unsafe fn add_memory_operations_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -52,7 +53,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns `Error::GraphContextMismatch` if the graph has no associated context, `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for null or misaligned wait or write addresses. Also returns an error if the node belongs to another graph or CUDA rejects the new batch parameters.
+    /// Returns `Error::GraphContextMismatch` if the graph has no associated context, `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for null or misaligned wait or write addresses.
+    /// Also returns an error if the node belongs to another graph or CUDA rejects the new batch parameters.
     pub unsafe fn set_memory_operations_node(
         &mut self,
         node: &GraphNode,
@@ -81,7 +83,8 @@ impl ExecutableGraph {
     ///
     /// # Errors
     ///
-    /// Returns `Error::GraphContextMismatch` if the graph has no associated context, `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for null or misaligned wait or write addresses. Also returns an error if the node does not belong to the executable's source graph or CUDA rejects the executable update, including changes forbidden for an existing batch node.
+    /// Returns `Error::GraphContextMismatch` if the graph has no associated context, `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for null or misaligned wait or write addresses.
+    /// Also returns an error if the node does not belong to the executable's source graph or CUDA rejects the executable update, including changes forbidden for an existing batch node.
     pub unsafe fn set_memory_operations_node(
         &mut self,
         node: &GraphNode,

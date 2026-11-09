@@ -77,12 +77,12 @@ unsafe impl Send for DenseVectorDescriptor<'_> {}
 impl<'a> SparseVectorDescriptor<'a> {
     /// Initializes a sparse vector descriptor.
     ///
-    /// The descriptor borrows the device index and value buffers by pointer; the
-    /// buffers must outlive descriptor use or be replaced with [`SparseVectorDescriptor::rebind_values`].
+    /// The descriptor borrows the device index and value buffers by pointer; the buffers must outlive descriptor use or be replaced with [`SparseVectorDescriptor::rebind_values`].
     ///
     /// # Errors
     ///
-    /// Returns an error if supplied index or value storage is too small or belongs to another CUDA context, or counts cannot fit in native integers. Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
+    /// Returns an error if supplied index or value storage is too small or belongs to another CUDA context, or counts cannot fit in native integers.
+    /// Also propagates context-binding and native descriptor-creation errors, and rejects a null returned handle.
     pub fn create<I: IndexTypeLike, T: DataTypeLike>(
         context: &Context,
         size: usize,
@@ -176,8 +176,8 @@ impl<'a> SparseVectorDescriptor<'a> {
     ///
     /// # Safety
     ///
-    /// Bindings must match the descriptor's native element types, format, batch
-    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    /// Bindings must match the descriptor's native element types, format, batch extents, and preprocessing protocol.
+    /// Complete previous accesses before rebinding.
     pub unsafe fn rebind_values<'b, T: DataTypeLike>(
         self,
         values: Option<DeviceOutputView<'b, T>>,
@@ -201,6 +201,7 @@ impl<'a> SparseVectorDescriptor<'a> {
                 values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast()
             ))?;
         }
+
         let incoming = rebound.regions.pop().unwrap_or(None);
         if let Some(last) = rebound.regions.last_mut() {
             *last = incoming;
@@ -214,8 +215,7 @@ impl<'a> SparseVectorDescriptor<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuSPARSE cannot report the descriptor fields or if
-    /// reported sizes cannot be represented as `usize`.
+    /// Returns an error if cuSPARSE cannot report the descriptor fields or if reported sizes cannot be represented as `usize`.
     pub fn info(&self) -> Result<SparseVectorInfo> {
         self.cuda_context.bind()?;
         let mut size = 0_i64;
@@ -283,15 +283,13 @@ impl<'a> SparseVectorDescriptor<'a> {
         Ok(())
     }
 
-    /// Wraps an existing cuSPARSE sparse-vector descriptor and takes ownership
-    /// of it.
+    /// Wraps an existing cuSPARSE sparse-vector descriptor and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned, valid `cusparseSpVecDescr_t` associated
-    /// with `parts.cuda_context`. Its pointer bindings and regions must describe
-    /// live allocations in that context with the required exclusive borrows for
-    /// lifetime `'a`. An empty region list leaves those raw obligations to the caller.
+    /// `parts.handle` must be a uniquely owned, valid `cusparseSpVecDescr_t` associated with `parts.cuda_context`.
+    /// Its pointer bindings and regions must describe live allocations in that context with the required exclusive borrows for lifetime `'a`.
+    /// An empty region list leaves those raw obligations to the caller.
     /// No other owner may destroy the handle after transfer.
     ///
     /// # Errors
@@ -315,11 +313,9 @@ impl<'a> SparseVectorDescriptor<'a> {
         })
     }
 
-    /// Consumes the descriptor and returns the raw cuSPARSE handle without
-    /// destroying it.
+    /// Consumes the descriptor and returns the raw cuSPARSE handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with `cusparseDestroySpVec`.
+    /// The caller becomes responsible for eventually destroying the returned handle with `cusparseDestroySpVec`.
     #[must_use]
     pub fn into_raw(mut self) -> RawDescriptor<'a, sys::cusparseSpVecDescr_t> {
         RawDescriptor {
@@ -335,6 +331,7 @@ impl Drop for SparseVectorDescriptor<'_> {
         if self.handle.is_null() {
             return;
         }
+
         if self.cuda_context.bind().is_err() {
             return;
         }
@@ -342,8 +339,10 @@ impl Drop for SparseVectorDescriptor<'_> {
         // SAFETY: `cusparseDestroySpVec` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusparseDestroySpVec(self.as_raw_const())) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse sparse vector descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cusparse sparse vector descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -352,13 +351,11 @@ impl Drop for SparseVectorDescriptor<'_> {
 impl<'a> DenseVectorDescriptor<'a> {
     /// Initializes a dense vector descriptor.
     ///
-    /// The descriptor borrows the device value buffer by pointer; the buffer must
-    /// outlive descriptor use or be replaced with [`DenseVectorDescriptor::rebind_values`].
+    /// The descriptor borrows the device value buffer by pointer; the buffer must outlive descriptor use or be replaced with [`DenseVectorDescriptor::rebind_values`].
     ///
     /// # Errors
     ///
-    /// Returns an error if `size` cannot be represented by cuSPARSE, if cuSPARSE
-    /// cannot create the descriptor, or if it returns a null handle.
+    /// Returns an error if `size` cannot be represented by cuSPARSE, if cuSPARSE cannot create the descriptor, or if it returns a null handle.
     pub fn create<T: DataTypeLike>(
         context: &Context,
         size: usize,
@@ -420,8 +417,8 @@ impl<'a> DenseVectorDescriptor<'a> {
     ///
     /// # Safety
     ///
-    /// Bindings must match the descriptor's native element types, format, batch
-    /// extents, and preprocessing protocol. Complete previous accesses before rebinding.
+    /// Bindings must match the descriptor's native element types, format, batch extents, and preprocessing protocol.
+    /// Complete previous accesses before rebinding.
     pub unsafe fn rebind_values<'b, T: DataTypeLike>(
         self,
         values: Option<DeviceOutputView<'b, T>>,
@@ -445,6 +442,7 @@ impl<'a> DenseVectorDescriptor<'a> {
                 values.map_or(ptr::null_mut(), DeviceRegion::as_ptr).cast()
             ))?;
         }
+
         let incoming = rebound.regions.pop().unwrap_or(None);
         if let Some(last) = rebound.regions.last_mut() {
             *last = incoming;
@@ -458,8 +456,7 @@ impl<'a> DenseVectorDescriptor<'a> {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuSPARSE cannot report the descriptor fields or if the
-    /// reported size cannot be represented as `usize`.
+    /// Returns an error if cuSPARSE cannot report the descriptor fields or if the reported size cannot be represented as `usize`.
     pub fn info(&self) -> Result<DenseVectorInfo> {
         self.cuda_context.bind()?;
         let mut size = 0_i64;
@@ -514,15 +511,13 @@ impl<'a> DenseVectorDescriptor<'a> {
         Ok(())
     }
 
-    /// Wraps an existing cuSPARSE dense-vector descriptor and takes ownership
-    /// of it.
+    /// Wraps an existing cuSPARSE dense-vector descriptor and takes ownership of it.
     ///
     /// # Safety
     ///
-    /// `parts.handle` must be a uniquely owned, valid `cusparseDnVecDescr_t` associated
-    /// with `parts.cuda_context`. Its pointer bindings and regions must describe
-    /// live allocations in that context with the required exclusive borrows for
-    /// lifetime `'a`. An empty region list leaves those raw obligations to the caller.
+    /// `parts.handle` must be a uniquely owned, valid `cusparseDnVecDescr_t` associated with `parts.cuda_context`.
+    /// Its pointer bindings and regions must describe live allocations in that context with the required exclusive borrows for lifetime `'a`.
+    /// An empty region list leaves those raw obligations to the caller.
     /// No other owner may destroy the handle after transfer.
     ///
     /// # Errors
@@ -546,11 +541,9 @@ impl<'a> DenseVectorDescriptor<'a> {
         })
     }
 
-    /// Consumes the descriptor and returns the raw cuSPARSE handle without
-    /// destroying it.
+    /// Consumes the descriptor and returns the raw cuSPARSE handle without destroying it.
     ///
-    /// The caller becomes responsible for eventually destroying the returned
-    /// handle with `cusparseDestroyDnVec`.
+    /// The caller becomes responsible for eventually destroying the returned handle with `cusparseDestroyDnVec`.
     #[must_use]
     pub fn into_raw(mut self) -> RawDescriptor<'a, sys::cusparseDnVecDescr_t> {
         RawDescriptor {
@@ -566,6 +559,7 @@ impl Drop for DenseVectorDescriptor<'_> {
         if self.handle.is_null() {
             return;
         }
+
         if self.cuda_context.bind().is_err() {
             return;
         }
@@ -573,8 +567,10 @@ impl Drop for DenseVectorDescriptor<'_> {
         // SAFETY: `cusparseDestroyDnVec` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusparseDestroyDnVec(self.as_raw_const())) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusparse dense vector descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cusparse dense vector descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -625,8 +621,7 @@ impl Drop for DenseVectorDescriptor<'_> {
 /// # Safety
 ///
 /// Uphold the [raw execution contract](crate#raw-execution).
-/// Sparse indices must address initialized dense elements, and their type,
-/// alignment, and value layout must match the descriptors.
+/// Sparse indices must address initialized dense elements, and their type, alignment, and value layout must match the descriptors.
 /// Retain both descriptors and all buffers through completion and replay.
 ///
 /// # Errors

@@ -16,11 +16,11 @@ use crate::{
 ///
 /// # Safety
 /// Implementations must preserve native element representations and conversion semantics.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ConvertSignal<T, U> {
-    /// Converts each source element to the destination element type. Writes the result to `destination`.
+    /// Converts each source element to the destination element type.
+    /// Writes the result to `destination`.
     ///
     /// Prepares source and destination regions, waiting for producers on other streams.
     /// Completes the conversion before returning successfully.
@@ -40,11 +40,11 @@ pub unsafe trait ConvertSignal<T, U> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and conversion semantics.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledConvertSignal<T, U> {
-    /// Converts each source element to the destination element type. Writes the result to `destination`.
+    /// Converts each source element to the destination element type.
+    /// Writes the result to `destination`.
     /// Applies the selected native conversion's scaling with `scale_factor`.
     ///
     /// Prepares source and destination regions, waiting for producers on other streams.
@@ -66,11 +66,11 @@ pub unsafe trait ScaledConvertSignal<T, U> {
 ///
 /// # Safety
 /// Implementations must preserve native element representations and conversion semantics.
-/// Complete borrowed native work on every return path, including errors, and initialize all
-/// destination elements on success. Uphold the completed dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Complete borrowed native work on every return path, including errors, and initialize all destination elements on success.
+/// Uphold the completed dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ScaledRoundConvertSignal<T, U> {
-    /// Converts each source element to the destination element type. Writes the result to `destination`.
+    /// Converts each source element to the destination element type.
+    /// Writes the result to `destination`.
     /// Applies the selected native conversion's scaling with `scale_factor`.
     /// Uses `round_mode` for the native rounding step.
     ///
@@ -218,7 +218,8 @@ impl<'a, T> SignalPipeline<'a, T>
 where
     T: Copy,
 {
-    /// Converts each source element to the destination element type. Returns an owned pipeline.
+    /// Converts each source element to the destination element type.
+    /// Returns an owned pipeline.
     ///
     /// Allocates destination storage through the workspace.
     /// Prepares source and destination regions, waiting for producers on other streams.
@@ -257,7 +258,8 @@ where
         })
     }
 
-    /// Converts each source element to the destination element type. Returns an owned pipeline.
+    /// Converts each source element to the destination element type.
+    /// Returns an owned pipeline.
     /// Applies the selected native conversion's scaling with `scale_factor`.
     ///
     /// Allocates destination storage through the workspace.
@@ -298,7 +300,8 @@ where
         })
     }
 
-    /// Converts each source element to the destination element type. Returns an owned pipeline.
+    /// Converts each source element to the destination element type.
+    /// Returns an owned pipeline.
     /// Applies the selected native conversion's scaling with `scale_factor`.
     /// Uses `round_mode` for the native rounding step.
     ///
@@ -345,7 +348,8 @@ where
         })
     }
 
-    /// Converts each source element to the destination element type. Writes the result to `destination`.
+    /// Converts each source element to the destination element type.
+    /// Writes the result to `destination`.
     ///
     /// Prepares source and destination regions, waiting for producers on other streams.
     /// Completes the conversion before returning successfully.
@@ -366,7 +370,8 @@ where
         <Self as ConvertSignal<T, U>>::convert_signal(stream_context, source, destination)
     }
 
-    /// Converts each source element to the destination element type. Writes the result to `destination`.
+    /// Converts each source element to the destination element type.
+    /// Writes the result to `destination`.
     /// Applies the selected native conversion's scaling with `scale_factor`.
     ///
     /// Prepares source and destination regions, waiting for producers on other streams.
@@ -394,7 +399,8 @@ where
         )
     }
 
-    /// Converts each source element to the destination element type. Writes the result to `destination`.
+    /// Converts each source element to the destination element type.
+    /// Writes the result to `destination`.
     /// Applies the selected native conversion's scaling with `scale_factor`.
     /// Uses `round_mode` for the native rounding step.
     ///

@@ -78,7 +78,8 @@ impl CompiledGraph {
     ///
     /// # Errors
     ///
-    /// Returns an error if overrides are disabled, tensor identities, shapes, strides, bounds, or alias layouts are invalid, frontend workspace sizing overflows, CUDA contexts disagree or cannot be bound, or native variant-pack creation or workspace querying fails. Returns an error if this handle does not retain `plan`.
+    /// Returns an error if overrides are disabled, tensor identities, shapes, strides, bounds, or alias layouts are invalid, frontend workspace sizing overflows, CUDA contexts disagree or cannot be bound, or native variant-pack creation or workspace querying fails.
+    /// Returns an error if this handle does not retain `plan`.
     pub fn workspace_size_for_with_runtime_overrides(
         &self,
         context: &Context,
@@ -128,7 +129,8 @@ impl BuiltPlanCandidates {
     ///
     /// # Errors
     ///
-    /// Returns an error if overrides are disabled, tensor identities, shapes, strides, bounds, or alias layouts are invalid, frontend workspace sizing overflows, CUDA contexts disagree or cannot be bound, or native variant-pack creation or workspace querying fails. Returns an error if the identity is absent or its candidate is excluded, unbuilt, or failed.
+    /// Returns an error if overrides are disabled, tensor identities, shapes, strides, bounds, or alias layouts are invalid, frontend workspace sizing overflows, CUDA contexts disagree or cannot be bound, or native variant-pack creation or workspace querying fails.
+    /// Returns an error if the identity is absent or its candidate is excluded, unbuilt, or failed.
     pub fn workspace_size_for_with_runtime_overrides(
         &self,
         context: &Context,

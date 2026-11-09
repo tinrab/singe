@@ -56,6 +56,7 @@ impl Graph {
         if let Some(sm) = self.config.sm_version.filter(|sm| *sm > 0) {
             return Ok(Some(sm));
         }
+
         if let Some(sm) = self
             .runtime
             .device_properties
@@ -64,6 +65,7 @@ impl Graph {
         {
             return Ok(Some(sm));
         }
+
         let Some(context) = context else {
             return Ok(None);
         };
@@ -126,10 +128,8 @@ impl Graph {
 
     /// Sets inclusive runtime shape bounds for a dynamic tensor.
     ///
-    /// These constraints are Rust-side validation metadata. cuDNN still receives
-    /// the execution-time dimensions through runtime overrides, while the
-    /// frontend rejects shapes outside the recorded bounds before building the
-    /// variant pack.
+    /// These constraints are Rust-side validation metadata.
+    /// cuDNN still receives the execution-time dimensions through runtime overrides, while the frontend rejects shapes outside the recorded bounds before building the variant pack.
     ///
     /// # Errors
     ///
@@ -188,8 +188,7 @@ impl Graph {
 
     /// Attaches a serialized kernel cache to this graph.
     ///
-    /// Kernel caches reduce plan build time by reusing previously compiled
-    /// runtime kernels for matching execution plans on dynamic-shape graphs.
+    /// Kernel caches reduce plan build time by reusing previously compiled runtime kernels for matching execution plans on dynamic-shape graphs.
     pub fn attach_kernel_cache_json(&mut self, kernel_cache_json: KernelCacheJson) {
         self.kernel_cache_enabled = true;
         self.kernel_cache_json = Some(kernel_cache_json);
@@ -256,8 +255,7 @@ impl Graph {
         self.kernel_cache_json.as_ref()
     }
 
-    /// Attaches an in-process plan cache shared by graphs with equivalent
-    /// topology and compile settings.
+    /// Attaches an in-process plan cache shared by graphs with equivalent topology and compile settings.
     pub fn attach_plan_cache(&mut self, plan_cache: Arc<Mutex<PlanCache>>) {
         self.runtime.plan_cache = Some(plan_cache);
     }
@@ -270,9 +268,7 @@ impl Graph {
 
     /// Attaches serialized cuDNN device properties for deviceless planning.
     ///
-    /// Device properties can be serialized from a real device and later used to
-    /// query heuristics or create execution plans without that device being
-    /// present.
+    /// Device properties can be serialized from a real device and later used to query heuristics or create execution plans without that device being present.
     pub fn attach_device_properties_json(&mut self, device_properties_json: DevicePropertiesJson) {
         self.device_properties_json = Some(device_properties_json);
         self.runtime.device_properties = None;
@@ -280,8 +276,7 @@ impl Graph {
 
     /// Attaches cuDNN device properties for deviceless planning.
     /// Properties collected from a device or handle also supply the default SM target.
-    /// Opaque restored properties require an explicit SM version for attention
-    /// implementation selection when compiling without a live context.
+    /// Opaque restored properties require an explicit SM version for attention implementation selection when compiling without a live context.
     ///
     /// # Errors
     ///
@@ -338,14 +333,13 @@ impl Graph {
 
 /// Static graph construction options.
 ///
-/// Runtime-only handles such as shared kernel and plan caches are intentionally
-/// attached to [`Graph`] after construction because they require validation or
-/// process-local ownership.
+/// Runtime-only handles such as shared kernel and plan caches are intentionally attached to [`Graph`] after construction because they require validation or process-local ownership.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GraphConfig {
     /// Optional diagnostic graph name.
     pub name: Option<String>,
-    /// Default SM target for planning. Zero uses every SM; `None` leaves it unset.
+    /// Default SM target for planning.
+    /// Zero uses every SM; `None` leaves it unset.
     pub sm_count_target: Option<u32>,
     /// Optional compilation architecture override, encoded as `major * 10 + minor`.
     pub sm_version: Option<i32>,

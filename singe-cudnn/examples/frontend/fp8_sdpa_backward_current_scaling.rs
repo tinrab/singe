@@ -237,9 +237,11 @@ fn run() -> Result<()> {
     if let Some((sink, memory)) = &sink_dev {
         bindings.set_input(*sink, &memory.view())?;
     }
+
     if let Some((mask, memory)) = &dropout_mask_dev {
         bindings.set_input(*mask, &memory.view())?;
     }
+
     for scale in [
         descale_q,
         descale_k,
@@ -251,11 +253,13 @@ fn run() -> Result<()> {
     ] {
         bindings.set_input(scale, &unit_scale_dev.view())?;
     }
+
     bindings.set_input(descale_s, &descale_s_dev.view())?;
     bindings.set_input(attention_scale, &attention_scale_dev.view())?;
     for (id, memory) in &mut output_buffers {
         bindings.set_encoded_bytes(*id, memory)?;
     }
+
     // SAFETY: initialized inputs, optional sink and mask, gradients, scales and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(

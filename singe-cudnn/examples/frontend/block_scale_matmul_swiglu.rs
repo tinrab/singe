@@ -23,6 +23,7 @@ fn run() -> Result<()> {
         println!("frontend_block_scale_matmul_swiglu: skipped, requires Blackwell or newer");
         return Ok(());
     }
+
     let [b, m, n, k] = [1_i64, 256, 256, 256];
     let block_size = 16_i32;
     let block = i64::from(block_size);
@@ -122,6 +123,7 @@ fn run() -> Result<()> {
         let values = vec![value; graph.tensor_spec(id)?.storage_byte_len(None)?];
         inputs.push((id, DeviceMemory::from_slice(cuda, &values)?));
     }
+
     let mut output_device =
         DeviceMemory::<u8>::zeroed(cuda, graph.tensor_spec(output)?.storage_byte_len(None)?)?;
     let mut workspace = common::workspace(cuda, compiled.workspace_size())?;
@@ -129,6 +131,7 @@ fn run() -> Result<()> {
     for (id, memory) in &inputs {
         bindings.set_encoded_input_bytes(*id, memory)?;
     }
+
     bindings.set_encoded_bytes(output, &mut output_device)?;
     // SAFETY: initialized packed inputs/scales, writable output and workspace remain live through stream completion.
     example.execute_and_wait(|context| unsafe {

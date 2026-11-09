@@ -411,6 +411,7 @@ mod kernels {
                 unsafe { load_vector(weight, weight_offsets + kernel_offset, mask, 0.0f32) };
             dot = dot + value * weight_value;
         }
+
         let last_weight =
             unsafe { load_vector(weight, weight_offsets + last_kernel_offset, mask, 0.0f32) };
         dot = dot + x * last_weight;
@@ -495,6 +496,7 @@ mod kernels {
                 unsafe { load_vector_f16_as_f32(weight, weight_offsets + kernel_offset, mask) };
             dot = dot + value * weight_value;
         }
+
         let last_weight =
             unsafe { load_vector_f16_as_f32(weight, weight_offsets + last_kernel_offset, mask) };
         dot = dot + x * last_weight;
@@ -579,6 +581,7 @@ mod kernels {
                 unsafe { load_vector_bf16_as_f32(weight, weight_offsets + kernel_offset, mask) };
             dot = dot + value * weight_value;
         }
+
         let last_weight =
             unsafe { load_vector_bf16_as_f32(weight, weight_offsets + last_kernel_offset, mask) };
         dot = dot + x * last_weight;
@@ -2325,6 +2328,7 @@ mod kernels {
         if HAS_BIAS {
             sum = unsafe { load_vector(bias, out_channel, valid, 0.0f32) };
         }
+
         // `input_start` and `output_start` let callers run causal convolution over sequence chunks.
         // They preserve absolute positions.
         for group_input_channel in 0i32..channels_in_per_group {
@@ -2357,6 +2361,7 @@ mod kernels {
                 sum = sum + input_values * weight_values;
             }
         }
+
         if GELU {
             // Optional approximate GELU matches the fused causal-conv variants.
             let half = constant(0.5f32, tile_shape);
@@ -2365,6 +2370,7 @@ mod kernels {
             let cubic_coeff = constant(0.044715f32, tile_shape);
             sum = half * sum * (one + tanh(sqrt_2_over_pi * (sum + cubic_coeff * sum * sum * sum)));
         }
+
         unsafe { store_vector(out, offsets, sum, valid) };
     }
 
@@ -2436,6 +2442,7 @@ mod kernels {
                 sum = sum + input_values * weight_values;
             }
         }
+
         let output_offsets =
             batch * broadcast_scalar(output_batch_stride, tile_shape) + batch_output_offset;
         unsafe { store_vector(out, output_offsets, sum, valid) };
@@ -2567,6 +2574,7 @@ mod kernels {
                 sum = sum + input_values * weight_values;
             }
         }
+
         unsafe { store_vector(out, offsets, sum, valid) };
     }
 
@@ -2639,6 +2647,7 @@ mod kernels {
                 sum = sum + input_values * weight_values;
             }
         }
+
         let output_offsets =
             batch * broadcast_scalar(output_batch_stride, tile_shape) + batch_output_offset;
         unsafe { store_vector(out, output_offsets, sum, valid) };
@@ -2709,6 +2718,7 @@ mod kernels {
                 sum = sum + input_values * weight_values;
             }
         }
+
         unsafe { store_vector(out, offsets, sum, valid) };
     }
 
@@ -2781,6 +2791,7 @@ mod kernels {
                 sum = sum + input_values * weight_values;
             }
         }
+
         let output_offsets =
             batch * broadcast_scalar(output_batch_stride, tile_shape) + batch_output_offset;
         unsafe { store_vector(out, output_offsets, sum, valid) };

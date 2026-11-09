@@ -22,14 +22,11 @@ where
     /// Computes native multiscale structural similarity (MSSSIM) between two image ROIs.
     /// The provided C1 implementations produce one `f32` result.
     /// The supplied output view must contain exactly one element.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// The output view must have the exact result count described above.
     pub fn multiscale_structural_similarity_into(
@@ -49,14 +46,11 @@ where
     /// Computes native multiscale structural similarity (MSSSIM) between two image ROIs.
     /// The provided C1 implementations produce one `f32` result.
     /// Allocates owned device storage for the single result.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// Result allocation or source view construction can also fail.
     pub fn multiscale_structural_similarity(
@@ -92,14 +86,11 @@ where
     /// Uses the native weighting and scale configuration.
     /// The provided C1, C3, and C4 implementations produce one, three, or four `f32` results respectively.
     /// The supplied output view must contain exactly the result count described above.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// The output view must have the exact result count described above.
     pub fn weighted_multiscale_structural_similarity_into(
@@ -123,14 +114,11 @@ where
     /// Uses the native weighting and scale configuration.
     /// The provided C1, C3, and C4 implementations produce one, three, or four `f32` results respectively.
     /// Allocates owned device storage for the complete result array.
-    /// Prepares both source images and output storage, waits for producers on other
-    /// streams, rejects capture, queries and allocates temporary device scratch, and returns
-    /// after successful stream completion.
+    /// Prepares both source images and output storage, waits for producers on other streams, rejects capture, queries and allocates temporary device scratch, and returns after successful stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, scratch-size queries or allocation, native execution, or stream synchronization fail.
     /// Source image dimensions must match.
     /// Result allocation or source view construction can also fail.
     pub fn weighted_multiscale_structural_similarity(

@@ -5,19 +5,16 @@ macro_rules! impl_constant_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -50,17 +47,15 @@ macro_rules! impl_constant_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $ty>,
@@ -90,19 +85,16 @@ macro_rules! impl_scaled_constant_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -139,17 +131,15 @@ macro_rules! impl_scaled_constant_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $ty>,
@@ -181,17 +171,15 @@ macro_rules! impl_scaled_mixed_constant_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $signal_ty>,
@@ -223,20 +211,17 @@ macro_rules! impl_destination_update_constant_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
         /// Destination elements must also be initialized and ready before this read-modify-write operation.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -271,19 +256,16 @@ macro_rules! impl_mixed_constant_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_ty>,
@@ -318,19 +300,16 @@ macro_rules! impl_scaled_mixed_constant_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_ty>,
@@ -367,19 +346,16 @@ macro_rules! impl_shift_constant_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -414,17 +390,15 @@ macro_rules! impl_shift_constant_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $ty>,
@@ -454,19 +428,16 @@ macro_rules! impl_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $ty>,
@@ -503,19 +474,16 @@ macro_rules! impl_reversed_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $ty>,
@@ -552,19 +520,16 @@ macro_rules! impl_binary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Destination elements must also be initialized and ready, and remain exclusively
-        /// writable and disjoint from the read-only input signal through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Destination elements must also be initialized and ready, and remain exclusively writable and disjoint from the read-only input signal through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &SignalView<'_, $ty>,
@@ -597,19 +562,16 @@ macro_rules! impl_mixed_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $source_ty>,
@@ -646,19 +608,16 @@ macro_rules! impl_reversed_mixed_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $source_ty>,
@@ -695,19 +654,16 @@ macro_rules! impl_mixed_binary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Destination elements must also be initialized and ready, and remain exclusively
-        /// writable and disjoint from the read-only input signal through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Destination elements must also be initialized and ready, and remain exclusively writable and disjoint from the read-only input signal through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &SignalView<'_, $source_ty>,
@@ -740,19 +696,16 @@ macro_rules! impl_heterogeneous_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $left_ty>,
@@ -789,19 +742,16 @@ macro_rules! impl_heterogeneous_binary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Destination elements must also be initialized and ready, and remain exclusively
-        /// writable and disjoint from the read-only input signal through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Destination elements must also be initialized and ready, and remain exclusively writable and disjoint from the read-only input signal through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &SignalView<'_, $source_ty>,
@@ -834,19 +784,16 @@ macro_rules! impl_scaled_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $ty>,
@@ -885,19 +832,16 @@ macro_rules! impl_reversed_scaled_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $ty>,
@@ -936,19 +880,16 @@ macro_rules! impl_scaled_mixed_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $source_ty>,
@@ -987,19 +928,16 @@ macro_rules! impl_scaled_heterogeneous_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $left_ty>,
@@ -1038,19 +976,16 @@ macro_rules! impl_scaled_heterogeneous_binary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Destination elements must also be initialized and ready, and remain exclusively
-        /// writable and disjoint from the read-only input signal through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Destination elements must also be initialized and ready, and remain exclusively writable and disjoint from the read-only input signal through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &SignalView<'_, $source_ty>,
@@ -1085,19 +1020,16 @@ macro_rules! impl_reversed_scaled_heterogeneous_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $left_ty>,
@@ -1136,19 +1068,16 @@ macro_rules! impl_scaled_binary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Destination elements must also be initialized and ready, and remain exclusively
-        /// writable and disjoint from the read-only input signal through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Destination elements must also be initialized and ready, and remain exclusively writable and disjoint from the read-only input signal through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &SignalView<'_, $ty>,
@@ -1183,19 +1112,16 @@ macro_rules! impl_reversed_scaled_round_binary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $ty>,
@@ -1236,19 +1162,16 @@ macro_rules! impl_scaled_round_binary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Destination elements must also be initialized and ready, and remain exclusively
-        /// writable and disjoint from the read-only input signal through completion.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Destination elements must also be initialized and ready, and remain exclusively writable and disjoint from the read-only input signal through completion.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &SignalView<'_, $ty>,
@@ -1285,20 +1208,17 @@ macro_rules! impl_destination_update_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
         /// Destination elements must also be initialized and ready before this accumulation.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $ty>,
@@ -1335,20 +1255,17 @@ macro_rules! impl_scaled_destination_update_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, a signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, a signal length cannot be represented by the native interface, or NPP fails.
         /// All participating signal lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep inputs read-only and destination elements exclusively writable and disjoint
-        /// from both input signals through completion.
+        /// Keep inputs read-only and destination elements exclusively writable and disjoint from both input signals through completion.
         /// Destination elements must also be initialized and ready before this accumulation.
-        /// Addresses and capacities must satisfy the selected native routine's alignment and
-        /// representation requirements. Retain all signal allocations and the stream context
-        /// through queued completion, including submission errors and every captured graph replay.
+        /// Addresses and capacities must satisfy the selected native routine's alignment and representation requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             left: &SignalView<'_, $source_ty>,
@@ -1387,20 +1304,16 @@ macro_rules! impl_unary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -1433,18 +1346,15 @@ macro_rules! impl_unary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $ty>,
@@ -1472,18 +1382,15 @@ macro_rules! impl_parameterized_unary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $ty>,
@@ -1513,20 +1420,16 @@ macro_rules! impl_scaled_unary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -1561,18 +1464,15 @@ macro_rules! impl_scaled_unary_operation_in_place {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
         /// Keep the signal exclusively writable through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             signal: &mut SignalViewMut<'_, $ty>,
@@ -1602,20 +1502,16 @@ macro_rules! impl_scaled_mixed_unary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_ty>,
@@ -1650,20 +1546,16 @@ macro_rules! impl_mixed_unary_operation {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $source_ty>,
@@ -1696,20 +1588,16 @@ macro_rules! impl_normalize {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -1746,20 +1634,16 @@ macro_rules! impl_complex_normalize {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,
@@ -1796,20 +1680,16 @@ macro_rules! impl_scaled_normalize {
         ///
         /// # Errors
         ///
-        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA
-        /// context, the signal length cannot be represented by the native interface, or NPP fails.
+        /// Returns an error if CUDA context binding fails, a signal belongs to another CUDA context, the signal length cannot be represented by the native interface, or NPP fails.
         /// Source and destination lengths must match; differing lengths return an error.
         /// Success reports native submission.
         ///
         /// # Safety
         ///
         /// Input elements must be initialized and ready when the stream reaches the operation.
-        /// Keep the source read-only and destination exclusively writable and disjoint from the
-        /// source through queued completion.
-        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's
-        /// alignment, representation, and operand requirements. Retain all signal allocations
-        /// and the stream context through queued completion, including submission errors and
-        /// every captured graph replay.
+        /// Keep the source read-only and destination exclusively writable and disjoint from the source through queued completion.
+        /// Addresses, capacities, and scalar operands must satisfy the selected native routine's alignment, representation, and operand requirements.
+        /// Retain all signal allocations and the stream context through queued completion, including submission errors and every captured graph replay.
         pub unsafe fn $name(
             stream_context: &StreamContext,
             source: &SignalView<'_, $ty>,

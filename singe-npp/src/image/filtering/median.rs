@@ -305,9 +305,8 @@ impl_filter_median_border!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations, neighborhood
-/// and anchor semantics, and scratch-size requirements. Uphold the method's validation,
-/// source halo requirements where applicable, and completed native execution contract.
+/// Implementations must preserve native pixel and layout representations, neighborhood and anchor semantics, and scratch-size requirements.
+/// Uphold the method's validation, source halo requirements where applicable, and completed native execution contract.
 pub unsafe trait FilterMedian<L: ChannelLayout>: DataTypeLike {
     /// Returns the scratch size in bytes for median filtering of `roi` using `mask_size`.
     ///
@@ -529,9 +528,8 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations, neighborhood
-/// and anchor semantics, and scratch-size requirements. Uphold the method's validation,
-/// source halo requirements where applicable, and completed native execution contract.
+/// Implementations must preserve native pixel and layout representations, neighborhood and anchor semantics, and scratch-size requirements.
+/// Uphold the method's validation, source halo requirements where applicable, and completed native execution contract.
 pub unsafe trait FilterMedianBorder<L: ChannelLayout>: DataTypeLike {
     /// Returns the scratch size in bytes for median filtering of `roi` using `mask_size`.
     ///

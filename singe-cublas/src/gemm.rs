@@ -10,9 +10,8 @@ use crate::{
 
 /// Matrix-matrix multiplication shape and layout.
 ///
-/// Matrices use cuBLAS column-major storage. `m`, `n`, and `k` describe the
-/// logical GEMM:
-/// `C[m x n] = alpha * op(A)[m x k] * op(B)[k x n] + beta * C[m x n]`.
+/// Matrices use cuBLAS column-major storage.
+/// `m`, `n`, and `k` describe the logical GEMM: `C[m x n] = alpha * op(A)[m x k] * op(B)[k x n] + beta * C[m x n]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct GemmConfig {
     m: usize,
@@ -508,8 +507,8 @@ impl GemmElement for f64 {
 ///
 /// # Safety
 ///
-/// Matrix storage and device scalars must remain live and correctly ordered until
-/// the context's stream completes. Output writes must not conflict with other access.
+/// Matrix storage and device scalars must remain live and correctly ordered until the context's stream completes.
+/// Output writes must not conflict with other access.
 ///
 /// # Errors
 ///

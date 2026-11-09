@@ -100,8 +100,12 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cusolver_sys::LoadError),
+
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// cuSOLVER returned a non-success native status.
@@ -201,6 +205,12 @@ impl Error {
 
 impl From<sys::cusolverStatus_t> for Error {
     fn from(code: sys::cusolverStatus_t) -> Self {
+        if code == sys::cusolverStatus_t::CUSOLVER_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cusolver_sys::load()
+        {
+            return Self::Load(error);
+        }
+
         let status = Status::from(code);
         Self::from(status)
     }

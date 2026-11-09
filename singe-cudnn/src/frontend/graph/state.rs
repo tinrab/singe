@@ -21,8 +21,7 @@ use crate::{
 
 /// Runtime-only state attached to a frontend graph.
 ///
-/// Stores construction bookkeeping and process-local objects such as a shared
-/// kernel cache or device properties alongside the serializable graph description.
+/// Stores construction bookkeeping and process-local objects such as a shared kernel cache or device properties alongside the serializable graph description.
 #[derive(Debug, Clone, Default)]
 pub struct GraphRuntimeState {
     /// New declaration identities, allowing inference checkpoints to record a count instead of copying all IDs.
@@ -37,10 +36,8 @@ pub struct GraphRuntimeState {
 
 /// Declarative cuDNN frontend operation graph.
 ///
-/// A graph is a dataflow description of tensor operations that is separate from
-/// the backend engines that may execute it. After construction, the graph can be
-/// lowered to a cuDNN operation graph and compiled into one or more execution
-/// plans selected from heuristic engine configurations.
+/// A graph is a dataflow description of tensor operations that is separate from the backend engines that may execute it.
+/// After construction, the graph can be lowered to a cuDNN operation graph and compiled into one or more execution plans selected from heuristic engine configurations.
 ///
 /// This mirrors the high-level C++ frontend graph API model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,8 +61,7 @@ pub struct Graph {
 
 /// Binds one tensor as an alias of another tensor at a byte offset.
 ///
-/// This models in-place or aliased graph tensors while preserving the logical
-/// tensor IDs used by the frontend graph.
+/// This models in-place or aliased graph tensors while preserving the logical tensor IDs used by the frontend graph.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct StorageView {
     /// Frontend identity supplying the aliased device allocation.

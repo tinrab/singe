@@ -229,8 +229,7 @@ impl_enum_display!(CacheMode, {
 #[repr(u32)]
 #[non_exhaustive]
 pub enum OperationDescriptorAttribute {
-    /// `i32` tag that distinguishes otherwise identical problems in the software-managed plan cache.
-    /// (default value: 0).
+    /// `i32` tag that distinguishes otherwise identical problems in the software-managed plan cache. (default value: 0).
     Tag = sys::cutensorOperationDescriptorAttribute_t::CUTENSOR_OPERATION_DESCRIPTOR_TAG as _,
     /// [`DataType`](singe_cuda::data_type::DataType): data type of the scaling factors.
     ScalarType =
@@ -320,8 +319,7 @@ pub enum AutotuneMode {
     /// Indicates incremental autotuning.
     /// Each corresponding [`sys::cutensorCreatePlan`] invocation creates a plan based on a different algorithm or kernel.
     /// [`PlanPreferenceAttribute::IncrementalCount`] defines the maximum number of kernels tested.
-    /// May choose different algorithms across plan creations, so it does not
-    /// guarantee bitwise-identical results.
+    /// May choose different algorithms across plan creations, so it does not guarantee bitwise-identical results.
     Incremental = sys::cutensorAutotuneMode_t::CUTENSOR_AUTOTUNE_MODE_INCREMENTAL as _,
 }
 

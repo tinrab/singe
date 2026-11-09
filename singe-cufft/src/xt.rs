@@ -186,6 +186,7 @@ impl Layout {
         {
             return Err(invalid("FFT dimensions"));
         }
+
         let (ty, embedding, stride, distance) = if input {
             (
                 self.input_type,
@@ -208,6 +209,7 @@ impl Layout {
                 .expect("plans validate at least one dimension");
             *last = *last / 2 + 1;
         }
+
         let elements = if let Some(embedding) = embedding {
             if embedding.len() != dimensions.len()
                 || stride <= 0
@@ -216,6 +218,7 @@ impl Layout {
             {
                 return Err(invalid("FFT strides"));
             }
+
             let mut offset = 0i64;
             for (&extent, &embed) in dimensions.iter().zip(embedding) {
                 offset = offset
@@ -272,8 +275,10 @@ struct CallbackMetadata {
 unsafe impl Send for CallbackMetadata {}
 
 impl PlanHandle {
-    fn guard(&self) -> MutexGuard<'_, ()> {
-        self.gate.lock().unwrap_or_else(PoisonError::into_inner)
+    fn guard(&self) -> Result<MutexGuard<'_, ()>> {
+        self.gate
+            .lock()
+            .map_err(|_| Error::LockPoisoned { name: "cufft plan" })
     }
 }
 
@@ -299,10 +304,8 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid dimensions, batch count, embedding extents,
-    /// strides, arithmetic overflow, a noncomplex execution type, or a GPU list
-    /// with one or more than 64 entries. CUDA context binding, native plan
-    /// creation, GPU selection, and cuFFT planning failures are also returned.
+    /// Returns an error for invalid dimensions, batch count, embedding extents, strides, arithmetic overflow, a noncomplex execution type, or a GPU list with one or more than 64 entries.
+    /// CUDA context binding, native plan creation, GPU selection, and cuFFT planning failures are also returned.
     pub fn create(context: &Arc<CudaContext>, gpus: &[i32], layout: Layout) -> Result<Self> {
         Self::create_inner(context, gpus, layout, None)
     }
@@ -318,10 +321,12 @@ impl Plan {
         if !complex(layout.execution_type) {
             return Err(invalid("execution data type"));
         }
+
         let mut devices = gpus.to_vec();
         if devices.len() == 1 || devices.len() > 64 {
             return Err(invalid("GPU count"));
         }
+
         let base = Arc::new(PlanHandle {
             base: BasePlan::create(context)?,
             gate: Mutex::new(()),
@@ -337,10 +342,12 @@ impl Plan {
                 ))?;
             }
         }
+
         if let Some((symbol, code, kind, caller_info)) = callback {
             if caller_info.len() != devices.len().max(1) {
                 return Err(invalid("callback caller-info count"));
             }
+
             let metadata = CallbackMetadata {
                 symbol: Some(CString::new(symbol)?),
                 code: code.into(),
@@ -348,10 +355,9 @@ impl Plan {
                 caller_info: caller_info.to_vec(),
             };
             base.base.bind()?;
-            let mut callbacks = base
-                .callbacks
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
+            let mut callbacks = base.callbacks.lock().map_err(|_| Error::LockPoisoned {
+                name: "cufft callbacks",
+            })?;
             callbacks.push(metadata);
             let metadata = callbacks.last_mut().expect("metadata was just pushed");
             // SAFETY: `cufftXtSetJITCallback` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
@@ -369,8 +375,10 @@ impl Plan {
                     metadata.caller_info.as_mut_ptr(),
                 ))?;
             }
+
             drop(callbacks);
         }
+
         let mut result = Self {
             base,
             layout,
@@ -385,19 +393,14 @@ impl Plan {
 
     /// Configures an FFT with a link-time callback before planning.
     /// # Safety
-    /// Callback code must obey the selected cuFFT callback ABI, access only valid
-    /// memory, and keep caller-info pointees alive through every queued execution and graph replay, including errors.
+    /// Callback code must obey the selected cuFFT callback ABI, access only valid memory, and keep caller-info pointees alive through every queued execution and graph replay, including errors.
     /// Symbol names, code bytes and pointer tables are retained with the native plan.
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid dimensions, batch count, embedding extents,
-    /// strides, arithmetic overflow, a noncomplex execution type, or a GPU list
-    /// with one or more than 64 entries. CUDA context binding, native plan
-    /// creation, GPU selection, and cuFFT planning failures are also returned.
-    /// Also returns an error if `symbol` contains an interior NUL byte, the
-    /// caller-info count differs from the number of GPUs (one for single-GPU
-    /// execution), or cuFFT rejects the JIT callback.
+    /// Returns an error for invalid dimensions, batch count, embedding extents, strides, arithmetic overflow, a noncomplex execution type, or a GPU list with one or more than 64 entries.
+    /// CUDA context binding, native plan creation, GPU selection, and cuFFT planning failures are also returned.
+    /// Also returns an error if `symbol` contains an interior NUL byte, the caller-info count differs from the number of GPUs (one for single-GPU execution), or cuFFT rejects the JIT callback.
     pub unsafe fn create_with_jit_callback(
         context: &Arc<CudaContext>,
         gpus: &[i32],
@@ -417,7 +420,7 @@ impl Plan {
 
     fn plan_many(&mut self, estimate: bool) -> Result<()> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         self.base.base.bind()?;
         let mut n = self.layout.dimensions.clone();
         let mut input = self.layout.input_embedding.clone();
@@ -468,12 +471,10 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if context
-    /// binding or synchronization fails, if `stream` belongs to another context,
-    /// or if cuFFT rejects the stream association.
+    /// Returns an error while distributed allocations retain the plan, if context binding or synchronization fails, if `stream` belongs to another context, or if cuFFT rejects the stream association.
     pub fn set_stream(&mut self, stream: Option<&Stream>) -> Result<()> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         self.base.base.bind()?;
         self.base.base.cuda_context().synchronize()?;
         self.base.base.set_stream(stream)?;
@@ -491,8 +492,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if context
-    /// binding fails, or if cuFFT cannot query workspace sizes for this layout.
+    /// Returns an error while distributed allocations retain the plan, if context binding fails, or if cuFFT cannot query workspace sizes for this layout.
     pub fn estimate_workspace_sizes(&mut self) -> Result<&[u64]> {
         self.plan_many(true)?;
         Ok(&self.workspace_sizes)
@@ -502,19 +502,18 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if `limits`
-    /// does not contain one size per participating GPU, if context binding fails,
-    /// or if cuFFT rejects the policy or workspace limits.
+    /// Returns an error while distributed allocations retain the plan, if `limits` does not contain one size per participating GPU, if context binding fails, or if cuFFT rejects the policy or workspace limits.
     pub fn set_work_area_policy(
         &mut self,
         policy: WorkAreaPolicy,
         limits: &[u64],
     ) -> Result<&[u64]> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         if limits.len() != self.workspace_sizes.len() {
             return Err(invalid("workspace limits"));
         }
+
         self.base.base.bind()?;
         let mut sizes = limits.to_vec();
         // SAFETY: `cufftXtSetWorkAreaPolicy` receives live handles owned by the wrappers and valid output locations.
@@ -525,26 +524,26 @@ impl Plan {
                 sizes.as_mut_ptr()
             ))?;
         }
+
         self.workspace_sizes = sizes;
         Ok(&self.workspace_sizes)
     }
 
     /// Assigns external work areas, one pointer per participating GPU.
     /// # Safety
-    /// Each pointer must identify memory on its corresponding GPU with at least
-    /// the required size. Keep every work area alive until plan destruction.
+    /// Each pointer must identify memory on its corresponding GPU with at least the required size.
+    /// Keep every work area alive until plan destruction.
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if `areas`
-    /// does not contain one pointer per participating GPU, if context binding fails,
-    /// or if cuFFT rejects the workspace pointer table.
+    /// Returns an error while distributed allocations retain the plan, if `areas` does not contain one pointer per participating GPU, if context binding fails, or if cuFFT rejects the workspace pointer table.
     pub unsafe fn set_work_areas(&mut self, areas: &mut [*mut c_void]) -> Result<()> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         if areas.len() != self.workspace_sizes.len() {
             return Err(invalid("workspace pointer count"));
         }
+
         self.base.base.bind()?;
         // SAFETY: `cufftXtSetWorkArea` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -562,20 +561,19 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if fewer than two GPUs were selected, the stream is being
-    /// captured, CUDA context operations or synchronization fail, cuFFT allocation
-    /// fails, or the returned descriptor contains null, empty, overflowing, or
-    /// inconsistent device-allocation metadata.
+    /// Returns an error if fewer than two GPUs were selected, the stream is being captured, CUDA context operations or synchronization fail, cuFFT allocation fails, or the returned descriptor contains null, empty, overflowing, or inconsistent device-allocation metadata.
     pub fn allocate_uninit(&self, format: SubFormat) -> Result<DistributedMemory> {
         if self.gpus.len() < 2 {
             return Err(invalid("distributed GPU count"));
         }
+
         if let Some(stream) = &self.stream {
             stream.ensure_not_capturing()?;
         }
+
         let mut raw = ptr::null_mut();
         {
-            let _native = self.base.guard();
+            let _native = self.base.guard()?;
             self.base.base.bind()?;
             // SAFETY: `cufftXtMalloc` receives live handles owned by the wrappers and valid output locations.
             unsafe {
@@ -586,9 +584,11 @@ impl Plan {
                 ))?;
             }
         }
+
         if raw.is_null() {
             return Err(Error::NullHandle);
         }
+
         let mut allocation = DistributedAllocation {
             base: Arc::clone(&self.base),
             raw,
@@ -601,6 +601,7 @@ impl Plan {
         if allocation.byte_len == 0 {
             return Err(invalid("distributed allocation bytes"));
         }
+
         // Publish allocation metadata only after SDK allocation work is ready in its actual contexts.
         allocation.base.base.cuda_context().synchronize()?;
         for chunk in &allocation.chunks {
@@ -623,10 +624,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error for a distributed plan, mismatched element types,
-    /// insufficient buffer capacity, or overflow in the configured storage span.
-    /// Context mismatches, dependency ordering, context binding, and cuFFT
-    /// submission failures are also returned. Success reports submission only.
+    /// Returns an error for a distributed plan, mismatched element types, insufficient buffer capacity, or overflow in the configured storage span.
+    /// Context mismatches, dependency ordering, context binding, and cuFFT submission failures are also returned.
+    /// Success reports submission only.
     pub unsafe fn execute_async<I: DataTypeLike, O: DataTypeLike>(
         &self,
         input: DeviceOutputView<'_, I>,
@@ -636,11 +636,12 @@ impl Plan {
         if self.gpus.len() > 1 {
             return Err(invalid("single-GPU execution"));
         }
+
         self.check_buffer::<I>(input.len(), true)?;
         self.check_buffer::<O>(output.len(), false)?;
         let input = input.into_region();
         let output = output.into_region();
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         self.base
             .base
             .prepare_execution(self.stream.as_ref(), &[input, output])?;
@@ -667,10 +668,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error for a distributed plan, mismatched element types,
-    /// insufficient buffer capacity, or overflow in the configured storage span.
-    /// Context mismatches, dependency ordering, context binding, and cuFFT
-    /// submission failures are also returned. Success reports submission only.
+    /// Returns an error for a distributed plan, mismatched element types, insufficient buffer capacity, or overflow in the configured storage span.
+    /// Context mismatches, dependency ordering, context binding, and cuFFT submission failures are also returned.
+    /// Success reports submission only.
     pub unsafe fn execute_in_place_async<T: DataTypeLike>(
         &self,
         memory: DeviceOutputView<'_, T>,
@@ -679,6 +679,7 @@ impl Plan {
         if self.gpus.len() > 1 || T::data_type() != self.layout.input_type {
             return Err(invalid("in-place input type or GPU count"));
         }
+
         let input = self
             .layout
             .required_elements(true)?
@@ -693,7 +694,8 @@ impl Plan {
         if memory.byte_len() < input.max(output) {
             return Err(invalid("in-place storage"));
         }
-        let _native = self.base.guard();
+
+        let _native = self.base.guard()?;
         self.base
             .base
             .prepare_execution(self.stream.as_ref(), &[memory])?;
@@ -722,8 +724,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if either allocation belongs to another native plan,
-    /// context binding fails, or cuFFT rejects the distributed submission.
+    /// Returns an error if either allocation belongs to another native plan, context binding fails, or cuFFT rejects the distributed submission.
     /// Success reports submission only.
     pub unsafe fn execute_distributed_async(
         &self,
@@ -736,7 +737,8 @@ impl Plan {
         {
             return Err(invalid("distributed allocation plan"));
         }
-        let _native = self.base.guard();
+
+        let _native = self.base.guard()?;
         self.base.base.bind()?;
         // SAFETY: `cufftXtExecDescriptor` receives live handles owned by the wrappers.
         unsafe {
@@ -759,9 +761,8 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if the allocation belongs to another native plan, its
-    /// format is not `InPlace` or `InPlaceShuffled`, context binding fails, or
-    /// cuFFT rejects the distributed submission. Success reports submission only.
+    /// Returns an error if the allocation belongs to another native plan, its format is not `InPlace` or `InPlaceShuffled`, context binding fails, or cuFFT rejects the distributed submission.
+    /// Success reports submission only.
     pub unsafe fn execute_distributed_in_place_async(
         &self,
         memory: &mut DistributedMemory,
@@ -770,13 +771,15 @@ impl Plan {
         if !Arc::ptr_eq(&self.base, &memory.allocation.base) {
             return Err(invalid("distributed allocation plan"));
         }
+
         if !matches!(
             memory.format,
             SubFormat::InPlace | SubFormat::InPlaceShuffled
         ) {
             return Err(invalid("in-place format"));
         }
-        let _native = self.base.guard();
+
+        let _native = self.base.guard()?;
         self.base.base.bind()?;
         // SAFETY: `cufftXtExecDescriptor` receives live handles owned by the wrappers.
         unsafe {
@@ -794,10 +797,9 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if context binding fails or cuFFT cannot provide
-    /// one-dimensional factorization metadata for the configured plan.
+    /// Returns an error if context binding fails or cuFFT cannot provide one-dimensional factorization metadata for the configured plan.
     pub fn factors(&self) -> Result<Factors> {
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         let mut factors = sys::cufftXt1dFactors::default();
         self.base.base.bind()?;
         // SAFETY: `cufftXtQueryPlan` receives live handles owned by the wrappers and valid output locations.
@@ -828,20 +830,16 @@ impl Plan {
 
     /// Installs legacy callbacks, one device-function pointer per participating GPU.
     /// # Safety
-    /// Functions must obey the specified callback ABI, and callback code plus
-    /// caller-info memory must remain valid for every queued execution and graph replay, including errors.
+    /// Functions must obey the specified callback ABI, and callback code plus caller-info memory must remain valid for every queued execution and graph replay, including errors.
     /// Owned copies of the pointer tables remain retained through native plan destruction.
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if either
-    /// pointer table lacks one entry per participating GPU, if context binding
-    /// fails, or if cuFFT rejects the callback installation.
+    /// Returns an error while distributed allocations retain the plan, if either pointer table lacks one entry per participating GPU, if context binding fails, or if cuFFT rejects the callback installation.
     ///
     /// # Panics
     ///
-    /// Panics if the internal callback attachment list is empty immediately
-    /// after appending the new attachment; this indicates an internal invariant violation.
+    /// Panics if the internal callback attachment list is empty immediately after appending the new attachment; this indicates an internal invariant violation.
     pub unsafe fn set_callbacks(
         &mut self,
         kind: CallbackType,
@@ -849,10 +847,11 @@ impl Plan {
         caller_info: &mut [*mut c_void],
     ) -> Result<()> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         if callbacks.len() != self.workspace_sizes.len() || caller_info.len() != callbacks.len() {
             return Err(invalid("callback count"));
         }
+
         self.base.base.bind()?;
         let metadata = CallbackMetadata {
             symbol: None,
@@ -864,7 +863,9 @@ impl Plan {
             .base
             .callbacks
             .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+            .map_err(|_| Error::LockPoisoned {
+                name: "cufft callbacks",
+            })?;
         attachments.push(metadata);
         let metadata = attachments.last_mut().expect("metadata was just pushed");
         // SAFETY: `cufftXtSetCallback` receives live handles owned by the wrappers and valid output locations.
@@ -876,6 +877,7 @@ impl Plan {
                 metadata.caller_info.as_mut_ptr()
             ))?;
         }
+
         drop(attachments);
         Ok(())
     }
@@ -884,11 +886,10 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if context
-    /// binding fails, or if cuFFT cannot clear this callback kind.
+    /// Returns an error while distributed allocations retain the plan, if context binding fails, or if cuFFT cannot clear this callback kind.
     pub fn clear_callback(&mut self, kind: CallbackType) -> Result<()> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         self.base.base.bind()?;
         // SAFETY: `cufftXtClearCallback` receives live handles owned by the wrappers.
         unsafe {
@@ -906,11 +907,10 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error while distributed allocations retain the plan, if context
-    /// binding fails, or if cuFFT rejects the callback kind or shared-memory size.
+    /// Returns an error while distributed allocations retain the plan, if context binding fails, or if cuFFT rejects the callback kind or shared-memory size.
     pub fn set_callback_shared_size(&mut self, kind: CallbackType, bytes: usize) -> Result<()> {
         self.ensure_unique()?;
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         self.base.base.bind()?;
         // SAFETY: `cufftXtSetCallbackSharedSize` receives live handles owned by the wrappers.
         unsafe {
@@ -1001,6 +1001,7 @@ impl DistributedAllocation {
         if count == 0 || count > descriptor.data.len() {
             return Err(invalid("GPU count"));
         }
+
         for index in 0..count {
             let bytes = to_usize(descriptor.size[index], "allocation bytes")?;
             self.byte_len = self
@@ -1010,10 +1011,12 @@ impl DistributedAllocation {
             if bytes == 0 {
                 continue;
             }
+
             let pointer = descriptor.data[index].cast::<u8>();
             if pointer.is_null() {
                 return Err(Error::NullHandle);
             }
+
             let mut raw_context: driver::CUcontext = ptr::null_mut();
             // SAFETY: `cuPointerGetAttribute` receives valid output locations.
             unsafe {
@@ -1023,6 +1026,7 @@ impl DistributedAllocation {
                     pointer as driver::CUdeviceptr,
                 ))?;
             }
+
             let context = if raw_context == self.base.base.cuda_context().as_raw() {
                 Arc::clone(self.base.base.cuda_context())
             } else {
@@ -1037,11 +1041,13 @@ impl DistributedAllocation {
             if context.device().id() != descriptor.GPUs[index] {
                 return Err(invalid("distributed allocation GPU"));
             }
+
             let allocation_id = AllocationId::create();
             // SAFETY: cuFFT reported this pointer and size for a live chunk; the region is only validated here.
             unsafe {
                 DeviceRegion::from_raw_parts(&context, allocation_id, pointer, bytes)?;
             }
+
             self.chunks.push(ChunkInfo {
                 context,
                 allocation_id,
@@ -1053,16 +1059,18 @@ impl DistributedAllocation {
     }
 
     fn complete(&self, source: Option<&Self>, submit: impl FnOnce() -> Result<()>) -> Result<()> {
-        let _native = self.base.guard();
+        let _native = self.base.guard()?;
         if let Some(stream) = &self.stream {
             stream.ensure_not_capturing()?;
         }
+
         let mut contexts = vec![Arc::clone(self.base.base.cuda_context())];
         for chunk in &self.chunks {
             if !contexts.iter().any(|context| context == &chunk.context) {
                 contexts.push(Arc::clone(&chunk.context));
             }
         }
+
         if let Some(source) = source {
             for chunk in &source.chunks {
                 if !contexts.iter().any(|context| context == &chunk.context) {
@@ -1070,10 +1078,12 @@ impl DistributedAllocation {
                 }
             }
         }
+
         // Preflight before enqueueing so a rejected synchronous operation has no host borrow to drain.
         for context in &contexts {
             context.synchronize()?;
         }
+
         let mut drain = ContextDrain {
             contexts,
             drained: false,
@@ -1095,6 +1105,7 @@ impl ContextDrain {
         for context in &self.contexts {
             context.synchronize()?;
         }
+
         self.drained = true;
         Ok(())
     }
@@ -1117,8 +1128,8 @@ impl DistributedMemory {
 
     /// Iterates over owned metadata for each nonempty GPU allocation.
     ///
-    /// Each yielded chunk retains the allocation and plan independently of this
-    /// wrapper. It does not grant initialized sample access.
+    /// Each yielded chunk retains the allocation and plan independently of this wrapper.
+    /// It does not grant initialized sample access.
     pub fn chunks(&self) -> impl ExactSizeIterator<Item = DistributedChunk> + '_ {
         (0..self.allocation.chunks.len()).map(|index| DistributedChunk {
             allocation: Arc::clone(&self.allocation),
@@ -1140,10 +1151,8 @@ impl DistributedMemory {
     ///
     /// # Errors
     ///
-    /// Returns an error if the host element type differs from the configured
-    /// representation, the host storage is too short (including physical padding),
-    /// or a size calculation overflows. Stream capture, CUDA context operations
-    /// and synchronization, and cuFFT copy failures are also returned.
+    /// Returns an error if the host element type differs from the configured representation, the host storage is too short (including physical padding), or a size calculation overflows.
+    /// Stream capture, CUDA context operations and synchronization, and cuFFT copy failures are also returned.
     pub fn copy_from_host<T: DataTypeLike>(&mut self, values: &[T]) -> Result<()> {
         check_buffer::<T>(&self.allocation.layout, values.len(), true)?;
         self.check_host_storage::<T>(values.len())?;
@@ -1162,10 +1171,8 @@ impl DistributedMemory {
     ///
     /// # Errors
     ///
-    /// Returns an error if the host element type differs from the configured
-    /// representation, the host storage is too short (including physical padding),
-    /// or a size calculation overflows. Stream capture, CUDA context operations
-    /// and synchronization, and cuFFT copy failures are also returned.
+    /// Returns an error if the host element type differs from the configured representation, the host storage is too short (including physical padding), or a size calculation overflows.
+    /// Stream capture, CUDA context operations and synchronization, and cuFFT copy failures are also returned.
     pub fn copy_to_host<T: DataTypeLike>(&self, values: &mut [MaybeUninit<T>]) -> Result<()> {
         check_buffer::<T>(&self.allocation.layout, values.len(), false)?;
         self.check_host_storage::<T>(values.len())?;
@@ -1190,12 +1197,9 @@ impl DistributedMemory {
     ///
     /// # Errors
     ///
-    /// Returns an error if the host element type differs from the configured
-    /// representation, the host storage is too short (including physical padding),
-    /// or a size calculation overflows. Stream capture, CUDA context operations
-    /// and synchronization, and cuFFT copy failures are also returned.
-    /// Also returns an error if the initialized prefix exceeds either the host
-    /// slice or the number of bytes copied, or its byte count overflows.
+    /// Returns an error if the host element type differs from the configured representation, the host storage is too short (including physical padding), or a size calculation overflows.
+    /// Stream capture, CUDA context operations and synchronization, and cuFFT copy failures are also returned.
+    /// Also returns an error if the initialized prefix exceeds either the host slice or the number of bytes copied, or its byte count overflows.
     pub unsafe fn copy_to_host_unchecked<'host, T: DataTypeLike>(
         &self,
         values: &'host mut [MaybeUninit<T>],
@@ -1207,6 +1211,7 @@ impl DistributedMemory {
         if initialized_elements > values.len() || initialized_bytes > self.byte_len() {
             return Err(invalid("initialized prefix"));
         }
+
         self.copy_to_host(values)?;
         // SAFETY: the caller upholds this function's safety contract.
         Ok(unsafe { slice::from_raw_parts_mut(values.as_mut_ptr().cast(), initialized_elements) })
@@ -1217,14 +1222,12 @@ impl DistributedMemory {
     ///
     /// # Errors
     ///
-    /// Returns an error if the source belongs to another native plan, the
-    /// destination has fewer allocation bytes than the source, the stream is
-    /// being captured, CUDA context operations or synchronization fail, or cuFFT
-    /// cannot perform the copy.
+    /// Returns an error if the source belongs to another native plan, the destination has fewer allocation bytes than the source, the stream is being captured, CUDA context operations or synchronization fail, or cuFFT cannot perform the copy.
     pub fn copy_from(&mut self, source: &Self) -> Result<()> {
         if !Arc::ptr_eq(&self.allocation.base, &source.allocation.base) {
             return Err(invalid("distributed allocation plan"));
         }
+
         if self.byte_len() < source.byte_len() {
             return Err(invalid("distributed destination bytes"));
         }
@@ -1249,13 +1252,20 @@ impl DistributedMemory {
 
 impl Drop for DistributedAllocation {
     fn drop(&mut self) {
-        let _native = self.base.guard();
+        // Cleanup must free the allocation whatever a panic left in this gate, which guards no data of its own.
+        let _native = self
+            .base
+            .gate
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if self.base.base.bind().is_ok() {
             // SAFETY: `cufftXtFree` receives live handles owned by the wrappers.
             unsafe {
                 if let Err(error) = try_ffi!(sys::cufftXtFree(self.raw)) {
-                    #[cfg(debug_assertions)]
-                    eprintln!("failed to free distributed cufft allocation: {error}");
+                    eprintln!(
+                        "failed to free distributed cufft allocation: {}",
+                        singe_core::ErrorChain(&error)
+                    );
                 }
             }
         }
@@ -1272,6 +1282,7 @@ fn check_buffer<T: DataTypeLike>(layout: &Layout, len: usize, input: bool) -> Re
     if T::data_type() != expected_type {
         return Err(invalid("FFT buffer data type"));
     }
+
     let expected = layout.required_elements(input)?;
     if len < expected {
         return Err(Error::LengthMismatch {

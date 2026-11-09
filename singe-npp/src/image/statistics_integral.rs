@@ -17,7 +17,8 @@ use crate::{
 /// Calls `nppiIntegral_8u32s_C1R_Ctx`.
 ///
 /// Adds `value` to the destination integral-image pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -63,7 +64,8 @@ pub unsafe fn integral_u8_to_i32_c1(
 /// Calls `nppiIntegral_8u32f_C1R_Ctx`.
 ///
 /// Adds `value` to the destination integral-image pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -110,7 +112,8 @@ pub unsafe fn integral_u8_to_f32_c1(
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -165,7 +168,8 @@ pub unsafe fn sqr_integral_u8_to_i32_i32_c1(
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -220,7 +224,8 @@ pub unsafe fn sqr_integral_u8_to_i32_f64_c1(
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -274,8 +279,10 @@ pub unsafe fn sqr_integral_u8_to_f32_f64_c1(
 /// Calls `nppiRectStdDev_32f_C1R_Ctx`.
 ///
 /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-/// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// `rectangle` specifies the window relative to each destination pixel.
+/// Its origin must be nonnegative and its width and height must be positive.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -326,9 +333,11 @@ pub unsafe fn rect_std_dev_f32_c1(
 /// Calls `nppiRectStdDev_32s_C1RSfs_Ctx`.
 ///
 /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-/// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
+/// `rectangle` specifies the window relative to each destination pixel.
+/// Its origin must be nonnegative and its width and height must be positive.
 /// Applies native fixed-point scaling with `scale_factor`.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -381,8 +390,10 @@ pub unsafe fn rect_std_dev_i32_scaled_c1(
 /// Calls `nppiRectStdDev_32s32f_C1R_Ctx`.
 ///
 /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-/// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// `rectangle` specifies the window relative to each destination pixel.
+/// Its origin must be nonnegative and its width and height must be positive.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -439,7 +450,8 @@ pub unsafe trait IntegralToI32C1: DataTypeLike {
     /// Computes an integral image, including its top and left borders.
     ///
     /// Adds `value` to the destination integral-image pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -481,7 +493,8 @@ unsafe impl IntegralToI32C1 for u8 {
 /// Computes an integral image, including its top and left borders.
 ///
 /// Adds `value` to the destination integral-image pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -520,7 +533,8 @@ pub unsafe trait IntegralToF32C1: DataTypeLike {
     /// Computes an integral image, including its top and left borders.
     ///
     /// Adds `value` to the destination integral-image pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -562,7 +576,8 @@ unsafe impl IntegralToF32C1 for u8 {
 /// Computes an integral image, including its top and left borders.
 ///
 /// Adds `value` to the destination integral-image pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -604,7 +619,8 @@ where
     /// Computes an integral image, including its top and left borders.
     ///
     /// Adds `value` to the destination integral-image pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -657,7 +673,8 @@ impl_integral_c1!(f32, IntegralToF32C1);
 /// Computes an integral image, including its top and left borders.
 ///
 /// Adds `value` to the destination integral-image pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -701,7 +718,8 @@ pub unsafe trait SqrIntegralToI32I32C1: DataTypeLike {
     ///
     /// Adds `value` to the destination integral-image pixels.
     /// Adds `squared_value` to the `squared` output pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -758,7 +776,8 @@ unsafe impl SqrIntegralToI32I32C1 for u8 {
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -811,7 +830,8 @@ pub unsafe trait SqrIntegralToI32F64C1: DataTypeLike {
     ///
     /// Adds `value` to the destination integral-image pixels.
     /// Adds `squared_value` to the `squared` output pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -868,7 +888,8 @@ unsafe impl SqrIntegralToI32F64C1 for u8 {
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -921,7 +942,8 @@ pub unsafe trait SqrIntegralToF32F64C1: DataTypeLike {
     ///
     /// Adds `value` to the destination integral-image pixels.
     /// Adds `squared_value` to the `squared` output pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -978,7 +1000,8 @@ unsafe impl SqrIntegralToF32F64C1 for u8 {
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -1035,7 +1058,8 @@ where
     ///
     /// Adds `value` to the destination integral-image pixels.
     /// Adds `squared_value` to the `squared` output pixels.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -1105,7 +1129,8 @@ impl_sqr_integral_c1!(f32, f64, SqrIntegralToF32F64C1);
 ///
 /// Adds `value` to the destination integral-image pixels.
 /// Adds `squared_value` to the `squared` output pixels.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -1168,8 +1193,10 @@ pub unsafe trait RectStandardDeviation: DataTypeLike {
     /// Computes standard deviations over `rectangle` from integral images.
     ///
     /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-    /// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// `rectangle` specifies the window relative to each destination pixel.
+    /// Its origin must be nonnegative and its width and height must be positive.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -1238,8 +1265,10 @@ unsafe impl RectStandardDeviation for i32 {
 /// Computes standard deviations over `rectangle` from integral images.
 ///
 /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-/// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// `rectangle` specifies the window relative to each destination pixel.
+/// Its origin must be nonnegative and its width and height must be positive.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -1274,8 +1303,10 @@ pub unsafe fn rect_standard_deviation<T: RectStandardDeviation>(
 /// Computes standard deviations over `rectangle` from integral images.
 ///
 /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-/// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// `rectangle` specifies the window relative to each destination pixel.
+/// Its origin must be nonnegative and its width and height must be positive.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///
@@ -1321,9 +1352,11 @@ pub unsafe trait RectStandardDeviationScaled: DataTypeLike {
     /// Computes standard deviations over `rectangle` from integral images.
     ///
     /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-    /// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
+    /// `rectangle` specifies the window relative to each destination pixel.
+    /// Its origin must be nonnegative and its width and height must be positive.
     /// Applies native fixed-point scaling with `scale_factor`.
-    /// Enqueues work on the selected stream. Row padding remains unwritten.
+    /// Enqueues work on the selected stream.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -1379,9 +1412,11 @@ unsafe impl RectStandardDeviationScaled for i32 {
 /// Computes standard deviations over `rectangle` from integral images.
 ///
 /// `source` contains the integral image and `squared` contains the integral of squared samples for the same underlying image.
-/// `rectangle` specifies the window relative to each destination pixel. Its origin must be nonnegative and its width and height must be positive.
+/// `rectangle` specifies the window relative to each destination pixel.
+/// Its origin must be nonnegative and its width and height must be positive.
 /// Applies native fixed-point scaling with `scale_factor`.
-/// Enqueues work on the selected stream. Row padding remains unwritten.
+/// Enqueues work on the selected stream.
+/// Row padding remains unwritten.
 ///
 /// # Errors
 ///

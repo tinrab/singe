@@ -35,6 +35,7 @@ fn run() -> Result<()> {
         println!("frontend_fp8_sdpa_backward_bottom_right_causal: skipped, requires SM 100.x");
         return Ok(());
     }
+
     if version()? < 90_700 {
         println!(
             "frontend_fp8_sdpa_backward_bottom_right_causal: skipped, graph is not supported on this cuDNN/GPU combination"

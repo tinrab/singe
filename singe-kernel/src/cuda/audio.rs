@@ -80,6 +80,7 @@ impl AudioFrontendPlan {
         if batch == 0 || frames == 0 {
             return Err(Error::InvalidLength);
         }
+
         let length = stft_r2c_workspace_len(batch, frames, self.config.stft.n_fft)?;
         checked_i32_value(length)?;
         Ok(length)
@@ -108,6 +109,7 @@ impl AudioFrontendPlan {
         if batch == 0 || frames == 0 {
             return Err(Error::InvalidLength);
         }
+
         let output_len = checked_element_count(
             checked_element_count(batch, frames)?,
             self.config.mel.mel_bin_count,
@@ -121,6 +123,7 @@ impl AudioFrontendPlan {
         if self.config.log_mel.reference_max.is_some() {
             return Ok(0);
         }
+
         let partial = checked_element_count(
             batch,
             log_mel_dynamic_max_partial_len(frames, self.config.mel.mel_bin_count)?,
@@ -156,11 +159,13 @@ impl AudioFrontendPlan {
         if output_len == 0 || !output_len.is_multiple_of(expected_unit) {
             return Err(Error::LengthMismatch);
         }
+
         let frames = output_len / expected_unit;
         validate_frame_range(self.config.stft, input_len, first_frame, frames)?;
         if frames == 0 {
             return Err(Error::InvalidLength);
         }
+
         let complex_values = checked_element_count(frames, frequency_bins)?;
         let expected_output =
             checked_element_count(checked_element_count(batch, complex_values)?, 2)?;
@@ -195,11 +200,13 @@ impl AudioFrontendPlan {
         if output_len == 0 || !output_len.is_multiple_of(expected_unit) {
             return Err(Error::LengthMismatch);
         }
+
         let frames = output_len / expected_unit;
         validate_frame_range(self.config.stft, input_len, first_frame, frames)?;
         if frames == 0 {
             return Err(Error::InvalidLength);
         }
+
         let expected_output =
             checked_element_count(checked_element_count(batch, frames)?, frequency_bins)?;
         checked_i32_value(expected_output)?;
@@ -261,6 +268,7 @@ impl AudioFrontendPlan {
         if batch == 0 || frames == 0 || total_frames == 0 {
             return Err(Error::InvalidLength);
         }
+
         let end_frame = first_frame.checked_add(frames).ok_or(Error::SizeOverflow)?;
         if end_frame > total_frames {
             return Err(Error::LengthMismatch);
@@ -317,8 +325,7 @@ struct LogMelShape {
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_power_f32(
     stream: &Stream,
@@ -339,8 +346,7 @@ pub unsafe fn stft_power_f32(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_power_f32_range(
     stream: &Stream,
@@ -373,8 +379,7 @@ pub unsafe fn stft_power_f32_range(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_power_f32_batched(
     stream: &Stream,
@@ -399,8 +404,7 @@ pub unsafe fn stft_power_f32_batched(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_power_f32_batched_range(
     stream: &Stream,
@@ -465,8 +469,7 @@ pub unsafe fn stft_power_f32_batched_range(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_r2c_f32(
     stream: &Stream,
@@ -487,8 +490,7 @@ pub unsafe fn stft_r2c_f32(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_r2c_f32_range(
     stream: &Stream,
@@ -521,8 +523,7 @@ pub unsafe fn stft_r2c_f32_range(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_r2c_f32_batched(
     stream: &Stream,
@@ -545,8 +546,7 @@ pub unsafe fn stft_r2c_f32_batched(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn stft_r2c_f32_batched_range(
     stream: &Stream,
@@ -616,8 +616,7 @@ fn stft_r2c_workspace_len(batch: usize, frames: usize, n_fft: usize) -> Result<u
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn log_mel_f32(
     stream: &Stream,
@@ -640,8 +639,7 @@ pub unsafe fn log_mel_f32(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn log_mel_f32_batched(
     stream: &Stream,
@@ -666,8 +664,7 @@ pub unsafe fn log_mel_f32_batched(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain all buffers, caller-owned workspace, and the plan in the stream's
-/// context through completion on every path and throughout captured replay.
+/// Retain all buffers, caller-owned workspace, and the plan in the stream's context through completion on every path and throughout captured replay.
 /// Writable ranges must remain exclusive and disjoint from inputs and one another.
 pub unsafe fn log_mel_f32_range(
     stream: &Stream,
@@ -705,8 +702,8 @@ pub unsafe fn log_mel_f32_range(
 /// # Safety
 ///
 /// Input values must be valid when read, with producers ordered before use.
-/// Retain both buffers in the stream's context through completion on every path
-/// and throughout captured replay. The exclusive output must be disjoint from input.
+/// Retain both buffers in the stream's context through completion on every path and throughout captured replay.
+/// The exclusive output must be disjoint from input.
 pub unsafe fn convert_log_mel_layout_f32(
     stream: &Stream,
     out: &mut impl DeviceOutput<f32>,
@@ -721,6 +718,7 @@ pub unsafe fn convert_log_mel_layout_f32(
     if batch == 0 || frames == 0 || mel_bins == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(checked_element_count(batch, frames)?, mel_bins)?;
     ensure_len(input.len(), len)?;
     ensure_len(out.len(), len)?;
@@ -838,6 +836,7 @@ fn validate_mel_filter_config(config: MelFilterConfig) -> Result<()> {
     if config.sample_rate == 0 || config.frequency_bin_count == 0 || config.mel_bin_count == 0 {
         return Err(Error::InvalidLength);
     }
+
     let nyquist = config.sample_rate as f32 / 2.0;
     if !config.min_frequency.is_finite()
         || !config.max_frequency.is_finite()
@@ -857,12 +856,14 @@ fn validate_supported_stft_power(config: StftConfig) -> Result<()> {
             reason: "requires n_fft = 400 and frequency bins = 201".into(),
         });
     }
+
     if config.win_length != config.n_fft {
         return Err(Error::UnsupportedConfiguration {
             op: "stft_power_f32".into(),
             reason: "requires win_length = n_fft".into(),
         });
     }
+
     if config.normalization != SpectralNormalization::None {
         return Err(Error::UnsupportedConfiguration {
             op: "stft_power_f32".into(),
@@ -876,6 +877,7 @@ fn validate_padding(config: StftConfig, input_len: usize) -> Result<()> {
     if !config.center || config.pad_mode != PadMode::Reflect {
         return Ok(());
     }
+
     let pad = config.n_fft / 2;
     if input_len <= pad {
         return Err(Error::InvalidLength);
@@ -899,6 +901,7 @@ fn validate_frame_range(
     if frames == 0 {
         return Err(Error::InvalidLength);
     }
+
     let total_frames = config.frame_count(input_len)?;
     let end_frame = first_frame.checked_add(frames).ok_or(Error::SizeOverflow)?;
     if end_frame > total_frames {
@@ -914,6 +917,7 @@ fn validate_supported_log_mel(config: AudioFrontendConfig) -> Result<()> {
             reason: "requires frequency bins = 201 and mel bins = 128".into(),
         });
     }
+
     if config.log_mel.dynamic_range.is_none() {
         return Err(Error::MissingParameter {
             op: "log_mel_f32".into(),
@@ -957,6 +961,7 @@ fn log_mel_dynamic_max_partial_len(frames: usize, mel_bins: usize) -> Result<usi
     if output_len == 0 {
         return Err(Error::InvalidLength);
     }
+
     let partial_len = output_len.div_ceil(128);
     if partial_len > 1024 {
         return Err(Error::UnsupportedBlockCount {

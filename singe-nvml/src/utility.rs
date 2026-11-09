@@ -88,6 +88,7 @@ pub fn query_u32_list(
     if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
         return Ok(Vec::new());
     }
+
     if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
         return Err(status.into());
     }
@@ -106,6 +107,7 @@ pub fn query_sized_raw(
     if status == sys::nvmlReturn_t::NVML_SUCCESS && size == 0 {
         return Ok(Vec::new());
     }
+
     if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
         return Err(status.into());
     }
@@ -130,6 +132,7 @@ pub fn query_process_info_list(
     if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
         return Ok(Vec::new());
     }
+
     if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
         return Err(status.into());
     }
@@ -143,6 +146,7 @@ pub fn query_process_info_list(
             infos.as_mut_ptr()
         ))?;
     }
+
     infos.truncate(count as usize);
     Ok(infos.into_iter().map(Into::into).collect())
 }

@@ -16,7 +16,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_rgb_u8_p2_to_c3`](crate::image::raw::color::nv12_to_rgb_u8_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -39,7 +40,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_rgb_709hdtv_u8_p2_to_c3`](crate::image::raw::color::nv12_to_rgb_709hdtv_u8_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -62,7 +64,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_rgb_709csc_u8_p2_to_c3`](crate::image::raw::color::nv12_to_rgb_709csc_u8_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -85,7 +88,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_bgr_u8_p2_to_c3`](crate::image::raw::color::nv12_to_bgr_u8_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -108,7 +112,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_bgr_709hdtv_u8_p2_to_c3`](crate::image::raw::color::nv12_to_bgr_709hdtv_u8_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -131,7 +136,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_bgr_709csc_u8_p2_to_c3`](crate::image::raw::color::nv12_to_bgr_709csc_u8_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -154,7 +160,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv21_to_rgb_u8_p2_to_c4`](crate::image::raw::color::nv21_to_rgb_u8_p2_to_c4).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -177,7 +184,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv21_to_bgr_u8_p2_to_c4`](crate::image::raw::color::nv21_to_bgr_u8_p2_to_c4).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -201,7 +209,8 @@ impl SemiplanarImage<u8> {
     /// Uses [`nv12_to_rgb_u8_color_twist_p2_to_c3`](crate::image::raw::color::nv12_to_rgb_u8_color_twist_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -235,7 +244,8 @@ impl SemiplanarImage<u16> {
     /// Uses [`nv12_to_rgb_u16_color_twist_p2_to_c3`](crate::image::raw::color::nv12_to_rgb_u16_color_twist_p2_to_c3).
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

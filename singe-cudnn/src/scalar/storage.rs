@@ -30,6 +30,7 @@ impl ScalarStorage {
         if !byte_alignment.is_power_of_two() {
             return Err(Error::out_of_range("scalar byte alignment"));
         }
+
         let mut storage = Self::new(value);
         if byte_alignment > align_of::<Self>() {
             storage.aligned = Some(AlignedScalarBytes::create(storage.bytes, byte_alignment)?);

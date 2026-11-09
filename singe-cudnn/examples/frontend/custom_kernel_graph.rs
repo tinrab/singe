@@ -143,6 +143,7 @@ fn run() -> Result<()> {
     unsafe {
         executable.launch(&context.stream)?;
     }
+
     context.stream.synchronize()?;
 
     let output = c_dev.copy_to_host_vec()?;
@@ -193,10 +194,12 @@ fn run() -> Result<()> {
             bias_new,
         )?;
     }
+
     // SAFETY: the example keeps these buffers alive and synchronizes before reading the results.
     unsafe {
         executable.launch(&context.stream)?;
     }
+
     context.stream.synchronize()?;
 
     let output_new = c_dev_new.copy_to_host_vec()?;

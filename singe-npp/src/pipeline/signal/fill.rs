@@ -12,8 +12,7 @@ use crate::{
 };
 
 /// # Safety
-/// Uphold the completed native dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait SetSignal<T> {
     fn set_signal(
         stream_context: &StreamContext,
@@ -23,8 +22,7 @@ pub unsafe trait SetSignal<T> {
 }
 
 /// # Safety
-/// Uphold the completed native dispatch contract of
-/// [`SignalPipeline`](crate::pipeline::SignalPipeline).
+/// Uphold the completed native dispatch contract of [`SignalPipeline`](crate::pipeline::SignalPipeline).
 pub unsafe trait ZeroSignal<T> {
     fn zero_signal(
         stream_context: &StreamContext,
@@ -122,13 +120,11 @@ where
 {
     /// Fills every signal element with `value`.
     ///
-    /// Prepares the output region, waits for its producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Prepares the output region, waits for its producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits where performed, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits where performed, native execution, or stream synchronization fail.
     pub fn set_into(
         stream_context: &StreamContext,
         value: T,
@@ -145,13 +141,11 @@ where
 {
     /// Fills every signal element with zero.
     ///
-    /// Prepares the output region, waits for its producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Prepares the output region, waits for its producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits where performed, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits where performed, native execution, or stream synchronization fail.
     pub fn zero_into(
         stream_context: &StreamContext,
         destination: &mut SignalOutputView<'_, T>,
@@ -168,15 +162,13 @@ where
 {
     /// Fills every signal element with `value`.
     ///
-    /// Reuses owned storage in place. For borrowed input, obtains a new buffer of the same
-    /// length from the workspace and initializes every output element.
-    /// Prepares the output region, waits for its producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Reuses owned storage in place.
+    /// For borrowed input, obtains a new buffer of the same length from the workspace and initializes every output element.
+    /// Prepares the output region, waits for its producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits where performed, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits where performed, native execution, or stream synchronization fail.
     /// Workspace output allocation can also fail.
     pub fn set(mut self, value: T) -> Result<Self> {
         self.ensure_eager()?;
@@ -212,15 +204,13 @@ where
 {
     /// Fills every signal element with zero.
     ///
-    /// Reuses owned storage in place. For borrowed input, obtains a new buffer of the same
-    /// length from the workspace and initializes every output element.
-    /// Prepares the output region, waits for its producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Reuses owned storage in place.
+    /// For borrowed input, obtains a new buffer of the same length from the workspace and initializes every output element.
+    /// Prepares the output region, waits for its producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits where performed, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits where performed, native execution, or stream synchronization fail.
     /// Workspace output allocation can also fail.
     pub fn zero(mut self) -> Result<Self> {
         self.ensure_eager()?;

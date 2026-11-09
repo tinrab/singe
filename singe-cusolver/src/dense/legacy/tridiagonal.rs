@@ -156,17 +156,11 @@ pub fn zhetrd_buffer_size(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Reduces a general symmetric (Hermitian) $n \times n$ matrix `A` to the
-/// real symmetric tridiagonal form `T` by an orthogonal transformation:
-/// $Q^{H}\cdot A\cdot Q = T$.
+/// Reduces a general symmetric (Hermitian) $n \times n$ matrix `A` to the real symmetric tridiagonal form `T` by an orthogonal transformation: $Q^{H}\cdot A\cdot Q = T$.
 ///
 /// On output, `A` contains `T` and Householder reflection vectors.
-/// If `fill_mode` is [`FillMode::Upper`], the diagonal and first
-/// superdiagonal of `A` are overwritten by `T`; elements above the first
-/// superdiagonal, together with `tau`, represent `Q`.
-/// If `fill_mode` is [`FillMode::Lower`], the diagonal and first subdiagonal
-/// of `A` are overwritten by `T`; elements below the first subdiagonal,
-/// together with `tau`, represent `Q`.
+/// If `fill_mode` is [`FillMode::Upper`], the diagonal and first superdiagonal of `A` are overwritten by `T`; elements above the first superdiagonal, together with `tau`, represent `Q`.
+/// If `fill_mode` is [`FillMode::Lower`], the diagonal and first subdiagonal of `A` are overwritten by `T`; elements below the first subdiagonal, together with `tau`, represent `Q`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -177,10 +171,7 @@ pub fn zhetrd_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimension, or fill mode are invalid, if the
-/// current GPU architecture is unsupported, or if cuSOLVER reports an
-/// internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimension, or fill mode are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -232,17 +223,11 @@ pub unsafe fn ssytrd(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Reduces a general symmetric (Hermitian) $n \times n$ matrix `A` to the
-/// real symmetric tridiagonal form `T` by an orthogonal transformation:
-/// $Q^{H}\cdot A\cdot Q = T$.
+/// Reduces a general symmetric (Hermitian) $n \times n$ matrix `A` to the real symmetric tridiagonal form `T` by an orthogonal transformation: $Q^{H}\cdot A\cdot Q = T$.
 ///
 /// On output, `A` contains `T` and Householder reflection vectors.
-/// If `fill_mode` is [`FillMode::Upper`], the diagonal and first
-/// superdiagonal of `A` are overwritten by `T`; elements above the first
-/// superdiagonal, together with `tau`, represent `Q`.
-/// If `fill_mode` is [`FillMode::Lower`], the diagonal and first subdiagonal
-/// of `A` are overwritten by `T`; elements below the first subdiagonal,
-/// together with `tau`, represent `Q`.
+/// If `fill_mode` is [`FillMode::Upper`], the diagonal and first superdiagonal of `A` are overwritten by `T`; elements above the first superdiagonal, together with `tau`, represent `Q`.
+/// If `fill_mode` is [`FillMode::Lower`], the diagonal and first subdiagonal of `A` are overwritten by `T`; elements below the first subdiagonal, together with `tau`, represent `Q`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -253,10 +238,7 @@ pub unsafe fn ssytrd(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimension, or fill mode are invalid, if the
-/// current GPU architecture is unsupported, or if cuSOLVER reports an
-/// internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimension, or fill mode are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -530,8 +512,7 @@ pub fn zungtr_buffer_size(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Generates the orthogonal matrix `Q` from the elementary reflectors returned
-/// by `sytrd`.
+/// Generates the orthogonal matrix `Q` from the elementary reflectors returned by `sytrd`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -541,9 +522,7 @@ pub fn zungtr_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -589,8 +568,7 @@ pub unsafe fn sorgtr(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Generates the orthogonal matrix `Q` from the elementary reflectors returned
-/// by `sytrd`.
+/// Generates the orthogonal matrix `Q` from the elementary reflectors returned by `sytrd`.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -600,9 +578,7 @@ pub unsafe fn sorgtr(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -902,11 +878,9 @@ pub fn zunmtr_buffer_size(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors
-/// returned by `sytrd`, to `C` and stores the result in `C`.
+/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors returned by `sytrd`, to `C` and stores the result in `C`.
 ///
-/// `side` selects whether `Q` is applied from the left or right, and
-/// `operation` selects whether `Q` is transposed.
+/// `side` selects whether `Q` is applied from the left or right, and `operation` selects whether `Q` is transposed.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -916,9 +890,7 @@ pub fn zunmtr_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimensions are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimensions are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -975,11 +947,9 @@ pub unsafe fn sormtr(
 ///
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
-/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors
-/// returned by `sytrd`, to `C` and stores the result in `C`.
+/// Applies the orthogonal matrix `Q`, represented by the elementary reflectors returned by `sytrd`, to `C` and stores the result in `C`.
 ///
-/// `side` selects whether `Q` is applied from the left or right, and
-/// `operation` selects whether `Q` is transposed.
+/// `side` selects whether `Q` is applied from the left or right, and `operation` selects whether `Q` is transposed.
 ///
 /// Provide workspace through `workspace`.
 /// Use the corresponding `*_buffer_size` helper to query the required workspace length.
@@ -989,9 +959,7 @@ pub unsafe fn sormtr(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimensions are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimensions are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).

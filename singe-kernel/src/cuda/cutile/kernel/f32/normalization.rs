@@ -140,6 +140,7 @@ mod kernels {
                 support_sum_tile =
                     support_sum_tile + select(in_support, values - tau_tile, zero_values);
             }
+
             let support_sum: Tile<f32, { [] }> = reduce_sum(support_sum_tile, 0i32);
             let enough_mass = cmpf(
                 support_sum,
@@ -446,6 +447,7 @@ mod kernels {
             let values = select(valid, values, zero);
             sum = sum + if OP == 0 { values } else { values * values };
         }
+
         let n: f32 = convert_scalar(cols);
         let total: Tile<f32, { [] }> = reduce_sum(sum, 0i32);
         let statistic = total / broadcast_scalar(n, const_shape![]);
@@ -467,6 +469,7 @@ mod kernels {
                 );
                 centered_sum = centered_sum + centered * centered;
             }
+
             let total: Tile<f32, { [] }> = reduce_sum(centered_sum, 0i32);
             total / broadcast_scalar(n, const_shape![])
         } else {

@@ -231,8 +231,7 @@ impl_color_twist_batch_with_constants_in_place_typed!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and layout ABI, matrix interpretation,
-/// and the method's batch validation, memory-access, and completion contracts.
+/// Implementations must preserve the native element and layout ABI, matrix interpretation, and the method's batch validation, memory-access, and completion contracts.
 pub unsafe trait ColorTwistBatch<L: ChannelLayout>: DataTypeLike {
     /// Applies one color-twist matrix per image.
     ///
@@ -360,8 +359,7 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and layout ABI, matrix interpretation,
-/// and the method's batch validation, memory-access, and completion contracts.
+/// Implementations must preserve the native element and layout ABI, matrix interpretation, and the method's batch validation, memory-access, and completion contracts.
 pub unsafe trait ColorTwistBatchInPlace<L: ChannelLayout>: DataTypeLike {
     /// Applies one color-twist matrix per image in place.
     ///
@@ -480,8 +478,7 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and layout ABI, matrix interpretation,
-/// and the method's batch validation, memory-access, and completion contracts.
+/// Implementations must preserve the native element and layout ABI, matrix interpretation, and the method's batch validation, memory-access, and completion contracts.
 pub unsafe trait ColorTwistBatchWithConstantsC4: DataTypeLike {
     /// Applies one color-twist matrix per image.
     ///
@@ -599,8 +596,7 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve the native element and layout ABI, matrix interpretation,
-/// and the method's batch validation, memory-access, and completion contracts.
+/// Implementations must preserve the native element and layout ABI, matrix interpretation, and the method's batch validation, memory-access, and completion contracts.
 pub unsafe trait ColorTwistBatchWithConstantsC4InPlace: DataTypeLike {
     /// Applies one color-twist matrix per image in place.
     ///

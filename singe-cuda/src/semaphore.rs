@@ -24,7 +24,9 @@ impl ExternalSemaphore {
     ///
     /// # Errors
     ///
-    /// Returns an error if `context` cannot be bound or CUDA cannot import the descriptor with the selected opaque or timeline handle type. Returns `Error::NullHandle` for a null imported handle. A descriptor not successfully imported is closed when its `OwnedFd` is dropped; after a successful native import CUDA owns it.
+    /// Returns an error if `context` cannot be bound or CUDA cannot import the descriptor with the selected opaque or timeline handle type.
+    /// Returns `Error::NullHandle` for a null imported handle.
+    /// A descriptor not successfully imported is closed when its `OwnedFd` is dropped; after a successful native import CUDA owns it.
     #[cfg(unix)]
     pub fn import_fd(context: &Arc<Context>, fd: OwnedFd, timeline: bool) -> Result<Rc<Self>> {
         use std::os::fd::{AsRawFd, IntoRawFd};
@@ -47,6 +49,7 @@ impl ExternalSemaphore {
                 &raw const desc
             ))?;
         }
+
         let _ = fd.into_raw_fd();
         if handle.is_null() {
             return Err(Error::NullHandle);
@@ -64,7 +67,8 @@ impl ExternalSemaphore {
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null. The caller must satisfy the remaining handle validity and ownership requirements.
+    /// Returns `Error::NullHandle` if `handle` is null.
+    /// The caller must satisfy the remaining handle validity and ownership requirements.
     pub unsafe fn from_raw(
         context: &Arc<Context>,
         handle: sys::CUexternalSemaphore,
@@ -99,11 +103,13 @@ impl ExternalSemaphore {
     ///
     /// # Errors
     ///
-    /// Returns `Error::StreamContextMismatch` if `stream` belongs to another context. Also returns an error if CUDA rejects the semaphore, fence parameters, or asynchronous signal operation, or reports previous asynchronous failures.
+    /// Returns `Error::StreamContextMismatch` if `stream` belongs to another context.
+    /// Also returns an error if CUDA rejects the semaphore, fence parameters, or asynchronous signal operation, or reports previous asynchronous failures.
     pub unsafe fn signal(&self, value: u64, stream: &Stream) -> Result<()> {
         if stream.context() != &self.context {
             return Err(Error::StreamContextMismatch);
         }
+
         let mut params = sys::CUDA_EXTERNAL_SEMAPHORE_SIGNAL_PARAMS::default();
         params.params.fence.value = value;
         // SAFETY: `cuSignalExternalSemaphoresAsync` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
@@ -124,11 +130,13 @@ impl ExternalSemaphore {
     ///
     /// # Errors
     ///
-    /// Returns `Error::StreamContextMismatch` if `stream` belongs to another context. Also returns an error if CUDA rejects the semaphore, fence parameters, or asynchronous wait operation, or reports previous asynchronous failures.
+    /// Returns `Error::StreamContextMismatch` if `stream` belongs to another context.
+    /// Also returns an error if CUDA rejects the semaphore, fence parameters, or asynchronous wait operation, or reports previous asynchronous failures.
     pub unsafe fn wait(&self, value: u64, stream: &Stream) -> Result<()> {
         if stream.context() != &self.context {
             return Err(Error::StreamContextMismatch);
         }
+
         let mut params = sys::CUDA_EXTERNAL_SEMAPHORE_WAIT_PARAMS::default();
         params.params.fence.value = value;
         // SAFETY: `cuWaitExternalSemaphoresAsync` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
@@ -149,8 +157,10 @@ impl Drop for ExternalSemaphore {
         // SAFETY: `cuDestroyExternalSemaphore` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cuDestroyExternalSemaphore(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cuda external semaphore: {error}");
+                eprintln!(
+                    "failed to destroy cuda external semaphore: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

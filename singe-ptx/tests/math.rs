@@ -1,14 +1,13 @@
 //! Decimal and rational expectations generated independently from the runtime math.
 
+mod support;
+
 use std::error::Error;
 
 use serde::Deserialize;
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, ExecutionError, LaunchConfig, ParsedModule, ShutdownMode,
 };
-
-mod support;
-
 use support::Observe;
 
 #[derive(Deserialize)]

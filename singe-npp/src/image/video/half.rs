@@ -109,6 +109,7 @@ pub fn encode(
     for plane in source.planes() {
         planes.push(to_integer(context, plane)?);
     }
+
     let integers = Frame::from_planes(source_format, source.size(), planes)?;
     let source = integers.view()?;
     if source
@@ -209,6 +210,7 @@ pub fn decode(
             }
         })?;
     }
+
     // SAFETY: the completed integer decoder initialized the entire RGB image.
     let integers = unsafe { integers.assume_init() };
     match destination_format {
@@ -295,6 +297,7 @@ pub fn decode(
                     }
                 })?;
             }
+
             // SAFETY: the completed planar copy writes every sample in all three planes.
             let planes = unsafe { [red.assume_init(), green.assume_init(), blue.assume_init()] };
             for (source, destination) in planes.iter().zip(destination.planes.iter_mut()) {

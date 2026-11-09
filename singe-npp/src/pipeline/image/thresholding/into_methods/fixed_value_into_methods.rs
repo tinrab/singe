@@ -13,14 +13,14 @@ where
     /// Replaces samples strictly above their threshold with the corresponding replacement value.
     /// Samples equal to the threshold or on its other side retain their source value.
     /// Uses scalar parameters for C1 images.
-    /// Writes into the equally sized destination. Writes every logical output sample.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Writes into the equally sized destination.
+    /// Writes every logical output sample.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn threshold_greater_value_into(
         stream_context: &StreamContext,
@@ -42,13 +42,12 @@ where
     /// Samples equal to the threshold or on its other side retain their source value.
     /// Uses scalar parameters for C1 images.
     /// Updates the supplied image in place.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     pub fn threshold_greater_value_in_place(
         stream_context: &StreamContext,
         image: &mut ImageViewMut<'_, T, C1>,
@@ -66,14 +65,14 @@ where
     /// Replaces samples strictly below their threshold with the corresponding replacement value.
     /// Samples equal to the threshold or on its other side retain their source value.
     /// Uses scalar parameters for C1 images.
-    /// Writes into the equally sized destination. Writes every logical output sample.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Writes into the equally sized destination.
+    /// Writes every logical output sample.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn threshold_less_value_into(
         stream_context: &StreamContext,
@@ -95,13 +94,12 @@ where
     /// Samples equal to the threshold or on its other side retain their source value.
     /// Uses scalar parameters for C1 images.
     /// Updates the supplied image in place.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     pub fn threshold_less_value_in_place(
         stream_context: &StreamContext,
         image: &mut ImageViewMut<'_, T, C1>,

@@ -1,8 +1,6 @@
-use std::mem::MaybeUninit;
-
 mod common;
 
-use std::slice;
+use std::{mem::MaybeUninit, slice};
 
 use singe_cuda::types::DevicePtr;
 use singe_cudss::{

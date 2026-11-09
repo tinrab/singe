@@ -58,6 +58,7 @@ mod kernels {
             unsafe { store_1d(scratch, offset, before, valid) };
             carry = carry + sum;
         }
+
         let total_index: Tile<i32, { [1] }> =
             broadcast_scalar(experts * chunks + pid.0, const_shape![1]);
         let store_active: Tile<bool, { [1] }> = constant(true, const_shape![1]);
@@ -105,6 +106,7 @@ mod kernels {
             unsafe { store_1d(cumsum, expert, offset, valid) };
             carry = carry + sum;
         }
+
         let active: Tile<bool, { [1] }> = constant(true, const_shape![1]);
         let zero: Tile<i32, { [1] }> = constant(0i32, const_shape![1]);
         unsafe {

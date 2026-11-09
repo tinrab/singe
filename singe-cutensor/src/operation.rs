@@ -21,73 +21,75 @@ use crate::{
 
 /// A borrowed native compute-mode descriptor selecting arithmetic precision and implementation.
 ///
-/// Support depends on the operation, tensor data types, and GPU architecture. This value does not own or destroy the native descriptor.
+/// Support depends on the operation, tensor data types, and GPU architecture.
+/// This value does not own or destroy the native descriptor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct ComputeDescriptor(sys::cutensorComputeDescriptor_t);
 
 impl ComputeDescriptor {
-    // SAFETY: TODO: Not sure if these extern values are always valid.
+    // Each descriptor is a variable cuTENSOR exports, read once it loads, and null when it cannot.
     /// Selects half-precision floating-point computation using `CUTENSOR_COMPUTE_DESC_16F`.
     #[must_use]
-    pub const fn f16() -> Self {
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_16F })
+    pub fn f16() -> Self {
+        // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_16F() })
     }
 
     /// Selects bfloat16 computation using `CUTENSOR_COMPUTE_DESC_16BF`.
     #[must_use]
-    pub const fn bf16() -> Self {
+    pub fn bf16() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_16BF })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_16BF() })
     }
 
     /// Selects TensorFloat-32 computation using `CUTENSOR_COMPUTE_DESC_TF32`.
     #[must_use]
-    pub const fn tf32() -> Self {
+    pub fn tf32() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_TF32 })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_TF32() })
     }
 
     /// Selects the native `3XTF32` compute mode using `CUTENSOR_COMPUTE_DESC_3XTF32`.
     #[must_use]
-    pub const fn tf32x3() -> Self {
+    pub fn tf32x3() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_3XTF32 })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_3XTF32() })
     }
 
     /// Selects single-precision floating-point computation using `CUTENSOR_COMPUTE_DESC_32F`.
     #[must_use]
-    pub const fn f32() -> Self {
+    pub fn f32() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_32F })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_32F() })
     }
 
     /// Selects double-precision floating-point computation using `CUTENSOR_COMPUTE_DESC_64F`.
     #[must_use]
-    pub const fn f64() -> Self {
+    pub fn f64() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_64F })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_64F() })
     }
 
     /// Selects the native `9X16BF` compute mode using `CUTENSOR_COMPUTE_DESC_9X16BF`.
     #[must_use]
-    pub const fn bf16x9() -> Self {
+    pub fn bf16x9() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_9X16BF })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_9X16BF() })
     }
 
     /// Selects the native `8XINT8` compute mode using `CUTENSOR_COMPUTE_DESC_8XINT8`.
     #[must_use]
-    pub const fn i8x8() -> Self {
+    pub fn i8x8() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_8XINT8 })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_8XINT8() })
     }
 
     /// Selects the native `4X16F` compute mode using `CUTENSOR_COMPUTE_DESC_4X16F`.
     #[must_use]
-    pub const fn f16x4() -> Self {
+    pub fn f16x4() -> Self {
         // SAFETY: reads an immutable compute-descriptor constant exported by cuTENSOR.
-        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_4X16F })
+        Self(unsafe { sys::CUTENSOR_COMPUTE_DESC_4X16F() })
     }
 
     /// Returns the borrowed native compute descriptor.
@@ -445,15 +447,12 @@ impl OperationDescriptor {
     /// | [`DataType::F64`] | [`DataType::F64`] | [`DataType::F32`] | [`ComputeDescriptor::f64`] |
     /// | [`DataType::ComplexF64`] | [`DataType::ComplexF64`] | [`DataType::ComplexF32`] | [`ComputeDescriptor::f64`] |
     ///
-    /// This may call asynchronous CUDA functions. cuTENSOR treats descriptor
-    /// creation as thread-safe but not reentrant.
+    /// This may call asynchronous CUDA functions.
+    /// cuTENSOR treats descriptor creation as thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, tensor modes do not
-    /// match descriptor ranks, the target architecture is unsupported or not
-    /// ready, cuTENSOR rejects the operand descriptors, or cuTENSOR returns a
-    /// null operation descriptor.
+    /// Returns an error if the context cannot be bound, tensor modes do not match descriptor ranks, the target architecture is unsupported or not ready, cuTENSOR rejects the operand descriptors, or cuTENSOR returns a null operation descriptor.
     pub fn elementwise_trinary(
         context: &Context,
         lhs: TensorOperand<'_>,
@@ -541,16 +540,12 @@ impl OperationDescriptor {
     /// | [`DataType::F64`] | [`DataType::F32`] | [`ComputeDescriptor::f64`] |
     /// | [`DataType::ComplexF64`] | [`DataType::ComplexF32`] | [`ComputeDescriptor::f64`] |
     ///
-    /// This may call asynchronous CUDA functions. cuTENSOR treats descriptor
-    /// creation as thread-safe but not reentrant.
+    /// This may call asynchronous CUDA functions.
+    /// cuTENSOR treats descriptor creation as thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, tensor modes do not
-    /// match descriptor ranks, input and output descriptors or mode sets are
-    /// incompatible, a data type or operator combination is unsupported,
-    /// cuTENSOR rejects the operands, or cuTENSOR returns a null operation
-    /// descriptor.
+    /// Returns an error if the context cannot be bound, tensor modes do not match descriptor ranks, input and output descriptors or mode sets are incompatible, a data type or operator combination is unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null operation descriptor.
     pub fn elementwise_binary(
         context: &Context,
         a: TensorOperand<'_>,
@@ -647,15 +642,12 @@ impl OperationDescriptor {
     /// | [`DataType::ComplexF32`] | [`DataType::ComplexF64`] | [`ComputeDescriptor::f64`] |
     /// | [`DataType::ComplexF64`] | [`DataType::ComplexF32`] | [`ComputeDescriptor::f64`] |
     ///
-    /// This may call asynchronous CUDA functions. cuTENSOR treats descriptor
-    /// creation as thread-safe but not reentrant.
+    /// This may call asynchronous CUDA functions.
+    /// cuTENSOR treats descriptor creation as thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, tensor modes do not
-    /// match descriptor ranks, a requested output mode is invalid, a data type
-    /// or operator combination is unsupported, cuTENSOR rejects the operands,
-    /// or cuTENSOR returns a null operation descriptor.
+    /// Returns an error if the context cannot be bound, tensor modes do not match descriptor ranks, a requested output mode is invalid, a data type or operator combination is unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null operation descriptor.
     pub fn permutation(
         context: &Context,
         a: TensorOperand<'_>,
@@ -703,8 +695,7 @@ impl OperationDescriptor {
     ///
     /// The descriptor represents a tensor contraction of the form:
     ///
-    /// $$ \mathcal{D}\_{{modes}\_\mathcal{D}} \gets \alpha op\_\mathcal{A}(\mathcal{A}\_{{modes}\_\mathcal{A}}) op\_\mathcal{B}(B\_{{modes}\_\mathcal{B}}) + \beta op\_\mathcal{C}(\mathcal{C}\_{{modes}\_\mathcal{C}}). $$
-    /// Use [`Plan::create`](crate::plan::Plan::create) to select a kernel, then call [`Plan::contract`](crate::plan::Plan::contract) to execute the contraction.
+    /// $$ \mathcal{D}\_{{modes}\_\mathcal{D}} \gets \alpha op\_\mathcal{A}(\mathcal{A}\_{{modes}\_\mathcal{A}}) op\_\mathcal{B}(B\_{{modes}\_\mathcal{B}}) + \beta op\_\mathcal{C}(\mathcal{C}\_{{modes}\_\mathcal{C}}). $$ Use [`Plan::create`](crate::plan::Plan::create) to select a kernel, then call [`Plan::contract`](crate::plan::Plan::contract) to execute the contraction.
     ///
     /// The returned descriptor frees the cuTENSOR operation descriptor when dropped.
     ///
@@ -737,11 +728,7 @@ impl OperationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, tensor modes do not
-    /// match descriptor ranks, input and output descriptors or mode sets are
-    /// incompatible, a data type or operator combination is unsupported,
-    /// cuTENSOR rejects the operands, or cuTENSOR returns a null operation
-    /// descriptor.
+    /// Returns an error if the context cannot be bound, tensor modes do not match descriptor ranks, input and output descriptors or mode sets are incompatible, a data type or operator combination is unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null operation descriptor.
     pub fn contraction(
         context: &Context,
         a: TensorOperand<'_>,
@@ -807,8 +794,7 @@ impl OperationDescriptor {
     ///
     /// For example, this can reduce an entire tensor to a scalar: `C[] = alpha * A[i,j,k]`.
     ///
-    /// Can also perform partial reductions; for instance,
-    /// `C[i,j] = alpha * A[k,j,i]`.
+    /// Can also perform partial reductions; for instance, `C[i,j] = alpha * A[k,j,i]`.
     /// In this case only elements along the `k` mode are contracted.
     ///
     /// The binary `op_reduce` operator controls the kind of reduction that is performed.
@@ -829,11 +815,7 @@ impl OperationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, tensor modes do not
-    /// match descriptor ranks, input and output descriptors or mode sets are
-    /// incompatible, a data type or reduction operator combination is
-    /// unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null
-    /// operation descriptor.
+    /// Returns an error if the context cannot be bound, tensor modes do not match descriptor ranks, input and output descriptors or mode sets are incompatible, a data type or reduction operator combination is unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null operation descriptor.
     pub fn reduction(
         context: &Context,
         a: TensorOperand<'_>,
@@ -893,13 +875,11 @@ impl OperationDescriptor {
     ///
     /// The descriptor represents a tensor contraction of the form:
     ///
-    /// $$ \mathcal{E}\_{{modes}\_\mathcal{E}} \gets \alpha op\_\mathcal{A}(\mathcal{A}\_{{modes}\_\mathcal{A}}) op\_\mathcal{B}(\mathcal{B}\_{{modes}\_\mathcal{B}}) op\_\mathcal{C}(\mathcal{C}\_{{modes}\_\mathcal{C}}) + \beta op\_\mathcal{D}(\mathcal{D}\_{{modes}\_\mathcal{D}}). $$
-    /// Use [`Plan::create`](crate::plan::Plan::create) to select a kernel, then call [`Plan::contract_trinary`](crate::plan::Plan::contract_trinary) to execute the contraction.
+    /// $$ \mathcal{E}\_{{modes}\_\mathcal{E}} \gets \alpha op\_\mathcal{A}(\mathcal{A}\_{{modes}\_\mathcal{A}}) op\_\mathcal{B}(\mathcal{B}\_{{modes}\_\mathcal{B}}) op\_\mathcal{C}(\mathcal{C}\_{{modes}\_\mathcal{C}}) + \beta op\_\mathcal{D}(\mathcal{D}\_{{modes}\_\mathcal{D}}). $$ Use [`Plan::create`](crate::plan::Plan::create) to select a kernel, then call [`Plan::contract_trinary`](crate::plan::Plan::contract_trinary) to execute the contraction.
     ///
     /// The returned descriptor frees the cuTENSOR operation descriptor when dropped.
     ///
-    /// Performance improvements are currently especially high for host-resident
-    /// data, also called out-of-core data, on Grace-based systems.
+    /// Performance improvements are currently especially high for host-resident data, also called out-of-core data, on Grace-based systems.
     ///
     /// Supported data-type combinations are:
     ///
@@ -928,11 +908,7 @@ impl OperationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, tensor modes do not
-    /// match descriptor ranks, input and output descriptors or mode sets are
-    /// incompatible, a data type or operator combination is unsupported,
-    /// cuTENSOR rejects the operands, or cuTENSOR returns a null operation
-    /// descriptor.
+    /// Returns an error if the context cannot be bound, tensor modes do not match descriptor ranks, input and output descriptors or mode sets are incompatible, a data type or operator combination is unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null operation descriptor.
     pub fn contraction_trinary(
         context: &Context,
         lhs: TensorOperand<'_>,
@@ -1040,11 +1016,7 @@ impl OperationDescriptor {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, block-sparse tensor
-    /// modes do not match descriptor ranks, input and output descriptors or
-    /// mode sets are incompatible, section sizes are invalid, a data type or
-    /// operator combination is unsupported, cuTENSOR rejects the operands, or
-    /// cuTENSOR returns a null operation descriptor.
+    /// Returns an error if the context cannot be bound, block-sparse tensor modes do not match descriptor ranks, input and output descriptors or mode sets are incompatible, section sizes are invalid, a data type or operator combination is unsupported, cuTENSOR rejects the operands, or cuTENSOR returns a null operation descriptor.
     pub fn block_sparse_contraction(
         context: &Context,
         a: BlockSparseTensorOperand<'_>,
@@ -1226,7 +1198,8 @@ impl OperationDescriptor {
 
     /// Sets and retains a host-side constant used to fill padded output elements.
     ///
-    /// This uses the output tensor's data type, which can differ from the scaling-factor type returned by [`Self::scalar_type`]. The owned value is replaced only after the native update succeeds.
+    /// This uses the output tensor's data type, which can differ from the scaling-factor type returned by [`Self::scalar_type`].
+    /// The owned value is replaced only after the native update succeeds.
     ///
     /// # Errors
     ///
@@ -1251,6 +1224,7 @@ impl OperationDescriptor {
                 owned.size_bytes() as _,
             ))?;
         }
+
         self.padding_value = Some(owned);
         Ok(())
     }
@@ -1287,8 +1261,7 @@ impl OperationDescriptor {
         self.handle
     }
 
-    /// Consumes the descriptor and returns the raw cuTENSOR operation
-    /// descriptor handle without destroying it.
+    /// Consumes the descriptor and returns the raw cuTENSOR operation descriptor handle without destroying it.
     ///
     /// The returned record retains the native library owner and descriptor metadata.
     /// Destroy its handle before releasing the record, or reclaim it with `from_raw`.
@@ -1398,6 +1371,7 @@ impl OperationDescriptor {
                 actual: padding.len(),
             });
         }
+
         for &value in padding {
             to_i32(value, "padding")?;
         }
@@ -1421,7 +1395,6 @@ impl OperationDescriptor {
 impl Drop for OperationDescriptor {
     fn drop(&mut self) {
         if let Err(error) = self.context.bind() {
-            #[cfg(debug_assertions)]
             eprintln!(
                 "failed to bind cutensor context before destroying operation descriptor: {error}"
             );
@@ -1430,8 +1403,10 @@ impl Drop for OperationDescriptor {
         // SAFETY: `cutensorDestroyOperationDescriptor` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cutensorDestroyOperationDescriptor(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cutensor operation descriptor: {error}");
+                eprintln!(
+                    "failed to destroy cutensor operation descriptor: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

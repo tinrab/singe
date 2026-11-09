@@ -8,6 +8,7 @@ use std::{
     process,
 };
 
+use anyhow::{Result, anyhow};
 use singe_cuda::{context::Context, device::Device, memory::DeviceMemory};
 use singe_cufile::{
     batch::{Batch, BatchCookie, BatchRequest},
@@ -80,6 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let bytes = event.bytes_transferred()?;
         println!("batch entry {index} completed with {bytes} bytes");
     }
+
     drop(output);
 
     verify_pattern_file(output_path, batch_size)?;
@@ -97,22 +99,23 @@ fn open_direct_write(path: &Path) -> IoResult<File> {
         .open(path)
 }
 
-fn verify_pattern_file(path: &Path, batch_size: usize) -> Result<(), Box<dyn Error>> {
+fn verify_pattern_file(path: &Path, batch_size: usize) -> Result<()> {
     let contents = fs::read(path)?;
     let expected_len = batch_size * CHUNK_SIZE;
     if contents.len() != expected_len {
-        return Err(format!(
+        return Err(anyhow!(
             "unexpected output length: got {}, expected {expected_len}",
             contents.len()
-        )
-        .into());
+        ));
     }
 
     for index in 0..batch_size {
         let expected = 0xef_u8.wrapping_add(index as u8);
         let range = index * CHUNK_SIZE..(index + 1) * CHUNK_SIZE;
         if contents[range].iter().any(|byte| *byte != expected) {
-            return Err(format!("batch chunk {index} does not match expected pattern").into());
+            return Err(anyhow!(
+                "batch chunk {index} does not match expected pattern"
+            ));
         }
     }
     Ok(())

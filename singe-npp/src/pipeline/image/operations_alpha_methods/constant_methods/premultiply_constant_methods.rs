@@ -19,18 +19,16 @@ where
 {
     /// Premultiplies image samples by the constant opacity `alpha` using native scaling.
     ///
-    /// The provided implementations accept `u8` or `u16` samples in C1, C3, C4, or AC4
-    /// layouts. Opacity ranges from zero to the maximum channel value of the sample type.
+    /// The provided implementations accept `u8` or `u16` samples in C1, C3, C4, or AC4 layouts.
+    /// Opacity ranges from zero to the maximum channel value of the sample type.
     /// Uses the corresponding native constant-alpha premultiplication operation.
     /// Source and destination pixel dimensions must match.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native alpha processing, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native alpha processing, or stream synchronization fail.
     /// Participating image dimensions must match.
     pub fn alpha_premultiply_constant_into(
         stream_context: &StreamContext,
@@ -48,18 +46,16 @@ where
 
     /// Premultiplies image samples by the constant opacity `alpha` using native scaling.
     ///
-    /// The provided implementations accept `u8` or `u16` samples in C1, C3, C4, or AC4
-    /// layouts. Opacity ranges from zero to the maximum channel value of the sample type.
+    /// The provided implementations accept `u8` or `u16` samples in C1, C3, C4, or AC4 layouts.
+    /// Opacity ranges from zero to the maximum channel value of the sample type.
     /// Uses the corresponding native constant-alpha premultiplication operation.
     /// Updates the supplied initialized image in place.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native alpha processing, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native alpha processing, or stream synchronization fail.
     pub fn alpha_premultiply_constant_in_place(
         stream_context: &StreamContext,
         alpha: <Self as AlphaPremultiplyConstantImage<T, L>>::Alpha,
@@ -82,19 +78,17 @@ where
 {
     /// Premultiplies image samples by the constant opacity `alpha` using native scaling.
     ///
-    /// The provided implementations accept `u8` or `u16` samples in C1, C3, C4, or AC4
-    /// layouts. Opacity ranges from zero to the maximum channel value of the sample type.
+    /// The provided implementations accept `u8` or `u16` samples in C1, C3, C4, or AC4 layouts.
+    /// Opacity ranges from zero to the maximum channel value of the sample type.
     /// Uses the corresponding native constant-alpha premultiplication operation.
-    /// Reuses owned image storage in place. For borrowed input, allocates a new source-sized
-    /// image, copying the source first for AC4 before native dispatch.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful native execution and stream completion.
+    /// Reuses owned image storage in place.
+    /// For borrowed input, allocates a new source-sized image, copying the source first for AC4 before native dispatch.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native alpha processing, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native alpha processing, or stream synchronization fail.
     /// Participating image dimensions must match.
     /// Output allocation, image view construction, or copying the source can also fail.
     pub fn alpha_premultiply_constant(
@@ -124,6 +118,7 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 <Self as AlphaPremultiplyConstantImage<T, L>>::alpha_premultiply_constant_image(
                     self.stream_context,
                     source,

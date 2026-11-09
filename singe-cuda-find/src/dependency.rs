@@ -43,10 +43,8 @@ pub struct Dependency {
 
 /// Emits Cargo link-search and include metadata for a discovered dependency.
 ///
-/// Discovery errors panic with a clear message so build scripts fail at the
-/// actual discovery problem instead of silently falling through to later linker
-/// failures. `Ok(None)` remains non-fatal to allow system linkers to resolve
-/// libraries from their normal search paths.
+/// Discovery errors panic with a clear message so build scripts fail at the actual discovery problem instead of silently falling through to later linker failures.
+/// `Ok(None)` remains non-fatal to allow system linkers to resolve libraries from their normal search paths.
 ///
 /// # Panics
 ///
@@ -67,8 +65,8 @@ pub fn emit_dependency_metadata(result: Result<Option<Dependency>>) -> Option<De
 
 /// Emits Cargo link-search metadata for a discovered library directory.
 ///
-/// Discovery errors panic with a clear message. `Ok(None)` remains non-fatal to
-/// allow system linkers to resolve libraries from their normal search paths.
+/// Discovery errors panic with a clear message.
+/// `Ok(None)` remains non-fatal to allow system linkers to resolve libraries from their normal search paths.
 ///
 /// # Panics
 ///
@@ -99,8 +97,7 @@ pub fn emit_static_link_libraries(libraries: &[&str]) {
 
 /// Attempts to find the CUDA Runtime headers and library.
 ///
-/// The search checks `CUDA_PATH`/`CUDA_HOME` and common CUDA Toolkit roots for
-/// `cuda_runtime_api.h` plus a matching `cudart` library.
+/// The search checks `CUDA_PATH`/`CUDA_HOME` and common CUDA Toolkit roots for `cuda_runtime_api.h` plus a matching `cudart` library.
 ///
 /// # Errors
 ///
@@ -120,8 +117,7 @@ pub fn find_cuda_runtime() -> Result<Option<Dependency>> {
 
 /// Attempts to find the NVRTC headers and library.
 ///
-/// The search checks `CUDA_PATH`/`CUDA_HOME` and common CUDA Toolkit roots for
-/// `nvrtc.h` plus a matching `nvrtc` library.
+/// The search checks `CUDA_PATH`/`CUDA_HOME` and common CUDA Toolkit roots for `nvrtc.h` plus a matching `nvrtc` library.
 ///
 /// # Errors
 ///
@@ -168,9 +164,7 @@ pub fn find_nvjitlink() -> Result<Option<Dependency>> {
 
 /// Attempts to find the NVVM headers and library.
 ///
-/// The search checks `NVVM_ROOT`/`NVVM_PATH`/`NVVM_INCLUDE_PATH`,
-/// `CUDA_PATH`/`CUDA_HOME`, and common CUDA Toolkit roots for `nvvm.h` plus a
-/// matching `nvvm` library.
+/// The search checks `NVVM_ROOT`/`NVVM_PATH`/`NVVM_INCLUDE_PATH`, `CUDA_PATH`/`CUDA_HOME`, and common CUDA Toolkit roots for `nvvm.h` plus a matching `nvvm` library.
 ///
 /// # Errors
 ///
@@ -200,10 +194,7 @@ pub fn find_nvvm() -> Result<Option<Dependency>> {
 
 /// Attempts to find the NVML driver library directory.
 ///
-/// NVML is supplied by the NVIDIA driver rather than the CUDA Toolkit, so this
-/// searches driver library paths such as `PATH` on Windows and
-/// `LD_LIBRARY_PATH`, `NIX_LD_LIBRARY_PATH`, and standard library directories on
-/// Linux.
+/// NVML is supplied by the NVIDIA driver rather than the CUDA Toolkit, so this searches driver library paths such as `PATH` on Windows and `LD_LIBRARY_PATH`, `NIX_LD_LIBRARY_PATH`, and standard library directories on Linux.
 ///
 /// # Errors
 ///
@@ -238,12 +229,12 @@ pub fn find_nvml() -> Result<Option<PathBuf>> {
 
 /// Attempts to find the `nvcc` compiler executable.
 ///
-/// The search checks `NVCC`, then `PATH`, then common CUDA Toolkit roots under
-/// their `bin` directories.
+/// The search checks `NVCC`, then `PATH`, then common CUDA Toolkit roots under their `bin` directories.
 ///
 /// # Errors
 ///
-/// This search currently returns no errors. A missing executable produces `Ok(None)`.
+/// This search currently returns no errors.
+/// A missing executable produces `Ok(None)`.
 pub fn find_nvcc() -> Result<Option<PathBuf>> {
     if let Some(path) = env::var_os("NVCC") {
         let path = PathBuf::from(path);
@@ -273,8 +264,7 @@ pub fn find_nvcc() -> Result<Option<PathBuf>> {
 /// Attempts to find the CUDA Driver library directory.
 ///
 /// This searches system and driver locations for `libcuda.so` or `nvcuda.dll`.
-/// The result is not necessarily inside the CUDA Toolkit because the driver
-/// library is normally installed by the NVIDIA display/compute driver.
+/// The result is not necessarily inside the CUDA Toolkit because the driver library is normally installed by the NVIDIA display/compute driver.
 ///
 /// # Errors
 ///
@@ -309,8 +299,7 @@ pub fn find_cuda_driver_path() -> Result<Option<PathBuf>> {
 
 /// Attempts to find the cuBLAS headers and library.
 ///
-/// The search prefers `CUBLAS_PATH`/`CUBLAS_ROOT`, then `CUDA_PATH`/`CUDA_HOME`,
-/// then common CUDA installation roots.
+/// The search prefers `CUBLAS_PATH`/`CUBLAS_ROOT`, then `CUDA_PATH`/`CUDA_HOME`, then common CUDA installation roots.
 ///
 /// # Errors
 ///
@@ -330,8 +319,7 @@ pub fn find_cublas() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuRAND headers and library.
 ///
-/// The search prefers `CURAND_PATH`/`CURAND_ROOT`, then `CUDA_PATH`/`CUDA_HOME`,
-/// then common CUDA installation roots.
+/// The search prefers `CURAND_PATH`/`CURAND_ROOT`, then `CUDA_PATH`/`CUDA_HOME`, then common CUDA installation roots.
 ///
 /// # Errors
 ///
@@ -351,8 +339,7 @@ pub fn find_curand() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuSOLVER headers and library.
 ///
-/// The search prefers `CUSOLVER_PATH`/`CUSOLVER_ROOT`, then
-/// `CUDA_PATH`/`CUDA_HOME`, then common CUDA installation roots.
+/// The search prefers `CUSOLVER_PATH`/`CUSOLVER_ROOT`, then `CUDA_PATH`/`CUDA_HOME`, then common CUDA installation roots.
 ///
 /// # Errors
 ///
@@ -372,9 +359,8 @@ pub fn find_cusolver() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuDSS headers and library.
 ///
-/// Explicit `CUDSS_INCLUDE_PATH` plus `CUDSS_PATH` take precedence. The
-/// fallback search checks `CUDSS_PATH`/`CUDSS_ROOT`, CUDA Toolkit roots, and
-/// common cuDSS installation roots.
+/// Explicit `CUDSS_INCLUDE_PATH` plus `CUDSS_PATH` take precedence.
+/// The fallback search checks `CUDSS_PATH`/`CUDSS_ROOT`, CUDA Toolkit roots, and common cuDSS installation roots.
 ///
 /// # Errors
 ///
@@ -404,9 +390,8 @@ pub fn find_cudss() -> Result<Option<Dependency>> {
 
 /// Attempts to find the nvCOMP headers and library.
 ///
-/// Explicit `NVCOMP_INCLUDE_PATH` plus `NVCOMP_PATH` take precedence. The
-/// fallback search checks `NVCOMP_PATH`/`NVCOMP_ROOT`, CUDA Toolkit roots, and
-/// common nvCOMP installation roots.
+/// Explicit `NVCOMP_INCLUDE_PATH` plus `NVCOMP_PATH` take precedence.
+/// The fallback search checks `NVCOMP_PATH`/`NVCOMP_ROOT`, CUDA Toolkit roots, and common nvCOMP installation roots.
 ///
 /// # Errors
 ///
@@ -436,9 +421,8 @@ pub fn find_nvcomp() -> Result<Option<Dependency>> {
 
 /// Attempts to find the nvJPEG headers and library.
 ///
-/// Explicit `NVJPEG_INCLUDE_PATH` plus `NVJPEG_PATH` take precedence. The
-/// fallback search checks `NVJPEG_PATH`/`NVJPEG_ROOT`, CUDA Toolkit roots, and
-/// common CUDA installation roots.
+/// Explicit `NVJPEG_INCLUDE_PATH` plus `NVJPEG_PATH` take precedence.
+/// The fallback search checks `NVJPEG_PATH`/`NVJPEG_ROOT`, CUDA Toolkit roots, and common CUDA installation roots.
 ///
 /// # Errors
 ///
@@ -468,10 +452,8 @@ pub fn find_nvjpeg() -> Result<Option<Dependency>> {
 
 /// Attempts to find the nvJPEG 2000 headers and library.
 ///
-/// Explicit `NVJPEG2K_INCLUDE_PATH` plus `NVJPEG2K_PATH` take precedence. The
-/// fallback search checks `NVJPEG2K_PATH`/`NVJPEG2K_ROOT`, CUDA Toolkit roots,
-/// and nvJPEG 2000 library directories that include the detected CUDA major
-/// version such as `lib/13`.
+/// Explicit `NVJPEG2K_INCLUDE_PATH` plus `NVJPEG2K_PATH` take precedence.
+/// The fallback search checks `NVJPEG2K_PATH`/`NVJPEG2K_ROOT`, CUDA Toolkit roots, and nvJPEG 2000 library directories that include the detected CUDA major version such as `lib/13`.
 ///
 /// # Errors
 ///
@@ -517,10 +499,8 @@ pub fn find_nvjpeg2k() -> Result<Option<Dependency>> {
 
 /// Attempts to find the nvTIFF headers and library.
 ///
-/// Explicit `NVTIFF_INCLUDE_PATH` plus `NVTIFF_PATH` take precedence. The
-/// fallback search checks `NVTIFF_PATH`/`NVTIFF_ROOT`, CUDA Toolkit roots, and
-/// nvTIFF library directories that include the detected CUDA major version such
-/// as `lib/13`.
+/// Explicit `NVTIFF_INCLUDE_PATH` plus `NVTIFF_PATH` take precedence.
+/// The fallback search checks `NVTIFF_PATH`/`NVTIFF_ROOT`, CUDA Toolkit roots, and nvTIFF library directories that include the detected CUDA major version such as `lib/13`.
 ///
 /// # Errors
 ///
@@ -566,8 +546,7 @@ pub fn find_nvtiff() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuSPARSE headers and library.
 ///
-/// The search prefers `CUSPARSE_PATH`/`CUSPARSE_ROOT`, then
-/// `CUDA_PATH`/`CUDA_HOME`, then common CUDA installation roots.
+/// The search prefers `CUSPARSE_PATH`/`CUSPARSE_ROOT`, then `CUDA_PATH`/`CUDA_HOME`, then common CUDA installation roots.
 ///
 /// # Errors
 ///
@@ -587,10 +566,8 @@ pub fn find_cusparse() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuTENSOR library.
 ///
-/// Explicit `CUTENSOR_INCLUDE_PATH` plus `CUTENSOR_PATH` take precedence. The
-/// fallback search checks `CUTENSOR_PATH`/`CUTENSOR_ROOT`, CUDA Toolkit roots,
-/// and cuTENSOR library directories that include the detected CUDA major version
-/// such as `lib/13`.
+/// Explicit `CUTENSOR_INCLUDE_PATH` plus `CUTENSOR_PATH` take precedence.
+/// The fallback search checks `CUTENSOR_PATH`/`CUTENSOR_ROOT`, CUDA Toolkit roots, and cuTENSOR library directories that include the detected CUDA major version such as `lib/13`.
 ///
 /// # Errors
 ///
@@ -638,9 +615,8 @@ pub fn find_cutensor() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuFile headers and library.
 ///
-/// Explicit `CUFILE_INCLUDE_PATH` plus `CUFILE_PATH` take precedence. The
-/// fallback search checks `CUFILE_PATH`/`CUFILE_ROOT`, CUDA Toolkit roots, and
-/// common cuFile installation roots.
+/// Explicit `CUFILE_INCLUDE_PATH` plus `CUFILE_PATH` take precedence.
+/// The fallback search checks `CUFILE_PATH`/`CUFILE_ROOT`, CUDA Toolkit roots, and common cuFile installation roots.
 ///
 /// # Errors
 ///
@@ -670,9 +646,8 @@ pub fn find_cufile() -> Result<Option<Dependency>> {
 
 /// Attempts to find the cuDNN headers and library.
 ///
-/// Explicit `CUDNN_INCLUDE_PATH` plus `CUDNN_PATH` take precedence. The fallback
-/// search checks `CUDNN_PATH`/`CUDNN_ROOT`, CUDA Toolkit roots, and common cuDNN
-/// installation roots.
+/// Explicit `CUDNN_INCLUDE_PATH` plus `CUDNN_PATH` take precedence.
+/// The fallback search checks `CUDNN_PATH`/`CUDNN_ROOT`, CUDA Toolkit roots, and common cuDNN installation roots.
 ///
 /// # Errors
 ///
@@ -702,9 +677,8 @@ pub fn find_cudnn() -> Result<Option<Dependency>> {
 
 /// Attempts to find the NCCL headers and library.
 ///
-/// Explicit `NCCL_INCLUDE_PATH` plus `NCCL_PATH` take precedence. The fallback
-/// search checks `NCCL_PATH`/`NCCL_ROOT`, CUDA Toolkit roots, and common NCCL
-/// installation roots.
+/// Explicit `NCCL_INCLUDE_PATH` plus `NCCL_PATH` take precedence.
+/// The fallback search checks `NCCL_PATH`/`NCCL_ROOT`, CUDA Toolkit roots, and common NCCL installation roots.
 ///
 /// # Errors
 ///
@@ -734,9 +708,8 @@ pub fn find_nccl() -> Result<Option<Dependency>> {
 
 /// Attempts to find the NPP headers and library.
 ///
-/// Explicit `NPP_INCLUDE_PATH` plus `NPP_PATH` take precedence. The fallback
-/// search checks `NPP_PATH`/`NPP_ROOT`, CUDA Toolkit roots, and common NPP
-/// installation roots.
+/// Explicit `NPP_INCLUDE_PATH` plus `NPP_PATH` take precedence.
+/// The fallback search checks `NPP_PATH`/`NPP_ROOT`, CUDA Toolkit roots, and common NPP installation roots.
 ///
 /// # Errors
 ///
@@ -767,8 +740,7 @@ pub fn find_npp() -> Result<Option<Dependency>> {
 /// Attempts to find the CUPTI headers and library.
 ///
 /// Explicit `CUPTI_INCLUDE_PATH` plus `CUPTI_PATH`/`CUPTI_ROOT` take precedence.
-/// The fallback search checks `CUPTI_PATH`/`CUPTI_ROOT`, CUDA Toolkit roots,
-/// and common CUDA installation locations.
+/// The fallback search checks `CUPTI_PATH`/`CUPTI_ROOT`, CUDA Toolkit roots, and common CUDA installation locations.
 ///
 /// # Errors
 ///
@@ -799,9 +771,7 @@ pub fn find_cupti() -> Result<Option<Dependency>> {
 /// Attempts to find the nvImageCodec headers and library.
 ///
 /// Explicit `NVIMGCODEC_INCLUDE_PATH` plus `NVIMGCODEC_PATH` take precedence.
-/// The fallback search checks `NVIMGCODEC_PATH`/`NVIMGCODEC_ROOT`, CUDA Toolkit
-/// roots, and nvImageCodec library directories that include the detected CUDA
-/// major version such as `13/include`.
+/// The fallback search checks `NVIMGCODEC_PATH`/`NVIMGCODEC_ROOT`, CUDA Toolkit roots, and nvImageCodec library directories that include the detected CUDA major version such as `13/include`.
 ///
 /// # Errors
 ///

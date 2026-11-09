@@ -29,8 +29,7 @@ impl<T: DeviceRepr> RegisteredBuffer<'_, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if NCCL cannot
-    /// deregister the buffer.
+    /// Returns an error if the CUDA context cannot be bound or if NCCL cannot deregister the buffer.
     pub fn deregister(self) -> Result<()> {
         self.communicator.bind()?;
         self.communicator.cuda_context().synchronize()?;
@@ -41,6 +40,7 @@ impl<T: DeviceRepr> RegisteredBuffer<'_, T> {
                 self.raw.cast(),
             ))?;
         }
+
         self.communicator.set_state(self.communicator.state());
         mem::forget(self);
         Ok(())
@@ -57,8 +57,10 @@ impl<T: DeviceRepr> Drop for RegisteredBuffer<'_, T> {
         }
 
         if let Err(error) = self.communicator.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before deregistering nccl buffer: {error}");
+            eprintln!(
+                "failed to bind cuda context before deregistering nccl buffer: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
 
@@ -71,8 +73,10 @@ impl<T: DeviceRepr> Drop for RegisteredBuffer<'_, T> {
                 self.communicator.as_raw(),
                 self.raw.cast(),
             )) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to deregister nccl buffer: {error}");
+                eprintln!(
+                    "failed to deregister nccl buffer: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -86,12 +90,12 @@ impl Window<'_> {
     }
 
     /// Deregisters this NCCL window from its communicator.
-    /// Deregistration is local to the rank. The corresponding window buffer must not be in use by any NCCL operation.
+    /// Deregistration is local to the rank.
+    /// The corresponding window buffer must not be in use by any NCCL operation.
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if NCCL cannot
-    /// deregister the window.
+    /// Returns an error if the CUDA context cannot be bound or if NCCL cannot deregister the window.
     pub fn deregister(self) -> Result<()> {
         self.communicator.bind()?;
         self.communicator.cuda_context().synchronize()?;
@@ -102,6 +106,7 @@ impl Window<'_> {
                 self.raw,
             ))?;
         }
+
         mem::forget(self);
         Ok(())
     }
@@ -117,8 +122,10 @@ impl Drop for Window<'_> {
         }
 
         if let Err(error) = self.communicator.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before deregistering nccl window: {error}");
+            eprintln!(
+                "failed to bind cuda context before deregistering nccl window: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
 
@@ -131,8 +138,10 @@ impl Drop for Window<'_> {
                 self.communicator.as_raw(),
                 self.raw,
             )) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to deregister nccl window: {error}");
+                eprintln!(
+                    "failed to deregister nccl window: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -151,8 +160,7 @@ impl CustomReductionOperator<'_> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the CUDA context cannot be bound or if NCCL cannot
-    /// destroy the operator.
+    /// Returns an error if the CUDA context cannot be bound or if NCCL cannot destroy the operator.
     pub fn destroy(self) -> Result<()> {
         self.communicator.bind()?;
         // SAFETY: `self.raw` is the live operator registered on this communicator; `destroy` consumes `self`, so it is destroyed once.
@@ -162,6 +170,7 @@ impl CustomReductionOperator<'_> {
                 self.communicator.as_raw()
             ))?;
         }
+
         mem::forget(self);
         Ok(())
     }
@@ -177,8 +186,10 @@ impl Drop for CustomReductionOperator<'_> {
         }
 
         if let Err(error) = self.communicator.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying nccl reduction op: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying nccl reduction op: {}",
+                singe_core::ErrorChain(&error)
+            );
             return;
         }
 
@@ -188,8 +199,10 @@ impl Drop for CustomReductionOperator<'_> {
                 self.raw,
                 self.communicator.as_raw()
             )) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy nccl reduction op: {error}");
+                eprintln!(
+                    "failed to destroy nccl reduction op: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -202,13 +215,17 @@ impl Drop for Handle {
         }
 
         if let Err(error) = self.cuda_context.bind() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to bind cuda context before destroying nccl communicator: {error}");
+            eprintln!(
+                "failed to bind cuda context before destroying nccl communicator: {}",
+                singe_core::ErrorChain(&error)
+            );
         }
 
         if let Err(error) = self.destroy_raw() {
-            #[cfg(debug_assertions)]
-            eprintln!("failed to destroy nccl communicator: {error}");
+            eprintln!(
+                "failed to destroy nccl communicator: {}",
+                singe_core::ErrorChain(&error)
+            );
             // Native grow may still write this slot. It cannot be released if
             // destruction or cancellation failed to establish completion.
             if self.initialization_output.is_some() {

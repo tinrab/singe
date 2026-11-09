@@ -20,6 +20,7 @@ fn ty(head: &mut Head<'_>, valid: &[ScalarType]) -> Result<ScalarType> {
 
 const BITS: &[ScalarType] = &[ScalarType::B32, ScalarType::B64];
 const WIDE_BITS: &[ScalarType] = &[ScalarType::B16, ScalarType::B32, ScalarType::B64];
+
 const INTEGERS: &[ScalarType] = &[
     ScalarType::U32,
     ScalarType::S32,

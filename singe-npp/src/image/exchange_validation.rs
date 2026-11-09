@@ -111,6 +111,7 @@ pub fn validate_channel_order(order: &[i32], channels: i32) -> Result<()> {
         if seen[index] {
             return Err(Error::out_of_range("channel order"));
         }
+
         seen[index] = true;
     }
 
@@ -127,6 +128,7 @@ pub fn validate_channel_order_with_fill(
         if channel == source_channels {
             continue;
         }
+
         if !(0..source_channels).contains(&channel) {
             return Err(Error::out_of_range("channel order"));
         }
@@ -135,6 +137,7 @@ pub fn validate_channel_order_with_fill(
         if seen[index] {
             return Err(Error::out_of_range("channel order"));
         }
+
         seen[index] = true;
     }
 

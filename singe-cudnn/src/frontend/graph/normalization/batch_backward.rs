@@ -87,7 +87,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown tensor identities, input rank below two, mismatched input/output-gradient dimensions, or saved-statistic, scale, or affine-gradient dimensions that differ from the per-channel shape. Inferred output strides must also be representable.
+    /// Returns an error for unknown tensor identities, input rank below two, mismatched input/output-gradient dimensions, or saved-statistic, scale, or affine-gradient dimensions that differ from the per-channel shape.
+    /// Inferred output strides must also be representable.
     pub fn batch_normalization_backward(
         &mut self,
         inputs: BatchNormalizationBackwardInputs,

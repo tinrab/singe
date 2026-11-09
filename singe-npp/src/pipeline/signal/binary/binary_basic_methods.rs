@@ -415,7 +415,8 @@ where
     /// Adds the element-wise product `left * right` to the pipeline accumulator.
     /// Returns an owned pipeline containing the result.
     ///
-    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal. A borrowed accumulator is copied into initialized workspace storage before accumulation.
+    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
+    /// A borrowed accumulator is copied into initialized workspace storage before accumulation.
     /// Supported operations prepare participating regions, waiting for producers on other streams, and complete native work before returning successfully.
     ///
     /// # Errors
@@ -631,7 +632,8 @@ impl SignalPipeline<'_, i16> {
     /// Uses native fixed-point scaling with `scale_factor`; rounding and saturation follow the selected native operation.
     /// Returns an owned pipeline containing the result.
     ///
-    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal. A borrowed accumulator is copied into initialized workspace storage before accumulation.
+    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
+    /// A borrowed accumulator is copied into initialized workspace storage before accumulation.
     /// Supported operations prepare participating regions, waiting for producers on other streams, and complete native work before returning successfully.
     ///
     /// # Errors
@@ -660,7 +662,8 @@ impl SignalPipeline<'_, i32> {
     /// Uses native fixed-point scaling with `scale_factor`; rounding and saturation follow the selected native operation.
     /// Returns an owned pipeline containing the result.
     ///
-    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal. A borrowed accumulator is copied into initialized workspace storage before accumulation.
+    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
+    /// A borrowed accumulator is copied into initialized workspace storage before accumulation.
     /// Supported operations prepare participating regions, waiting for producers on other streams, and complete native work before returning successfully.
     ///
     /// # Errors
@@ -687,7 +690,8 @@ impl SignalPipeline<'_, i32> {
     /// Uses native fixed-point scaling with `scale_factor`; rounding and saturation follow the selected native operation.
     /// Returns an owned pipeline containing the result.
     ///
-    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal. A borrowed accumulator is copied into initialized workspace storage before accumulation.
+    /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
+    /// A borrowed accumulator is copied into initialized workspace storage before accumulation.
     /// Supported operations prepare participating regions, waiting for producers on other streams, and complete native work before returning successfully.
     ///
     /// # Errors

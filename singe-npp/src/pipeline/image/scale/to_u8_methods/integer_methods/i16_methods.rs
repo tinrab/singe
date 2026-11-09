@@ -19,20 +19,17 @@ where
     /// Linearly scales image samples into the destination numeric range.
     ///
     /// Maps the full source integer numeric range into `0..=255` in `u8` output.
-    /// Forwards `hint` as the performance or accuracy preference; NPP documents this
-    /// selector as currently ignored.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// Forwards `hint` as the performance or accuracy preference; NPP documents this selector as currently ignored.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Source and destination pixel dimensions must match.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
     pub fn scale_to_u8_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, i16, L>,
@@ -57,20 +54,17 @@ where
     /// Linearly scales image samples into the destination numeric range.
     ///
     /// Maps the full source integer numeric range into `0..=255` in `u8` output.
-    /// Forwards `hint` as the performance or accuracy preference; NPP documents this
-    /// selector as currently ignored.
-    /// Supports C1, C3, C4, and AC4 layouts. AC4 is dispatched as physical C4, so alpha
-    /// is scaled along with the color channels and every logical output channel is written.
+    /// Forwards `hint` as the performance or accuracy preference; NPP documents this selector as currently ignored.
+    /// Supports C1, C3, C4, and AC4 layouts.
+    /// AC4 is dispatched as physical C4, so alpha is scaled along with the color channels and every logical output channel is written.
     /// Allocates a new source-sized, owned image with the same channel layout.
-    /// Prepares both regions, waits for producers on other streams, rejects capture, and
-    /// returns after successful native execution and stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, physical-layout view construction, native scaling, or synchronization
-    /// fail. Source and destination dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, physical-layout view construction, native scaling, or synchronization fail.
+    /// Source and destination dimensions must match.
     /// Output allocation or image view construction can also fail.
     pub fn scale_to_u8(self, hint: HintAlgorithm) -> Result<ImagePipeline<'a, u8, L>> {
         self.ensure_eager()?;

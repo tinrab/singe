@@ -132,6 +132,7 @@ fn contiguous_strides(shape: &[i32]) -> Vec<i32> {
         strides.push(stride);
         stride = stride.saturating_mul(*dim);
     }
+
     strides.reverse();
     strides
 }
@@ -167,6 +168,7 @@ impl<T: DType> TensorAdapter<'_, T> {
         unsafe {
             launcher.push_device_ptr(self.ptr.cu_deviceptr());
         }
+
         for dim in &self.shape {
             launcher.push_arg(*dim);
         }

@@ -1,7 +1,6 @@
-//! Require `test_` on functions with a test attribute, including qualified async
-//! test attributes and tests inside `cfg_attr`. Merely being in a test-only module
-//! does not make a helper a test. Attribute aliases and generated tests inside
-//! opaque macro bodies are not resolved or expanded.
+//! Require `test_` on functions with a test attribute, including qualified async test attributes and tests inside `cfg_attr`.
+//! Merely being in a test-only module does not make a helper a test.
+//! Attribute aliases and generated tests inside opaque macro bodies are not resolved or expanded.
 
 use syn::{
     File, ItemFn, Meta, Token,
@@ -30,6 +29,7 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
                     "Prefix the function name with test_, then describe the case and expected outcome.",
                 ));
             }
+
             visit::visit_item_fn(self, function);
         }
     }
@@ -42,7 +42,7 @@ pub fn check(file: &File, context: &Context<'_>) -> Vec<Diagnostic> {
     check.findings
 }
 
-pub(super) fn test_attribute(meta: &Meta) -> bool {
+pub fn test_attribute(meta: &Meta) -> bool {
     if meta
         .path()
         .segments
@@ -51,10 +51,12 @@ pub(super) fn test_attribute(meta: &Meta) -> bool {
     {
         return true;
     }
+
     let Meta::List(list) = meta else { return false };
     if !list.path.is_ident("cfg_attr") {
         return false;
     }
+
     let Ok(parts) = list.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated) else {
         return false;
     };

@@ -24,10 +24,8 @@ use crate::{
 
 /// Frontend pointwise operation variants.
 ///
-/// cuDNN pointwise operations apply unary, binary, or ternary elementwise modes
-/// selected by [`PointwiseMode`]. Some modes use additional attributes such as
-/// `ReLU` clipping parameters, axis, scaling factors, compute type, and NaN
-/// propagation.
+/// cuDNN pointwise operations apply unary, binary, or ternary elementwise modes selected by [`PointwiseMode`].
+/// Some modes use additional attributes such as `ReLU` clipping parameters, axis, scaling factors, compute type, and NaN propagation.
 /// Omitted compute precision inherits graph policy during lowering, with `F32` as the no-policy fallback.
 /// The result parameter is a tensor identity for recorded operations or an output configuration for inference.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,7 +49,8 @@ pub enum PointwiseOperation<O = TensorId> {
         /// First native input scaling coefficient, rounded to FP32 unless compute precision is F64.
         #[serde(with = "crate::scalar::float::f64_bits")]
         alpha1: f64,
-        /// Index-generation axis; `None` selects the native `-1` default. Explicit axes require index-generation mode.
+        /// Index-generation axis; `None` selects the native `-1` default.
+        /// Explicit axes require index-generation mode.
         axis: Option<i64>,
     },
     /// Forward activation with mode-specific parameters.
@@ -358,6 +357,7 @@ impl<O> PointwiseOperation<O> {
             if axis.is_some() && *mode != PointwiseMode::GenIndex {
                 return Err(Error::PointwiseAxisRequiresIndexGeneration);
             }
+
             *target = axis;
         } else if axis.is_some() {
             return Err(Error::PointwiseAxisRequiresIndexGeneration);
@@ -536,6 +536,7 @@ impl PointwiseOperation {
                 graph.shape(input)?.dimensions(),
             )?);
         }
+
         let actual = graph.shape(*self.output())?.dimensions();
         let offset = actual.len().checked_sub(expected.len());
         let broadcasts_to_output = offset.is_some_and(|offset| {

@@ -82,6 +82,7 @@ impl Int8x32FilterReorder {
         {
             return Err(Error::InvalidDataShape);
         }
+
         let native_dimensions = dimensions
             .iter()
             .map(|&dimension| to_i32(dimension, "reorder filter dimension"))
@@ -92,9 +93,11 @@ impl Int8x32FilterReorder {
         unsafe {
             try_ffi!(sys::cudnnCreateFilterDescriptor(&raw mut descriptor))?;
         }
+
         if descriptor.is_null() {
             return Err(Error::NullHandle);
         }
+
         let descriptor = FilterDescriptor(descriptor);
         let mut filter_byte_len = 0;
         // SAFETY: the descriptor and dimension array remain live through native configuration and size queries.
@@ -131,11 +134,13 @@ impl Int8x32FilterReorder {
     /// Returns an error for an unsupported spatial or blocked rank, non-INT8 or ragged storage, nonunit leading padding, invalid vectorization metadata, noncontiguous strides, overflowing channel expansion, invalid logical dimensions, or native descriptor creation, configuration, or size-query failure.
     ///
     /// # Panics
-    /// Panics if the validated leading-axis index cannot fit `i64`. The accepted leading ranks are two and three, so valid inputs cannot trigger this conversion failure.
+    /// Panics if the validated leading-axis index cannot fit `i64`.
+    /// The accepted leading ranks are two and three, so valid inputs cannot trigger this conversion failure.
     pub fn create_for_tensor(filter: &TensorSpec, spatial_dimensions: usize) -> Result<Self> {
         if !matches!(spatial_dimensions, 2 | 3) {
             return Err(Error::InvalidDataShape);
         }
+
         let dimensions = filter.shape.dimensions();
         let leading = dimensions
             .len()
@@ -147,11 +152,13 @@ impl Int8x32FilterReorder {
         {
             return Err(Error::InvalidDataShape);
         }
+
         if leading == 3 && dimensions[1] != 1 {
             return Err(Error::DescriptorMismatch {
                 name: "int8x32 filter leading padding axis".into(),
             });
         }
+
         if filter.vectorization()?.is_some_and(|(count, axis)| {
             count != 32
                 || axis
@@ -161,9 +168,11 @@ impl Int8x32FilterReorder {
                 name: "int8x32 filter vectorization".into(),
             });
         }
+
         if !filter.shape.is_contiguous() {
             return Err(Error::InvalidDataStrides);
         }
+
         let channels = dimensions[leading - 1]
             .checked_mul(32)
             .ok_or_else(|| Error::out_of_range("reorder input channels"))?;
@@ -215,18 +224,22 @@ impl Int8x32FilterReorder {
                 name: "reorder buffers".into(),
             });
         }
+
         if context.cuda_context() != stream.context() {
             return Err(Error::ContextMismatch {
                 name: "reorder stream".into(),
             });
         }
+
         let mut regions = Vec::new();
         if let Some(buffers) = &filter {
             collect_regions(buffers, self.filter_byte_len, &mut regions)?;
         }
+
         if let Some(buffers) = &bias {
             collect_regions(buffers, self.output_channels, &mut regions)?;
         }
+
         if regions
             .iter()
             .any(|(region, _)| region.context() != stream.context())
@@ -235,6 +248,7 @@ impl Int8x32FilterReorder {
                 name: "reorder buffer".into(),
             });
         }
+
         for (index, (region, writes)) in regions.iter().enumerate() {
             let start = region.as_ptr().addr();
             let end = start
@@ -252,6 +266,7 @@ impl Int8x32FilterReorder {
                 }
             }
         }
+
         stream.join_regions(
             &regions
                 .iter()
@@ -314,6 +329,7 @@ fn collect_regions<'a, T: DeviceRepr>(
                 actual: len,
             });
         }
+
         regions.push((region.slice(..bytes)?, writes));
     }
     Ok(())

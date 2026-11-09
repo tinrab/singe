@@ -11,8 +11,8 @@ use crate::{
 /// Computes a complete integral image before returning.
 ///
 /// # Safety
-/// Match the native ABI, initialize every logical output pixel including borders,
-/// and drain borrowed work on success, errors and unwind. Reject capture before work.
+/// Match the native ABI, initialize every logical output pixel including borders, and drain borrowed work on success, errors and unwind.
+/// Reject capture before work.
 pub unsafe trait IntegralImage<U> {
     fn integral_image(
         stream_context: &StreamContext,
@@ -60,9 +60,8 @@ unsafe impl IntegralImage<f32> for ImagePipeline<'_, u8, C1> {
 ///
 /// # Safety
 ///
-/// Successful return establishes valid values in every destination pixel,
-/// including borders, without reading prior destination values. Drain borrowed
-/// work on success, errors and unwind; reject capture before submission.
+/// Successful return establishes valid values in every destination pixel, including borders, without reading prior destination values.
+/// Drain borrowed work on success, errors and unwind; reject capture before submission.
 pub unsafe trait SquaredIntegralImage<I, S> {
     fn squared_integral_image(
         stream_context: &StreamContext,

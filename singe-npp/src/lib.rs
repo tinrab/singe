@@ -1,8 +1,6 @@
 //! Safe NVIDIA Performance Primitives wrappers for image and signal APIs.
 //!
-//! This crate wraps NPP version queries, stream contexts, image and signal
-//! device memory, image processing pipelines, signal processing pipelines, typed
-//! image views, channel layouts, sizes, rectangles, and temporary workspaces.
+//! This crate wraps NPP version queries, stream contexts, image and signal device memory, image processing pipelines, signal processing pipelines, typed image views, channel layouts, sizes, rectangles, and temporary workspaces.
 //!
 //! # Example
 //!
@@ -41,16 +39,22 @@
 
 /// Application-managed NPP stream contexts and synchronization.
 pub mod context;
+
 /// Typed NPP errors, statuses, and result aliases.
 pub mod error;
+
 /// Image memory, typed views, and processing operations.
 pub mod image;
+
 pub mod memory;
 pub mod pipeline;
+
 /// Signal memory, typed views, and processing operations.
 pub mod signal;
+
 /// Native-compatible enums, descriptors, geometry, and numeric types.
 pub mod types;
+
 pub(crate) mod utility;
 pub mod workspace;
 
@@ -61,21 +65,23 @@ pub mod testing;
 // TODO: refactor into mods
 use std::ptr;
 
-pub use context::StreamContext;
-pub use error::{Error, Result};
-pub use image::{
-    AC4, AllChannels, AlphaIgnoredRgba, C1, C2, C3, C4, ChannelLayout, Channels2, Gray, Image,
-    ImageOutputView, ImageView, ImageViewMut, ImageWindow, MaskOutputView, MaskView, MaskViewMut,
-    Rgb, Rgba, SupportedImage,
-};
-pub use pipeline::{
-    ImageBacking, ImagePipeline, SignalBacking, SignalPipeline, UninitImagePipeline,
-    UninitSignalPipeline, Workspace,
-};
-pub use signal::{Signal, SignalOutputView, SignalView, SignalViewMut, SupportedSignal};
 use singe_core::LibraryVersion;
 use singe_npp_sys as sys;
 
+pub use self::{
+    context::StreamContext,
+    error::{Error, Result},
+    image::{
+        AC4, AllChannels, AlphaIgnoredRgba, C1, C2, C3, C4, ChannelLayout, Channels2, Gray, Image,
+        ImageOutputView, ImageView, ImageViewMut, ImageWindow, MaskOutputView, MaskView,
+        MaskViewMut, Rgb, Rgba, SupportedImage,
+    },
+    pipeline::{
+        ImageBacking, ImagePipeline, SignalBacking, SignalPipeline, UninitImagePipeline,
+        UninitSignalPipeline, Workspace,
+    },
+    signal::{Signal, SignalOutputView, SignalView, SignalViewMut, SupportedSignal},
+};
 use crate::utility::to_u64;
 
 /// Returns the loaded NPP library version.
@@ -110,5 +116,3 @@ mod tests {
         Ok(())
     }
 }
-
-mod optional;

@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "vscode-just",
+      "task": "just test",
+      "problemMatcher": [],
+      "label": "just: test"
+    },
+    {
+      "type": "vscode-just",
+      "task": "just lint",
+      "problemMatcher": [],
+      "label": "just: lint"
+    },
+    {
+      "type": "vscode-just",
+      "task": "just check",
+      "problemMatcher": [],
+      "label": "just: check"
+    },
+    {
+      "type": "vscode-just",
+      "task": "just docs",
+      "problemMatcher": [],
+      "label": "just: docs"
+    }
+  ]
+}

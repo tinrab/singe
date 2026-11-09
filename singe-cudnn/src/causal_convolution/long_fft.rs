@@ -236,13 +236,14 @@ impl<T: CausalScalar> LongFftConvolution<T> {
     /// Computes causal convolution and stores frequency-domain state for backward.
     ///
     /// # Safety
-    /// Retain this object, its scratch, inputs and destinations through completion,
-    /// failed submission and replay. Order initialized inputs before use and keep
-    /// destination accesses exclusive. Backward requires a successful matching forward.
+    /// Retain this object, its scratch, inputs and destinations through completion, failed submission and replay.
+    /// Order initialized inputs before use and keep destination accesses exclusive.
+    /// Backward requires a successful matching forward.
     ///
     /// # Errors
     ///
-    /// Returns an error for invalid dimensions, insufficient tensor capacity, misaligned tensor or scratch storage, unrepresentable scratch byte counts, context binding or stream-dependency failure, or native convolution failure. A failed submission clears the saved-forward marker.
+    /// Returns an error for invalid dimensions, insufficient tensor capacity, misaligned tensor or scratch storage, unrepresentable scratch byte counts, context binding or stream-dependency failure, or native convolution failure.
+    /// A failed submission clears the saved-forward marker.
     pub unsafe fn forward_async(
         &mut self,
         x: &(impl DeviceInput<T> + ?Sized),
@@ -264,6 +265,7 @@ impl<T: CausalScalar> LongFftConvolution<T> {
                 },
             )?;
         }
+
         self.has_forward = true;
         Ok(())
     }
@@ -271,9 +273,9 @@ impl<T: CausalScalar> LongFftConvolution<T> {
     /// Computes gradients using frequency-domain state saved by the matching forward call.
     ///
     /// # Safety
-    /// Retain this object, its scratch, inputs and destinations through completion,
-    /// failed submission and replay. Order initialized inputs before use and keep
-    /// destination accesses exclusive. Backward requires a successful matching forward.
+    /// Retain this object, its scratch, inputs and destinations through completion, failed submission and replay.
+    /// Order initialized inputs before use and keep destination accesses exclusive.
+    /// Backward requires a successful matching forward.
     ///
     /// # Errors
     ///
@@ -289,6 +291,7 @@ impl<T: CausalScalar> LongFftConvolution<T> {
                 name: "long fft forward reserve state".into(),
             });
         }
+
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
             long_fft_backward(

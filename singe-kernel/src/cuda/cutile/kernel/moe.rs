@@ -144,6 +144,7 @@ mod kernels {
                     part = mma(lhs, rhs, part);
                 }
             }
+
             if QUANT != 0 {
                 let activation_scale_stride: Tile<i32, { [16] }> =
                     broadcast_scalar(k_groups, const_shape![16]);
@@ -168,8 +169,10 @@ mod kernels {
                     * b.reshape(const_shape![1, 64])
                         .broadcast(const_shape![16, 64]);
             }
+
             acc = acc + part;
         }
+
         if mul_route != 0 {
             let route = unsafe { load_1d(routed_weight, id, valid_row) };
             acc = acc
@@ -177,6 +180,7 @@ mod kernels {
                     .reshape(const_shape![16, 1])
                     .broadcast(const_shape![16, 64]);
         }
+
         let output_row_stride: Tile<i32, { [16] }> =
             broadcast_scalar(output_stride, const_shape![16]);
         let offsets = (id * output_row_stride)

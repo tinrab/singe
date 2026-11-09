@@ -226,6 +226,7 @@ fn lower_tensor_at(
     if lowered_tensors.contains_key(&tensor_id) {
         return Ok(());
     }
+
     if !active_tensors.insert(tensor_id) {
         return Err(Error::DescriptorMismatch {
             name: "tensor ragged offset cycle".into(),

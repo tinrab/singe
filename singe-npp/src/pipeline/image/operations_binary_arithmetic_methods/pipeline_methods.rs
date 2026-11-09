@@ -22,13 +22,12 @@ where
     /// The provided floating-point and floating-point complex implementations ignore `scale_factor`.
     /// Reuses owned backing; borrowed input produces a new owned image.
     /// Preserves alpha from the pipeline image for AC4.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation, image view construction, or alpha preservation copies can also fail.
     pub fn add(self, other: &ImageView<'_, T, L>, scale_factor: i32) -> Result<Self> {
@@ -41,20 +40,19 @@ where
     }
 
     /// Subtracts samples using the native operand order for the current backing.
-    /// With owned backing, updates each pipeline sample as `self - other`. With borrowed
-    /// backing, allocates output and computes `other - self`. Operand order therefore depends
-    /// on the backing held by the pipeline.
+    /// With owned backing, updates each pipeline sample as `self - other`.
+    /// With borrowed backing, allocates output and computes `other - self`.
+    /// Operand order therefore depends on the backing held by the pipeline.
     /// Applies native integer scaling and saturation using `scale_factor`.
     /// The provided floating-point and floating-point complex implementations ignore `scale_factor`.
     /// Reuses owned backing; borrowed input produces a new owned image.
     /// Preserves alpha from the pipeline image for AC4.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation, image view construction, or alpha preservation copies can also fail.
     pub fn subtract(self, other: &ImageView<'_, T, L>, scale_factor: i32) -> Result<Self> {
@@ -71,13 +69,12 @@ where
     /// The provided floating-point and floating-point complex implementations ignore `scale_factor`.
     /// Reuses owned backing; borrowed input produces a new owned image.
     /// Preserves alpha from the pipeline image for AC4.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation, image view construction, or alpha preservation copies can also fail.
     pub fn multiply(self, other: &ImageView<'_, T, L>, scale_factor: i32) -> Result<Self> {
@@ -90,20 +87,19 @@ where
     }
 
     /// Divides samples using the native operand order for the current backing.
-    /// With owned backing, updates each pipeline sample as `self / other`. With borrowed
-    /// backing, allocates output and computes `other / self`. Operand order therefore depends
-    /// on the backing held by the pipeline.
+    /// With owned backing, updates each pipeline sample as `self / other`.
+    /// With borrowed backing, allocates output and computes `other / self`.
+    /// Operand order therefore depends on the backing held by the pipeline.
     /// Applies native integer scaling and saturation using `scale_factor`.
     /// The provided floating-point and floating-point complex implementations ignore `scale_factor`.
     /// Reuses owned backing; borrowed input produces a new owned image.
     /// Preserves alpha from the pipeline image for AC4.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation, image view construction, or alpha preservation copies can also fail.
     pub fn divide(self, other: &ImageView<'_, T, L>, scale_factor: i32) -> Result<Self> {
@@ -137,9 +133,11 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 operation(
                     self.stream_context,
                     source,

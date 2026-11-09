@@ -37,12 +37,14 @@ fn storage_view_preserves_stats_values(
     {
         return Ok(false);
     }
+
     if byte_offset == 0
         && source.shape == target.shape
         && source.vectorization()? == target.vectorization()?
     {
         return Ok(true);
     }
+
     // A checked view can include stride gaps in its source span; those bytes have no known statistics base.
     // A dense source covers every scalar in its span, independently of axis order and vector lanes.
     let mut packed_stride = 1_u128;
@@ -51,9 +53,11 @@ fn storage_view_preserves_stats_values(
         if dimension == 1 {
             continue;
         }
+
         if source.shape.strides()[axis] as u128 != packed_stride {
             return Ok(false);
         }
+
         let Some(next) = packed_stride.checked_mul(dimension as u128) else {
             return Ok(false);
         };
@@ -88,6 +92,7 @@ impl Graph {
             for id in operation.tensor_uses(self.config.data_type_policy).writes {
                 *writers.entry(root(id)?).or_default() += 1;
             }
+
             let subgraphs = match operation {
                 Operation::AttentionForward(request) => [request.config.score_subgraph(), None],
                 Operation::AttentionBackward(request) => [
@@ -104,6 +109,7 @@ impl Graph {
                 }
             }
         }
+
         let mut sources = BTreeMap::new();
         for operation in &self.operations {
             let source = match operation {
@@ -143,6 +149,7 @@ impl Graph {
                 sources.insert(id, source);
             }
         }
+
         for alias in &self.storage_views {
             if writers.get(&root(alias.target)?) == Some(&1)
                 && storage_view_preserves_stats_values(
@@ -156,6 +163,7 @@ impl Graph {
                     .or_insert(StatsSource::Copied(alias.source));
             }
         }
+
         // Only uniquely written values establish a base; overwritten or externally supplied values remain caller contracts.
         let mut bases = BTreeMap::new();
         loop {
@@ -164,6 +172,7 @@ impl Graph {
                 if bases.contains_key(&id) {
                     continue;
                 }
+
                 let base = match source {
                     StatsSource::Generated(base) => Some(*base),
                     StatsSource::Copied(input) => bases.get(input).copied(),
@@ -177,6 +186,7 @@ impl Graph {
                 break;
             }
         }
+
         for operation in &self.operations {
             let stats = match operation {
                 Operation::AttentionBackward(AttentionBackwardRequest::Floating {

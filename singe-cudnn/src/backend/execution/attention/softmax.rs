@@ -152,7 +152,8 @@ impl SoftmaxOperation {
     ///
     /// # Errors
     ///
-    /// Returns an error if native descriptor creation, attribute assignment, or finalization fails. cuDNN validates tensor layouts, requested row summaries, and sink compatibility.
+    /// Returns an error if native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates tensor layouts, requested row summaries, and sink compatibility.
     pub fn create(
         input: &Tensor,
         outputs: SoftmaxOutputs<&Tensor>,
@@ -173,27 +174,32 @@ impl SoftmaxOperation {
                 stats.descriptor(),
             )?;
         }
+
         if let Some(max) = outputs.max {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSoftmaxMaxDesc,
                 max.descriptor(),
             )?;
         }
+
         if let Some(sum_exp) = outputs.sum_exp {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSoftmaxSumExpDesc,
                 sum_exp.descriptor(),
             )?;
         }
+
         if let Some(sink) = config.sink {
             descriptor.set_attribute_descriptor(
                 BackendAttributeName::OperationSoftmaxSinkDesc,
                 sink.descriptor(),
             )?;
         }
+
         if outputs.stats.is_some() && config.stats_base == SoftmaxStatsBase::Log2 {
             descriptor.set_attribute_bool(BackendAttributeName::OperationSoftmaxStatsLog2, true)?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

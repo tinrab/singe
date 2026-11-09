@@ -45,15 +45,18 @@ fn trimmed_mean_autotune(session: &mut AutotuneSession<'_, '_>) -> Result<Vec<Pl
         if !session.warmup(&plan)? {
             continue;
         }
+
         let mut measurements = Vec::new();
         for _ in 0..5 {
             if let Some(elapsed_ms) = session.measure(&plan)? {
                 measurements.push(elapsed_ms);
             }
         }
+
         if measurements.len() < 3 {
             continue;
         }
+
         measurements.sort_unstable_by(f32::total_cmp);
         let trimmed = &measurements[1..measurements.len() - 1];
         let elapsed_ms =
@@ -212,12 +215,14 @@ fn run() -> Result<()> {
                 metadata.engine_index, metadata.workspace_size, metadata.behavior_notes,
             );
         }
+
         let artifact = ranked.serialize(NativePlanSerializationConfig {
             plans: NativePlanSet::All,
             ..NativePlanSerializationConfig::default()
         })?;
         println!("ranked native plans: {} bytes", artifact.len());
     }
+
     let winner = ranking.winner;
     drop(bindings);
     drop(compiled);
@@ -236,6 +241,7 @@ fn run() -> Result<()> {
             plan.tag()?,
         );
     }
+
     // SAFETY: the retained winner fixes the measured layouts; buffers and workspace stay live through completion.
     unsafe { winner.execute(&context.cudnn, &bindings, Some(&mut workspace)) }?;
 
@@ -253,6 +259,7 @@ fn run() -> Result<()> {
             },
         )?;
     }
+
     println!("winner={}", winner.id());
 
     Ok(())

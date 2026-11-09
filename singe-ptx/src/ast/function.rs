@@ -38,7 +38,8 @@ pub struct Parameter {
     pub state_space: Option<StateSpace>,
     /// Explicit alignment in bytes, or `None` when no `.align` qualifier appears.
     pub alignment: Option<u32>,
-    /// Array dimensions in source order. A `None` entry represents an unsized dimension.
+    /// Array dimensions in source order.
+    /// A `None` entry represents an unsized dimension.
     pub array_bounds: Vec<Option<u32>>,
     /// Optional pointee state space and alignment from the `.ptr` qualifier.
     pub pointer: Option<PointerAnnotation>,

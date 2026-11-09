@@ -42,10 +42,8 @@ status_enum! {
         InternalError = CUBLAS_STATUS_INTERNAL_ERROR,
         /// The requested operation is not supported.
         NotSupported = CUBLAS_STATUS_NOT_SUPPORTED,
-        /// The requested operation requires a license, and an error was detected
-        /// when checking the current licensing.
-        /// This error can happen if the license is not present or expired, or if
-        /// `NVIDIA_LICENSE_FILE` is not set properly.
+        /// The requested operation requires a license, and an error was detected when checking the current licensing.
+        /// This error can happen if the license is not present or expired, or if `NVIDIA_LICENSE_FILE` is not set properly.
         LicenseError = CUBLAS_STATUS_LICENSE_ERROR,
     }
 }
@@ -74,8 +72,12 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cublas_sys::LoadError),
+
     /// A CUDA operation failed.
-    #[error("cuda error: {0}")]
+    #[error(transparent)]
     Cuda(#[from] CudaError),
 
     /// A cuBLAS operation returned a failure status.
@@ -171,6 +173,18 @@ impl Error {
 
 impl From<sys::cublasStatus_t> for Error {
     fn from(status: sys::cublasStatus_t) -> Self {
+        if status == sys::cublasStatus_t::CUBLAS_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cublas_sys::load()
+        {
+            return Self::Load(error);
+        }
+
+        if status == sys::cublasStatus_t::CUBLAS_STATUS_NOT_INITIALIZED
+            && let Err(error) = singe_cublas_sys::load_lt()
+        {
+            return Self::Load(error);
+        }
+
         // SAFETY: `cublasGetStatusString` returns null or a static NUL-terminated string.
         let message = unsafe {
             let c_ptr = sys::cublasGetStatusString(status);

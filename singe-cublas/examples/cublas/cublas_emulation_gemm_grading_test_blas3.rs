@@ -74,6 +74,7 @@ fn cpu_gemm(n: usize, a: &[f64], b: &[f64]) -> Vec<f64> {
             for inner in 0..n {
                 sum += a[row + inner * n] * b[inner + col * n];
             }
+
             c[row + col * n] = sum;
         }
     }

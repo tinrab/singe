@@ -5,12 +5,14 @@
 mod assert;
 mod conversion;
 mod enums;
+mod report;
 mod status;
 mod string;
 mod version;
 
 pub use crate::{
     enums::{EnumConversionError, try_enum_from_raw},
+    report::ErrorChain,
     string::{
         copy_string_to_c_chars, path_to_cstring, static_str_from_c_ptr, string_from_c_chars,
         string_from_c_ptr,
@@ -20,9 +22,35 @@ pub use crate::{
 
 #[cfg(test)]
 mod tests {
-    use std::ptr;
+    use std::{error::Error, fmt, io, ptr};
 
     use super::*;
+
+    // A chain prints each cause once, after the error it caused.
+    #[test]
+    fn test_an_error_chain_prints_every_cause_once() {
+        #[derive(Debug)]
+        struct Outer(io::Error);
+
+        impl fmt::Display for Outer {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("reading the plan failed")
+            }
+        }
+
+        impl Error for Outer {
+            fn source(&self) -> Option<&(dyn Error + 'static)> {
+                Some(&self.0)
+            }
+        }
+
+        let error = Outer(io::Error::other("disk gone"));
+        assert_eq!(error.to_string(), "reading the plan failed");
+        assert_eq!(
+            ErrorChain(&error).to_string(),
+            "reading the plan failed: disk gone"
+        );
+    }
 
     #[test]
     fn test_library_version_encodes_components() {

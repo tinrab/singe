@@ -42,13 +42,16 @@ status_enum! {
         ///
         /// This can happen when the application is running with external profiling tools like visual profiler.
         ProfilerDisabled = CUDA_ERROR_PROFILER_DISABLED,
-        /// Deprecated: This error return is deprecated as of CUDA 5.0. It is no longer an error  to attempt to enable/disable the profiling via ::cuProfilerStart or  ::cuProfilerStop without initialization.
+        /// Deprecated: This error return is deprecated as of CUDA 5.0.
+        /// It is no longer an error  to attempt to enable/disable the profiling via ::cuProfilerStart or  ::cuProfilerStop without initialization.
         #[deprecated]
         ProfilerNotInitialized = CUDA_ERROR_PROFILER_NOT_INITIALIZED,
-        /// Deprecated: This error return is deprecated as of CUDA 5.0. It is no longer an error  to call cuProfilerStart() when profiling is already enabled.
+        /// Deprecated: This error return is deprecated as of CUDA 5.0.
+        /// It is no longer an error  to call cuProfilerStart() when profiling is already enabled.
         #[deprecated]
         ProfilerAlreadyStarted = CUDA_ERROR_PROFILER_ALREADY_STARTED,
-        /// Deprecated: This error return is deprecated as of CUDA 5.0. It is no longer an error  to call cuProfilerStop() when profiling is already disabled.
+        /// Deprecated: This error return is deprecated as of CUDA 5.0.
+        /// It is no longer an error  to call cuProfilerStop() when profiling is already disabled.
         #[deprecated]
         ProfilerAlreadyStopped = CUDA_ERROR_PROFILER_ALREADY_STOPPED,
         /// This indicates that the CUDA driver that the application has loaded is a stub library.
@@ -75,7 +78,10 @@ status_enum! {
         InvalidImage = CUDA_ERROR_INVALID_IMAGE,
         /// This most frequently indicates that there is no context bound to the current thread.
         ///
-        /// This can also be returned if the context passed to an API call is not a valid handle (such as a context that has had cuCtxDestroy() invoked on it). This can also be returned if a user mixes different API versions (i.e. 3010 context with 3020 API calls). See `cuCtxGetApiVersion` for more details. This can also be returned if the green context passed to an API call was not converted to a `CUcontext` using `cuCtxFromGreenCtx` API.
+        /// This can also be returned if the context passed to an API call is not a valid handle (such as a context that has had cuCtxDestroy() invoked on it).
+        /// This can also be returned if a user mixes different API versions (i.e. 3010 context with 3020 API calls).
+        /// See `cuCtxGetApiVersion` for more details.
+        /// This can also be returned if the green context passed to an API call was not converted to a `CUcontext` using `cuCtxFromGreenCtx` API.
         InvalidContext = CUDA_ERROR_INVALID_CONTEXT,
         /// This indicated that the context being supplied as a parameter to the API call was already the active context.
         #[deprecated]
@@ -126,7 +132,8 @@ status_enum! {
         UnsupportedDevsideSync = CUDA_ERROR_UNSUPPORTED_DEVSIDE_SYNC,
         /// This indicates that an exception occurred on the device that is now contained by the GPU's error containment capability.
         ///
-        /// Common causes are - a. Certain types of invalid accesses of peer GPU memory over nvlink b. Certain classes of hardware errors This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// Common causes are - a. Certain types of invalid accesses of peer GPU memory over nvlink b. Certain classes of hardware errors This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         Contained = CUDA_ERROR_CONTAINED,
         /// This indicates that the device kernel source is invalid.
         ///
@@ -154,19 +161,24 @@ status_enum! {
         NotFound = CUDA_ERROR_NOT_FOUND,
         /// This indicates that asynchronous operations issued previously have not completed yet.
         ///
-        /// This result is not actually an error, but must be indicated differently than `cudaError_enum::CUDA_SUCCESS` (which indicates completion). Calls that may return this value include `cuEventQuery` and `cuStreamQuery`.
+        /// This result is not actually an error, but must be indicated differently than `cudaError_enum::CUDA_SUCCESS` (which indicates completion).
+        /// Calls that may return this value include `cuEventQuery` and `cuStreamQuery`.
         NotReady = CUDA_ERROR_NOT_READY,
         /// While executing a kernel, the device encountered a load or store instruction on an invalid memory address.
         ///
-        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         IllegalAddress = CUDA_ERROR_ILLEGAL_ADDRESS,
         /// This indicates that a launch did not occur because it did not have appropriate resources.
         ///
-        /// This error usually indicates that the user has attempted to pass too many arguments to the device kernel, or the kernel launch specifies too many threads for the kernel's register count. Passing arguments of the wrong size (i.e. a 64-bit pointer when a 32-bit int is expected) is equivalent to passing too many arguments and can also result in this error.
+        /// This error usually indicates that the user has attempted to pass too many arguments to the device kernel, or the kernel launch specifies too many threads for the kernel's register count.
+        /// Passing arguments of the wrong size (i.e. a 64-bit pointer when a 32-bit int is expected) is equivalent to passing too many arguments and can also result in this error.
         LaunchOutOfResources = CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES,
         /// This indicates that the device kernel took too long to execute.
         ///
-        /// This can only occur if timeouts are enabled - see the device attribute `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_KERNEL_EXEC_TIMEOUT` for more information. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This can only occur if timeouts are enabled - see the device attribute `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_KERNEL_EXEC_TIMEOUT` for more information.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         LaunchTimeout = CUDA_ERROR_LAUNCH_TIMEOUT,
         /// This error indicates that a call to `cuCtxEnablePeerAccess` is trying to re-enable peer access to a context which has already had peer access to it enabled.
         PeerAccessAlreadyEnabled = CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED,
@@ -178,7 +190,8 @@ status_enum! {
         ContextIsDestroyed = CUDA_ERROR_CONTEXT_IS_DESTROYED,
         /// A device-side assert triggered during kernel execution.
         ///
-        /// The context cannot be used anymore, and must be destroyed. All existing device memory allocations from this context are invalid and must be reconstructed if the program is to continue using CUDA.
+        /// The context cannot be used anymore, and must be destroyed.
+        /// All existing device memory allocations from this context are invalid and must be reconstructed if the program is to continue using CUDA.
         Assert = CUDA_ERROR_ASSERT,
         /// This error indicates that the hardware resources required to enable peer access have been exhausted for one or more of the devices passed to `cuCtxEnablePeerAccess`.
         TooManyPeers = CUDA_ERROR_TOO_MANY_PEERS,
@@ -186,33 +199,43 @@ status_enum! {
         HostMemoryNotRegistered = CUDA_ERROR_HOST_MEMORY_NOT_REGISTERED,
         /// While executing a kernel, the device encountered a stack error.
         ///
-        /// This can be due to stack corruption or exceeding the stack size limit. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This can be due to stack corruption or exceeding the stack size limit.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         HardwareStackError = CUDA_ERROR_HARDWARE_STACK_ERROR,
         /// While executing a kernel, the device encountered an illegal instruction.
         ///
-        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         IllegalInstruction = CUDA_ERROR_ILLEGAL_INSTRUCTION,
         /// While executing a kernel, the device encountered a load or store instruction on a memory address which is not aligned.
         ///
-        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         MisalignedAddress = CUDA_ERROR_MISALIGNED_ADDRESS,
         /// While executing a kernel, the device encountered an instruction which can only operate on memory locations in certain address spaces (global, shared, or local), but was supplied a memory address not belonging to an allowed address space.
         ///
-        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         InvalidAddressSpace = CUDA_ERROR_INVALID_ADDRESS_SPACE,
         /// While executing a kernel, the device program counter wrapped its address space.
         ///
-        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         InvalidPc = CUDA_ERROR_INVALID_PC,
         /// An exception occurred on the device while executing a kernel.
         ///
-        /// Common causes include dereferencing an invalid device pointer and accessing out of bounds shared memory. Less common cases can be system specific - more information about these cases can be found in the system specific user guide. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// Common causes include dereferencing an invalid device pointer and accessing out of bounds shared memory.
+        /// Less common cases can be system specific - more information about these cases can be found in the system specific user guide.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         LaunchFailed = CUDA_ERROR_LAUNCH_FAILED,
         /// This error indicates that the number of blocks launched per grid for a kernel that was launched via either `cuLaunchCooperativeKernel` or `cuLaunchCooperativeKernelMultiDevice` exceeds the maximum number of blocks as allowed by `cuOccupancyMaxActiveBlocksPerMultiprocessor` or `cuOccupancyMaxActiveBlocksPerMultiprocessorWithFlags` times the number of multiprocessors as specified by the device attribute `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT`.
         CooperativeLaunchTooLarge = CUDA_ERROR_COOPERATIVE_LAUNCH_TOO_LARGE,
         /// An exception occurred on the device while exiting a kernel using tensor memory: the tensor memory was not completely deallocated.
         ///
-        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
         TensorMemoryLeak = CUDA_ERROR_TENSOR_MEMORY_LEAK,
         /// This error indicates that the attempted operation is not permitted.
         NotPermitted = CUDA_ERROR_NOT_PERMITTED,
@@ -220,7 +243,8 @@ status_enum! {
         NotSupported = CUDA_ERROR_NOT_SUPPORTED,
         /// This error indicates that the system is not yet ready to start any CUDA work.
         ///
-        /// To continue using CUDA, verify the system configuration is in a valid state and all required driver daemons are actively running. More information about this error can be found in the system specific user guide.
+        /// To continue using CUDA, verify the system configuration is in a valid state and all required driver daemons are actively running.
+        /// More information about this error can be found in the system specific user guide.
         SystemNotReady = CUDA_ERROR_SYSTEM_NOT_READY,
         /// This error indicates that there is a mismatch between the versions of the display driver and the CUDA driver.
         ///
@@ -272,7 +296,11 @@ status_enum! {
         GraphExecUpdateFailure = CUDA_ERROR_GRAPH_EXEC_UPDATE_FAILURE,
         /// This indicates that an error has occurred in a device outside of GPU.
         ///
-        /// It can be a synchronous error with respect to CUDA API or an asynchronous error from the external device. In case of asynchronous error, it means that if CUDA was waiting for an external device's signal before consuming shared data, the external device signaled an error indicating that the data is not valid for consumption. This leaves the process in an inconsistent state and any further CUDA work will return the same error. To continue using CUDA, the process must be terminated and relaunched. In case of synchronous error, it means that one or more external devices have encountered an error and cannot complete the operation.
+        /// It can be a synchronous error with respect to CUDA API or an asynchronous error from the external device.
+        /// In case of asynchronous error, it means that if CUDA was waiting for an external device's signal before consuming shared data, the external device signaled an error indicating that the data is not valid for consumption.
+        /// This leaves the process in an inconsistent state and any further CUDA work will return the same error.
+        /// To continue using CUDA, the process must be terminated and relaunched.
+        /// In case of synchronous error, it means that one or more external devices have encountered an error and cannot complete the operation.
         ExternalDevice = CUDA_ERROR_EXTERNAL_DEVICE,
         /// Indicates a kernel launch error due to cluster misconfiguration.
         InvalidClusterSize = CUDA_ERROR_INVALID_CLUSTER_SIZE,
@@ -292,7 +320,8 @@ status_enum! {
         InsufficientLoaderVersion = CUDA_ERROR_INSUFFICIENT_LOADER_VERSION,
         /// The GPU fabric is not ready within the bounded wait while the fabric manager probe is still in progress (or not converging in time).
         ///
-        /// Applications may retry after a delay; for the initialization wait budget, see environment variables such as CUDA_FABRIC_INIT_TIMEOUT_MS. The CUDA Runtime uses the same value as ::cudaErrorFabricNotReady.
+        /// Applications may retry after a delay; for the initialization wait budget, see environment variables such as CUDA_FABRIC_INIT_TIMEOUT_MS.
+        /// The CUDA Runtime uses the same value as ::cudaErrorFabricNotReady.
         FabricNotReady = CUDA_ERROR_FABRIC_NOT_READY,
         /// This indicates that an unknown internal error has occurred.
         UnknownError = CUDA_ERROR_UNKNOWN,
@@ -315,6 +344,10 @@ impl Status {
 #[derive(Error, Debug)]
 #[non_exhaustive]
 pub enum Error {
+    // Its library would not load.
+    #[error(transparent)]
+    Load(#[from] singe_cuda_sys::LoadError),
+
     /// The requested GPU architecture cannot be represented or supported by this operation.
     #[error("unsupported gpu architecture `{target}`")]
     UnsupportedArchitecture {
@@ -347,14 +380,14 @@ pub enum Error {
     #[error("the singe and foreign readiness streams must refer to the same native stream")]
     ForeignStreamMismatch,
     /// The submitted native operation returned an error.
-    #[error("native operation failed: {0}")]
+    #[error("native operation failed")]
     Operation(
         /// Underlying native operation error.
         #[source]
         Box<dyn error::Error + Send + Sync>,
     ),
     /// An error was retained while waiting for submission completion.
-    #[error("submission completion failed: {0}")]
+    #[error("submission completion failed")]
     Completion(
         /// Shared error retained by the submission completion state.
         #[source]
@@ -438,7 +471,7 @@ pub enum Error {
     InteriorNul,
 
     /// An operating-system I/O operation failed.
-    #[error("io error: {0}")]
+    #[error(transparent)]
     Io(
         /// Underlying I/O error.
         #[from]
@@ -511,6 +544,18 @@ impl Error {
 
 impl From<runtime::cudaError_t> for Error {
     fn from(code: runtime::cudaError_t) -> Self {
+        if code == runtime::cudaError_t::CUDA_ERROR_SHARED_OBJECT_INIT_FAILED
+            && let Err(error) = singe_cuda_sys::load_driver()
+        {
+            return Self::Load(error);
+        }
+
+        if code == runtime::cudaError_t::CUDA_ERROR_SHARED_OBJECT_INIT_FAILED
+            && let Err(error) = singe_cuda_sys::load_runtime()
+        {
+            return Self::Load(error);
+        }
+
         // SAFETY: `cudaGetErrorString` returns null or a static NUL-terminated string; null is handled.
         let message = unsafe {
             let c_ptr = runtime::cudaGetErrorString(code);
@@ -545,6 +590,12 @@ impl From<NulError> for Error {
 
 impl From<nvrtc::nvrtcResult> for Error {
     fn from(code: nvrtc::nvrtcResult) -> Self {
+        if code == nvrtc::nvrtcResult::NVRTC_ERROR_INTERNAL_ERROR
+            && let Err(error) = singe_cuda_sys::load_nvrtc()
+        {
+            return Self::Load(error);
+        }
+
         let code = NvrtcStatus::from(code);
         Self::from(code)
     }
@@ -561,6 +612,12 @@ impl From<NvrtcStatus> for Error {
 
 impl From<nvvm::nvvmResult> for Error {
     fn from(code: nvvm::nvvmResult) -> Self {
+        if code == nvvm::nvvmResult::NVVM_ERROR_PROGRAM_CREATION_FAILURE
+            && let Err(error) = singe_cuda_sys::load_nvvm()
+        {
+            return Self::Load(error);
+        }
+
         let code = NvvmStatus::from(code);
         Self::from(code)
     }

@@ -62,6 +62,7 @@ impl GraphHostBuffer {
         if graph.is_null() {
             return Err(Error::NullHandle);
         }
+
         let mut object = self
             .user_object
             .lock()
@@ -82,6 +83,7 @@ impl GraphHostBuffer {
                 }
             }
         }
+
         let user_object = object.as_ref().ok_or(Error::ResourcePoisoned {
             name: "graph host data",
         })?;
@@ -99,7 +101,9 @@ impl GraphHostBuffer {
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream context cannot be bound, capture status or the active capture graph cannot be queried, capture is invalidated, source retention fails, or CUDA rejects the copy or completion callback. An empty source succeeds without querying CUDA. If callback registration fails after an ordinary-stream copy, cleanup attempts to drain the stream; source bytes remain retained if draining fails.
+    /// Returns an error if the stream context cannot be bound, capture status or the active capture graph cannot be queried, capture is invalidated, source retention fails, or CUDA rejects the copy or completion callback.
+    /// An empty source succeeds without querying CUDA.
+    /// If callback registration fails after an ordinary-stream copy, cleanup attempts to drain the stream; source bytes remain retained if draining fails.
     pub unsafe fn copy_to_device(
         &self,
         destination: DevicePtr,
@@ -108,11 +112,13 @@ impl GraphHostBuffer {
         if self.bytes.is_empty() {
             return Ok(());
         }
+
         stream.context().bind()?;
         let capture = stream.capture_status()?;
         if capture == StreamCaptureStatus::Invalidated {
             return Err(Status::StreamCaptureInvalidated.into());
         }
+
         if capture == StreamCaptureStatus::Active {
             let mut graph = ptr::null_mut();
             let mut status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
@@ -128,8 +134,10 @@ impl GraphHostBuffer {
                     ptr::null_mut(),
                 ))?;
             }
+
             self.retain_on_raw_graph(graph)?;
         }
+
         // SAFETY: the destination's access contract is the caller's, and capture already owns its source.
         let copy_result = unsafe {
             try_ffi!(runtime::cudaMemcpyAsync(
@@ -143,6 +151,7 @@ impl GraphHostBuffer {
         if capture == StreamCaptureStatus::Active {
             return copy_result;
         }
+
         let payload = Box::into_raw(Box::new(Arc::clone(&self.bytes)));
         // SAFETY: the callback only drops CPU bytes and runs after the copy, including stream failure notifications.
         let retain_result = unsafe {

@@ -1,7 +1,7 @@
 [package]
 name = "singe-cupti-sys"
-description = "Raw FFI bindings for the NVIDIA CUPTI profiling interface."
-version = "0.1.0-alpha.7"
+description = "Low-level FFI bindings for the NVIDIA CUPTI profiling library."
+version = "0.1.0-alpha.8"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
@@ -18,7 +18,5 @@ default = ["cupti_13_4"]
 cupti_13_4 = []
 
 [dependencies]
+singe-loader.workspace = true
 num_enum.workspace = true
-
-[build-dependencies]
-singe-cuda-find.workspace = true

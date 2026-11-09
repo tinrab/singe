@@ -33,6 +33,7 @@ impl LogMel {
         if batch == 0 || frames == 0 || mel_bins == 0 || frequency_bins == 0 {
             return Err(Error::InvalidLength);
         }
+
         let output_len = checked_element_count(checked_element_count(batch, frames)?, mel_bins)?;
         let power_len =
             checked_element_count(checked_element_count(batch, frames)?, frequency_bins)?;
@@ -40,6 +41,7 @@ impl LogMel {
         if frame_end > output_frame_stride {
             return Err(Error::InvalidLength);
         }
+
         let output_span =
             checked_element_count(checked_element_count(batch, output_frame_stride)?, mel_bins)?;
         checked_i32_value(power_len)?;
@@ -79,6 +81,7 @@ impl LogMelDynamicMax {
         {
             return Err(Error::InvalidLength);
         }
+
         let output_len = checked_element_count(checked_element_count(batch, frames)?, mel_bins)?;
         checked_i32_value(output_len)?;
         checked_i32_value(checked_element_count(
@@ -89,6 +92,7 @@ impl LogMelDynamicMax {
         if partial_per_batch != expected_partial_per_batch || partial_per_batch > 1024 {
             return Err(Error::InvalidLength);
         }
+
         let partial_blocks = checked_element_count(batch, partial_per_batch)?;
         Ok(Self {
             batch: checked_i32_value(batch)?,
@@ -137,9 +141,11 @@ impl StftR2c {
         {
             return Err(Error::InvalidLength);
         }
+
         if !(0..=1).contains(&pad_mode) {
             return Err(Error::InvalidLength);
         }
+
         let complex_values =
             checked_element_count(checked_element_count(batch, frames)?, frequency_bin_count)?;
         let output_len = checked_element_count(complex_values, 2)?;
@@ -188,6 +194,7 @@ pub unsafe fn r2c_power_f32(
     if batch == 0 || frames == 0 || frequency_bin_count == 0 {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&spectrum)?;
 

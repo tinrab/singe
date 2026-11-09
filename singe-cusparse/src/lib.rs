@@ -1,50 +1,59 @@
 //! cuSPARSE resource wrappers and public raw sparse GPU operations.
 //!
-//! This crate wraps cuSPARSE contexts, sparse and dense vector descriptors,
-//! sparse and dense matrix descriptors, `SpMV`, `SpMM`, SDDMM, `SpGEMM`, sparse
-//! triangular solve, vector-vector operations, and scalar helpers.
+//! This crate wraps cuSPARSE contexts, sparse and dense vector descriptors, sparse and dense matrix descriptors, `SpMV`, `SpMM`, SDDMM, `SpGEMM`, sparse triangular solve, vector-vector operations, and scalar helpers.
 //!
 //! # Raw execution
 //!
-//! Native operations are unsafe: descriptors do not establish initialized input
-//! values, valid sparse indices, matching compute layouts, or queued ownership.
-//! Order producers before reads, preserve initialized accumulators when beta is
-//! nonzero, and retain every participant with the required access through
-//! completion on success, error, and unwind, including captured graph replay.
-//! Analysis and preprocessing state may retain workspaces and bindings across
-//! later operations; keep them valid through the last dependent stage.
+//! Native operations are unsafe: descriptors do not establish initialized input values, valid sparse indices, matching compute layouts, or queued ownership.
+//! Order producers before reads, preserve initialized accumulators when beta is nonzero, and retain every participant with the required access through completion on success, error, and unwind, including captured graph replay.
+//! Analysis and preprocessing state may retain workspaces and bindings across later operations; keep them valid through the last dependent stage.
 //! Scratch and custom operation code must match the queried native ABI.
-//! Descriptor storage regions preserve actual allocation metadata and buffer
-//! borrows, without promoting pending storage or claiming initialized padding.
+//! Descriptor storage regions preserve actual allocation metadata and buffer borrows, without promoting pending storage or claiming initialized padding.
 
 /// cuSPARSE handle ownership, CUDA context association, streams, and scalar pointer modes.
 pub mod context;
+
 pub mod descriptor;
+
 /// Typed cuSPARSE statuses and Rust wrapper errors.
 pub mod error;
+
 pub mod logger;
+
 /// Sparse and dense matrix descriptors and storage-format conversions.
 pub mod matrix;
+
 /// Native analysis descriptors and custom sparse-matrix operation plans.
 pub mod operation;
+
 pub mod scalar;
+
 /// Sampled dense matrix multiplication using a sparse output pattern.
 pub mod sddmm;
+
 /// Sparse-sparse matrix multiplication and reusable multiplication analysis.
 pub mod spgemm;
+
 /// Sparse-dense matrix multiplication and custom operator plans.
 pub mod spmm;
+
 /// Sparse matrix-vector multiplication and preprocessing.
 pub mod spmv;
+
 /// Sparse triangular solves with multiple right-hand sides.
 pub mod spsm;
+
 /// Sparse triangular solves with one vector right-hand side.
 pub mod spsv;
+
 /// Sparse-dense vector dot products.
 pub mod spvv;
+
 /// Typed matrix formats, index representations, algorithms, and operation settings.
 pub mod types;
+
 pub(crate) mod utility;
+
 /// Sparse and dense vector descriptors and gather or scatter operations.
 pub mod vector;
 

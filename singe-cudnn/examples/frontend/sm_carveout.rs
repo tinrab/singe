@@ -193,6 +193,7 @@ fn run() -> Result<()> {
     for chunk in peer_stats_0_host.chunks_exact_mut(2) {
         chunk[1] = f32::from_bits(1);
     }
+
     let mut peer_stats_0_dev =
         DeviceMemory::from_slice(context.cudnn.cuda_context(), &peer_stats_0_host)?;
     let mut peer_stats_1_dev =

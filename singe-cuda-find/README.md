@@ -8,6 +8,8 @@
 
 Discovery tools for the CUDA Toolkit and NVIDIA libraries.
 
+The `*-sys` crates load their libraries at run time through `singe-loader`, so they no longer use this crate; it serves build scripts that compile against NVIDIA headers, such as nvCOMP's C++ bridge.
+
 This crate provides:
 
 - Header, library, and tool discovery for CUDA and NVIDIA libraries.

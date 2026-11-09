@@ -35,8 +35,10 @@ where
     Workspace: SignalAllocator<T>,
     Self: ThresholdSignal<T>,
 {
-    /// Applies the native selected comparison threshold at `level` to each sample. Returns an owned pipeline containing the result.
-    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`. The wrapper forwards the selected operation to NPP.
+    /// Applies the native selected comparison threshold at `level` to each sample.
+    /// Returns an owned pipeline containing the result.
+    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`.
+    /// The wrapper forwards the selected operation to NPP.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -83,8 +85,10 @@ where
     T: Copy,
     Self: ThresholdSignal<T>,
 {
-    /// Applies the native selected comparison threshold at `level` to each sample. Writes the result to `destination`.
-    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`. The wrapper forwards the selected operation to NPP.
+    /// Applies the native selected comparison threshold at `level` to each sample.
+    /// Writes the result to `destination`.
+    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`.
+    /// The wrapper forwards the selected operation to NPP.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -108,8 +112,10 @@ where
         )
     }
 
-    /// Applies the native selected comparison threshold at `level` to each sample. Updates the signal in place.
-    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`. The wrapper forwards the selected operation to NPP.
+    /// Applies the native selected comparison threshold at `level` to each sample.
+    /// Updates the signal in place.
+    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`.
+    /// The wrapper forwards the selected operation to NPP.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -136,9 +142,12 @@ where
     T: Copy,
     Workspace: SignalAllocator<T>,
 {
-    /// Applies the native selected comparison threshold at `level` to each complex sample. Returns an owned pipeline containing the result.
-    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`. The wrapper forwards the selected operation to NPP.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native selected comparison threshold at `level` to each complex sample.
+    /// Returns an owned pipeline containing the result.
+    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`.
+    /// The wrapper forwards the selected operation to NPP.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -207,9 +216,12 @@ impl<T> SignalPipeline<'_, T>
 where
     T: Copy,
 {
-    /// Applies the native selected comparison threshold at `level` to each complex sample. Writes the result to `destination`.
-    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`. The wrapper forwards the selected operation to NPP.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native selected comparison threshold at `level` to each complex sample.
+    /// Writes the result to `destination`.
+    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`.
+    /// The wrapper forwards the selected operation to NPP.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -237,9 +249,12 @@ where
         )
     }
 
-    /// Applies the native selected comparison threshold at `level` to each complex sample. Updates the signal in place.
-    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`. The wrapper forwards the selected operation to NPP.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native selected comparison threshold at `level` to each complex sample.
+    /// Updates the signal in place.
+    /// Native threshold dispatch accepts `ComparisonOperation::Less` or `ComparisonOperation::Greater`.
+    /// The wrapper forwards the selected operation to NPP.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -271,7 +286,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: FixedThresholdSignal<T>,
 {
-    /// Applies the native less-than threshold at `level` to each sample. Returns an owned pipeline containing the result.
+    /// Applies the native less-than threshold at `level` to each sample.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -289,7 +305,8 @@ where
         )
     }
 
-    /// Applies the native greater-than threshold at `level` to each sample. Returns an owned pipeline containing the result.
+    /// Applies the native greater-than threshold at `level` to each sample.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -344,7 +361,8 @@ where
     T: Copy,
     Self: FixedThresholdSignal<T>,
 {
-    /// Applies the native less-than threshold at `level` to each sample. Writes the result to `destination`.
+    /// Applies the native less-than threshold at `level` to each sample.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -366,7 +384,8 @@ where
         )
     }
 
-    /// Applies the native less-than threshold at `level` to each sample. Updates the signal in place.
+    /// Applies the native less-than threshold at `level` to each sample.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -385,7 +404,8 @@ where
         )
     }
 
-    /// Applies the native greater-than threshold at `level` to each sample. Writes the result to `destination`.
+    /// Applies the native greater-than threshold at `level` to each sample.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -407,7 +427,8 @@ where
         )
     }
 
-    /// Applies the native greater-than threshold at `level` to each sample. Updates the signal in place.
+    /// Applies the native greater-than threshold at `level` to each sample.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -432,8 +453,10 @@ where
     T: Copy,
     Workspace: SignalAllocator<T>,
 {
-    /// Applies the native less-than threshold at `level` to each complex sample. Returns an owned pipeline containing the result.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native less-than threshold at `level` to each complex sample.
+    /// Returns an owned pipeline containing the result.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -455,8 +478,10 @@ where
         )
     }
 
-    /// Applies the native greater-than threshold at `level` to each complex sample. Returns an owned pipeline containing the result.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native greater-than threshold at `level` to each complex sample.
+    /// Returns an owned pipeline containing the result.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -517,8 +542,10 @@ impl<T> SignalPipeline<'_, T>
 where
     T: Copy,
 {
-    /// Applies the native less-than threshold at `level` to each complex sample. Writes the result to `destination`.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native less-than threshold at `level` to each complex sample.
+    /// Writes the result to `destination`.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -544,8 +571,10 @@ where
         )
     }
 
-    /// Applies the native less-than threshold at `level` to each complex sample. Updates the signal in place.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native less-than threshold at `level` to each complex sample.
+    /// Updates the signal in place.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -568,8 +597,10 @@ where
         )
     }
 
-    /// Applies the native greater-than threshold at `level` to each complex sample. Writes the result to `destination`.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native greater-than threshold at `level` to each complex sample.
+    /// Writes the result to `destination`.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -595,8 +626,10 @@ where
         )
     }
 
-    /// Applies the native greater-than threshold at `level` to each complex sample. Updates the signal in place.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Applies the native greater-than threshold at `level` to each complex sample.
+    /// Updates the signal in place.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -626,7 +659,8 @@ where
     Workspace: SignalAllocator<T>,
     Self: ValueThresholdSignal<T>,
 {
-    /// Replaces samples selected by the native less-than threshold at `level` with `value`. Returns an owned pipeline containing the result.
+    /// Replaces samples selected by the native less-than threshold at `level` with `value`.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -645,7 +679,8 @@ where
         )
     }
 
-    /// Replaces samples selected by the native greater-than threshold at `level` with `value`. Returns an owned pipeline containing the result.
+    /// Replaces samples selected by the native greater-than threshold at `level` with `value`.
+    /// Returns an owned pipeline containing the result.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -703,7 +738,8 @@ where
     T: Copy,
     Self: ValueThresholdSignal<T>,
 {
-    /// Replaces samples selected by the native less-than threshold at `level` with `value`. Writes the result to `destination`.
+    /// Replaces samples selected by the native less-than threshold at `level` with `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -727,7 +763,8 @@ where
         )
     }
 
-    /// Replaces samples selected by the native less-than threshold at `level` with `value`. Updates the signal in place.
+    /// Replaces samples selected by the native less-than threshold at `level` with `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -748,7 +785,8 @@ where
         )
     }
 
-    /// Replaces samples selected by the native greater-than threshold at `level` with `value`. Writes the result to `destination`.
+    /// Replaces samples selected by the native greater-than threshold at `level` with `value`.
+    /// Writes the result to `destination`.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -772,7 +810,8 @@ where
         )
     }
 
-    /// Replaces samples selected by the native greater-than threshold at `level` with `value`. Updates the signal in place.
+    /// Replaces samples selected by the native greater-than threshold at `level` with `value`.
+    /// Updates the signal in place.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -799,8 +838,10 @@ where
     T: Copy,
     Workspace: SignalAllocator<T>,
 {
-    /// Replaces samples selected by the native less-than threshold at `level` with `value`. Returns an owned pipeline containing the result.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Replaces samples selected by the native less-than threshold at `level` with `value`.
+    /// Returns an owned pipeline containing the result.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -823,8 +864,10 @@ where
         )
     }
 
-    /// Replaces samples selected by the native greater-than threshold at `level` with `value`. Returns an owned pipeline containing the result.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Replaces samples selected by the native greater-than threshold at `level` with `value`.
+    /// Returns an owned pipeline containing the result.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Reuses owned signal storage, or allocates output through the workspace for a borrowed signal.
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
@@ -888,8 +931,10 @@ impl<T> SignalPipeline<'_, T>
 where
     T: Copy,
 {
-    /// Replaces samples selected by the native less-than threshold at `level` with `value`. Writes the result to `destination`.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Replaces samples selected by the native less-than threshold at `level` with `value`.
+    /// Writes the result to `destination`.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -917,8 +962,10 @@ where
         )
     }
 
-    /// Replaces samples selected by the native less-than threshold at `level` with `value`. Updates the signal in place.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Replaces samples selected by the native less-than threshold at `level` with `value`.
+    /// Updates the signal in place.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -943,8 +990,10 @@ where
         )
     }
 
-    /// Replaces samples selected by the native greater-than threshold at `level` with `value`. Writes the result to `destination`.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Replaces samples selected by the native greater-than threshold at `level` with `value`.
+    /// Writes the result to `destination`.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///
@@ -972,8 +1021,10 @@ where
         )
     }
 
-    /// Replaces samples selected by the native greater-than threshold at `level` with `value`. Updates the signal in place.
-    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero. The wrapper forwards its value without checking that restriction.
+    /// Replaces samples selected by the native greater-than threshold at `level` with `value`.
+    /// Updates the signal in place.
+    /// `level` is the real-valued threshold parameter for the native complex operation and must be greater than zero.
+    /// The wrapper forwards its value without checking that restriction.
     ///
     /// Prepares participating regions, waiting for producers on other streams, and completes native work before returning successfully.
     ///

@@ -127,6 +127,7 @@ pub fn mhc_apply_residual_f32(
                     let x_value = x[batch_index * n * channels + source_token * channels + channel];
                     sum = y_res.mul_add(x_value, sum);
                 }
+
                 out[batch_index * n * channels + token * channels + channel] = sum;
             }
         }
@@ -144,6 +145,7 @@ pub fn mhc_sinkhorn_f32(y: &[f32], batch: usize, n: usize) -> Vec<f32> {
         for index in 0..n * n {
             matrix[index] = out[base + index].exp();
         }
+
         for _ in 0..20 {
             for row in 0..n {
                 let row_start = row * n;
@@ -162,6 +164,7 @@ pub fn mhc_sinkhorn_f32(y: &[f32], batch: usize, n: usize) -> Vec<f32> {
                 }
             }
         }
+
         out[base..base + n * n].copy_from_slice(&matrix);
     }
     out
@@ -196,6 +199,7 @@ pub fn mhc_gemm_rms_scale_f32(
             let value = x[row * reduction + k];
             rms_sum = value.mul_add(value, rms_sum);
         }
+
         let rms = (rms_sum / reduction as f32).sqrt();
         r[row] = rms;
         for column in 0..columns {
@@ -203,6 +207,7 @@ pub fn mhc_gemm_rms_scale_f32(
             for k in 0..reduction {
                 dot = x[row * reduction + k].mul_add(w[k * columns + column], dot);
             }
+
             let scale = if column < n {
                 alpha_pre
             } else if column < 2 * n {

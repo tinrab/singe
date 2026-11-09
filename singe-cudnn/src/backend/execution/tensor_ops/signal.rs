@@ -140,6 +140,7 @@ impl SignalOperation {
                 output.descriptor(),
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

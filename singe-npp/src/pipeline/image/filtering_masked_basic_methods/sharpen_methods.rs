@@ -17,17 +17,15 @@ where
 {
     /// Applies the native sharpening filter over the valid source window.
     /// Uses a centered 3-by-3 neighborhood.
-    /// The source window must retain a complete parent-image halo for a centered 3-by-3
-    /// neighborhood. Source-window and destination dimensions must match.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// The source window must retain a complete parent-image halo for a centered 3-by-3 neighborhood.
+    /// Source-window and destination dimensions must match.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// The source window must match the destination size and retain the required halo.
     pub fn filter_sharpen_into(
         stream_context: &StreamContext,
@@ -50,16 +48,14 @@ where
 {
     /// Applies the native sharpening filter over the valid source window.
     /// Uses a centered 3-by-3 neighborhood.
-    /// Allocates a new owned image for the valid source window, reducing both dimensions
-    /// by two pixels.
+    /// Allocates a new owned image for the valid source window, reducing both dimensions by two pixels.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
     /// The source must contain the centered 3-by-3 neighborhood and its valid output window.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn filter_sharpen(self) -> Result<Self> {
@@ -75,6 +71,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source.view())?;
             }
+
             <Self as DirectionalFilterImage<T, L>>::filter_sharpen_image(
                 self.stream_context,
                 &source,

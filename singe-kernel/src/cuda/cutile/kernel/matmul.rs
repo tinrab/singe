@@ -24,6 +24,7 @@ mod kernels {
             let rhs_tile = rhs_tiles.load([reduction_tile, output_tile_id.1]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator);
     }
 
@@ -48,6 +49,7 @@ mod kernels {
             let rhs_tile = rhs_tiles.load([reduction_tile, output_tile_id.1]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator);
     }
 
@@ -71,6 +73,7 @@ mod kernels {
             let rhs_tile = rhs_tile.transpose();
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator);
     }
 
@@ -95,6 +98,7 @@ mod kernels {
             let rhs_tile = rhs_tiles.load([reduction_tile, output_tile_id.1]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator);
     }
 
@@ -772,6 +776,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![8i32, BN]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -797,6 +802,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![8i32, BN]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -822,6 +828,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![BN, 8i32]).transpose();
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -847,6 +854,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![BN, 8i32]).transpose();
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -873,6 +881,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![8i32, BN]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -899,6 +908,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![BN, 8i32]).transpose();
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -925,6 +935,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![BN, 8i32]).transpose();
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -951,6 +962,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![8i32, BN]);
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 
@@ -977,6 +989,7 @@ mod kernels {
             let rhs_tile = rhs_tile_3d.reshape(const_shape![BN, 8i32]).transpose();
             accumulator = mma(lhs_tile, rhs_tile, accumulator);
         }
+
         out.store(accumulator.reshape(const_shape![1i32, BM, BN]));
     }
 

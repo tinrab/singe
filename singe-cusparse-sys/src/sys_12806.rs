@@ -677,7 +677,7 @@ pub enum cusparseColorAlg_t {
     /// Selects native coloring algorithm variant 1.
     CUSPARSE_COLOR_ALG1 = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the cuSPARSE library and creates a handle on the cuSPARSE context. It must be called before any other cuSPARSE API function is invoked. It allocates hardware resources necessary for accessing the GPU.
     ///
     /// # Parameters
@@ -685,7 +685,7 @@ unsafe extern "C" {
     /// - `handle`: The pointer to the handle to the cuSPARSE context.
     pub fn cusparseCreate(handle: *mut cusparseHandle_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases CPU-side resources used by the cuSPARSE library. The release of GPU-side resources may be deferred until the application shuts down.
     ///
     /// # Parameters
@@ -693,7 +693,7 @@ unsafe extern "C" {
     /// - `handle`: The handle to the cuSPARSE context.
     pub fn cusparseDestroy(handle: cusparseHandle_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the version number of the cuSPARSE library.
     ///
     /// # Parameters
@@ -705,7 +705,7 @@ unsafe extern "C" {
         version: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function returns the value of the requested property. Refer to [`libraryPropertyType`] for supported types.
     ///
     /// [`libraryPropertyType`] (defined in `library_types.h`).
@@ -719,7 +719,7 @@ unsafe extern "C" {
         value: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function returns the string representation of an error code enum name. If the error code is not recognized, “unrecognized error code” is returned.
     ///
     /// # Parameters
@@ -727,7 +727,7 @@ unsafe extern "C" {
     /// - `status`: Error code to convert to string.
     pub fn cusparseGetErrorName(status: cusparseStatus_t) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// # Parameters
     ///
     /// - `status`: Error code to convert to string.
@@ -735,7 +735,7 @@ unsafe extern "C" {
         status: cusparseStatus_t,
     ) -> *const ::core::ffi::c_char;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the stream to be used by the cuSPARSE library to execute its routines.
     ///
     /// # Parameters
@@ -747,7 +747,7 @@ unsafe extern "C" {
         streamId: cudaStream_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function gets the cuSPARSE library stream, which is being used to to execute all calls to the cuSPARSE library functions. If the cuSPARSE library stream is not set, all kernels use the default NULL stream.
     ///
     /// # Parameters
@@ -759,7 +759,7 @@ unsafe extern "C" {
         streamId: *mut cudaStream_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function obtains the pointer mode used by the cuSPARSE library. Please see the section on the [`cusparsePointerMode_t`] type for more details.
     ///
     /// # Parameters
@@ -771,7 +771,7 @@ unsafe extern "C" {
         mode: *mut cusparsePointerMode_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the pointer mode used by the cuSPARSE library. The `default` is for the values to be passed by reference on the host. Please see the section on the `cublasPointerMode_t` type for more details.
     ///
     /// # Parameters
@@ -791,7 +791,7 @@ pub type cusparseLoggerCallback_t = ::core::option::Option<
         message: *const ::core::ffi::c_char,
     ),
 >;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Experimental`: The function sets the logging callback function.
     ///
     /// where [`cusparseLoggerCallback_t`] has the following signature.
@@ -799,7 +799,7 @@ unsafe extern "C" {
         callback: cusparseLoggerCallback_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Experimental`: The function sets the logging output file. Note: once registered using this function call, the provided file handle must not be closed unless the function is called again to switch to a different file handle.
     ///
     /// # Parameters
@@ -807,7 +807,7 @@ unsafe extern "C" {
     /// - `file`: Pointer to an open file. File should have write permission.
     pub fn cusparseLoggerSetFile(file: *mut FILE) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Experimental`: The function opens a logging output file in the given path.
     ///
     /// # Parameters
@@ -817,7 +817,7 @@ unsafe extern "C" {
         logFile: *const ::core::ffi::c_char,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Experimental`: The function sets the value of the logging level. path.
     ///
     /// # Parameters
@@ -825,7 +825,7 @@ unsafe extern "C" {
     /// - `level`: Value of the logging level.
     pub fn cusparseLoggerSetLevel(level: ::core::ffi::c_int) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// `Experimental`: The function sets the value of the logging mask.
     ///
     /// # Parameters
@@ -833,11 +833,11 @@ unsafe extern "C" {
     /// - `mask`: Value of the logging mask.
     pub fn cusparseLoggerSetMask(mask: ::core::ffi::c_int) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Disables the cuSPARSE logger regardless of its configured logging level.
     pub fn cusparseLoggerForceDisable() -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the matrix descriptor. It sets the fields `MatrixType` and `IndexBase` to the `default` values [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`] and [`cusparseIndexBase_t::CUSPARSE_INDEX_BASE_ZERO`], respectively, while leaving other fields uninitialized.
     ///
     /// # Parameters
@@ -845,7 +845,7 @@ unsafe extern "C" {
     /// - `descrA`: the pointer to the matrix descriptor.
     pub fn cusparseCreateMatDescr(descrA: *mut cusparseMatDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases the memory allocated for the matrix descriptor.
     ///
     /// # Parameters
@@ -853,7 +853,7 @@ unsafe extern "C" {
     /// - `descrA`: the matrix descriptor.
     pub fn cusparseDestroyMatDescr(descrA: cusparseMatDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `MatrixType` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -864,7 +864,7 @@ unsafe extern "C" {
         type_: cusparseMatrixType_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `MatrixType` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -872,7 +872,7 @@ unsafe extern "C" {
     /// - `descrA`: the matrix descriptor.
     pub fn cusparseGetMatType(descrA: cusparseMatDescr_t) -> cusparseMatrixType_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `FillMode` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -883,7 +883,7 @@ unsafe extern "C" {
         fillMode: cusparseFillMode_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `FillMode` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -891,7 +891,7 @@ unsafe extern "C" {
     /// - `descrA`: the matrix descriptor.
     pub fn cusparseGetMatFillMode(descrA: cusparseMatDescr_t) -> cusparseFillMode_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `DiagType` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -902,7 +902,7 @@ unsafe extern "C" {
         diagType: cusparseDiagType_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `DiagType` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -910,7 +910,7 @@ unsafe extern "C" {
     /// - `descrA`: the matrix descriptor.
     pub fn cusparseGetMatDiagType(descrA: cusparseMatDescr_t) -> cusparseDiagType_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `IndexBase` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -921,7 +921,7 @@ unsafe extern "C" {
         base: cusparseIndexBase_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `IndexBase` field of the matrix descriptor `descrA`.
     ///
     /// # Parameters
@@ -929,7 +929,7 @@ unsafe extern "C" {
     /// - `descrA`: the matrix descriptor.
     pub fn cusparseGetMatIndexBase(descrA: cusparseMatDescr_t) -> cusparseIndexBase_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the solve and analysis structure of incomplete Cholesky to `default` values.
     ///
     /// # Parameters
@@ -938,7 +938,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateCsric02Info(info: *mut csric02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -947,7 +947,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyCsric02Info(info: csric02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the solve and analysis structure of block incomplete Cholesky to `default` values.
     ///
     /// # Parameters
@@ -956,7 +956,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateBsric02Info(info: *mut bsric02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -965,7 +965,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyBsric02Info(info: bsric02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the solve and analysis structure of incomplete LU to `default` values.
     ///
     /// # Parameters
@@ -974,7 +974,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateCsrilu02Info(info: *mut csrilu02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -983,7 +983,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyCsrilu02Info(info: csrilu02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the solve and analysis structure of block incomplete LU to `default` values.
     ///
     /// # Parameters
@@ -992,7 +992,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateBsrilu02Info(info: *mut bsrilu02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -1001,7 +1001,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyBsrilu02Info(info: bsrilu02Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the solve and analysis structure of bsrsv2 to `default` values.
     ///
     /// # Parameters
@@ -1010,7 +1010,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateBsrsv2Info(info: *mut bsrsv2Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -1019,7 +1019,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyBsrsv2Info(info: bsrsv2Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the solve and analysis structure of bsrsm2 to `default` values.
     ///
     /// # Parameters
@@ -1028,7 +1028,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateBsrsm2Info(info: *mut bsrsm2Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -1037,15 +1037,15 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyBsrsm2Info(info: bsrsm2Info_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates host-side permutation state for converting between unsorted and sorted CSR. Writes the handle to `info`; release it with [`cusparseDestroyCsru2csrInfo`].
     pub fn cusparseCreateCsru2csrInfo(info: *mut csru2csrInfo_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Releases permutation state created by [`cusparseCreateCsru2csrInfo`].
     pub fn cusparseDestroyCsru2csrInfo(info: csru2csrInfo_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes the [`cusparseColorInfo_t`] structure to `default` values.
     ///
     /// # Parameters
@@ -1054,7 +1054,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreateColorInfo(info: *mut cusparseColorInfo_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -1063,7 +1063,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyColorInfo(info: cusparseColorInfo_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates and initializes structure of `prune` to `default` values.
     ///
     /// # Parameters
@@ -1072,7 +1072,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseCreatePruneInfo(info: *mut pruneInfo_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function destroys and releases any memory required by the structure.
     ///
     /// # Parameters
@@ -1081,7 +1081,7 @@ unsafe extern "C" {
     #[deprecated]
     pub fn cusparseDestroyPruneInfo(info: pruneInfo_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// `A` is an $m \times n$ dense matrix and a sparse vector `x` that is defined in a sparse storage format by the two arrays `xVal, xInd` of length `nnz`, and `y` is a dense vector; $\alpha \\;$ and $\beta \\;$ are scalars; and:
@@ -1118,7 +1118,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for multiplication of a dense matrix by a sparse vector. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -1133,7 +1133,7 @@ unsafe extern "C" {
         pBufferSize: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// `A` is an $m \times n$ dense matrix and a sparse vector `x` that is defined in a sparse storage format by the two arrays `xVal, xInd` of length `nnz`, and `y` is a dense vector; $\alpha \\;$ and $\beta \\;$ are scalars; and:
@@ -1170,7 +1170,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for multiplication of a dense matrix by a sparse vector. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -1185,7 +1185,7 @@ unsafe extern "C" {
         pBufferSize: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// `A` is an $m \times n$ dense matrix and a sparse vector `x` that is defined in a sparse storage format by the two arrays `xVal, xInd` of length `nnz`, and `y` is a dense vector; $\alpha \\;$ and $\beta \\;$ are scalars; and:
@@ -1222,7 +1222,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for multiplication of a dense matrix by a sparse vector. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -1237,7 +1237,7 @@ unsafe extern "C" {
         pBufferSize: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// `A` is an $m \times n$ dense matrix and a sparse vector `x` that is defined in a sparse storage format by the two arrays `xVal, xInd` of length `nnz`, and `y` is a dense vector; $\alpha \\;$ and $\beta \\;$ are scalars; and:
@@ -1274,7 +1274,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for multiplication of a dense matrix by a sparse vector. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -1289,7 +1289,7 @@ unsafe extern "C" {
         pBufferSize: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSR storage format by the three arrays `bsrVal`, `bsrRowPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{ and }\beta$ are scalars; and:
@@ -1339,7 +1339,7 @@ unsafe extern "C" {
         y: *mut f32,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSR storage format by the three arrays `bsrVal`, `bsrRowPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{ and }\beta$ are scalars; and:
@@ -1389,7 +1389,7 @@ unsafe extern "C" {
         y: *mut f64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSR storage format by the three arrays `bsrVal`, `bsrRowPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{ and }\beta$ are scalars; and:
@@ -1439,7 +1439,7 @@ unsafe extern "C" {
         y: *mut cuComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the matrix-vector operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSR storage format by the three arrays `bsrVal`, `bsrRowPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{ and }\beta$ are scalars; and:
@@ -1489,7 +1489,7 @@ unsafe extern "C" {
         y: *mut cuDoubleComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs a `bsrmv` and a mask operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSRX storage format by the four arrays `bsrVal`, `bsrRowPtr`, `bsrEndPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -1567,7 +1567,7 @@ unsafe extern "C" {
         y: *mut f32,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs a `bsrmv` and a mask operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSRX storage format by the four arrays `bsrVal`, `bsrRowPtr`, `bsrEndPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -1645,7 +1645,7 @@ unsafe extern "C" {
         y: *mut f64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs a `bsrmv` and a mask operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSRX storage format by the four arrays `bsrVal`, `bsrRowPtr`, `bsrEndPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -1723,7 +1723,7 @@ unsafe extern "C" {
         y: *mut cuComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs a `bsrmv` and a mask operation
     ///
     /// where $A\text{ is an }(mb \ast blockDim) \times (nb \ast blockDim)$ sparse matrix that is defined in BSRX storage format by the four arrays `bsrVal`, `bsrRowPtr`, `bsrEndPtr`, and `bsrColInd`); `x` and `y` are vectors; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -1801,7 +1801,7 @@ unsafe extern "C" {
         y: *mut cuDoubleComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the returned error code is [`cusparseStatus_t::CUSPARSE_STATUS_ZERO_PIVOT`], `position=j` means `A(j,j)` is either structural zero or numerical zero (singular block). Otherwise `position=-1`.
     ///
     /// The `position` can be 0-based or 1-based, the same as the matrix.
@@ -1824,7 +1824,7 @@ unsafe extern "C" {
         position: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -1862,7 +1862,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -1900,7 +1900,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -1938,7 +1938,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -1976,7 +1976,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular vector solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -1997,7 +1997,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular vector solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2018,7 +2018,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular vector solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2039,7 +2039,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular vector solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2060,7 +2060,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2108,7 +2108,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2156,7 +2156,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2204,7 +2204,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2252,7 +2252,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2305,7 +2305,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2358,7 +2358,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2411,7 +2411,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of `bsrsv2`, a new sparse triangular linear system `op(A)*y =`$\alpha$`x`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `x` and `y` are the right-hand-side and the solution vectors; $\alpha$ is a scalar; and:
@@ -2464,7 +2464,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs one of the following matrix-matrix operations:
     ///
     /// `A` is an $mb \times kb$ sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`; `B` and `C` are dense matrices; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -2532,7 +2532,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs one of the following matrix-matrix operations:
     ///
     /// `A` is an $mb \times kb$ sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`; `B` and `C` are dense matrices; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -2600,7 +2600,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs one of the following matrix-matrix operations:
     ///
     /// `A` is an $mb \times kb$ sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`; `B` and `C` are dense matrices; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -2668,7 +2668,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs one of the following matrix-matrix operations:
     ///
     /// `A` is an $mb \times kb$ sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`; `B` and `C` are dense matrices; $\alpha\text{~and~}\beta$ are scalars; and:
@@ -2736,7 +2736,7 @@ unsafe extern "C" {
         ldc: ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the returned error code is [`cusparseStatus_t::CUSPARSE_STATUS_ZERO_PIVOT`], `position=j` means `A(j,j)` is either a structural zero or a numerical zero (singular block). Otherwise `position=-1`.
     ///
     /// The `position` can be 0-base or 1-base, the same as the matrix.
@@ -2759,7 +2759,7 @@ unsafe extern "C" {
         position: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X)=`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -2793,7 +2793,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X)=`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -2827,7 +2827,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X)=`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -2861,7 +2861,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X)=`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -2895,7 +2895,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular matrix solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2918,7 +2918,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular matrix solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2941,7 +2941,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular matrix solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2964,7 +2964,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a block-sparse triangular matrix solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -2987,7 +2987,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X) =`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -3043,7 +3043,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X) =`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -3099,7 +3099,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X) =`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -3155,7 +3155,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of `bsrsm2()`, a new sparse triangular linear system `op(A)*op(X) =`$\alpha$`op(B)`.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar; and
@@ -3211,7 +3211,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the solution of a sparse triangular linear system:
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar, and
@@ -3278,7 +3278,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the solution of a sparse triangular linear system:
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar, and
@@ -3345,7 +3345,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the solution of a sparse triangular linear system:
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar, and
@@ -3412,7 +3412,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the solution of a sparse triangular linear system:
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`); `B` and `X` are the right-hand-side and the solution matrices; $\alpha$ is a scalar, and
@@ -3479,7 +3479,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. The `tol` is used to determine a numerical zero, and the `boost_val` is used to replace a numerical zero. The behavior is
     ///
     /// if `tol >= fabs(A(j,j))`, then `A(j,j)=boost_val`.
@@ -3509,7 +3509,7 @@ unsafe extern "C" {
         boost_val: *mut f32,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. The `tol` is used to determine a numerical zero, and the `boost_val` is used to replace a numerical zero. The behavior is
     ///
     /// if `tol >= fabs(A(j,j))`, then `A(j,j)=boost_val`.
@@ -3539,7 +3539,7 @@ unsafe extern "C" {
         boost_val: *mut f64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. The `tol` is used to determine a numerical zero, and the `boost_val` is used to replace a numerical zero. The behavior is
     ///
     /// if `tol >= fabs(A(j,j))`, then `A(j,j)=boost_val`.
@@ -3569,7 +3569,7 @@ unsafe extern "C" {
         boost_val: *mut cuComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. The `tol` is used to determine a numerical zero, and the `boost_val` is used to replace a numerical zero. The behavior is
     ///
     /// if `tol >= fabs(A(j,j))`, then `A(j,j)=boost_val`.
@@ -3599,7 +3599,7 @@ unsafe extern "C" {
         boost_val: *mut cuDoubleComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the returned error code is [`cusparseStatus_t::CUSPARSE_STATUS_ZERO_PIVOT`], `position=j` means `A(j,j)` has either a structural zero or a numerical zero; otherwise, `position=-1`.
     ///
     /// The `position` can be 0-based or 1-based, the same as the matrix.
@@ -3622,7 +3622,7 @@ unsafe extern "C" {
         position: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in computing the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3649,7 +3649,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in computing the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3676,7 +3676,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in computing the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3703,7 +3703,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of the buffer used in computing the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3730,7 +3730,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -3748,7 +3748,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -3766,7 +3766,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -3784,7 +3784,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -3802,7 +3802,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3833,7 +3833,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3864,7 +3864,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3895,7 +3895,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -3926,7 +3926,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA_valM`, `csrRowPtrA`, and `csrColIndA`.
@@ -3959,7 +3959,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA_valM`, `csrRowPtrA`, and `csrColIndA`.
@@ -3992,7 +3992,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA_valM`, `csrRowPtrA`, and `csrColIndA`.
@@ -4025,7 +4025,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA_valM`, `csrRowPtrA`, and `csrColIndA`.
@@ -4058,7 +4058,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. Parameter `tol` is used to determine a numerical zero, and `boost_val` is used to replace a numerical zero. The behavior is as follows:
     ///
     /// if `tol >= fabs(A(j,j))`, then reset each diagonal element of block `A(j,j)` by `boost_val`.
@@ -4088,7 +4088,7 @@ unsafe extern "C" {
         boost_val: *mut f32,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. Parameter `tol` is used to determine a numerical zero, and `boost_val` is used to replace a numerical zero. The behavior is as follows:
     ///
     /// if `tol >= fabs(A(j,j))`, then reset each diagonal element of block `A(j,j)` by `boost_val`.
@@ -4118,7 +4118,7 @@ unsafe extern "C" {
         boost_val: *mut f64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. Parameter `tol` is used to determine a numerical zero, and `boost_val` is used to replace a numerical zero. The behavior is as follows:
     ///
     /// if `tol >= fabs(A(j,j))`, then reset each diagonal element of block `A(j,j)` by `boost_val`.
@@ -4148,7 +4148,7 @@ unsafe extern "C" {
         boost_val: *mut cuComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The user can use a boost value to replace a numerical value in incomplete LU factorization. Parameter `tol` is used to determine a numerical zero, and `boost_val` is used to replace a numerical zero. The behavior is as follows:
     ///
     /// if `tol >= fabs(A(j,j))`, then reset each diagonal element of block `A(j,j)` by `boost_val`.
@@ -4178,7 +4178,7 @@ unsafe extern "C" {
         boost_val: *mut cuDoubleComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the returned error code is [`cusparseStatus_t::CUSPARSE_STATUS_ZERO_PIVOT`], `position=j` means `A(j,j)` has either a structural zero or a numerical zero (the block is not invertible). Otherwise `position=-1`.
     ///
     /// The `position` can be 0-based or 1-based, the same as the matrix.
@@ -4201,7 +4201,7 @@ unsafe extern "C" {
         position: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in computing the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -4238,7 +4238,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in computing the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -4275,7 +4275,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in computing the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -4312,7 +4312,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in computing the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -4349,7 +4349,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4369,7 +4369,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4389,7 +4389,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4409,7 +4409,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-LU factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4429,7 +4429,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// |  |
@@ -4468,7 +4468,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// |  |
@@ -4507,7 +4507,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// |  |
@@ -4546,7 +4546,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// |  |
@@ -4585,7 +4585,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)×(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored. Function `bsrilu02()` supports an arbitrary `blockDim`.
@@ -4620,7 +4620,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)×(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored. Function `bsrilu02()` supports an arbitrary `blockDim`.
@@ -4655,7 +4655,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)×(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored. Function `bsrilu02()` supports an arbitrary `blockDim`.
@@ -4690,7 +4690,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-LU factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)×(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored. Function `bsrilu02()` supports an arbitrary `blockDim`.
@@ -4725,7 +4725,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the returned error code is [`cusparseStatus_t::CUSPARSE_STATUS_ZERO_PIVOT`], `position=j` means `A(j,j)` has either a structural zero or a numerical zero; otherwise, `position=-1`.
     ///
     /// The `position` can be 0-based or 1-based, the same as the matrix.
@@ -4748,7 +4748,7 @@ unsafe extern "C" {
         position: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -4775,7 +4775,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -4802,7 +4802,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -4829,7 +4829,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns size of buffer used in computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -4856,7 +4856,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4874,7 +4874,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4892,7 +4892,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4910,7 +4910,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -4928,7 +4928,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -4961,7 +4961,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -4994,7 +4994,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -5027,7 +5027,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// `A` is an $m \times m$ sparse matrix that is defined in CSR storage format by the three arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`.
@@ -5060,7 +5060,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// This function requires a buffer size returned by `csric02_bufferSize()`. The address of `pBuffer` must be a multiple of 128 bytes. If not, [`cusparseStatus_t::CUSPARSE_STATUS_INVALID_VALUE`] is returned.
@@ -5091,7 +5091,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// This function requires a buffer size returned by `csric02_bufferSize()`. The address of `pBuffer` must be a multiple of 128 bytes. If not, [`cusparseStatus_t::CUSPARSE_STATUS_INVALID_VALUE`] is returned.
@@ -5122,7 +5122,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// This function requires a buffer size returned by `csric02_bufferSize()`. The address of `pBuffer` must be a multiple of 128 bytes. If not, [`cusparseStatus_t::CUSPARSE_STATUS_INVALID_VALUE`] is returned.
@@ -5153,7 +5153,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the computing the incomplete-Cholesky factorization with $0$ fill-in and no pivoting:
     ///
     /// This function requires a buffer size returned by `csric02_bufferSize()`. The address of `pBuffer` must be a multiple of 128 bytes. If not, [`cusparseStatus_t::CUSPARSE_STATUS_INVALID_VALUE`] is returned.
@@ -5184,7 +5184,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// If the returned error code is [`cusparseStatus_t::CUSPARSE_STATUS_ZERO_PIVOT`], `position=j` means `A(j,j)` has either a structural zero or a numerical zero (the block is not positive definite). Otherwise `position=-1`.
     ///
     /// The `position` can be 0-based or 1-based, the same as the matrix.
@@ -5207,7 +5207,7 @@ unsafe extern "C" {
         position: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of a buffer used in computing the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)*(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -5236,7 +5236,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of a buffer used in computing the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)*(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -5265,7 +5265,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of a buffer used in computing the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)*(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -5294,7 +5294,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of a buffer used in computing the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)*(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`.
@@ -5323,7 +5323,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5343,7 +5343,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5363,7 +5363,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5383,7 +5383,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for block-sparse incomplete-Cholesky factorization. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5403,7 +5403,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5438,7 +5438,7 @@ unsafe extern "C" {
         pInputBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5473,7 +5473,7 @@ unsafe extern "C" {
         pInputBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5508,7 +5508,7 @@ unsafe extern "C" {
         pInputBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the analysis phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5543,7 +5543,7 @@ unsafe extern "C" {
         pInputBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5580,7 +5580,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5617,7 +5617,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5654,7 +5654,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the solve phase of the incomplete-Cholesky factorization with 0 fill-in and no pivoting.
     ///
     /// `A` is an `(mb*blockDim)x(mb*blockDim)` sparse matrix that is defined in BSR storage format by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`. The block in BSR format is of size `blockDim*blockDim`, stored as column-major or row-major as determined by parameter `dirA`, which is either [`cusparseDirection_t::CUSPARSE_DIRECTION_COLUMN`] or [`cusparseDirection_t::CUSPARSE_DIRECTION_ROW`]. The matrix type must be [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`], and the fill mode and diagonal type are ignored.
@@ -5691,7 +5691,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a tridiagonal linear solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5709,7 +5709,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a tridiagonal linear solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5727,7 +5727,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a tridiagonal linear solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5745,7 +5745,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a tridiagonal linear solve. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -5763,7 +5763,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5803,7 +5803,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5843,7 +5843,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5883,7 +5883,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5923,7 +5923,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2_nopivot` which computes the solution of a tridiagonal linear system with multiple right-hand sides.
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5943,7 +5943,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2_nopivot` which computes the solution of a tridiagonal linear system with multiple right-hand sides.
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5963,7 +5963,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2_nopivot` which computes the solution of a tridiagonal linear system with multiple right-hand sides.
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -5983,7 +5983,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2_nopivot` which computes the solution of a tridiagonal linear system with multiple right-hand sides.
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6003,7 +6003,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6031,7 +6031,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6059,7 +6059,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6087,7 +6087,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of a tridiagonal linear system with multiple right-hand sides:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6115,7 +6115,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2StridedBatch` which computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6135,7 +6135,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2StridedBatch` which computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6155,7 +6155,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2StridedBatch` which computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6175,7 +6175,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the size of the buffer used in `gtsv2StridedBatch` which computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6195,7 +6195,7 @@ unsafe extern "C" {
         bufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6223,7 +6223,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6251,7 +6251,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6279,7 +6279,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `X`. Notice that solution `Y` overwrites right-hand-side matrix `X` on exit. The different matrices are assumed to be of the same size and are stored with a fixed `batchStride` in memory.
@@ -6307,7 +6307,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched tridiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6325,7 +6325,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched tridiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6343,7 +6343,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched tridiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6361,7 +6361,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched tridiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6379,7 +6379,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6423,7 +6423,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6467,7 +6467,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6511,7 +6511,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple tridiagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these tri-diagonal linear system is defined with three vectors corresponding to its lower (`dl`), main (`d`), and upper (`du`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6555,7 +6555,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched pentadiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6575,7 +6575,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched pentadiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6595,7 +6595,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched pentadiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6615,7 +6615,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for batched pentadiagonal solves with interleaved storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6635,7 +6635,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple penta-diagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these penta-diagonal linear system is defined with five vectors corresponding to its lower (`ds, dl`), main (`d`), and upper (`du, dw`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6691,7 +6691,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple penta-diagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these penta-diagonal linear system is defined with five vectors corresponding to its lower (`ds, dl`), main (`d`), and upper (`du, dw`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6747,7 +6747,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple penta-diagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these penta-diagonal linear system is defined with five vectors corresponding to its lower (`ds, dl`), main (`d`), and upper (`du, dw`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6803,7 +6803,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the solution of multiple penta-diagonal linear systems for *i*=0,…,`batchCount`:
     ///
     /// The coefficient matrix `A` of each of these penta-diagonal linear system is defined with five vectors corresponding to its lower (`ds, dl`), main (`d`), and upper (`du, dw`) matrix diagonals; the right-hand sides are stored in the dense matrix `B`. Notice that solution `X` overwrites right-hand-side matrix `B` on exit.
@@ -6859,7 +6859,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// ############################################################################## # EXTRA ROUTINES ##############################################################################
     pub fn cusparseScsrgeam2_bufferSizeExt(
         handle: cusparseHandle_t,
@@ -6884,7 +6884,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for addition of two CSR matrices. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6913,7 +6913,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for addition of two CSR matrices. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6942,7 +6942,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for addition of two CSR matrices. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -6971,7 +6971,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total stored-entry count for the sum of two CSR matrices. Allocate the result index and value arrays from this count before calling the typed `csrgeam2` routine.
     pub fn cusparseXcsrgeam2Nnz(
         handle: cusparseHandle_t,
@@ -6991,7 +6991,7 @@ unsafe extern "C" {
         workspace: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs following matrix-matrix operation
     ///
     /// where `A`, `B`, and `C` are $m \times n$ sparse matrices (defined in CSR storage format by the three arrays `csrValA|csrValB|csrValC`, `csrRowPtrA|csrRowPtrB|csrRowPtrC`, and `csrColIndA|csrColIndB|csrcolIndC` respectively), and $\alpha\text{~and~}\beta$ are scalars. Since `A` and `B` have different sparsity patterns, cuSPARSE adopts a two-step approach to complete sparse matrix `C`. In the first step, the user allocates `csrRowPtrC` of `m+1 `elements and uses function [`cusparseXcsrgeam2Nnz`] to determine `csrRowPtrC` and the total number of nonzero elements. In the second step, the user gathers `nnzC` (number of nonzero elements of matrix `C`) from either `(nnzC=*nnzTotalDevHostPtr)` or `(nnzC=csrRowPtrC(m)-csrRowPtrC(0))` and allocates `csrValC, csrColIndC` of `nnzC` elements respectively, then finally calls function `cusparse\[S|D|C|Z\]csrgeam2()` to complete matrix `C`.
@@ -7032,7 +7032,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs following matrix-matrix operation
     ///
     /// where `A`, `B`, and `C` are $m \times n$ sparse matrices (defined in CSR storage format by the three arrays `csrValA|csrValB|csrValC`, `csrRowPtrA|csrRowPtrB|csrRowPtrC`, and `csrColIndA|csrColIndB|csrcolIndC` respectively), and $\alpha\text{~and~}\beta$ are scalars. Since `A` and `B` have different sparsity patterns, cuSPARSE adopts a two-step approach to complete sparse matrix `C`. In the first step, the user allocates `csrRowPtrC` of `m+1 `elements and uses function [`cusparseXcsrgeam2Nnz`] to determine `csrRowPtrC` and the total number of nonzero elements. In the second step, the user gathers `nnzC` (number of nonzero elements of matrix `C`) from either `(nnzC=*nnzTotalDevHostPtr)` or `(nnzC=csrRowPtrC(m)-csrRowPtrC(0))` and allocates `csrValC, csrColIndC` of `nnzC` elements respectively, then finally calls function `cusparse\[S|D|C|Z\]csrgeam2()` to complete matrix `C`.
@@ -7073,7 +7073,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs following matrix-matrix operation
     ///
     /// where `A`, `B`, and `C` are $m \times n$ sparse matrices (defined in CSR storage format by the three arrays `csrValA|csrValB|csrValC`, `csrRowPtrA|csrRowPtrB|csrRowPtrC`, and `csrColIndA|csrColIndB|csrcolIndC` respectively), and $\alpha\text{~and~}\beta$ are scalars. Since `A` and `B` have different sparsity patterns, cuSPARSE adopts a two-step approach to complete sparse matrix `C`. In the first step, the user allocates `csrRowPtrC` of `m+1 `elements and uses function [`cusparseXcsrgeam2Nnz`] to determine `csrRowPtrC` and the total number of nonzero elements. In the second step, the user gathers `nnzC` (number of nonzero elements of matrix `C`) from either `(nnzC=*nnzTotalDevHostPtr)` or `(nnzC=csrRowPtrC(m)-csrRowPtrC(0))` and allocates `csrValC, csrColIndC` of `nnzC` elements respectively, then finally calls function `cusparse\[S|D|C|Z\]csrgeam2()` to complete matrix `C`.
@@ -7114,7 +7114,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs following matrix-matrix operation
     ///
     /// where `A`, `B`, and `C` are $m \times n$ sparse matrices (defined in CSR storage format by the three arrays `csrValA|csrValB|csrValC`, `csrRowPtrA|csrRowPtrB|csrRowPtrC`, and `csrColIndA|csrColIndB|csrcolIndC` respectively), and $\alpha\text{~and~}\beta$ are scalars. Since `A` and `B` have different sparsity patterns, cuSPARSE adopts a two-step approach to complete sparse matrix `C`. In the first step, the user allocates `csrRowPtrC` of `m+1 `elements and uses function [`cusparseXcsrgeam2Nnz`] to determine `csrRowPtrC` and the total number of nonzero elements. In the second step, the user gathers `nnzC` (number of nonzero elements of matrix `C`) from either `(nnzC=*nnzTotalDevHostPtr)` or `(nnzC=csrRowPtrC(m)-csrRowPtrC(0))` and allocates `csrValC, csrColIndC` of `nnzC` elements respectively, then finally calls function `cusparse\[S|D|C|Z\]csrgeam2()` to complete matrix `C`.
@@ -7155,7 +7155,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the coloring of the adjacency graph associated with the matrix A stored in CSR format. The coloring is an assignment of colors (integer numbers) to nodes, such that neighboring nodes have distinct colors. An approximate coloring algorithm is used in this routine, and is stopped when a certain percentage of nodes has been colored. The rest of the nodes are assigned distinct colors (an increasing sequence of integers numbers, starting from the last integer used previously). The last two auxiliary routines can be used to extract the resulting number of colors, their assignment and the associated reordering. The reordering is such that nodes that have been assigned the same color are reordered to be next to each other.
     ///
     /// The matrix A passed to this routine, must be stored as a general matrix and have a symmetric sparsity pattern. If the matrix is nonsymmetric the user should pass A+A^T as a parameter to this routine.
@@ -7184,7 +7184,7 @@ unsafe extern "C" {
         info: cusparseColorInfo_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the coloring of the adjacency graph associated with the matrix A stored in CSR format. The coloring is an assignment of colors (integer numbers) to nodes, such that neighboring nodes have distinct colors. An approximate coloring algorithm is used in this routine, and is stopped when a certain percentage of nodes has been colored. The rest of the nodes are assigned distinct colors (an increasing sequence of integers numbers, starting from the last integer used previously). The last two auxiliary routines can be used to extract the resulting number of colors, their assignment and the associated reordering. The reordering is such that nodes that have been assigned the same color are reordered to be next to each other.
     ///
     /// The matrix A passed to this routine, must be stored as a general matrix and have a symmetric sparsity pattern. If the matrix is nonsymmetric the user should pass A+A^T as a parameter to this routine.
@@ -7213,7 +7213,7 @@ unsafe extern "C" {
         info: cusparseColorInfo_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the coloring of the adjacency graph associated with the matrix A stored in CSR format. The coloring is an assignment of colors (integer numbers) to nodes, such that neighboring nodes have distinct colors. An approximate coloring algorithm is used in this routine, and is stopped when a certain percentage of nodes has been colored. The rest of the nodes are assigned distinct colors (an increasing sequence of integers numbers, starting from the last integer used previously). The last two auxiliary routines can be used to extract the resulting number of colors, their assignment and the associated reordering. The reordering is such that nodes that have been assigned the same color are reordered to be next to each other.
     ///
     /// The matrix A passed to this routine, must be stored as a general matrix and have a symmetric sparsity pattern. If the matrix is nonsymmetric the user should pass A+A^T as a parameter to this routine.
@@ -7242,7 +7242,7 @@ unsafe extern "C" {
         info: cusparseColorInfo_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the coloring of the adjacency graph associated with the matrix A stored in CSR format. The coloring is an assignment of colors (integer numbers) to nodes, such that neighboring nodes have distinct colors. An approximate coloring algorithm is used in this routine, and is stopped when a certain percentage of nodes has been colored. The rest of the nodes are assigned distinct colors (an increasing sequence of integers numbers, starting from the last integer used previously). The last two auxiliary routines can be used to extract the resulting number of colors, their assignment and the associated reordering. The reordering is such that nodes that have been assigned the same color are reordered to be next to each other.
     ///
     /// The matrix A passed to this routine, must be stored as a general matrix and have a symmetric sparsity pattern. If the matrix is nonsymmetric the user should pass A+A^T as a parameter to this routine.
@@ -7271,7 +7271,7 @@ unsafe extern "C" {
         info: cusparseColorInfo_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the number of nonzero elements per row or column and the total number of nonzero elements in a dense matrix.
     ///
     /// * This function requires temporary extra storage that is allocated internally.
@@ -7293,7 +7293,7 @@ unsafe extern "C" {
         nnzTotalDevHostPtr: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the number of nonzero elements per row or column and the total number of nonzero elements in a dense matrix.
     ///
     /// * This function requires temporary extra storage that is allocated internally.
@@ -7315,7 +7315,7 @@ unsafe extern "C" {
         nnzTotalDevHostPtr: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the number of nonzero elements per row or column and the total number of nonzero elements in a dense matrix.
     ///
     /// * This function requires temporary extra storage that is allocated internally.
@@ -7337,7 +7337,7 @@ unsafe extern "C" {
         nnzTotalDevHostPtr: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the number of nonzero elements per row or column and the total number of nonzero elements in a dense matrix.
     ///
     /// * This function requires temporary extra storage that is allocated internally.
@@ -7359,7 +7359,7 @@ unsafe extern "C" {
         nnzTotalDevHostPtr: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is the step one to convert from csr format to compressed csr format.
     ///
     /// Given a sparse matrix A and a non-negative value threshold, the function returns nnzPerRow(the number of nonzeros columns per row) and nnzC(the total number of nonzeros) of a sparse matrix C, defined by
@@ -7385,7 +7385,7 @@ unsafe extern "C" {
         tol: f32,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is the step one to convert from csr format to compressed csr format.
     ///
     /// Given a sparse matrix A and a non-negative value threshold, the function returns nnzPerRow(the number of nonzeros columns per row) and nnzC(the total number of nonzeros) of a sparse matrix C, defined by
@@ -7411,7 +7411,7 @@ unsafe extern "C" {
         tol: f64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is the step one to convert from csr format to compressed csr format.
     ///
     /// Given a sparse matrix A and a non-negative value threshold, the function returns nnzPerRow(the number of nonzeros columns per row) and nnzC(the total number of nonzeros) of a sparse matrix C, defined by
@@ -7437,7 +7437,7 @@ unsafe extern "C" {
         tol: cuComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function is the step one to convert from csr format to compressed csr format.
     ///
     /// Given a sparse matrix A and a non-negative value threshold, the function returns nnzPerRow(the number of nonzeros columns per row) and nnzC(the total number of nonzeros) of a sparse matrix C, defined by
@@ -7463,7 +7463,7 @@ unsafe extern "C" {
         tol: cuDoubleComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies a CSR matrix into compressed CSR storage, retaining entries whose magnitudes exceed `tol`. Supply per-row retained counts from the matching `nnz_compress` routine and allocate the destination arrays for their total.
     pub fn cusparseScsr2csr_compress(
         handle: cusparseHandle_t,
@@ -7481,7 +7481,7 @@ unsafe extern "C" {
         tol: f32,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies a CSR matrix into compressed CSR storage, retaining entries whose magnitudes exceed `tol`. Supply per-row retained counts from the matching `nnz_compress` routine and allocate the destination arrays for their total.
     pub fn cusparseDcsr2csr_compress(
         handle: cusparseHandle_t,
@@ -7499,7 +7499,7 @@ unsafe extern "C" {
         tol: f64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies a CSR matrix into compressed CSR storage, retaining entries whose magnitudes exceed `tol`. Supply per-row retained counts from the matching `nnz_compress` routine and allocate the destination arrays for their total.
     pub fn cusparseCcsr2csr_compress(
         handle: cusparseHandle_t,
@@ -7517,7 +7517,7 @@ unsafe extern "C" {
         tol: cuComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Copies a CSR matrix into compressed CSR storage, retaining entries whose magnitudes exceed `tol`. Supply per-row retained counts from the matching `nnz_compress` routine and allocate the destination arrays for their total.
     pub fn cusparseZcsr2csr_compress(
         handle: cusparseHandle_t,
@@ -7535,7 +7535,7 @@ unsafe extern "C" {
         tol: cuDoubleComplex,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts the array containing the uncompressed row indices (corresponding to COO format) into an array of compressed row pointers (corresponding to CSR format).
     ///
     /// It can also be used to convert the array containing the uncompressed column indices (corresponding to COO format) into an array of column pointers (corresponding to CSC format).
@@ -7552,7 +7552,7 @@ unsafe extern "C" {
         idxBase: cusparseIndexBase_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts the array containing the compressed row pointers (corresponding to CSR format) into an array of uncompressed row indices (corresponding to COO format).
     ///
     /// It can also be used to convert the array containing the compressed column indices (corresponding to CSC format) into an array of uncompressed column indices (corresponding to COO format).
@@ -7573,7 +7573,7 @@ unsafe extern "C" {
         idxBase: cusparseIndexBase_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the block-row offsets and total number of stored square blocks for CSR-to-BSR conversion. Use that block count to allocate output arrays before the typed conversion.
     pub fn cusparseXcsr2bsrNnz(
         handle: cusparseHandle_t,
@@ -7589,7 +7589,7 @@ unsafe extern "C" {
         nnzTotalDevHostPtr: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Converts CSR values and column indices to square-block BSR storage. Obtain the block-row offsets and stored-block count from [`cusparseXcsr2bsrNnz`] and allocate the destination arrays before conversion.
     pub fn cusparseScsr2bsr(
         handle: cusparseHandle_t,
@@ -7607,7 +7607,7 @@ unsafe extern "C" {
         bsrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Converts CSR values and column indices to square-block BSR storage. Obtain the block-row offsets and stored-block count from [`cusparseXcsr2bsrNnz`] and allocate the destination arrays before conversion.
     pub fn cusparseDcsr2bsr(
         handle: cusparseHandle_t,
@@ -7625,7 +7625,7 @@ unsafe extern "C" {
         bsrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Converts CSR values and column indices to square-block BSR storage. Obtain the block-row offsets and stored-block count from [`cusparseXcsr2bsrNnz`] and allocate the destination arrays before conversion.
     pub fn cusparseCcsr2bsr(
         handle: cusparseHandle_t,
@@ -7643,7 +7643,7 @@ unsafe extern "C" {
         bsrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Converts CSR values and column indices to square-block BSR storage. Obtain the block-row offsets and stored-block count from [`cusparseXcsr2bsrNnz`] and allocate the destination arrays before conversion.
     pub fn cusparseZcsr2bsr(
         handle: cusparseHandle_t,
@@ -7661,7 +7661,7 @@ unsafe extern "C" {
         bsrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -7693,7 +7693,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -7725,7 +7725,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -7757,7 +7757,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -7789,7 +7789,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7808,7 +7808,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7827,7 +7827,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7846,7 +7846,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7865,7 +7865,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7884,7 +7884,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7903,7 +7903,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7922,7 +7922,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from rectangular block-row to rectangular block-column sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -7941,7 +7941,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function can be seen as the same as `csr2csc()` when each block of size `rowBlockDim*colBlockDim` is regarded as a scalar.
     ///
     /// This sparsity pattern of the result matrix can also be seen as the transpose of the original sparse matrix, but the memory layout of a block does not change.
@@ -7975,7 +7975,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function can be seen as the same as `csr2csc()` when each block of size `rowBlockDim*colBlockDim` is regarded as a scalar.
     ///
     /// This sparsity pattern of the result matrix can also be seen as the transpose of the original sparse matrix, but the memory layout of a block does not change.
@@ -8009,7 +8009,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function can be seen as the same as `csr2csc()` when each block of size `rowBlockDim*colBlockDim` is regarded as a scalar.
     ///
     /// This sparsity pattern of the result matrix can also be seen as the transpose of the original sparse matrix, but the memory layout of a block does not change.
@@ -8043,7 +8043,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function can be seen as the same as `csr2csc()` when each block of size `rowBlockDim*colBlockDim` is regarded as a scalar.
     ///
     /// This sparsity pattern of the result matrix can also be seen as the transpose of the original sparse matrix, but the memory layout of a block does not change.
@@ -8077,7 +8077,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -8108,7 +8108,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -8141,7 +8141,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -8174,7 +8174,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -8207,7 +8207,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA`) into a sparse matrix in CSR format that is defined by arrays `csrValC`, `csrRowPtrC`, and `csrColIndC`.
     ///
     /// Let `m(=mb*blockDim)` be the number of rows of `A` and `n(=nb*blockDim)` be number of columns of `A`, then `A` and `C` are `m*n` sparse matrices. The BSR format of `A` contains `nnzb(=bsrRowPtrA\[mb\] - bsrRowPtrA\[0\])` nonzero blocks, whereas the sparse matrix `A` contains `nnz(=nnzb*blockDim*blockDim)` elements. The user must allocate enough space for arrays `csrRowPtrC`, `csrColIndC`, and `csrValC`. The requirements are as follows:
@@ -8240,7 +8240,7 @@ unsafe extern "C" {
         csrSortedColIndC: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8260,7 +8260,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8280,7 +8280,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8300,7 +8300,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8320,7 +8320,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8340,7 +8340,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8360,7 +8360,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8380,7 +8380,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion from CSR to rectangular block-row sparse storage. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8400,7 +8400,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes block-row offsets and the number of stored rectangular blocks for CSR-to-GEBSR conversion. Use the same block dimensions in the subsequent typed conversion.
     pub fn cusparseXcsr2gebsrNnz(
         handle: cusparseHandle_t,
@@ -8418,7 +8418,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix `A` in CSR format (that is defined by arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`) into a sparse matrix `C` in general BSR format (that is defined by the three arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`).
     ///
     /// The matrix A is an :math: m times n sparse matrix and matrix `C` is a `(mb*rowBlockDim)*(nb*colBlockDim)` sparse matrix, where `mb(=(m+rowBlockDim-1)/rowBlockDim)` is the number of block rows of `C`, and `nb(=(n+colBlockDim-1)/colBlockDim)` is the number of block columns of `C`.
@@ -8460,7 +8460,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix `A` in CSR format (that is defined by arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`) into a sparse matrix `C` in general BSR format (that is defined by the three arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`).
     ///
     /// The matrix A is an :math: m times n sparse matrix and matrix `C` is a `(mb*rowBlockDim)*(nb*colBlockDim)` sparse matrix, where `mb(=(m+rowBlockDim-1)/rowBlockDim)` is the number of block rows of `C`, and `nb(=(n+colBlockDim-1)/colBlockDim)` is the number of block columns of `C`.
@@ -8502,7 +8502,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix `A` in CSR format (that is defined by arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`) into a sparse matrix `C` in general BSR format (that is defined by the three arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`).
     ///
     /// The matrix A is an :math: m times n sparse matrix and matrix `C` is a `(mb*rowBlockDim)*(nb*colBlockDim)` sparse matrix, where `mb(=(m+rowBlockDim-1)/rowBlockDim)` is the number of block rows of `C`, and `nb(=(n+colBlockDim-1)/colBlockDim)` is the number of block columns of `C`.
@@ -8544,7 +8544,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix `A` in CSR format (that is defined by arrays `csrValA`, `csrRowPtrA`, and `csrColIndA`) into a sparse matrix `C` in general BSR format (that is defined by the three arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`).
     ///
     /// The matrix A is an :math: m times n sparse matrix and matrix `C` is a `(mb*rowBlockDim)*(nb*colBlockDim)` sparse matrix, where `mb(=(m+rowBlockDim-1)/rowBlockDim)` is the number of block rows of `C`, and `nb(=(n+colBlockDim-1)/colBlockDim)` is the number of block columns of `C`.
@@ -8586,7 +8586,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8609,7 +8609,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8632,7 +8632,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8655,7 +8655,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8678,7 +8678,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8701,7 +8701,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8724,7 +8724,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8747,7 +8747,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for conversion between rectangular block-row formats with different block dimensions. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8770,7 +8770,7 @@ unsafe extern "C" {
         pBufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes block-row offsets and the number of stored blocks after changing GEBSR block dimensions. Allocate output arrays from that block count before the typed conversion.
     pub fn cusparseXgebsr2gebsrNnz(
         handle: cusparseHandle_t,
@@ -8791,7 +8791,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in general BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA` into a sparse matrix in another general BSR format that is defined by arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`.
     ///
     /// If `rowBlockDimA=1` and `colBlockDimA=1`, `cusparse\[S|D|C|Z\]gebsr2gebsr()` is the same as `cusparse\[S|D|C|Z\]csr2gebsr()`.
@@ -8830,7 +8830,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in general BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA` into a sparse matrix in another general BSR format that is defined by arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`.
     ///
     /// If `rowBlockDimA=1` and `colBlockDimA=1`, `cusparse\[S|D|C|Z\]gebsr2gebsr()` is the same as `cusparse\[S|D|C|Z\]csr2gebsr()`.
@@ -8869,7 +8869,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in general BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA` into a sparse matrix in another general BSR format that is defined by arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`.
     ///
     /// If `rowBlockDimA=1` and `colBlockDimA=1`, `cusparse\[S|D|C|Z\]gebsr2gebsr()` is the same as `cusparse\[S|D|C|Z\]csr2gebsr()`.
@@ -8908,7 +8908,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in general BSR format that is defined by the three arrays `bsrValA`, `bsrRowPtrA`, and `bsrColIndA` into a sparse matrix in another general BSR format that is defined by arrays `bsrValC`, `bsrRowPtrC`, and `bsrColIndC`.
     ///
     /// If `rowBlockDimA=1` and `colBlockDimA=1`, `cusparse\[S|D|C|Z\]gebsr2gebsr()` is the same as `cusparse\[S|D|C|Z\]csr2gebsr()`.
@@ -8947,7 +8947,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function creates an identity map. The output parameter `p` represents such map by `p = 0:1:(n-1)`.
     ///
     /// This function is typically used with `coosort`, `csrsort`, `cscsort`.
@@ -8962,7 +8962,7 @@ unsafe extern "C" {
         p: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting COO row and column indices. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -8978,7 +8978,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sorts COO row and column index arrays in place by row, with columns ordered within each row. When `P` is provided, it records the permutation needed to reorder the corresponding values.
     pub fn cusparseXcoosortByRow(
         handle: cusparseHandle_t,
@@ -8991,7 +8991,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sorts COO row and column index arrays in place by column, with rows ordered within each column. When `P` is provided, it records the permutation needed to reorder the corresponding values.
     pub fn cusparseXcoosortByColumn(
         handle: cusparseHandle_t,
@@ -9004,7 +9004,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting column indices within CSR rows. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9020,7 +9020,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sorts CSR format. The stable sorting is in-place.
     ///
     /// The matrix type is regarded as [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`] implicitly. In other words, any symmetric property is ignored.
@@ -9046,7 +9046,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting row indices within CSC columns. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9062,7 +9062,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sorts CSC format. The stable sorting is in-place.
     ///
     /// The matrix type is regarded as [`cusparseMatrixType_t::CUSPARSE_MATRIX_TYPE_GENERAL`] implicitly. In other words, any symmetric property is ignored.
@@ -9088,7 +9088,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting an unsorted CSR matrix while retaining its permutation. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9106,7 +9106,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting an unsorted CSR matrix while retaining its permutation. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9124,7 +9124,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting an unsorted CSR matrix while retaining its permutation. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9142,7 +9142,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sorting an unsorted CSR matrix while retaining its permutation. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9160,7 +9160,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sorts CSR column indices and their corresponding values in place, retaining the permutation in `info`. The first conversion creates the permutation and subsequent conversions reuse it. Provide the temporary buffer sized by the corresponding `csru2csr_bufferSizeExt` query.
     pub fn cusparseScsru2csr(
         handle: cusparseHandle_t,
@@ -9175,7 +9175,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sorts CSR column indices and their corresponding values in place, retaining the permutation in `info`. The first conversion creates the permutation and subsequent conversions reuse it. Provide the temporary buffer sized by the corresponding `csru2csr_bufferSizeExt` query.
     pub fn cusparseDcsru2csr(
         handle: cusparseHandle_t,
@@ -9190,7 +9190,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sorts CSR column indices and their corresponding values in place, retaining the permutation in `info`. The first conversion creates the permutation and subsequent conversions reuse it. Provide the temporary buffer sized by the corresponding `csru2csr_bufferSizeExt` query.
     pub fn cusparseCcsru2csr(
         handle: cusparseHandle_t,
@@ -9205,7 +9205,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Sorts CSR column indices and their corresponding values in place, retaining the permutation in `info`. The first conversion creates the permutation and subsequent conversions reuse it. Provide the temporary buffer sized by the corresponding `csru2csr_bufferSizeExt` query.
     pub fn cusparseZcsru2csr(
         handle: cusparseHandle_t,
@@ -9220,7 +9220,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Restores the original unsorted CSR ordering in place using the permutation retained by the preceding `csru2csr` conversion in `info`. The matrix structure must correspond to that stored permutation.
     pub fn cusparseScsr2csru(
         handle: cusparseHandle_t,
@@ -9235,7 +9235,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Restores the original unsorted CSR ordering in place using the permutation retained by the preceding `csru2csr` conversion in `info`. The matrix structure must correspond to that stored permutation.
     pub fn cusparseDcsr2csru(
         handle: cusparseHandle_t,
@@ -9250,7 +9250,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Restores the original unsorted CSR ordering in place using the permutation retained by the preceding `csru2csr` conversion in `info`. The matrix structure must correspond to that stored permutation.
     pub fn cusparseCcsr2csru(
         handle: cusparseHandle_t,
@@ -9265,7 +9265,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Restores the original unsorted CSR ordering in place using the permutation retained by the preceding `csru2csr` conversion in `info`. The matrix structure must correspond to that stored permutation.
     pub fn cusparseZcsr2csru(
         handle: cusparseHandle_t,
@@ -9280,7 +9280,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for threshold-based pruning of a dense matrix into CSR. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9300,7 +9300,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for threshold-based pruning of a dense matrix into CSR. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9320,7 +9320,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the dense input matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseSpruneDense2csrNnz(
         handle: cusparseHandle_t,
@@ -9335,7 +9335,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the dense input matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseDpruneDense2csrNnz(
         handle: cusparseHandle_t,
@@ -9350,7 +9350,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the dense input matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseSpruneDense2csr(
         handle: cusparseHandle_t,
@@ -9366,7 +9366,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the dense input matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseDpruneDense2csr(
         handle: cusparseHandle_t,
@@ -9382,7 +9382,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for threshold-based pruning of a CSR matrix. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9405,7 +9405,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for threshold-based pruning of a CSR matrix. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9428,7 +9428,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the input CSR matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseSpruneCsr2csrNnz(
         handle: cusparseHandle_t,
@@ -9446,7 +9446,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the input CSR matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseDpruneCsr2csrNnz(
         handle: cusparseHandle_t,
@@ -9464,7 +9464,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the input CSR matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseSpruneCsr2csr(
         handle: cusparseHandle_t,
@@ -9483,7 +9483,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the input CSR matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. Entries are retained only when their magnitudes exceed the non-negative value at `threshold`.
     pub fn cusparseDpruneCsr2csr(
         handle: cusparseHandle_t,
@@ -9502,7 +9502,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for percentage-based pruning of a dense matrix into CSR. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9523,7 +9523,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for percentage-based pruning of a dense matrix into CSR. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9544,7 +9544,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the dense input matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseSpruneDense2csrNnzByPercentage(
         handle: cusparseHandle_t,
@@ -9560,7 +9560,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the dense input matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseDpruneDense2csrNnzByPercentage(
         handle: cusparseHandle_t,
@@ -9576,7 +9576,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the dense input matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseSpruneDense2csrByPercentage(
         handle: cusparseHandle_t,
@@ -9593,7 +9593,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the dense input matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseDpruneDense2csrByPercentage(
         handle: cusparseHandle_t,
@@ -9610,7 +9610,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for percentage-based pruning of a CSR matrix. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9634,7 +9634,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for percentage-based pruning of a CSR matrix. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9658,7 +9658,7 @@ unsafe extern "C" {
         pBufferSizeInBytes: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the input CSR matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseSpruneCsr2csrNnzByPercentage(
         handle: cusparseHandle_t,
@@ -9677,7 +9677,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes the CSR row offsets and total number of entries retained when pruning the input CSR matrix. Allocate the output column-index and value arrays from this count before the matching conversion phase. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseDpruneCsr2csrNnzByPercentage(
         handle: cusparseHandle_t,
@@ -9696,7 +9696,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the input CSR matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseSpruneCsr2csrByPercentage(
         handle: cusparseHandle_t,
@@ -9716,7 +9716,7 @@ unsafe extern "C" {
         pBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes retained values and column indices from the input CSR matrix to the destination CSR arrays. Supply row offsets from the matching pruning nonzero-count phase and preallocate the destination arrays for that count. The threshold is selected from sorted entry magnitudes according to `percentage`; use the same percentage and pruning state in both phases.
     pub fn cusparseDpruneCsr2csrByPercentage(
         handle: cusparseHandle_t,
@@ -9747,7 +9747,7 @@ pub enum cusparseCsr2CscAlg_t {
     /// Uses the native default CSR-to-CSC conversion algorithm.
     CUSPARSE_CSR2CSC_ALG_DEFAULT = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function converts a sparse matrix in CSR format (that is defined by the three arrays `csrVal`, `csrRowPtr`, and `csrColInd`) into a sparse matrix in CSC format (that is defined by arrays `cscVal`, `cscRowInd`, and `cscColPtr`). The resulting matrix can also be seen as the transpose of the original sparse matrix. Notice that this routine can also be used to convert a matrix in CSC format into a matrix in CSR format.
     ///
     /// The routine requires extra storage proportional to the number of nonzero values `nnz`. It provides in output always the same matrix.
@@ -9830,7 +9830,7 @@ unsafe extern "C" {
         buffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for CSR-to-CSC conversion. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -9932,7 +9932,7 @@ pub type cusparseConstDnVecDescr_t = *const cusparseDnVecDescr;
 pub type cusparseConstSpMatDescr_t = *const cusparseSpMatDescr;
 /// Read-only host descriptor borrowing storage for a dense matrix. Destroy the descriptor with [`cusparseDestroyDnMat`]; the storage remains owned by the caller.
 pub type cusparseConstDnMatDescr_t = *const cusparseDnMatDescr;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spVecDescr`.
     ///
     /// [`cusparseCreateSpVec`] has the following constraints:
@@ -9960,7 +9960,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only sparse vector indices and values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstSpVec(
         spVecDescr: *mut cusparseConstSpVecDescr_t,
@@ -9973,7 +9973,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases the host memory allocated for the sparse vector descriptor `spVecDescr`.
     ///
     /// # Parameters
@@ -9983,7 +9983,7 @@ unsafe extern "C" {
         spVecDescr: cusparseConstSpVecDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the sparse vector descriptor `spVecDescr`.
     ///
     /// # Parameters
@@ -10007,7 +10007,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for sparse vector indices and values. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstSpVecGet(
         spVecDescr: cusparseConstSpVecDescr_t,
@@ -10020,7 +10020,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `idxBase` field of the sparse vector descriptor `spVecDescr`.
     ///
     /// # Parameters
@@ -10032,7 +10032,7 @@ unsafe extern "C" {
         idxBase: *mut cusparseIndexBase_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `values` field of the sparse vector descriptor `spVecDescr`.
     ///
     /// # Parameters
@@ -10044,14 +10044,14 @@ unsafe extern "C" {
         values: *mut *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a read-only pointer to the caller-owned value array recorded in the descriptor. The array remains owned by the caller.
     pub fn cusparseConstSpVecGetValues(
         spVecDescr: cusparseConstSpVecDescr_t,
         values: *mut *const ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `values` field of the sparse vector descriptor `spVecDescr`.
     ///
     /// [`cusparseDnVecSetValues`] has the following constraints:
@@ -10067,7 +10067,7 @@ unsafe extern "C" {
         values: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the dense vector descriptor `dnVecDescr`.
     ///
     /// [`cusparseCreateDnVec`] has the following constraints:
@@ -10087,7 +10087,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only dense vector values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstDnVec(
         dnVecDescr: *mut cusparseConstDnVecDescr_t,
@@ -10096,7 +10096,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases the host memory allocated for the dense vector descriptor `dnVecDescr`.
     ///
     /// # Parameters
@@ -10106,7 +10106,7 @@ unsafe extern "C" {
         dnVecDescr: cusparseConstDnVecDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the dense vector descriptor `dnVecDescr`.
     ///
     /// # Parameters
@@ -10122,7 +10122,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for dense vector values. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstDnVecGet(
         dnVecDescr: cusparseConstDnVecDescr_t,
@@ -10131,7 +10131,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `values` field of the dense vector descriptor `dnVecDescr`.
     ///
     /// # Parameters
@@ -10143,14 +10143,14 @@ unsafe extern "C" {
         values: *mut *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a read-only pointer to the caller-owned value array recorded in the descriptor. The array remains owned by the caller.
     pub fn cusparseConstDnVecGetValues(
         dnVecDescr: cusparseConstDnVecDescr_t,
         values: *mut *const ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `values` field of the dense vector descriptor `dnVecDescr`.
     ///
     /// [`cusparseDnVecSetValues`] has the following constraints:
@@ -10166,7 +10166,7 @@ unsafe extern "C" {
         values: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases the host memory allocated for the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10176,7 +10176,7 @@ unsafe extern "C" {
         spMatDescr: cusparseConstSpMatDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `format` field of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10188,7 +10188,7 @@ unsafe extern "C" {
         format: *mut cusparseFormat_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `idxBase` field of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10200,7 +10200,7 @@ unsafe extern "C" {
         idxBase: *mut cusparseIndexBase_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `values` field of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10212,14 +10212,14 @@ unsafe extern "C" {
         values: *mut *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a read-only pointer to the caller-owned value array recorded in the descriptor. The array remains owned by the caller.
     pub fn cusparseConstSpMatGetValues(
         spMatDescr: cusparseConstSpMatDescr_t,
         values: *mut *const ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `values` field of the sparse matrix descriptor `spMatDescr`.
     ///
     /// [`cusparseSpMatSetValues`] has the following constraints:
@@ -10235,7 +10235,7 @@ unsafe extern "C" {
         values: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the sizes of the sparse matrix `spMatDescr`.
     ///
     /// # Parameters
@@ -10251,7 +10251,7 @@ unsafe extern "C" {
         nnz: *mut i64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `batchCount` field of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10263,7 +10263,7 @@ unsafe extern "C" {
         batchCount: *mut ::core::ffi::c_int,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `batchCount` and the `batchStride` fields of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10277,7 +10277,7 @@ unsafe extern "C" {
         batchStride: i64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `batchCount` and the `batchStride` fields of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10293,7 +10293,7 @@ unsafe extern "C" {
         columnsValuesBatchStride: i64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `batchCount` and the `batchStride` fields of the sparse matrix descriptor `spMatDescr`.
     ///
     /// # Parameters
@@ -10319,7 +10319,7 @@ pub enum cusparseSpMatAttribute_t {
     /// Indicates if the matrix diagonal entries are unity
     CUSPARSE_SPMAT_DIAG_TYPE = 1,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function gets the attributes of the sparse matrix descriptor `spMatDescr`.
     ///
     /// | Attribute | Meaning | Possible Values |
@@ -10340,7 +10340,7 @@ unsafe extern "C" {
         dataSize: size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets the attributes of the sparse matrix descriptor `spMatDescr`
     ///
     /// | Attribute | Meaning | Possible Values |
@@ -10361,7 +10361,7 @@ unsafe extern "C" {
         dataSize: size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spMatDescr` in the CSR format.
     ///
     /// [`cusparseCreateCsr`] has the following constraints:
@@ -10395,7 +10395,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only CSR row offsets, column indices, and values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstCsr(
         spMatDescr: *mut cusparseConstSpMatDescr_t,
@@ -10411,7 +10411,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spMatDescr` in the CSC format.
     ///
     /// [`cusparseCreateCsc`] has the following constraints:
@@ -10445,7 +10445,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only CSC column offsets, row indices, and values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstCsc(
         spMatDescr: *mut cusparseConstSpMatDescr_t,
@@ -10461,7 +10461,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the sparse matrix descriptor `spMatDescr` stored in CSR format.
     ///
     /// # Parameters
@@ -10491,7 +10491,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for CSR row offsets, column indices, and values. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstCsrGet(
         spMatDescr: cusparseConstSpMatDescr_t,
@@ -10507,7 +10507,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the sparse matrix descriptor `spMatDescr` stored in CSC format.
     ///
     /// # Parameters
@@ -10537,7 +10537,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for CSC column offsets, row indices, and values. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstCscGet(
         spMatDescr: cusparseConstSpMatDescr_t,
@@ -10553,7 +10553,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the pointers of the sparse matrix descriptor `spMatDescr`.
     ///
     /// [`cusparseCsrSetPointers`] has the following constraints:
@@ -10573,7 +10573,7 @@ unsafe extern "C" {
         csrValues: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the pointers of the sparse matrix descriptor `spMatDescr`.
     ///
     /// [`cusparseCscSetPointers`] has the following constraints:
@@ -10593,7 +10593,7 @@ unsafe extern "C" {
         cscValues: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spMatDescr` for the Block Compressed Row (BSR) format.
     ///
     /// [`cusparseCreateBsr`] has the following constraints:
@@ -10633,7 +10633,7 @@ unsafe extern "C" {
         order: cusparseOrder_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only block-row offsets, block-column indices, and block values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstBsr(
         spMatDescr: *mut cusparseConstSpMatDescr_t,
@@ -10652,7 +10652,7 @@ unsafe extern "C" {
         order: cusparseOrder_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spMatDescr` in the COO format (Structure of Arrays layout).
     ///
     /// [`cusparseCreateCoo`] has the following constraints:
@@ -10684,7 +10684,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only COO row indices, column indices, and values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstCoo(
         spMatDescr: *mut cusparseConstSpMatDescr_t,
@@ -10699,7 +10699,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the sparse matrix descriptor `spMatDescr` stored in COO format (Array of Structures layout).
     ///
     /// # Parameters
@@ -10726,7 +10726,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for COO row indices, column indices, and values. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstCooGet(
         spMatDescr: cusparseConstSpMatDescr_t,
@@ -10741,7 +10741,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the pointers of the sparse matrix descriptor `spMatDescr`.
     ///
     /// [`cusparseCooSetPointers`] has the following constraints:
@@ -10761,7 +10761,7 @@ unsafe extern "C" {
         cooValues: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spMatDescr` for the Blocked-Ellpack (ELL) format.
     ///
     /// Blocked-ELL Column indices (`ellColInd`) are in the range `\[0, cols / ellBlockSize -1\]`. The array can contain `-1` values for indicating empty blocks.
@@ -10791,7 +10791,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only blocked-ELL column indices and block values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstBlockedEll(
         spMatDescr: *mut cusparseConstSpMatDescr_t,
@@ -10806,7 +10806,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the sparse matrix descriptor `spMatDescr` stored in Blocked-Ellpack (ELL) format.
     ///
     /// # Parameters
@@ -10834,7 +10834,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for blocked-ELL column indices and block values. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstBlockedEllGet(
         spMatDescr: cusparseConstSpMatDescr_t,
@@ -10849,7 +10849,7 @@ unsafe extern "C" {
         valueType: *mut cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function initializes the sparse matrix descriptor `spMatDescr` for the Sliced Ellpack (SELL) format.
     ///
     /// [`cusparseCreateSlicedEll`] has the following constraints:
@@ -10887,7 +10887,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only sliced-ELL slice offsets, column indices, and values. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstSlicedEll(
         spMatDescr: *mut cusparseConstSpMatDescr_t,
@@ -10905,7 +10905,7 @@ unsafe extern "C" {
         valueType: cudaDataType,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function initializes the dense matrix descriptor `dnMatDescr`.
     ///
     /// [`cusparseCreateDnMat`] has the following constraints:
@@ -10931,7 +10931,7 @@ unsafe extern "C" {
         order: cusparseOrder_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates a host descriptor borrowing read-only dense matrix values and its leading dimension and storage order. The descriptor records dimensions, index and value types, and format options; it does not take ownership of the caller's data arrays.
     pub fn cusparseCreateConstDnMat(
         dnMatDescr: *mut cusparseConstDnMatDescr_t,
@@ -10943,7 +10943,7 @@ unsafe extern "C" {
         order: cusparseOrder_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function releases the host memory allocated for the dense matrix descriptor `dnMatDescr`.
     ///
     /// # Parameters
@@ -10953,7 +10953,7 @@ unsafe extern "C" {
         dnMatDescr: cusparseConstDnMatDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the fields of the dense matrix descriptor `dnMatDescr`.
     ///
     /// # Parameters
@@ -10974,7 +10974,7 @@ unsafe extern "C" {
         order: *mut cusparseOrder_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns the dimensions, format metadata, and read-only storage pointers recorded in the descriptor for dense matrix values and its leading dimension and storage order. The descriptor and underlying arrays remain owned by their existing owners.
     pub fn cusparseConstDnMatGet(
         dnMatDescr: cusparseConstDnMatDescr_t,
@@ -10986,7 +10986,7 @@ unsafe extern "C" {
         order: *mut cusparseOrder_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function returns the `values` field of the dense matrix descriptor `dnMatDescr`.
     ///
     /// # Parameters
@@ -10998,14 +10998,14 @@ unsafe extern "C" {
         values: *mut *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Returns a read-only pointer to the caller-owned value array recorded in the descriptor. The array remains owned by the caller.
     pub fn cusparseConstDnMatGetValues(
         dnMatDescr: cusparseConstDnMatDescr_t,
         values: *mut *const ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function sets the `values` field of the dense matrix descriptor `dnMatDescr`.
     ///
     /// [`cusparseDnMatSetValues`] has the following constraints:
@@ -11021,7 +11021,7 @@ unsafe extern "C" {
         values: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function sets the number of batches and the batch stride of the dense matrix descriptor `dnMatDescr`.
     ///
     /// # Parameters
@@ -11035,7 +11035,7 @@ unsafe extern "C" {
         batchStride: i64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function returns the number of batches and the batch stride of the dense matrix descriptor `dnMatDescr`.
     ///
     /// # Parameters
@@ -11049,7 +11049,7 @@ unsafe extern "C" {
         batchStride: *mut i64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function computes the sum of a sparse vector `vecX` and a dense vector `vecY`.
     ///
     /// In other words,
@@ -11120,7 +11120,7 @@ unsafe extern "C" {
         vecY: cusparseDnVecDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function gathers the elements of the dense vector `vecY` into the sparse vector `vecX`
     ///
     /// In other words,
@@ -11177,7 +11177,7 @@ unsafe extern "C" {
         vecX: cusparseSpVecDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function scatters the elements of the sparse vector `vecX` into the dense vector `vecY`
     ///
     /// In other words,
@@ -11235,7 +11235,7 @@ unsafe extern "C" {
         vecY: cusparseDnVecDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function computes the Givens rotation matrix
     ///
     /// to a sparse `vecX` and a dense vector `vecY`
@@ -11306,7 +11306,7 @@ unsafe extern "C" {
         vecY: cusparseDnVecDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for a sparse-dense vector inner product. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11322,7 +11322,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function computes the inner dot product of a sparse vector `vecX` and a dense vector `vecY`
     ///
     /// In other words,
@@ -11408,7 +11408,7 @@ pub enum cusparseSparseToDenseAlg_t {
     /// Uses the default sparse-to-dense conversion algorithm.
     CUSPARSE_SPARSETODENSE_ALG_DEFAULT = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse-to-dense matrix conversion. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11422,7 +11422,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function converts the sparse matrix `matA` in CSR, CSC, or COO format into its dense representation `matB`. Blocked-ELL is not currently supported.
     ///
     /// The function [`cusparseSparseToDense_bufferSize`] returns the size of the workspace needed by [`cusparseSparseToDense`].
@@ -11487,7 +11487,7 @@ pub enum cusparseDenseToSparseAlg_t {
     /// Uses the default dense-to-sparse conversion algorithm.
     CUSPARSE_DENSETOSPARSE_ALG_DEFAULT = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for the analysis phase of dense-to-sparse matrix conversion. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11501,7 +11501,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Analyzes a dense matrix to determine the stored-entry count of the destination sparse descriptor. Query workspace first; allocate and attach the destination sparse index and value arrays before calling [`cusparseDenseToSparse_convert`].
     pub fn cusparseDenseToSparse_analysis(
         handle: cusparseHandle_t,
@@ -11511,7 +11511,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes sparse indices and values for the dense input using the structure determined by [`cusparseDenseToSparse_analysis`]. The caller must allocate and attach the destination sparse arrays before conversion.
     pub fn cusparseDenseToSparse_convert(
         handle: cusparseHandle_t,
@@ -11540,7 +11540,7 @@ pub enum cusparseSpMVAlg_t {
     /// Default algorithm for BSR sparse matrix format. Provides deterministic (bit-wise) results for each run. Supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE`. Supports both row-major and column-major block layouts in `A`.
     CUSPARSE_SPMV_BSR_ALG1 = 6,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the multiplication of a sparse matrix `matA` and a dense vector `vecX`
     ///
     /// where
@@ -11695,7 +11695,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse matrix-vector multiplication and optional preprocessing. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11714,7 +11714,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Optionally preprocesses a sparse matrix for subsequent matrix-vector products. The resulting active buffer is associated with the sparse descriptor; preserve that buffer and the sparsity pattern and follow the native parameter-reuse constraints for subsequent [`cusparseSpMV`] calls.
     pub fn cusparseSpMV_preprocess(
         handle: cusparseHandle_t,
@@ -11753,15 +11753,15 @@ pub struct cusparseSpSVDescr {
 }
 /// Opaque state shared across the phases of a sparse triangular vector solve. Create and destroy it with [`cusparseSpSV_createDescr`] and [`cusparseSpSV_destroyDescr`].
 pub type cusparseSpSVDescr_t = *mut cusparseSpSVDescr;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates host-side state shared across the phases of sparse triangular vector solve. Writes the descriptor handle to `descr`; release it with [`cusparseSpSV_destroyDescr`].
     pub fn cusparseSpSV_createDescr(descr: *mut cusparseSpSVDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Releases the opaque sparse triangular vector solve state created by [`cusparseSpSV_createDescr`].
     pub fn cusparseSpSV_destroyDescr(descr: cusparseSpSVDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse triangular vector-solve analysis and execution. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11780,7 +11780,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Analyzes the sparse triangular system for a vector right-hand side and stores reusable solve state in the solve descriptor. Supply the workspace sized by [`cusparseSpSV_bufferSize`]; preserve the analyzed matrix structure, compatible options, and workspace for subsequent solves.
     pub fn cusparseSpSV_analysis(
         handle: cusparseHandle_t,
@@ -11795,7 +11795,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Solves the previously analyzed sparse triangular system for a vector right-hand side. Use the solve descriptor initialized by [`cusparseSpSV_analysis`] and keep its matrix structure, compatible options, and workspace valid. `alpha` scales the right-hand side.
     pub fn cusparseSpSV_solve(
         handle: cusparseHandle_t,
@@ -11809,7 +11809,7 @@ unsafe extern "C" {
         spsvDescr: cusparseSpSVDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Updates an analyzed triangular-solve descriptor with matrix values from `newValues`. `updatePart` selects a complete value update or a diagonal-only update; the analyzed sparsity pattern remains unchanged.
     pub fn cusparseSpSV_updateMatrix(
         handle: cusparseHandle_t,
@@ -11842,15 +11842,15 @@ pub struct cusparseSpSMDescr {
 }
 /// Opaque state shared across the phases of a sparse triangular matrix solve. Create and destroy it with [`cusparseSpSM_createDescr`] and [`cusparseSpSM_destroyDescr`].
 pub type cusparseSpSMDescr_t = *mut cusparseSpSMDescr;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates host-side state shared across the phases of sparse triangular matrix solve. Writes the descriptor handle to `descr`; release it with [`cusparseSpSM_destroyDescr`].
     pub fn cusparseSpSM_createDescr(descr: *mut cusparseSpSMDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Releases the opaque sparse triangular matrix solve state created by [`cusparseSpSM_createDescr`].
     pub fn cusparseSpSM_destroyDescr(descr: cusparseSpSMDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse triangular matrix-solve analysis and execution. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11870,7 +11870,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Analyzes the sparse triangular system for a dense matrix of right-hand sides and stores reusable solve state in the solve descriptor. Supply the workspace sized by [`cusparseSpSM_bufferSize`]; preserve the analyzed matrix structure, compatible options, and workspace for subsequent solves.
     pub fn cusparseSpSM_analysis(
         handle: cusparseHandle_t,
@@ -11886,7 +11886,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Solves the previously analyzed sparse triangular system for a dense matrix of right-hand sides. Use the solve descriptor initialized by [`cusparseSpSM_analysis`] and keep its matrix structure, compatible options, and workspace valid. `alpha` scales the right-hand side.
     pub fn cusparseSpSM_solve(
         handle: cusparseHandle_t,
@@ -11901,7 +11901,7 @@ unsafe extern "C" {
         spsmDescr: cusparseSpSMDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Updates an analyzed triangular-solve descriptor with matrix values from `newValues`. `updatePart` selects a complete value update or a diagonal-only update; the analyzed sparsity pattern remains unchanged.
     pub fn cusparseSpSM_updateMatrix(
         handle: cusparseHandle_t,
@@ -11935,7 +11935,7 @@ pub enum cusparseSpMMAlg_t {
     /// Algorithm 1 for BSR sparse matrix format * It provides deterministic result * It requires no additional memory * It supports only `opA == CUSPARSE_OPERATION_NON_TRANSPOSE` * It does not support `CUDA_C_16F` and `CUDA_C_16BF` data types * It does not support column-major blocks in `A`
     CUSPARSE_SPMM_BSR_ALG1 = 14,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse-dense matrix multiplication and optional preprocessing. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -11955,7 +11955,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Optionally preprocesses a sparse matrix for subsequent sparse-dense matrix products. The resulting active buffer is associated with the sparse descriptor; preserve that buffer and the sparsity pattern and follow the native parameter-reuse constraints for subsequent [`cusparseSpMM`] calls.
     pub fn cusparseSpMM_preprocess(
         handle: cusparseHandle_t,
@@ -11971,7 +11971,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// The function performs the multiplication of a sparse matrix `matA` and a dense matrix `matB`.
     ///
     /// where
@@ -12248,17 +12248,17 @@ pub struct cusparseSpGEMMDescr {
 }
 /// Opaque state shared across the phases of sparse matrix multiplication. Create and destroy it with [`cusparseSpGEMM_createDescr`] and [`cusparseSpGEMM_destroyDescr`].
 pub type cusparseSpGEMMDescr_t = *mut cusparseSpGEMMDescr;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates host-side state shared across the phases of sparse matrix multiplication. Writes the descriptor handle to `descr`; release it with [`cusparseSpGEMM_destroyDescr`].
     pub fn cusparseSpGEMM_createDescr(
         descr: *mut cusparseSpGEMMDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Releases the opaque sparse matrix multiplication state created by [`cusparseSpGEMM_createDescr`].
     pub fn cusparseSpGEMM_destroyDescr(descr: cusparseSpGEMMDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries workspace or estimates the intermediate work for sparse matrix multiplication, retaining phase state in `spgemmDescr`. A null `externalBuffer1` queries `bufferSize1` in bytes. With workspace supplied, this phase computes information used by subsequent phases; retain that buffer through [`cusparseSpGEMM_compute`].
     pub fn cusparseSpGEMM_workEstimation(
         handle: cusparseHandle_t,
@@ -12276,14 +12276,14 @@ unsafe extern "C" {
         externalBuffer1: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Writes the number of intermediate scalar products determined by [`cusparseSpGEMM_workEstimation`] to the host output `num_prods`.
     pub fn cusparseSpGEMM_getNumProducts(
         spgemmDescr: cusparseSpGEMMDescr_t,
         num_prods: *mut i64,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries or estimates the memory required by the selected sparse multiplication algorithm. `bufferSize3` describes estimation scratch storage and `bufferSize2` describes computation workspace, both in bytes. `chunk_fraction` controls chunking for algorithm 3.
     pub fn cusparseSpGEMM_estimateMemory(
         handle: cusparseHandle_t,
@@ -12303,7 +12303,7 @@ unsafe extern "C" {
         bufferSize2: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries computation workspace or computes intermediate sparse matrix products using state from the preceding work-estimation phase. `bufferSize2` is in bytes. The resulting state is finalized into the caller's output arrays by [`cusparseSpGEMM_copy`]; retain the computation workspace through that copy.
     pub fn cusparseSpGEMM_compute(
         handle: cusparseHandle_t,
@@ -12321,7 +12321,7 @@ unsafe extern "C" {
         externalBuffer2: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Finalizes sparse matrix multiplication by writing the computed structure and values to the arrays attached to `matC`. Complete the work-estimation and compute phases first, then allocate and attach output arrays using the reported nonzero count before this call.
     pub fn cusparseSpGEMM_copy(
         handle: cusparseHandle_t,
@@ -12337,7 +12337,7 @@ unsafe extern "C" {
         spgemmDescr: cusparseSpGEMMDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// ############################################################################# # SPARSE MATRIX - SPARSE MATRIX MULTIPLICATION (SpGEMM) STRUCTURE REUSE #############################################################################
     pub fn cusparseSpGEMMreuse_workEstimation(
         handle: cusparseHandle_t,
@@ -12352,7 +12352,7 @@ unsafe extern "C" {
         externalBuffer1: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the number of nonzero elements per row or column and the total number of nonzero elements in a dense matrix.
     ///
     /// * This function requires temporary extra storage that is allocated internally.
@@ -12375,7 +12375,7 @@ unsafe extern "C" {
         externalBuffer4: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries copy workspace or transfers the reusable sparse multiplication structure into the output matrix arrays after the reusable nonzero-count phase. `bufferSize5` is a byte count. The retained descriptor state supports later value computations with the same sparsity patterns.
     pub fn cusparseSpGEMMreuse_copy(
         handle: cusparseHandle_t,
@@ -12390,7 +12390,7 @@ unsafe extern "C" {
         externalBuffer5: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Computes new sparse matrix-product values using the structure retained by the preceding reusable SpGEMM setup phases. Uses `alpha` and `beta` to scale the product and existing output; the input and output sparsity patterns must match the retained state.
     pub fn cusparseSpGEMMreuse_compute(
         handle: cusparseHandle_t,
@@ -12423,17 +12423,17 @@ pub struct cusparseSpGEAMDescr {
 }
 /// Opaque state shared across the phases of sparse matrix addition. Create and destroy it with [`cusparseSpGEAM_createDescr`] and [`cusparseSpGEAM_destroyDescr`].
 pub type cusparseSpGEAMDescr_t = *mut cusparseSpGEAMDescr;
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates host-side state shared across the phases of sparse matrix addition. Writes the descriptor handle to `descr`; release it with [`cusparseSpGEAM_destroyDescr`].
     pub fn cusparseSpGEAM_createDescr(
         descr: *mut cusparseSpGEAMDescr_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Releases the opaque sparse matrix addition state created by [`cusparseSpGEAM_createDescr`].
     pub fn cusparseSpGEAM_destroyDescr(descr: cusparseSpGEAMDescr_t) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sparse matrix addition. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -12454,7 +12454,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function computes the number of nonzero elements per row or column and the total number of nonzero elements in a dense matrix.
     ///
     /// * This function requires temporary extra storage that is allocated internally.
@@ -12475,7 +12475,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the addition of two sparse matrices `matA` and `matB`.
     ///
     /// where $\alpha$ and $\beta$ are scalars.
@@ -12563,7 +12563,7 @@ pub enum cusparseSDDMMAlg_t {
     /// Default algorithm. It supports batched computation.
     CUSPARSE_SDDMM_ALG_DEFAULT = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Queries the temporary device buffer size required for sampled dense-dense matrix multiplication and optional preprocessing. Use the same matrix structure, dimensions, data types, and algorithm options for the query and subsequent phases.
     ///
     /// # Parameters
@@ -12583,7 +12583,7 @@ unsafe extern "C" {
         bufferSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Preprocesses the sampled dense-dense matrix multiplication described by the matrix descriptors, operations, compute type, and algorithm. Provide the temporary device buffer sized by [`cusparseSDDMM_bufferSize`] and use compatible parameters in the subsequent computation.
     pub fn cusparseSDDMM_preprocess(
         handle: cusparseHandle_t,
@@ -12599,7 +12599,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// This function performs the multiplication of `matA` and `matB`, followed by an element-wise multiplication with the sparsity pattern of `matC`. Formally, it performs the following operation:
     ///
     /// where
@@ -12792,7 +12792,7 @@ pub enum cusparseSpMMOpAlg_t {
     /// Default algorithm for any sparse matrix format
     CUSPARSE_SPMM_OP_ALG_DEFAULT = 0,
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Creates and compiles a sparse-dense matrix multiplication plan using the supplied addition, multiplication, and epilogue device operators in LTO IR. Writes the plan to `plan` and its workspace byte count to `SpMMWorkspaceSize`. Release the plan with [`cusparseSpMMOp_destroyPlan`].
     pub fn cusparseSpMMOp_createPlan(
         handle: cusparseHandle_t,
@@ -12813,7 +12813,7 @@ unsafe extern "C" {
         SpMMWorkspaceSize: *mut size_t,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// *NOTE 1:* NVRTC and nvJitLink are not currently available on Arm64 Android platforms.
     ///
     /// *NOTE 2:* The routine does not support Android and Tegra platforms except Judy (sm87).
@@ -12912,7 +12912,7 @@ unsafe extern "C" {
         externalBuffer: *mut ::core::ffi::c_void,
     ) -> cusparseStatus_t;
 }
-unsafe extern "C" {
+singe_loader::functions! { crate::LIBRARY;
     /// Releases the compiled kernel and native resources owned by a custom sparse-dense multiplication plan.
     pub fn cusparseSpMMOp_destroyPlan(plan: cusparseSpMMOpPlan_t) -> cusparseStatus_t;
 }

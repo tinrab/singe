@@ -30,8 +30,7 @@ impl Graph {
 
     /// Adds a reduction operation to the graph.
     ///
-    /// Reduction modes are controlled by [`ReduceTensorOperator`], with reduced
-    /// dimensions inferred from the input and output tensor shapes.
+    /// Reduction modes are controlled by [`ReduceTensorOperator`], with reduced dimensions inferred from the input and output tensor shapes.
     /// The explicit output keeps its shape, strides and encoding.
     /// Output geometry in `config` applies only to [`Self::reduction`].
     ///
@@ -75,6 +74,7 @@ impl Graph {
         if let Some(group_offset) = config.group_offset() {
             self.tensor_spec(group_offset)?;
         }
+
         let output_shape = config.infer_output_shape(&input_tensor.shape)?;
         let output = output.into_spec(
             self.config.data_type_policy,
@@ -93,11 +93,9 @@ impl Graph {
 
 impl Graph {
     /// Adds a user-defined reduction with explicit dimensions and accumulator identities.
-    /// Compilation requires native support for the user-defined reducer attributes;
-    /// header availability alone does not guarantee that support in the loaded runtime.
+    /// Compilation requires native support for the user-defined reducer attributes; header availability alone does not guarantee that support in the loaded runtime.
     /// Accumulators refer to tensor IDs within `body`, independently of the enclosing graph.
-    /// The body retains its own math defaults and passes through normal graph preparation
-    /// with the enclosing compilation's live context, or deviceless preparation.
+    /// The body retains its own math defaults and passes through normal graph preparation with the enclosing compilation's live context, or deviceless preparation.
     ///
     /// # Errors
     /// Returns an error for unknown operands or body tensors, incompatible identity encodings, or invalid reduction dimensions and output geometry.

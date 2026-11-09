@@ -173,8 +173,7 @@ impl<'a> AsyncIo<'a> {
     /// Enqueues a borrowed write from externally established initialized bytes.
     ///
     /// # Safety
-    /// Input bytes must be initialized when accessed, with prior producers ordered before this I/O.
-    /// Retain backing storage and read access until stream completion on every path, including forgotten handles.
+    /// Input bytes must be initialized when accessed, with prior producers ordered before this I/O. Retain backing storage and read access until stream completion on every path, including forgotten handles.
     ///
     /// # Errors
     ///

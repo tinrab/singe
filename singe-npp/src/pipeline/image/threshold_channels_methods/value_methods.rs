@@ -15,20 +15,19 @@ where
     L: ChannelLayout,
 {
     /// Replaces samples satisfying the selected native comparison with the corresponding replacement value.
-    /// Compares each source sample with its threshold. NPP supports `ComparisonOperation::Less`
-    /// and `ComparisonOperation::Greater`; the wrapper forwards other selectors without
-    /// validation. Samples not satisfying the comparison retain their source value.
-    /// The provided C3 and AC4 implementations use three entries per parameter array,
-    /// one per processed channel. AC4 alpha is excluded.
-    /// Writes into the equally sized destination. AC4 alpha retains its previous
-    /// initialization state; this call does not initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Compares each source sample with its threshold.
+    /// NPP supports `ComparisonOperation::Less` and `ComparisonOperation::Greater`; the wrapper forwards other selectors without validation.
+    /// Samples not satisfying the comparison retain their source value.
+    /// The provided C3 and AC4 implementations use three entries per parameter array, one per processed channel.
+    /// AC4 alpha is excluded.
+    /// Writes into the equally sized destination.
+    /// AC4 alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// NPP may reject unsupported comparison or threshold parameters.
     pub fn threshold_channels_value_into<const CHANNELS: usize>(
@@ -53,19 +52,19 @@ where
     }
 
     /// Replaces samples satisfying the selected native comparison with the corresponding replacement value.
-    /// Compares each source sample with its threshold. NPP supports `ComparisonOperation::Less`
-    /// and `ComparisonOperation::Greater`; the wrapper forwards other selectors without
-    /// validation. Samples not satisfying the comparison retain their source value.
-    /// The provided C3 and AC4 implementations use three entries per parameter array,
-    /// one per processed channel. AC4 alpha is excluded.
-    /// Updates the supplied image in place. AC4 alpha remains unchanged.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Compares each source sample with its threshold.
+    /// NPP supports `ComparisonOperation::Less` and `ComparisonOperation::Greater`; the wrapper forwards other selectors without validation.
+    /// Samples not satisfying the comparison retain their source value.
+    /// The provided C3 and AC4 implementations use three entries per parameter array, one per processed channel.
+    /// AC4 alpha is excluded.
+    /// Updates the supplied image in place.
+    /// AC4 alpha remains unchanged.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// NPP may reject unsupported comparison or threshold parameters.
     pub fn threshold_channels_value_in_place<const CHANNELS: usize>(
         stream_context: &StreamContext,
@@ -93,20 +92,19 @@ where
     L: ChannelLayout,
 {
     /// Replaces samples satisfying the selected native comparison with the corresponding replacement value.
-    /// Compares each source sample with its threshold. NPP supports `ComparisonOperation::Less`
-    /// and `ComparisonOperation::Greater`; the wrapper forwards other selectors without
-    /// validation. Samples not satisfying the comparison retain their source value.
-    /// The provided C3 and AC4 implementations use three entries per parameter array,
-    /// one per processed channel. AC4 alpha is excluded.
-    /// Reuses owned backing; borrowed input produces a new owned image. Preserves source
-    /// alpha for AC4.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Compares each source sample with its threshold.
+    /// NPP supports `ComparisonOperation::Less` and `ComparisonOperation::Greater`; the wrapper forwards other selectors without validation.
+    /// Samples not satisfying the comparison retain their source value.
+    /// The provided C3 and AC4 implementations use three entries per parameter array, one per processed channel.
+    /// AC4 alpha is excluded.
+    /// Reuses owned backing; borrowed input produces a new owned image.
+    /// Preserves source alpha for AC4.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native threshold execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native threshold execution, or stream synchronization fail.
     /// NPP may reject unsupported comparison or threshold parameters.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn threshold_channels_value<const CHANNELS: usize>(
@@ -144,6 +142,7 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 <Self as PackedValueThresholdImage<
                     T,
                     L,

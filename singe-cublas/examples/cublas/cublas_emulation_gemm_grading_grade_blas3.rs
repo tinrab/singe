@@ -51,6 +51,7 @@ fn cpu_gemm_real(n: usize, a: &[f64], b: &[f64]) -> Vec<f64> {
             for inner in 0..n {
                 sum += a[row + inner * n] * b[inner + col * n];
             }
+
             c[row + col * n] = sum;
         }
     }
@@ -65,6 +66,7 @@ fn cpu_gemm_complex(n: usize, a: &[Complex64], b: &[Complex64]) -> Vec<Complex64
             for inner in 0..n {
                 sum += a[row + inner * n] * b[inner + col * n];
             }
+
             c[row + col * n] = sum;
         }
     }

@@ -19,15 +19,14 @@ where
 {
     /// Multiplies corresponding samples for each processed channel.
     /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
-    /// Writes active channels in the supplied destination. AC4 destination alpha retains its
-    /// previous initialization state; this call does not initialize alpha.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Writes active channels in the supplied destination.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn multiply_scale_into(
         stream_context: &StreamContext,
@@ -45,14 +44,14 @@ where
 
     /// Multiplies corresponding samples in place.
     /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
-    /// Updates the supplied image in place. AC4 alpha remains unchanged.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Updates the supplied image in place.
+    /// AC4 alpha remains unchanged.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn multiply_scale_in_place(
         stream_context: &StreamContext,
@@ -77,13 +76,12 @@ where
     /// Uses NPP's fixed scaling by the maximum value of the unsigned sample bit width.
     /// Reuses owned backing; borrowed input produces a new owned image.
     /// Preserves alpha from the pipeline image for AC4.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Allocation, image view construction, or alpha preservation copies can also fail.
     pub fn multiply_scale(self, other: &ImageView<'_, T, L>) -> Result<Self> {
@@ -116,6 +114,7 @@ where
                 if L::IGNORES_ALPHA {
                     destination_view.copy_from(source)?;
                 }
+
                 operation(self.stream_context, source, other, &mut destination_view)?;
                 // SAFETY: the completed operation above wrote every element.
                 self.backing = ImageBacking::Owned(unsafe { destination.assume_init() });

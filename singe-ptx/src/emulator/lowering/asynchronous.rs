@@ -22,6 +22,7 @@ pub fn copy(
         let [] = operands(instruction)?;
         return Ok(Operation::Async(AsyncOperation::CommitCopies));
     }
+
     if head.take("wait_all") {
         let [] = operands(instruction)?;
         return Ok(Operation::Async(AsyncOperation::WaitCopies {
@@ -29,6 +30,7 @@ pub fn copy(
             commit: true,
         }));
     }
+
     if head.take("wait_group") {
         let [pending] = operands(instruction)?;
         let pending = compiler.source(pending, ScalarType::U32)?;
@@ -44,6 +46,7 @@ pub fn copy(
             commit: false,
         }));
     }
+
     if head.take("mbarrier") {
         return arrive(compiler, instruction, head);
     }
@@ -146,6 +149,7 @@ fn transfer(
         input,
     })))
 }
+
 pub fn barrier(
     compiler: &FunctionCompiler<'_, '_>,
     instruction: &Instruction,
@@ -157,6 +161,7 @@ pub fn barrier(
     if parity {
         compiler.require_version(PtxVersion::new(7, 1), span)?;
     }
+
     let space = head.space();
     require(
         matches!(space, None | Some(StateSpace::Shared)),

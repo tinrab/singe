@@ -1,6 +1,6 @@
 [package]
 name = "singe-cuda"
-description = "Safe Rust wrappers for CUDA driver, runtime, NVRTC, NVVM, NVTX, memory, streams, modules, and graphs."
+description = "Safe Rust wrappers for the CUDA driver and runtime APIs, including runtime compilation of CUDA C++ and NVTX annotations."
 version = "0.1.0-alpha.10"
 edition.workspace = true
 repository.workspace = true

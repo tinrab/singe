@@ -48,9 +48,7 @@ impl FileHandle {
     /// Takes ownership of a registered native file handle; the last clone deregisters it.
     ///
     /// # Safety
-    /// `handle` must come from `cuFileHandleRegister` in the session kept open by `driver`,
-    /// its file descriptor must stay open for the handle's lifetime, and no other owner may
-    /// deregister it.
+    /// `handle` must come from `cuFileHandleRegister` in the session kept open by `driver`, its file descriptor must stay open for the handle's lifetime, and no other owner may deregister it.
     ///
     /// # Errors
     ///
@@ -70,8 +68,7 @@ impl FileHandle {
 
     /// Releases ownership of the native handle when this is the last clone.
     /// Returns `self` unchanged while other clones share the registration.
-    /// A file descriptor owned by the wrapper is closed; the caller keeps the handle valid
-    /// only while its own descriptor stays open.
+    /// A file descriptor owned by the wrapper is closed; the caller keeps the handle valid only while its own descriptor stays open.
     ///
     /// # Errors
     ///
@@ -151,8 +148,7 @@ impl FileHandle {
     /// Registers an externally managed file descriptor or filesystem callback table.
     ///
     /// # Safety
-    /// The descriptor must be accepted by cuFile, and all external resources and thread-safe callbacks must
-    /// remain valid until the last cloned file handle and queued operation are released.
+    /// The descriptor must be accepted by cuFile, and all external resources and thread-safe callbacks must remain valid until the last cloned file handle and queued operation are released.
     ///
     /// # Errors
     ///
@@ -221,6 +217,7 @@ impl FileHandle {
         if size == 0 {
             return Ok(0);
         }
+
         prepare_buffer(buffer, None)?;
         let pointer = buffer.ptr_mut();
         let (pointer, native_offset) = io_pointer(buffer, pointer, size, buffer_offset)?;
@@ -285,6 +282,7 @@ impl FileHandle {
         if size == 0 {
             return Ok(0);
         }
+
         prepare_buffer(buffer, None)?;
         let (pointer, native_offset) = io_pointer(buffer, buffer.ptr(), size, buffer_offset)?;
         // SAFETY: `cuFileWrite` receives only plain values.
@@ -300,12 +298,11 @@ impl FileHandle {
         synchronous_result(result)
     }
 
-    /// Reads data from an offset in a registered file handle to one or more buffers
-    /// in device or host memory. Returns the number of bytes successfully read.
+    /// Reads data from an offset in a registered file handle to one or more buffers in device or host memory.
+    /// Returns the number of bytes successfully read.
     ///
     /// Unregistered buffers may be buffered through preallocated pinned buffers.
-    /// This is useful for unaligned file offsets and sizes, or when BAR1 memory
-    /// is smaller than the allocated memory.
+    /// This is useful for unaligned file offsets and sizes, or when BAR1 memory is smaller than the allocated memory.
     ///
     /// # Errors
     ///
@@ -328,12 +325,11 @@ impl FileHandle {
         synchronous_result(result)
     }
 
-    /// Writes data to an offset in a registered file handle from one or more
-    /// buffers in device or host memory. Returns the number of bytes written.
+    /// Writes data to an offset in a registered file handle from one or more buffers in device or host memory.
+    /// Returns the number of bytes written.
     ///
     /// Unregistered buffers may be buffered through preallocated pinned buffers.
-    /// This is useful for unaligned file offsets and sizes, or when BAR1 memory
-    /// is smaller than the allocated memory.
+    /// This is useful for unaligned file offsets and sizes, or when BAR1 memory is smaller than the allocated memory.
     ///
     /// # Errors
     ///
@@ -481,6 +477,7 @@ pub(crate) fn operation_result(result: i64) -> Result<usize> {
         if result == -1 {
             return Err(io::Error::other("asynchronous cufile io failed").into());
         }
+
         let code =
             u32::try_from(result.unsigned_abs()).map_err(|_| Error::OperationFailed(result))?;
         let status = Status::from(code);
@@ -518,22 +515,27 @@ pub(crate) fn prepare_buffer<B: IoBuffer + ?Sized>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     if let Some(region) = buffer.device_region() {
         if let Some(ready) = region.stream() {
             ready.ensure_not_capturing()?;
         }
+
         region.synchronize()?;
     }
+
     if let Some(stream) = stream {
         if stream.capture_status()? != StreamCaptureStatus::None {
             return Err(CudaError::from(CudaStatus::StreamCaptureUnsupported).into());
         }
+
         stream.context().bind()?;
     } else if let Some(context) = buffer.context() {
         let binding = StreamBinding::Default(Arc::clone(context));
         if binding.capture_status()? != StreamCaptureStatus::None {
             return Err(CudaError::from(CudaStatus::StreamCaptureUnsupported).into());
         }
+
         context.bind()?;
     }
     Ok(())
@@ -571,20 +573,24 @@ fn prepare_vectors<'a>(
             {
                 return Err(CudaError::MemoryContextMismatch.into());
             }
+
             selected = Some(context);
         }
         if let Some(region) = region {
             if let Some(ready) = region.stream() {
                 ready.ensure_not_capturing()?;
             }
+
             region.synchronize()?;
         }
     }
+
     if let Some(context) = selected {
         let binding = StreamBinding::Default(Arc::clone(context));
         if binding.capture_status()? != StreamCaptureStatus::None {
             return Err(CudaError::from(CudaStatus::StreamCaptureUnsupported).into());
         }
+
         context.bind()?;
     }
     Ok(())

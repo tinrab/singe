@@ -35,27 +35,23 @@ pub struct Module {
 }
 
 impl Module {
-    /// Compiles the `name` kernel, or reuses a cached compilation, and binds it to this
-    /// module.
+    /// Compiles the `name` kernel, or reuses a cached compilation, and binds it to this module.
     ///
     /// # Errors
     ///
-    /// Returns an error if `name` is not an entry point, or if the kernel or a function it
-    /// calls is invalid or unsupported.
+    /// Returns an error if `name` is not an entry point, or if the kernel or a function it calls is invalid or unsupported.
     pub fn kernel(&self, name: &str) -> Result<Kernel, CompileError> {
         self.bind(&self.parsed.compile(name)?)
     }
 
     /// Binds already compiled code to this module without recompiling it.
     ///
-    /// `code` must come from the same [`ParsedModule`] this module was loaded from, or
-    /// from a clone of it. Modules parsed separately are distinct even if their text is
-    /// identical.
+    /// `code` must come from the same [`ParsedModule`] this module was loaded from, or from a clone of it.
+    /// Modules parsed separately are distinct even if their text is identical.
     ///
     /// # Errors
     ///
-    /// Returns [`CompileErrorKind::ModuleMismatch`] if `code` was compiled from a
-    /// different parsed module.
+    /// Returns [`CompileErrorKind::ModuleMismatch`] if `code` was compiled from a different parsed module.
     pub fn bind(&self, code: &CompiledKernel) -> Result<Kernel, CompileError> {
         if !Arc::ptr_eq(&self.parsed.inner, &code.source.inner) {
             return Err(CompileError::new(
@@ -71,13 +67,11 @@ impl Module {
 
     /// Returns the bytes of the global or constant variable `name`.
     ///
-    /// Use it to read results a kernel stored in a module variable, including after a
-    /// fault.
+    /// Use it to read results a kernel stored in a module variable, including after a fault.
     ///
     /// # Errors
     ///
-    /// Returns an error if no global or constant variable is named `name`, the variable is
-    /// `.shared` (which has one instance per CTA), or its size does not fit in `usize`.
+    /// Returns an error if no global or constant variable is named `name`, the variable is `.shared` (which has one instance per CTA), or its size does not fit in `usize`.
     pub fn global(&self, name: &str) -> Result<BufferView<u8>, SubmitError> {
         let id = self
             .loaded
@@ -122,10 +116,8 @@ impl Kernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if `config` does not meet the kernel's block requirements, an
-    /// argument does not match its parameter, staging storage cannot hold the arguments,
-    /// or the command is not admitted. Execution faults are reported through the
-    /// submission.
+    /// Returns an error if `config` does not meet the kernel's block requirements, an argument does not match its parameter, staging storage cannot hold the arguments, or the command is not admitted.
+    /// Execution faults are reported through the submission.
     pub fn launch(
         &self,
         config: LaunchConfig,
@@ -143,17 +135,13 @@ impl Kernel {
 
     /// Launches the kernel on `stream` with `arguments` in parameter order.
     ///
-    /// The launch keeps the module and every buffer passed as a pointer argument alive
-    /// until it completes. The submission yields an [`ExecutionReport`]; on a fault, the
-    /// [`ExecutionError`](crate::emulator::ExecutionError) carries the report of the partial
-    /// launch.
+    /// The launch keeps the module and every buffer passed as a pointer argument alive until it completes.
+    /// The submission yields an [`ExecutionReport`]; on a fault, the [`ExecutionError`](crate::emulator::ExecutionError) carries the report of the partial launch.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` or a buffer belongs to another emulator, `config` does
-    /// not meet the kernel's block requirements, an argument does not match its
-    /// parameter, staging storage cannot hold the arguments, or the command is not
-    /// admitted. Execution faults are reported through the submission.
+    /// Returns an error if `stream` or a buffer belongs to another emulator, `config` does not meet the kernel's block requirements, an argument does not match its parameter, staging storage cannot hold the arguments, or the command is not admitted.
+    /// Execution faults are reported through the submission.
     pub fn launch_on(
         &self,
         stream: &Stream,
@@ -168,6 +156,7 @@ impl Kernel {
         if arguments.len() != self.code.parameters().len() {
             return Err(SubmitError::InvalidArgument("parameter count".into()));
         }
+
         let mut bytes = Vec::new();
         let mut leases = Vec::new();
         bytes
@@ -190,6 +179,7 @@ impl Kernel {
                 .ok_or(SubmitError::StagingLimit)?;
             bytes.push(value);
         }
+
         let code = self.code.clone();
         let loaded = Arc::clone(&self.module.loaded);
         let stream_id = stream.id;
@@ -263,6 +253,7 @@ impl Kernel {
                 }) {
                     return Err(SubmitError::InvalidArgument("pointer annotation".into()));
                 }
+
                 // Unannotated pointers and .ptr without a state space use generic addresses.
                 let address = if parameter.pointer.is_some_and(|p| p.state_space.is_some()) {
                     specific(address)

@@ -95,6 +95,7 @@ impl VariantPack {
                 });
             }
         }
+
         self.initializations = initializations;
         Ok(())
     }
@@ -107,6 +108,7 @@ impl VariantPack {
         if self.initializations.is_empty() {
             return Ok(());
         }
+
         let stream = context.stream()?;
         for initialization in &self.initializations {
             let pointer = self
@@ -171,6 +173,7 @@ impl VariantPack {
         if !graph.nodes()?.is_empty() {
             return Err(FrontendError::CudaGraphPopulateRequiresEmptyGraph.into());
         }
+
         // Publish the initializer chain and native work as one replaceable snapshot.
         let mut initialized = context.cuda_context().create_graph()?;
         self.populate_initializer_chain(context, plan, &mut initialized)?;
@@ -189,6 +192,7 @@ impl VariantPack {
         for initialization in &self.initializations {
             initialization.retain_host_source(graph)?;
         }
+
         let mut previous = None;
         for initialization in &self.initializations {
             // SAFETY: host sources are retained by CUDA and the workspace follows the caller's replay contract.
@@ -213,6 +217,7 @@ impl VariantPack {
             };
             previous = Some(node);
         }
+
         graph.add_child_graph_node(previous.as_slice(), &child)?;
         Ok(())
     }
@@ -230,6 +235,7 @@ impl VariantPack {
         if node.node_type()? != GraphNodeType::Graph {
             return Err(invalid_graph());
         }
+
         let replacement = node.child_graph()?.try_clone()?;
         self.update_initializer_chain(context, plan, &replacement)?;
         // All fallible preparation mutated only the private clone. One native call
@@ -247,6 +253,7 @@ impl VariantPack {
         if graph.nodes()?.len().checked_sub(1) != Some(self.initializations.len()) {
             return Err(invalid_graph());
         }
+
         let roots = graph.root_nodes()?;
         let [root] = roots.as_slice() else {
             return Err(invalid_graph());
@@ -258,6 +265,7 @@ impl VariantPack {
             if child.node_type()? != initialization.node_type() {
                 return Err(invalid_graph());
             }
+
             let dependents = child.dependent_nodes()?;
             let [next] = dependents.as_slice() else {
                 return Err(invalid_graph());
@@ -265,9 +273,11 @@ impl VariantPack {
             initialization_nodes.push(child);
             child = next.node.clone();
         }
+
         if child.node_type()? != GraphNodeType::Graph || !child.dependent_nodes()?.is_empty() {
             return Err(invalid_graph());
         }
+
         let child_graph = child.child_graph()?;
         plan.retain_native_graph_resources(context, &child_graph)?;
         // Finish owner preparation before changing any initializer or backend node.
@@ -275,6 +285,7 @@ impl VariantPack {
         for initialization in &self.initializations {
             initialization.retain_host_source(graph)?;
         }
+
         for (node, initialization) in initialization_nodes.iter().zip(&self.initializations) {
             // SAFETY: host sources are retained by CUDA, while both workspace allocations follow the replay contract.
             match initialization {

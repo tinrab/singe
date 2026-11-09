@@ -125,10 +125,12 @@ impl_uyvp_to_rgb_packed_constant_alpha!(
 /// Implementations must preserve the documented color semantics, plane order, allocation lifetimes, and per-type completion behavior.
 pub unsafe trait RgbToUyvp10u: DataTypeLike {
     /// Converts packed RGB channels to packed 10-bit UYVP.
-    /// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+    /// `source_offset` must be `(0, 0)`.
+    /// `color_space` selects the native conversion standard.
     ///
     /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+    /// Half color channels use normalized values in `[0, 1]`.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -142,7 +144,8 @@ pub unsafe trait RgbToUyvp10u: DataTypeLike {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+    /// Source samples must be initialized and ready for native execution.
+    /// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
     /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
     /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
     unsafe fn rgb_to_uyvp_10u(
@@ -184,10 +187,12 @@ impl_rgb_to_uyvp_10u_dispatch!(u8, rgb_to_uyvp_10u_u8_c3);
 impl_rgb_to_uyvp_10u_dispatch!(u16, rgb_to_uyvp_10u_u16_c3);
 
 /// Converts packed RGB channels to packed 10-bit UYVP.
-/// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+/// `source_offset` must be `(0, 0)`.
+/// `color_space` selects the native conversion standard.
 ///
 /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+/// Half color channels use normalized values in `[0, 1]`.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -201,7 +206,8 @@ impl_rgb_to_uyvp_10u_dispatch!(u16, rgb_to_uyvp_10u_u16_c3);
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+/// Source samples must be initialized and ready for native execution.
+/// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
 /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
 /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
 pub unsafe fn rgb_to_uyvp_10u<T>(
@@ -236,10 +242,12 @@ where
 pub unsafe trait RgbaToUyvp10u: DataTypeLike {
     /// Converts packed RGBA color channels to packed 10-bit UYVP.
     /// Ignores source alpha during color conversion.
-    /// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+    /// `source_offset` must be `(0, 0)`.
+    /// `color_space` selects the native conversion standard.
     ///
     /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+    /// Half color channels use normalized values in `[0, 1]`.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -253,7 +261,8 @@ pub unsafe trait RgbaToUyvp10u: DataTypeLike {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+    /// Source samples must be initialized and ready for native execution.
+    /// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
     /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
     /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
     unsafe fn rgba_to_uyvp_10u(
@@ -296,10 +305,12 @@ impl_rgba_to_uyvp_10u_dispatch!(u16, rgba_to_uyvp_10u_u16_ac4);
 
 /// Converts packed RGBA color channels to packed 10-bit UYVP.
 /// Ignores source alpha during color conversion.
-/// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+/// `source_offset` must be `(0, 0)`.
+/// `color_space` selects the native conversion standard.
 ///
 /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+/// Half color channels use normalized values in `[0, 1]`.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -313,7 +324,8 @@ impl_rgba_to_uyvp_10u_dispatch!(u16, rgba_to_uyvp_10u_u16_ac4);
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+/// Source samples must be initialized and ready for native execution.
+/// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
 /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
 /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
 pub unsafe fn rgba_to_uyvp_10u<T>(
@@ -348,10 +360,12 @@ where
 pub unsafe trait RgbPlanarToUyvp10u: DataTypeLike {
     /// Converts separate RGB source planes to packed 10-bit UYVP.
     /// Plane order is red, green, then blue.
-    /// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+    /// `source_offset` must be `(0, 0)`.
+    /// `color_space` selects the native conversion standard.
     ///
     /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+    /// Half color channels use normalized values in `[0, 1]`.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -366,7 +380,8 @@ pub unsafe trait RgbPlanarToUyvp10u: DataTypeLike {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+    /// Source samples must be initialized and ready for native execution.
+    /// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
     /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
     /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
     unsafe fn rgb_planar_to_uyvp_10u(
@@ -415,10 +430,12 @@ impl_rgb_planar_to_uyvp_10u_dispatch!(u16, rgb_to_uyvp_10u_u16_p3);
 
 /// Converts separate RGB source planes to packed 10-bit UYVP.
 /// Plane order is red, green, then blue.
-/// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+/// `source_offset` must be `(0, 0)`.
+/// `color_space` selects the native conversion standard.
 ///
 /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+/// Half color channels use normalized values in `[0, 1]`.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -433,7 +450,8 @@ impl_rgb_planar_to_uyvp_10u_dispatch!(u16, rgb_to_uyvp_10u_u16_p3);
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+/// Source samples must be initialized and ready for native execution.
+/// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
 /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
 /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
 pub unsafe fn rgb_planar_to_uyvp_10u<T>(
@@ -471,10 +489,12 @@ where
 /// Implementations must preserve the documented color semantics, plane order, allocation lifetimes, and per-type completion behavior.
 pub unsafe trait Uyvp10uToRgb: DataTypeLike {
     /// Converts packed 10-bit UYVP to packed RGB channels.
-    /// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+    /// `source_offset` must be `(0, 0)`.
+    /// `color_space` selects the native conversion standard.
     ///
     /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+    /// Half color channels use normalized values in `[0, 1]`.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -488,7 +508,8 @@ pub unsafe trait Uyvp10uToRgb: DataTypeLike {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+    /// Source samples must be initialized and ready for native execution.
+    /// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
     /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
     /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
     unsafe fn uyvp_10u_to_rgb(
@@ -530,10 +551,12 @@ impl_uyvp_10u_to_rgb_dispatch!(u8, uyvp_10u_to_rgb_u8_c3);
 impl_uyvp_10u_to_rgb_dispatch!(u16, uyvp_10u_to_rgb_u16_c3);
 
 /// Converts packed 10-bit UYVP to packed RGB channels.
-/// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+/// `source_offset` must be `(0, 0)`.
+/// `color_space` selects the native conversion standard.
 ///
 /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`.
+/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+/// Half color channels use normalized values in `[0, 1]`.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -547,7 +570,8 @@ impl_uyvp_10u_to_rgb_dispatch!(u16, uyvp_10u_to_rgb_u16_c3);
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+/// Source samples must be initialized and ready for native execution.
+/// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
 /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
 /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
 pub unsafe fn uyvp_10u_to_rgb<T>(
@@ -582,7 +606,8 @@ where
 pub unsafe trait Uyvp10uToRgbP3: DataTypeLike {
     /// Converts packed 10-bit UYVP to separate RGB destination planes.
     /// Plane order is red, green, then blue.
-    /// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+    /// `source_offset` must be `(0, 0)`.
+    /// `color_space` selects the native conversion standard.
     ///
     /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
     /// Row padding remains unwritten.
@@ -597,7 +622,8 @@ pub unsafe trait Uyvp10uToRgbP3: DataTypeLike {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+    /// Source samples must be initialized and ready for native execution.
+    /// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
     /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
     /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
     unsafe fn uyvp_10u_to_rgb_p3(
@@ -646,7 +672,8 @@ impl_uyvp_10u_to_rgb_p3_dispatch!(u16, uyvp_10u_to_rgb_u16_p3);
 
 /// Converts packed 10-bit UYVP to separate RGB destination planes.
 /// Plane order is red, green, then blue.
-/// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+/// `source_offset` must be `(0, 0)`.
+/// `color_space` selects the native conversion standard.
 ///
 /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
 /// Row padding remains unwritten.
@@ -661,7 +688,8 @@ impl_uyvp_10u_to_rgb_p3_dispatch!(u16, uyvp_10u_to_rgb_u16_p3);
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+/// Source samples must be initialized and ready for native execution.
+/// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
 /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
 /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
 pub unsafe fn uyvp_10u_to_rgb_p3<T>(
@@ -700,10 +728,13 @@ where
 pub unsafe trait Uyvp10uToRgba: DataTypeLike {
     /// Converts packed 10-bit UYVP to packed RGBA channels with explicit alpha.
     /// Writes `alpha` to the fourth destination channel, including for the `AC4` output layout.
-    /// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+    /// `source_offset` must be `(0, 0)`.
+    /// `color_space` selects the native conversion standard.
     ///
     /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`. The supplied half alpha bits are copied exactly.
+    /// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+    /// Half color channels use normalized values in `[0, 1]`.
+    /// The supplied half alpha bits are copied exactly.
     /// Row padding remains unwritten.
     ///
     /// # Errors
@@ -717,7 +748,8 @@ pub unsafe trait Uyvp10uToRgba: DataTypeLike {
     /// # Safety
     ///
     /// Follow the [raw image execution contract](crate::image::raw).
-    /// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+    /// Source samples must be initialized and ready for native execution.
+    /// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
     /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
     /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
     unsafe fn uyvp_10u_to_rgba(
@@ -778,10 +810,13 @@ unsafe impl Uyvp10uToRgba for u16 {
 
 /// Converts packed 10-bit UYVP to packed RGBA channels with explicit alpha.
 /// Writes `alpha` to the fourth destination channel, including for the `AC4` output layout.
-/// `source_offset` must be `(0, 0)`. `color_space` selects the native conversion standard.
+/// `source_offset` must be `(0, 0)`.
+/// `color_space` selects the native conversion standard.
 ///
 /// The provided `u8` and `u16` implementations enqueue work without waiting for stream completion.
-/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes. Half color channels use normalized values in `[0, 1]`. The supplied half alpha bits are copied exactly.
+/// The provided `f16` implementation uses completed integer-codec composition, prepares region producers, rejects stream capture, and retains temporary storage until native work completes.
+/// Half color channels use normalized values in `[0, 1]`.
+/// The supplied half alpha bits are copied exactly.
 /// Row padding remains unwritten.
 ///
 /// # Errors
@@ -795,7 +830,8 @@ unsafe impl Uyvp10uToRgba for u16 {
 /// # Safety
 ///
 /// Follow the [raw image execution contract](crate::image::raw).
-/// Source samples must be initialized and ready for native execution. Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
+/// Source samples must be initialized and ready for native execution.
+/// Keep inputs read-only and each destination exclusively writable and disjoint from inputs and other destinations during native use.
 /// Retain allocations through native completion, including submission errors and every captured replay for queued integer calls.
 /// Native pixel packing, component ranges, byte strides, alignment, and allocation bounds must be valid.
 pub unsafe fn uyvp_10u_to_rgba<T>(

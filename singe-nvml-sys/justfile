@@ -90,6 +90,7 @@ generate:
     fi
 
     mv bindings.rs ./src/nvml_sys_${NVML_VERSION}.rs
+    sed -i 's/^unsafe extern "C" {$/singe_loader::functions! { LIBRARY;/' ./src/nvml_sys_${NVML_VERSION}.rs
 
 clean:
     rm -rf ./dist

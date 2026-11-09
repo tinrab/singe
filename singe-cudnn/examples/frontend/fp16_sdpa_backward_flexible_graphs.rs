@@ -27,6 +27,7 @@ fn run() -> Result<()> {
         println!("skipping: requires Hopper or above");
         return Ok(());
     }
+
     if sm == 120 {
         println!(
             "skipping: backward pass with flexible graphs is not supported on SM version 120 yet"

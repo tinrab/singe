@@ -41,7 +41,10 @@ bitflags::bitflags! {
     pub struct WaitFlags: u32 {
         /// Follow the wait operation with a flush of outstanding remote writes.
         ///
-        /// This means that, if a remote write operation is guaranteed to have reached the device before the wait can be satisfied, that write is guaranteed to be visible to downstream device work. The device is permitted to reorder remote writes internally. For example, this flag would be required if two remote writes arrive in a defined order, the wait is satisfied by the second write, and downstream work needs to observe the first write. Support for this operation is restricted to selected platforms and can be queried with `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_CAN_FLUSH_REMOTE_WRITES`.
+        /// This means that, if a remote write operation is guaranteed to have reached the device before the wait can be satisfied, that write is guaranteed to be visible to downstream device work.
+        /// The device is permitted to reorder remote writes internally.
+        /// For example, this flag would be required if two remote writes arrive in a defined order, the wait is satisfied by the second write, and downstream work needs to observe the first write.
+        /// Support for this operation is restricted to selected platforms and can be queried with `CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_CAN_FLUSH_REMOTE_WRITES`.
         const FLUSH_REMOTE_WRITES = sys::CUstreamWaitValue_flags::CU_STREAM_WAIT_VALUE_FLUSH as _;
     }
 }
@@ -199,7 +202,9 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Returns `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for a null or misaligned wait or write address. Also propagates context binding and native batch errors, including unsupported operations or device capabilities. An empty batch succeeds without binding the context or calling CUDA.
+    /// Returns `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for a null or misaligned wait or write address.
+    /// Also propagates context binding and native batch errors, including unsupported operations or device capabilities.
+    /// An empty batch succeeds without binding the context or calling CUDA.
     pub unsafe fn memory_operations(&self, operations: &[MemoryOperation]) -> Result<()> {
         let mut native = native_batch(operations)?;
         // SAFETY: the caller upholds this function's safety contract.
@@ -214,6 +219,7 @@ impl Stream {
         if native.is_empty() {
             return Ok(());
         }
+
         self.context().bind()?;
         // SAFETY: `cuStreamBatchMemOp_v2` receives live handles owned by the wrappers and valid output locations.
         unsafe {
@@ -236,9 +242,8 @@ macro_rules! word_operations {
             /// Follow [`Stream::memory_operations`]'s storage, ordering and progress requirements.
             ///
             /// # Errors
-            /// Returns `Error::InvalidMemoryAccess` for a null address or one not aligned
-            /// to the native word size. Also propagates context binding and native wait
-            /// errors for unsupported conditions, flags, or device capabilities.
+            /// Returns `Error::InvalidMemoryAccess` for a null address or one not aligned to the native word size.
+            /// Also propagates context binding and native wait errors for unsupported conditions, flags, or device capabilities.
             pub unsafe fn $wait(
                 &self,
                 address: DevicePtr,
@@ -265,9 +270,8 @@ macro_rules! word_operations {
             /// Follow [`Stream::memory_operations`]'s storage and ordering requirements.
             ///
             /// # Errors
-            /// Returns `Error::InvalidMemoryAccess` for a null address or one not aligned
-            /// to the native word size. Also propagates context binding and native write
-            /// errors, including unsupported memory operations on the device.
+            /// Returns `Error::InvalidMemoryAccess` for a null address or one not aligned to the native word size.
+            /// Also propagates context binding and native write errors, including unsupported memory operations on the device.
             pub unsafe fn $write(&self, address: DevicePtr, value: $word) -> Result<()> {
                 check_address(address, size_of::<$word>())?;
                 self.context().bind()?;
@@ -325,7 +329,8 @@ impl MemoryOperations {
     ///
     /// # Errors
     ///
-    /// Returns `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for a null or misaligned wait or write address. Resource ownership, access declarations, and progress guarantees remain the caller's responsibility; no native work is enqueued during construction.
+    /// Returns `Error::OutOfRange` for 256 or more operations, or `Error::InvalidMemoryAccess` for a null or misaligned wait or write address.
+    /// Resource ownership, access declarations, and progress guarantees remain the caller's responsibility; no native work is enqueued during construction.
     pub unsafe fn create(operations: &[MemoryOperation], resources: Resources) -> Result<Self> {
         Ok(Self {
             operations: native_batch(operations)?,

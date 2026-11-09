@@ -1,10 +1,7 @@
 //! Safe cuDNN graph/frontend, backend descriptor, and execution wrappers.
 //!
-//! This crate exposes cuDNN frontend graph construction, graph lowering,
-//! execution plan selection, variant packs, tensor descriptors, operation
-//! descriptors, and lower-level backend APIs. It is designed for
-//! inference-oriented graph execution while still leaving access to cuDNN
-//! descriptor and engine details when required.
+//! This crate exposes cuDNN frontend graph construction, graph lowering, execution plan selection, variant packs, tensor descriptors, operation descriptors, and lower-level backend APIs.
+//! It is designed for inference-oriented graph execution while still leaving access to cuDNN descriptor and engine details when required.
 
 #![expect(
     deprecated,
@@ -13,20 +10,28 @@
 
 pub mod backend;
 pub mod causal_convolution;
+
 /// Native cuDNN handle ownership and CUDA context and stream binding.
 pub mod context;
+
 /// Tensor storage data types, packed encodings, and scalar type associations.
 pub mod data_type;
+
 pub mod diagnostic;
+
 /// Native status codes and checked cuDNN wrapper errors.
 pub mod error;
+
 pub mod frontend;
 pub mod gnn;
 pub mod legacy;
+
 /// Math modes, NaN propagation, determinism, and rational parameters.
 pub mod math;
+
 mod metadata;
 pub mod operation;
+
 /// Scalar values and aligned host storage for by-value tensor bindings.
 pub mod scalar;
 
@@ -73,8 +78,7 @@ pub fn cudart_version() -> Result<CudaRuntimeVersion> {
 
 /// Returns the maximum SM version that the cuDNN library is aware of and supports natively.
 /// Any SM version higher than this would be supported in forward compatibility mode.
-/// For more information about forward compatibility, refer to the hardware forward compatibility
-/// section in the cuDNN frontend developer guide.
+/// For more information about forward compatibility, refer to the hardware forward compatibility section in the cuDNN frontend developer guide.
 ///
 /// A value indicating the latest known SM number for the current version of the library.
 /// For example, if NVIDIA Hopper (GH100) is the latest known SM that the library is aware of, the value returned would be `900`.

@@ -21,9 +21,8 @@ use crate::{
 ///
 /// # Safety
 ///
-/// `data` must contain initialized elements at every addressed output position
-/// in the stream's context. Retain the allocation and exclusive access until
-/// queued work completes, including every replay when captured.
+/// `data` must contain initialized elements at every addressed output position in the stream's context.
+/// Retain the allocation and exclusive access until queued work completes, including every replay when captured.
 /// The caller must establish nonoverlapping batches and sufficient capacity.
 pub unsafe fn scale_real_strided_f32(
     stream: &Arc<Stream>,
@@ -37,6 +36,7 @@ pub unsafe fn scale_real_strided_f32(
     if n == 0 || batch == 0 || stride == 0 || distance == 0 {
         return Err(Error::InvalidLength);
     }
+
     let len = checked_element_count(n, batch)?;
     checked_device_pointer(&data)?;
     // SAFETY: the caller upholds this function's safety contract.
@@ -77,6 +77,7 @@ impl FftStrided {
         if n == 0 || batch == 0 {
             return Err(Error::InvalidLength);
         }
+
         let total_complex = checked_element_count(batch, n)?;
         let lanes = checked_element_count(total_complex, 2)?;
         checked_i32_value(lanes)?;
@@ -102,6 +103,7 @@ impl FftPackedC2c {
         if n == 0 || batch == 0 {
             return Err(Error::InvalidLength);
         }
+
         let total_complex = checked_element_count(batch, n)?;
         let lanes = checked_element_count(total_complex, 2)?;
         checked_i32_value(lanes)?;
@@ -134,6 +136,7 @@ impl FftC2r {
         if n == 0 || batch == 0 || !n.is_multiple_of(2) {
             return Err(Error::InvalidLength);
         }
+
         let total_real = checked_element_count(batch, n)?;
         let input_frequency_count = n / 2 + 1;
         let input_lanes =
@@ -172,6 +175,7 @@ impl FftR2c {
         if n == 0 || batch == 0 || !n.is_multiple_of(2) {
             return Err(Error::InvalidLength);
         }
+
         let frequency_count = n / 2 + 1;
         let total_frequency = checked_element_count(batch, frequency_count)?;
         let output_lanes = checked_element_count(total_frequency, 2)?;
@@ -203,6 +207,7 @@ pub unsafe fn copy_c2c_f32_interleaved(
     if n == 0 || batch == 0 {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
 
@@ -509,6 +514,7 @@ pub unsafe fn fft_c2c_f16_interleaved(
     if !twiddle_imag_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     checked_device_pointer(&twiddle_real)?;
@@ -571,6 +577,7 @@ pub unsafe fn fft_c2c_bf16_interleaved(
     if !twiddle_imag_scale.is_finite() {
         return Err(Error::InvalidLength);
     }
+
     checked_device_pointer(&out)?;
     checked_device_pointer(&input)?;
     checked_device_pointer(&twiddle_real)?;

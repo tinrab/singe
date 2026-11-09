@@ -75,7 +75,8 @@ pattern!(u32, cuMemsetD32Async);
 ///
 /// # Errors
 ///
-/// Returns an error if the destination context or access declarations are invalid, access tracking has failed or is reentrant, or CUDA cannot synchronize conflicting work, bind the context, enqueue the fill, or complete it. Also rejects byte-size overflow and a nonempty null or misaligned destination, and propagates errors from constructing the initialized output view.
+/// Returns an error if the destination context or access declarations are invalid, access tracking has failed or is reentrant, or CUDA cannot synchronize conflicting work, bind the context, enqueue the fill, or complete it.
+/// Also rejects byte-size overflow and a nonempty null or misaligned destination, and propagates errors from constructing the initialized output view.
 pub fn fill<T: FillPattern, B: DeviceOutput<T> + ?Sized>(
     destination: &mut B,
     value: T,
@@ -101,7 +102,9 @@ pub fn fill<T: FillPattern, B: DeviceOutput<T> + ?Sized>(
 ///
 /// # Errors
 ///
-/// Returns `Error::MemoryContextMismatch` if the destination and scope use different contexts. Also returns an error for byte-size overflow, invalid destination alignment or address, failed or nested access tracking, dependency ordering, completion-event creation or recording, or native fill failure. Work may already be queued when a later registration step fails.
+/// Returns `Error::MemoryContextMismatch` if the destination and scope use different contexts.
+/// Also returns an error for byte-size overflow, invalid destination alignment or address, failed or nested access tracking, dependency ordering, completion-event creation or recording, or native fill failure.
+/// Work may already be queued when a later registration step fails.
 pub fn fill_async<'env, T: FillPattern, B: DeviceOutput<T> + ?Sized>(
     destination: &'env mut B,
     value: T,
@@ -110,6 +113,7 @@ pub fn fill_async<'env, T: FillPattern, B: DeviceOutput<T> + ?Sized>(
     if destination.context() != scope.stream().context() {
         return Err(Error::MemoryContextMismatch);
     }
+
     destination.byte_len()?;
     let accesses = [Access::new(destination.region(), AccessMode::Write)];
     // SAFETY: the destination region is retained by the declared access, and the stream orders the fill.
@@ -133,7 +137,8 @@ pub fn fill_async<'env, T: FillPattern, B: DeviceOutput<T> + ?Sized>(
 ///
 /// # Errors
 ///
-/// Returns an error if the stream context cannot be bound, `count * size_of::<T>()` overflows, a nonempty destination is null or misaligned, the count does not fit the native integer type, or CUDA rejects the fill. A zero count succeeds without submitting a native fill after binding the context.
+/// Returns an error if the stream context cannot be bound, `count * size_of::<T>()` overflows, a nonempty destination is null or misaligned, the count does not fit the native integer type, or CUDA rejects the fill.
+/// A zero count succeeds without submitting a native fill after binding the context.
 pub unsafe fn fill_async_unchecked<T: FillPattern>(
     pointer: *mut T,
     count: usize,

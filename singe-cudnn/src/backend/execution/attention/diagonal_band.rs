@@ -200,7 +200,8 @@ impl DiagonalBandMaskOperation {
     ///
     /// # Errors
     ///
-    /// Returns an error if native descriptor creation, attribute assignment, or finalization fails. cuDNN validates comparison, bound, sequence, and tensor compatibility.
+    /// Returns an error if native descriptor creation, attribute assignment, or finalization fails.
+    /// cuDNN validates comparison, bound, sequence, and tensor compatibility.
     pub fn create(
         x: &Tensor,
         b: &Tensor,
@@ -230,6 +231,7 @@ impl DiagonalBandMaskOperation {
             };
             descriptor.set_attribute_descriptor(attribute, lengths.tensor().descriptor())?;
         }
+
         if let Some(lengths) = sequence.key_value {
             let attribute = match lengths {
                 SequenceLength::PerBatch(_) => {
@@ -241,6 +243,7 @@ impl DiagonalBandMaskOperation {
             };
             descriptor.set_attribute_descriptor(attribute, lengths.tensor().descriptor())?;
         }
+
         let (attribute, tensor) = match bound {
             DiagonalBandMaskBound::Left(tensor) => (
                 BackendAttributeName::OperationDiagonalBandMaskLeftBoundDesc,
@@ -254,6 +257,7 @@ impl DiagonalBandMaskOperation {
         if let Some(tensor) = tensor {
             descriptor.set_attribute_descriptor(attribute, tensor.descriptor())?;
         }
+
         descriptor.set_attribute_descriptor(
             BackendAttributeName::OperationDiagonalBandMaskYDesc,
             y.descriptor(),

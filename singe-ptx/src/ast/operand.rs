@@ -74,7 +74,8 @@ pub enum Immediate {
     Float(FloatLiteral),
 }
 
-/// Floating-point literal as written. PTX evaluates floating-point constants in binary64.
+/// Floating-point literal as written.
+/// PTX evaluates floating-point constants in binary64.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FloatLiteral {
     /// Decimal floating-point text before conversion to a target precision.

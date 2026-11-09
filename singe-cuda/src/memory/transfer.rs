@@ -1,7 +1,7 @@
 //! Context-aware transfers between typed buffers and borrowed ranges.
 //!
-//! Borrowed transfers complete before returning. If CUDA cannot drain an operation
-//! during failure cleanup, the process aborts to prevent DMA from accessing released storage.
+//! Borrowed transfers complete before returning.
+//! If CUDA cannot drain an operation during failure cleanup, the process aborts to prevent DMA from accessing released storage.
 
 use std::{
     mem::{MaybeUninit, size_of},
@@ -23,7 +23,9 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns `Error::InvalidMemoryAccess` for unequal element counts, or `Error::InvalidMemoryAllocationRequest` if the byte count overflows. Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+/// Returns `Error::InvalidMemoryAccess` for unequal element counts, or `Error::InvalidMemoryAllocationRequest` if the byte count overflows.
+/// Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors.
+/// A nonempty synchronous transfer is rejected during stream capture.
 pub fn copy_from_host<T, B>(destination: &mut B, source: &[T]) -> Result<()>
 where
     T: DeviceRepr,
@@ -33,6 +35,7 @@ where
     if destination.len() != source.len() {
         return Err(Error::InvalidMemoryAccess);
     }
+
     let context = Arc::clone(destination.context());
     let _access = context.acquire_host_access(&[destination.region()])?;
     destination.context().bind()?;
@@ -79,6 +82,7 @@ where
     if source.len() != destination.len() {
         return Err(Error::InvalidMemoryAccess);
     }
+
     let context = Arc::clone(source.region().context());
     let _access = context.acquire_host_access(&[source.region()])?;
     source.region().context().bind()?;
@@ -103,12 +107,13 @@ where
 ///
 /// # Safety
 ///
-/// Every source element must contain a valid T value and its producing work
-/// must be ordered before the transfer.
+/// Every source element must contain a valid T value and its producing work must be ordered before the transfer.
 ///
 /// # Errors
 ///
-/// Returns `Error::InvalidMemoryAccess` for unequal element counts, or `Error::InvalidMemoryAllocationRequest` if the byte count overflows. Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+/// Returns `Error::InvalidMemoryAccess` for unequal element counts, or `Error::InvalidMemoryAllocationRequest` if the byte count overflows.
+/// Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors.
+/// A nonempty synchronous transfer is rejected during stream capture.
 pub unsafe fn copy_to_host_unchecked<T, B>(source: &B, destination: &mut [T]) -> Result<()>
 where
     T: DeviceRepr,
@@ -118,6 +123,7 @@ where
     if source.len() != destination.len() {
         return Err(Error::InvalidMemoryAccess);
     }
+
     let context = Arc::clone(source.region().context());
     let _access = context.acquire_host_access(&[source.region()])?;
     source.region().context().bind()?;
@@ -137,7 +143,8 @@ where
 ///
 /// # Errors
 ///
-/// Propagates byte-size, access-tracking, context binding, capture, and CUDA transfer errors. No vector of initialized values is returned unless the transfer completes successfully.
+/// Propagates byte-size, access-tracking, context binding, capture, and CUDA transfer errors.
+/// No vector of initialized values is returned unless the transfer completes successfully.
 pub fn copy_to_host_vec<T, B>(source: &B) -> Result<Vec<T>>
 where
     T: AnyBitPatternDeviceRepr,
@@ -161,8 +168,7 @@ where
 /// Completes a vector readback with caller-established source value validity.
 ///
 /// # Safety
-/// The source must contain `length` valid, transferable values of T.
-/// Bind its owning context and order producers before the transfer.
+/// The source must contain `length` valid, transferable values of T. Bind its owning context and order producers before the transfer.
 pub(crate) unsafe fn copy_to_host_vec_unchecked<T>(
     source: *const T,
     length: usize,
@@ -171,6 +177,7 @@ pub(crate) unsafe fn copy_to_host_vec_unchecked<T>(
     if size_of::<T>() == 0 {
         return Err(Error::InvalidMemoryAllocationRequest);
     }
+
     let mut values = Vec::<T>::with_capacity(length);
     // SAFETY: the caller establishes source validity.
     // Completion precedes exposing the vector length.
@@ -191,7 +198,10 @@ pub(crate) unsafe fn copy_to_host_vec_unchecked<T>(
 ///
 /// # Errors
 ///
-/// Returns `Error::MemoryContextMismatch` if the ranges belong to different contexts, or `Error::InvalidMemoryAccess` for unequal element counts or overlapping ranges in the same allocation. Also rejects byte-size overflow. Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors. A nonempty synchronous transfer is rejected during stream capture.
+/// Returns `Error::MemoryContextMismatch` if the ranges belong to different contexts, or `Error::InvalidMemoryAccess` for unequal element counts or overlapping ranges in the same allocation.
+/// Also rejects byte-size overflow.
+/// Also propagates access-tracking, readiness synchronization, context binding, capture-state query, native copy, and stream synchronization errors.
+/// A nonempty synchronous transfer is rejected during stream capture.
 pub fn copy_device<T, S, D>(destination: &mut D, source: &S) -> Result<()>
 where
     T: DeviceRepr,
@@ -205,9 +215,11 @@ where
     if source_region.context() != destination_region.context() {
         return Err(Error::MemoryContextMismatch);
     }
+
     if source.len() != destination.len() {
         return Err(Error::InvalidMemoryAccess);
     }
+
     let source_range = source_region.byte_range();
     let destination_range = destination_region.byte_range();
     if source_region.allocation_id() == destination_region.allocation_id()
@@ -215,6 +227,7 @@ where
     {
         return Err(Error::InvalidMemoryAccess);
     }
+
     let context = Arc::clone(source_region.context());
     let _access = context.acquire_host_access(&[source_region, destination_region])?;
     context.bind()?;
@@ -234,13 +247,13 @@ where
 ///
 /// # Safety
 ///
-/// Both ranges must remain live and exclusively accessible as appropriate
-/// until `stream` completes. Allocation and prior producer work on other
-/// streams must precede this copy, including stream-ordered allocations.
+/// Both ranges must remain live and exclusively accessible as appropriate until `stream` completes.
+/// Allocation and prior producer work on other streams must precede this copy, including stream-ordered allocations.
 ///
 /// # Errors
 ///
-/// Returns `Error::MemoryContextMismatch` for different allocation contexts, `Error::StreamContextMismatch` for a stream from another context, or `Error::InvalidMemoryAccess` for unequal counts or overlapping ranges in the same allocation. Also propagates context binding, byte-size overflow, and native asynchronous copy errors.
+/// Returns `Error::MemoryContextMismatch` for different allocation contexts, `Error::StreamContextMismatch` for a stream from another context, or `Error::InvalidMemoryAccess` for unequal counts or overlapping ranges in the same allocation.
+/// Also propagates context binding, byte-size overflow, and native asynchronous copy errors.
 pub unsafe fn copy_device_async_unchecked<T, S, D>(
     destination: &mut D,
     source: &S,
@@ -258,12 +271,15 @@ where
     if source_region.context() != destination_region.context() {
         return Err(Error::MemoryContextMismatch);
     }
+
     if stream.context() != destination_region.context() {
         return Err(Error::StreamContextMismatch);
     }
+
     if source.len() != destination.len() {
         return Err(Error::InvalidMemoryAccess);
     }
+
     let source_range = source_region.byte_range();
     let destination_range = destination_region.byte_range();
     if source_region.allocation_id() == destination_region.allocation_id()
@@ -271,6 +287,7 @@ where
     {
         return Err(Error::InvalidMemoryAccess);
     }
+
     stream.context().bind()?;
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
@@ -288,8 +305,8 @@ where
 ///
 /// # Safety
 ///
-/// The pointers must identify disjoint readable and writable ranges for the
-/// copy kind. The caller must bind the context and order external producers.
+/// The pointers must identify disjoint readable and writable ranges for the copy kind.
+/// The caller must bind the context and order external producers.
 pub(crate) unsafe fn copy_synchronous<T>(
     destination: *mut T,
     source: *const T,
@@ -303,6 +320,7 @@ pub(crate) unsafe fn copy_synchronous<T>(
     if bytes == 0 {
         return Ok(());
     }
+
     let handle = stream.map_or(ptr::null_mut(), Stream::as_raw);
     let mut capture_status = runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE;
     // SAFETY: `cudaStreamIsCapturing` receives valid output locations.
@@ -312,9 +330,11 @@ pub(crate) unsafe fn copy_synchronous<T>(
             &raw mut capture_status
         ))?;
     }
+
     if capture_status != runtime::cudaStreamCaptureStatus::CU_STREAM_CAPTURE_STATUS_NONE {
         return Err(Status::StreamCaptureUnsupported.into());
     }
+
     let mut drain = CopyDrain {
         handle,
         drained: false,

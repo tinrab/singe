@@ -45,6 +45,7 @@ impl Engine {
                 {
                     return Err(ExecutionError::Invalid("barrier number or count".into()));
                 }
+
                 self.lanes[lane].waiting = Some(Waiting::Cta {
                     barrier,
                     generation: self.generations[self.lanes[lane].cta][barrier],

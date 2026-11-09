@@ -12,7 +12,6 @@ use crate::{
     error::{Error, Result, Status},
     gpu_instance::{GpuInstance, OwnedGpuInstance},
     library::GpmSample,
-    optional::nvmlDeviceGetGpuFabricInfo_v4,
     try_ffi,
     types::{
         AccountingStats, AdaptiveClockInfoStatus, AffinityScope, Architecture, AutoBoostClocks,
@@ -67,9 +66,8 @@ impl Device {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlDevice_t` for the duration of any calls
-    /// made through the returned wrapper. NVML owns the underlying device
-    /// handle; this wrapper does not destroy it.
+    /// `handle` must be a valid `nvmlDevice_t` for the duration of any calls made through the returned wrapper.
+    /// NVML owns the underlying device handle; this wrapper does not destroy it.
     pub const unsafe fn from_raw(handle: sys::nvmlDevice_t) -> Self {
         Self(handle)
     }
@@ -104,9 +102,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or index output, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or index output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn index(self) -> Result<u32> {
         let mut index = 0;
         // SAFETY: `nvmlDeviceGetIndex` receives valid output locations.
@@ -128,9 +124,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the internal name
-    /// buffer is too small, if NVML rejects the handle or output buffer, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the internal name buffer is too small, if NVML rejects the handle or output buffer, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn name(self) -> Result<String> {
         let mut buffer = [0i8; sys::NVML_DEVICE_NAME_BUFFER_SIZE as usize];
         // SAFETY: `nvmlDeviceGetName` receives valid output locations.
@@ -153,9 +147,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or hostname output, if the device does not support hostnames, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or hostname output, if the device does not support hostnames, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn hostname(self) -> Result<String> {
         let mut hostname = sys::nvmlHostname_v1_t::default();
         // SAFETY: `nvmlDeviceGetHostname_v1` receives valid output locations.
@@ -173,9 +165,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or brand output, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or brand output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn brand(self) -> Result<Brand> {
         let mut brand = sys::nvmlBrandType_t::NVML_BRAND_UNKNOWN as u32;
         // SAFETY: `nvmlDeviceGetBrand` receives valid output locations.
@@ -192,8 +182,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or architecture output, or if
-    /// NVML has not been initialized.
+    /// Returns an error if NVML rejects the handle or architecture output, or if NVML has not been initialized.
     pub fn architecture(self) -> Result<Architecture> {
         let mut architecture = 0;
         // SAFETY: `nvmlDeviceGetArchitecture` receives valid output locations.
@@ -210,7 +199,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or serial-number reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or serial-number reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn serial(self) -> Result<String> {
         device_string_query(
             self,
@@ -223,7 +213,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or UUID reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or UUID reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn uuid(self) -> Result<String> {
         device_string_query(
             self,
@@ -236,7 +227,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or video BIOS version reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or video BIOS version reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn vbios_version(self) -> Result<String> {
         // From docs: "It will not exceed 32 characters in length (including the terminating NUL byte)"
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g4a02015969489ad8a28d8c56b34c825e
@@ -247,7 +239,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or board part-number reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or board part-number reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn board_part_number(self) -> Result<String> {
         device_string_query(
             self,
@@ -263,8 +256,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or module ID output, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or module ID output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn module_id(self) -> Result<u32> {
         let mut module_id = 0;
         // SAFETY: `nvmlDeviceGetModuleId` receives valid output locations.
@@ -280,9 +272,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support this query, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn is_multi_gpu_board(self) -> Result<bool> {
         let mut multi_gpu = 0;
         // SAFETY: `nvmlDeviceGetMultiGpuBoard` receives valid output locations.
@@ -301,9 +291,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the device handle, if the device does
-    /// not support this query, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the device handle, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn attributes(self) -> Result<DeviceAttributes> {
         let mut attributes = sys::nvmlDeviceAttributes_t::default();
         // SAFETY: `nvmlDeviceGetAttributes_v2` receives a live handle and writes only into the local `attributes`.
@@ -322,10 +310,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, API restriction, or output, if the device or queried feature does
-    /// not support API restriction reporting, if NVML has not been initialized,
-    /// or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, API restriction, or output, if the device or queried feature does not support API restriction reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn is_api_restricted(self, api: RestrictedApi) -> Result<EnableState> {
         let mut state = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetAPIRestriction` receives valid output locations.
@@ -347,10 +332,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the request, if system memory is
-    /// insufficient, if the device does not support this query, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the request, if system memory is insufficient, if the device does not support this query, or if NVML reports an unexpected failure.
     pub fn platform_info(self) -> Result<PlatformInfo> {
         let mut info = sys::nvmlPlatformInfo_t {
             version: struct_version::<sys::nvmlPlatformInfo_t>(2),
@@ -371,10 +353,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the handle
-    /// or output, if the device does not support PDI reporting, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the handle or output, if the device does not support PDI reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn pdi(self) -> Result<Pdi> {
         let mut pdi = sys::nvmlPdi_t {
             version: struct_version::<sys::nvmlPdi_t>(1),
@@ -391,9 +370,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support C2C mode reporting, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support C2C mode reporting, or if NVML reports an unexpected failure.
     pub fn c2c_mode_info(self) -> Result<C2cModeInfo> {
         let mut info = sys::nvmlC2cModeInfo_v1_t::default();
         // SAFETY: `nvmlDeviceGetC2cModeInfoV` receives a live handle and writes only into the local `info`.
@@ -414,9 +391,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support Auto Boosted clocks, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support Auto Boosted clocks, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn auto_boosted_clocks(self) -> Result<AutoBoostClocks> {
         let mut enabled = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         let mut default_enabled = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
@@ -435,8 +410,7 @@ impl Device {
     }
 
     /// Tries to set the default state of Auto Boosted clocks on a device.
-    /// Auto Boosted clocks return to this default state when no compute
-    /// processes, such as CUDA applications with active contexts, are running.
+    /// Auto Boosted clocks return to this default state when no compute processes, such as CUDA applications with active contexts, are running.
     ///
     /// For Kepler or newer non-GeForce fully supported devices and Maxwell or newer `GeForce` devices.
     /// Requires root/admin permissions.
@@ -449,10 +423,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, if the device does not support Auto Boosted clocks, if the
-    /// current process lacks permission to change the default state, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, if the device does not support Auto Boosted clocks, if the current process lacks permission to change the default state, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_default_auto_boosted_clocks_enabled(
         self,
         enabled: EnableState,
@@ -477,9 +448,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or PCI info output, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or PCI info output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn pci_info(self) -> Result<PciInfo> {
         let mut pci = sys::nvmlPciInfo_t::default();
         // SAFETY: `nvmlDeviceGetPciInfo_v3` receives a live handle and writes only into the local `pci`.
@@ -497,9 +466,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or PCI info output, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or PCI info output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn pci_info_ext(self) -> Result<PciInfoExt> {
         let mut pci = sys::nvmlPciInfoExt_t {
             version: struct_version::<sys::nvmlPciInfoExt_t>(1),
@@ -519,10 +486,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if bridge-chip reporting is not supported for the
-    /// device, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if bridge-chip reporting is not supported for the device, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn bridge_chip_hierarchy(self) -> Result<BridgeChipHierarchy> {
         let mut hierarchy = sys::nvmlBridgeChipHierarchy_t::default();
         // SAFETY: `nvmlDeviceGetBridgeChipInfo` receives a live handle and writes only into the local `hierarchy`.
@@ -538,9 +502,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if `PCIe` link information is unavailable, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if `PCIe` link information is unavailable, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn current_pcie_link_generation(self) -> Result<u32> {
         let mut generation = 0;
         // SAFETY: `nvmlDeviceGetCurrPcieLinkGeneration` receives valid output locations.
@@ -559,9 +521,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if `PCIe` link information is unavailable, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if `PCIe` link information is unavailable, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn current_pcie_link_width(self) -> Result<u32> {
         let mut width = 0;
         // SAFETY: `nvmlDeviceGetCurrPcieLinkWidth` receives valid output locations.
@@ -579,9 +539,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if `PCIe` link information is unavailable, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if `PCIe` link information is unavailable, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn max_pcie_link_generation(self) -> Result<u32> {
         let mut generation = 0;
         // SAFETY: `nvmlDeviceGetMaxPcieLinkGeneration` receives valid output locations.
@@ -600,9 +558,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if `PCIe` link information is unavailable, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if `PCIe` link information is unavailable, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn gpu_max_pcie_link_generation(self) -> Result<u32> {
         let mut generation = 0;
         // SAFETY: `nvmlDeviceGetGpuMaxPcieLinkGeneration` receives valid output locations.
@@ -617,16 +573,13 @@ impl Device {
 
     /// Returns the maximum `PCIe` link width possible with this device and system.
     ///
-    /// For example, a device with a 16x `PCIe` bus width attached to an 8x `PCIe`
-    /// system bus reports a maximum link width of 8.
+    /// For example, a device with a 16x `PCIe` bus width attached to an 8x `PCIe` system bus reports a maximum link width of 8.
     ///
     /// For Fermi or newer fully supported devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if `PCIe` link information is unavailable, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if `PCIe` link information is unavailable, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn max_pcie_link_width(self) -> Result<u32> {
         let mut width = 0;
         // SAFETY: `nvmlDeviceGetMaxPcieLinkWidth` receives valid output locations.
@@ -645,10 +598,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, counter, or output, if the device does not support `PCIe`
-    /// utilization queries, if NVML has not been initialized, or if NVML reports
-    /// an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, counter, or output, if the device does not support `PCIe` utilization queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn pcie_throughput(self, counter: PcieUtilCounter) -> Result<u32> {
         let mut throughput = 0;
         // SAFETY: `nvmlDeviceGetPcieThroughput` receives valid output locations.
@@ -668,10 +618,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support replay-counter queries,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support replay-counter queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn pcie_replay_counter(self) -> Result<u32> {
         let mut counter = 0;
         // SAFETY: `nvmlDeviceGetPcieReplayCounter` receives valid output locations.
@@ -688,9 +635,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support this query, or if NVML
-    /// has not been initialized.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support this query, or if NVML has not been initialized.
     pub fn pcie_link_max_speed(self) -> Result<u32> {
         let mut speed = 0;
         // SAFETY: `nvmlDeviceGetPcieLinkMaxSpeed` receives valid output locations.
@@ -704,9 +649,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support `PCIe` speed queries, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support `PCIe` speed queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn pcie_speed(self) -> Result<u32> {
         let mut speed = 0;
         // SAFETY: `nvmlDeviceGetPcieSpeed` receives valid output locations.
@@ -744,9 +687,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support GPM streaming-state queries, or if NVML has not been
-    /// initialized.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support GPM streaming-state queries, or if NVML has not been initialized.
     pub fn gpm_streaming_enabled(self) -> Result<EnableState> {
         let mut state = 0;
         // SAFETY: `nvmlGpmQueryIfStreamingEnabled` receives valid output locations.
@@ -766,9 +707,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or sample buffer, if the
-    /// device does not support GPM sampling, or if samples are requested too
-    /// quickly.
+    /// Returns an error if NVML rejects the handle or sample buffer, if the device does not support GPM sampling, or if samples are requested too quickly.
     pub fn gpm_sample(self, sample: &mut GpmSample) -> Result<()> {
         // SAFETY: `nvmlGpmSampleGet` receives live handles owned by the wrappers.
         unsafe { try_ffi!(sys::nvmlGpmSampleGet(self.0, sample.as_raw())) }
@@ -784,9 +723,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, GPU instance id, or sample
-    /// buffer, if the device does not support GPM MIG sampling, or if samples
-    /// are requested too quickly.
+    /// Returns an error if NVML rejects the handle, GPU instance id, or sample buffer, if the device does not support GPM MIG sampling, or if samples are requested too quickly.
     pub fn gpm_mig_sample(self, gpu_instance_id: u32, sample: &mut GpmSample) -> Result<()> {
         // SAFETY: `nvmlGpmMigSampleGet` receives live handles owned by the wrappers.
         unsafe {
@@ -825,9 +762,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support utilization queries, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support utilization queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn utilization(self) -> Result<Utilization> {
         let mut utilization = sys::nvmlUtilization_t::default();
         // SAFETY: `nvmlDeviceGetUtilizationRates` receives a live handle and writes only into the local `utilization`.
@@ -844,7 +779,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query.
+    /// Also propagates NVML query failures.
     pub fn encoder_utilization(self) -> Result<UtilizationCounter> {
         device_utilization_counter(self, sys::nvmlDeviceGetEncoderUtilization)
     }
@@ -853,7 +789,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query.
+    /// Also propagates NVML query failures.
     pub fn decoder_utilization(self) -> Result<UtilizationCounter> {
         device_utilization_counter(self, sys::nvmlDeviceGetDecoderUtilization)
     }
@@ -862,7 +799,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query.
+    /// Also propagates NVML query failures.
     pub fn jpg_utilization(self) -> Result<UtilizationCounter> {
         device_utilization_counter(self, sys::nvmlDeviceGetJpgUtilization)
     }
@@ -871,7 +809,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, or the device does not support the requested engine-utilization query.
+    /// Also propagates NVML query failures.
     pub fn ofa_utilization(self) -> Result<UtilizationCounter> {
         device_utilization_counter(self, sys::nvmlDeviceGetOfaUtilization)
     }
@@ -882,9 +821,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if the device does not support the requested encoder, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if the device does not support the requested encoder, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn encoder_capacity(self, encoder: EncoderType) -> Result<u32> {
         let mut capacity = 0;
         // SAFETY: `nvmlDeviceGetEncoderCapacity` receives valid output locations.
@@ -904,9 +841,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn encoder_stats(self) -> Result<EncoderStats> {
         let mut session_count = 0;
         let mut average_fps = 0;
@@ -935,10 +870,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the active-session
-    /// count changes while the wrapper is fetching sessions, if NVML reports an
-    /// invalid session count, if the device does not support this query, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the active-session count changes while the wrapper is fetching sessions, if NVML reports an invalid session count, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn encoder_sessions(self) -> Result<Vec<EncoderSessionInfo>> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetEncoderSessions` receives live handles owned by the wrappers and valid output locations.
@@ -948,6 +880,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -961,6 +894,7 @@ impl Device {
                 sessions.as_mut_ptr(),
             ))?;
         }
+
         sessions.truncate(count as usize);
         Ok(sessions.into_iter().map(Into::into).collect())
     }
@@ -976,9 +910,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if the device does not support BAR1 memory reporting, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if the device does not support BAR1 memory reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn bar1_memory_info(self) -> Result<Bar1MemoryInfo> {
         let mut memory = sys::nvmlBAR1Memory_t::default();
         // SAFETY: `nvmlDeviceGetBAR1MemoryInfo` receives a live handle and writes only into the local `memory`.
@@ -996,10 +928,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, clock type, or output, if the device cannot report the requested
-    /// clock, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, clock type, or output, if the device cannot report the requested clock, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn clock(self, kind: ClockType) -> Result<u32> {
         let mut clock = 0;
         // SAFETY: `nvmlDeviceGetClockInfo` receives valid output locations.
@@ -1019,10 +948,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, clock type, clock ID, or output, if the device does not support
-    /// this clock query, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, clock type, clock ID, or output, if the device does not support this clock query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn clock_with_id(self, kind: ClockType, clock_id: ClockId) -> Result<u32> {
         let mut clock = 0;
         // SAFETY: `nvmlDeviceGetClock` receives valid output locations.
@@ -1047,10 +973,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, clock type, or output, if the device cannot report the requested
-    /// maximum clock, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, clock type, or output, if the device cannot report the requested maximum clock, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn max_clock(self, kind: ClockType) -> Result<u32> {
         let mut clock = 0;
         // SAFETY: `nvmlDeviceGetMaxClockInfo` receives valid output locations.
@@ -1093,10 +1016,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the internal
-    /// clock-frequency buffer is too small, if NVML rejects the handle or
-    /// output, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if the internal clock-frequency buffer is too small, if NVML rejects the handle or output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn current_clock_freqs(self) -> Result<CurrentClockFreqs> {
         let mut current = sys::nvmlDeviceCurrentClockFreqs_t {
             version: struct_version::<sys::nvmlDeviceCurrentClockFreqs_t>(1),
@@ -1144,10 +1064,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the internal
-    /// performance-mode buffer is too small, if NVML rejects the handle or
-    /// output, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if the internal performance-mode buffer is too small, if NVML rejects the handle or output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn performance_modes(self) -> Result<PerformanceModes> {
         let mut modes = sys::nvmlDevicePerfModes_t {
             version: struct_version::<sys::nvmlDevicePerfModes_t>(1),
@@ -1184,10 +1101,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, clock type, or output, if the device or requested clock type does
-    /// not support customer boost clocks, if NVML has not been initialized, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, clock type, or output, if the device or requested clock type does not support customer boost clocks, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn max_customer_boost_clock(self, kind: ClockType) -> Result<u32> {
         let mut clock = 0;
         // SAFETY: `nvmlDeviceGetMaxCustomerBoostClock` receives valid output locations.
@@ -1205,9 +1119,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, clock type, P-state, or
-    /// outputs, if the device does not support this query, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, clock type, P-state, or outputs, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn min_max_clock_of_pstate(
         self,
         kind: ClockType,
@@ -1232,18 +1144,12 @@ impl Device {
     ///
     /// For Maxwell or newer fully supported devices.
     ///
-    /// [`Device::gpc_clock_vf_offset`], [`Device::memory_clock_vf_offset`],
-    /// [`sys::nvmlDeviceGetGpcClkMinMaxVfOffset`], and
-    /// [`sys::nvmlDeviceGetMemClkMinMaxVfOffset`] are deprecated and are planned
-    /// for removal in a future release.
+    /// [`Device::gpc_clock_vf_offset`], [`Device::memory_clock_vf_offset`], [`sys::nvmlDeviceGetGpcClkMinMaxVfOffset`], and [`sys::nvmlDeviceGetMemClkMinMaxVfOffset`] are deprecated and are planned for removal in a future release.
     /// Use [`Device::clock_offsets`] instead.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the device, clock type, P-state, or
-    /// outputs, if the device does not support clock-offset queries, or if NVML
-    /// has not been initialized.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the device, clock type, P-state, or outputs, if the device does not support clock-offset queries, or if NVML has not been initialized.
     pub fn clock_offsets(self, kind: ClockType, pstate: PerformanceState) -> Result<ClockOffset> {
         let mut info = sys::nvmlClockOffset_t {
             version: struct_version::<sys::nvmlClockOffset_t>(1),
@@ -1266,10 +1172,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle, clock type, P-state, or
-    /// offset, if the device does not support clock-offset control, if the
-    /// current process lacks permission, or if NVML has not been initialized.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle, clock type, P-state, or offset, if the device does not support clock-offset control, if the current process lacks permission, or if NVML has not been initialized.
     pub fn set_clock_offsets(self, offset: ClockOffset) -> Result<()> {
         let mut info = sys::nvmlClockOffset_t {
             version: struct_version::<sys::nvmlClockOffset_t>(1),
@@ -1287,9 +1190,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support this deprecated offset query, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support this deprecated offset query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn gpc_clock_vf_offset(self) -> Result<i32> {
         let mut offset = 0;
         // SAFETY: `nvmlDeviceGetGpcClkVfOffset` receives valid output locations.
@@ -1303,9 +1204,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support this deprecated offset query, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support this deprecated offset query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn memory_clock_vf_offset(self) -> Result<i32> {
         let mut offset = 0;
         // SAFETY: `nvmlDeviceGetMemClkVfOffset` receives valid output locations.
@@ -1319,7 +1218,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, or querying this clock offset range is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, or querying this clock offset range is unsupported.
+    /// Also propagates NVML query failures.
     pub fn gpc_clock_vf_offset_range(self) -> Result<ClockRangeI32> {
         device_clock_offset_range(self, sys::nvmlDeviceGetGpcClkMinMaxVfOffset)
     }
@@ -1328,7 +1228,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, or querying this clock offset range is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, or querying this clock offset range is unsupported.
+    /// Also propagates NVML query failures.
     pub fn memory_clock_vf_offset_range(self) -> Result<ClockRangeI32> {
         device_clock_offset_range(self, sys::nvmlDeviceGetMemClkMinMaxVfOffset)
     }
@@ -1339,10 +1240,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the clock list changes
-    /// while the wrapper is fetching it, if NVML rejects the handle or count
-    /// output, if the device does not support this query, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the clock list changes while the wrapper is fetching it, if NVML rejects the handle or count output, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn supported_memory_clocks(self) -> Result<Vec<u32>> {
         // SAFETY: `nvmlDeviceGetSupportedMemoryClocks` receives only plain values.
         query_u32_list(|count, values| unsafe {
@@ -1356,11 +1254,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the clock list changes
-    /// while the wrapper is fetching it, if NVML rejects the handle, memory
-    /// clock, or output, if `memory_clock_mhz` is unsupported, if the device does
-    /// not support this query, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the clock list changes while the wrapper is fetching it, if NVML rejects the handle, memory clock, or output, if `memory_clock_mhz` is unsupported, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn supported_graphics_clocks(self, memory_clock_mhz: u32) -> Result<Vec<u32>> {
         // SAFETY: `nvmlDeviceGetSupportedGraphicsClocks` receives only plain values.
         query_u32_list(|count, values| unsafe {
@@ -1372,7 +1266,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates sensor-query errors from [`Self::temperature`]. Returns `Error::NegativeValue` if the reported temperature is negative.
+    /// Propagates sensor-query errors from [`Self::temperature`].
+    /// Returns `Error::NegativeValue` if the reported temperature is negative.
     pub fn temperature_reading(self, sensor: TemperatureSensor) -> Result<u32> {
         let value = self.temperature(sensor)?.temperature;
         u32::try_from(value).map_err(|_| Error::NegativeValue {
@@ -1394,10 +1289,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, threshold type, or output, if the device does not support the
-    /// requested temperature threshold, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, threshold type, or output, if the device does not support the requested temperature threshold, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn temperature_threshold(self, threshold: TemperatureThreshold) -> Result<u32> {
         let mut temperature = 0;
         // SAFETY: `nvmlDeviceGetTemperatureThreshold` receives valid output locations.
@@ -1419,10 +1311,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, threshold type, or temperature value, if the device does not
-    /// support setting this threshold, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, threshold type, or temperature value, if the device does not support setting this threshold, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_temperature_threshold(
         self,
         threshold: TemperatureThreshold,
@@ -1444,10 +1333,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the handle
-    /// or output, if the platform does not support this query, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the handle or output, if the platform does not support this query, or if NVML reports an unexpected failure.
     pub fn margin_temperature(self) -> Result<MarginTemperature> {
         let mut margin = sys::nvmlMarginTemperature_t {
             version: struct_version::<sys::nvmlMarginTemperature_t>(1),
@@ -1464,10 +1350,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, sensor index, or output, if the device does not support thermal
-    /// settings, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, sensor index, or output, if the device does not support thermal settings, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn thermal_settings(self, sensor_index: u32) -> Result<ThermalSettings> {
         let mut settings = sys::nvmlGpuThermalSettings_t::default();
         // SAFETY: `nvmlDeviceGetThermalSettings` receives a live handle and writes only into the local `settings`.
@@ -1496,9 +1379,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support power readings, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support power readings, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn power_usage(self) -> Result<u32> {
         let mut power = 0;
         // SAFETY: `nvmlDeviceGetPowerUsage` receives valid output locations.
@@ -1514,7 +1395,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates field-query errors, per-field decoding errors, and per-field NVML failures other than `Status::NotSupported`. Also returns an error if the single-field query yields no entry.
+    /// Propagates field-query errors, per-field decoding errors, and per-field NVML failures other than `Status::NotSupported`.
+    /// Also returns an error if the single-field query yields no entry.
     pub fn power_management_mode(self) -> Result<EnableState> {
         let sample = self.single_field_value(FieldId::POWER_CURRENT_LIMIT, 0)?;
         match sample.result {
@@ -1539,9 +1421,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support power limits, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support power limits, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn power_management_limit(self) -> Result<u32> {
         let mut limit = 0;
         // SAFETY: `nvmlDeviceGetPowerManagementLimit` receives valid output locations.
@@ -1566,10 +1446,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or power limit, if the device does not support power-limit
-    /// control, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or power limit, if the device does not support power-limit control, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_power_management_limit(self, limit: u32) -> Result<()> {
         // SAFETY: `nvmlDeviceSetPowerManagementLimit` receives only plain values.
         unsafe {
@@ -1585,9 +1462,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support power limits, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support power limits, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn power_management_default_limit(self) -> Result<u32> {
         let mut limit = 0;
         // SAFETY: `nvmlDeviceGetPowerManagementDefaultLimit` receives valid output locations.
@@ -1609,9 +1484,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support power limits, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support power limits, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn enforced_power_limit(self) -> Result<u32> {
         let mut limit = 0;
         // SAFETY: `nvmlDeviceGetEnforcedPowerLimit` receives valid output locations.
@@ -1627,9 +1500,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or outputs, if the device does not support power-limit ranges, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or outputs, if the device does not support power-limit ranges, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn power_management_limit_constraints(self) -> Result<PowerLimits> {
         let mut min = 0;
         let mut max = 0;
@@ -1652,10 +1523,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support `PowerMizer` mode
-    /// readings, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support `PowerMizer` mode readings, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn power_mizer_mode(self) -> Result<PowerMizerModes> {
         let mut modes = sys::nvmlDevicePowerMizerModes_v1_t::default();
         // SAFETY: `nvmlDeviceGetPowerMizerMode_v1` receives a live handle and writes only into the local `modes`.
@@ -1671,10 +1539,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or mode, if the device does not support `PowerMizer` mode changes,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or mode, if the device does not support `PowerMizer` mode changes, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_power_mizer_mode(self, mode: PowerMizerMode) -> Result<()> {
         let mut power_mizer = sys::nvmlDevicePowerMizerModes_v1_t {
             mode: mode.into(),
@@ -1695,9 +1560,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support energy readings, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support energy readings, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn total_energy_consumption(self) -> Result<u64> {
         let mut energy = 0;
         // SAFETY: `nvmlDeviceGetTotalEnergyConsumption` receives valid output locations.
@@ -1719,9 +1582,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or outputs, if NVML has not been initialized, or if NVML reports
-    /// an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or outputs, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn compute_capability(self) -> Result<ComputeCapability> {
         let mut major = 0;
         let mut minor = 0;
@@ -1744,10 +1605,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support performance-state
-    /// queries, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support performance-state queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn performance_state(self) -> Result<PerformanceState> {
         let mut state = sys::nvmlPstates_t::NVML_PSTATE_UNKNOWN;
         // SAFETY: `nvmlDeviceGetPerformanceState` receives valid output locations.
@@ -1768,19 +1626,14 @@ impl Device {
 
     /// Returns all supported performance states (P-states) for the device.
     ///
-    /// The returned array contains a contiguous list of valid P-states supported
-    /// by the device.
-    /// If the number of supported P-states is smaller than the supplied array,
-    /// missing elements contain [`PerformanceState::Unknown`].
+    /// The returned array contains a contiguous list of valid P-states supported by the device.
+    /// If the number of supported P-states is smaller than the supplied array, missing elements contain [`PerformanceState::Unknown`].
     ///
     /// The number of returned elements never exceeds `NVML_MAX_GPU_PERF_PSTATES`.
     ///
     /// # Errors
     ///
-    /// Returns an error if the fixed internal P-state buffer is too small, if
-    /// NVML rejects the query, if the device does not support performance-state
-    /// readings, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the fixed internal P-state buffer is too small, if NVML rejects the query, if the device does not support performance-state readings, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn supported_performance_states(self) -> Result<Vec<PerformanceState>> {
         let mut states =
             [sys::nvmlPstates_t::NVML_PSTATE_UNKNOWN; sys::NVML_MAX_GPU_PERF_PSTATES as usize];
@@ -1808,9 +1661,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support clocks-event reasons, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support clocks-event reasons, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn current_clocks_event_reasons(self) -> Result<ClockEventReasons> {
         let mut reasons = 0;
         // SAFETY: `nvmlDeviceGetCurrentClocksEventReasons` receives valid output locations.
@@ -1840,9 +1691,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn supported_clocks_event_reasons(self) -> Result<ClockEventReasons> {
         let mut reasons = 0;
         // SAFETY: `nvmlDeviceGetSupportedClocksEventReasons` receives valid output locations.
@@ -1873,9 +1722,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the event
-    /// mask output, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the event mask output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn supported_event_types(self) -> Result<EventTypes> {
         let mut event_types = 0;
         // SAFETY: `nvmlDeviceGetSupportedEventTypes` receives valid output locations.
@@ -1892,16 +1739,13 @@ impl Device {
     /// Devices with the same board ID indicate GPUs connected to the same PLX.
     /// Use in conjunction with [`Device::is_multi_gpu_board`] to decide if they are on the same board as well.
     /// The returned board ID is unique for the current configuration.
-    /// Uniqueness and ordering across reboots and system configurations are not
-    /// guaranteed, but IDs remain distinct within one configuration.
+    /// Uniqueness and ordering across reboots and system configurations are not guaranteed, but IDs remain distinct within one configuration.
     ///
     /// For Fermi or newer fully supported devices.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support board IDs, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support board IDs, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn board_id(self) -> Result<u32> {
         let mut board_id = 0;
         // SAFETY: `nvmlDeviceGetBoardId` receives valid output locations.
@@ -1921,10 +1765,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support display-mode reporting,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support display-mode reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn display_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetDisplayMode` receives valid output locations.
@@ -1947,9 +1788,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if the device does not support display-active reporting, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if the device does not support display-active reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn display_active(self) -> Result<EnableState> {
         let mut active = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetDisplayActive` receives valid output locations.
@@ -1972,9 +1811,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or outputs, if the device does not support ECC mode reporting, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or outputs, if the device does not support ECC mode reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn ecc_mode(self) -> Result<CurrentPending<EnableState>> {
         let mut current = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         let mut pending = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
@@ -2002,9 +1839,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support ECC mode reporting, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support ECC mode reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn default_ecc_mode(self) -> Result<EnableState> {
         let mut default_mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetDefaultEccMode` receives valid output locations.
@@ -2017,8 +1852,7 @@ impl Device {
         Ok(default_mode.into())
     }
 
-    /// Returns the current GPU operation mode and the pending mode that will
-    /// take effect after reboot.
+    /// Returns the current GPU operation mode and the pending mode that will take effect after reboot.
     ///
     /// For GK110 M-class and X-class Tesla products from the Kepler family.
     /// Modes [`GpuOperationMode::LowDp`] and [`GpuOperationMode::AllOn`] are supported on fully supported `GeForce` products.
@@ -2026,9 +1860,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or outputs, if the device does not support GPU operation modes, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or outputs, if the device does not support GPU operation modes, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn gpu_operation_mode(self) -> Result<CurrentPending<GpuOperationMode>> {
         let mut current = sys::nvmlGpuOperationMode_t::NVML_GOM_ALL_ON;
         let mut pending = sys::nvmlGpuOperationMode_t::NVML_GOM_ALL_ON;
@@ -2060,9 +1892,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or outputs, if the platform is not Windows, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or outputs, if the platform is not Windows, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn driver_model(self) -> Result<CurrentPending<DriverModel>> {
         let mut current = sys::nvmlDriverModel_t::NVML_DRIVER_WDDM;
         let mut pending = sys::nvmlDriverModel_t::NVML_DRIVER_WDDM;
@@ -2096,8 +1926,7 @@ impl Device {
     ///
     /// Windows driver model may only be set to WDDM when running in DEFAULT compute mode.
     ///
-    /// Changing the driver model to WDDM is not supported when the GPU does not
-    /// support graphics acceleration, or would not support it after reboot.
+    /// Changing the driver model to WDDM is not supported when the GPU does not support graphics acceleration, or would not support it after reboot.
     /// See [`Device::set_gpu_operation_mode`].
     ///
     /// See [`DriverModel`] for details on available driver models.
@@ -2105,11 +1934,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, driver model, or flags, if the platform is not Windows or the
-    /// device does not support driver-model changes, if the current process
-    /// lacks permission, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, driver model, or flags, if the platform is not Windows or the device does not support driver-model changes, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_driver_model(self, model: DriverModel, flags: DriverModelFlags) -> Result<()> {
         // SAFETY: `nvmlDeviceSetDriverModel` receives only plain values.
         unsafe {
@@ -2139,10 +1964,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or mode, if the device does not support GPU operation mode changes
-    /// or the requested mode, if the current process lacks permission, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or mode, if the device does not support GPU operation mode changes or the requested mode, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_gpu_operation_mode(self, mode: GpuOperationMode) -> Result<()> {
         // SAFETY: `nvmlDeviceSetGpuOperationMode` receives only plain values.
         unsafe {
@@ -2155,7 +1977,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or information-ROM version reporting is unsupported. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the query buffer is insufficient, or information-ROM version reporting is unsupported.
+    /// Also propagates NVML query failures.
     pub fn inforom_image_version(self) -> Result<String> {
         device_string_query(self, 16, sys::nvmlDeviceGetInforomImageVersion)
     }
@@ -2173,10 +1996,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the internal infoROM
-    /// version buffer is too small, if NVML rejects the output, if the device
-    /// does not have an infoROM, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the internal infoROM version buffer is too small, if NVML rejects the output, if the device does not have an infoROM, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn inforom_version(self, object: InforomObject) -> Result<String> {
         let mut buffer = vec![0i8; sys::NVML_DEVICE_INFOROM_VERSION_BUFFER_SIZE as usize];
         // SAFETY: `nvmlDeviceGetInforomVersion` receives live handles owned by the wrappers and valid output locations.
@@ -2201,10 +2021,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the infoROM checksum cannot be read because the
-    /// infoROM is corrupted, if the device is inaccessible, if NVML rejects the
-    /// output, if the device does not support checksums, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the infoROM checksum cannot be read because the infoROM is corrupted, if the device is inaccessible, if NVML rejects the output, if the device does not support checksums, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn inforom_configuration_checksum(self) -> Result<u32> {
         let mut checksum = 0;
         // SAFETY: `nvmlDeviceGetInforomConfigurationChecksum` receives valid output locations.
@@ -2223,9 +2040,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the infoROM is corrupted, if the device is
-    /// inaccessible, if the device does not support infoROM validation, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the infoROM is corrupted, if the device is inaccessible, if the device does not support infoROM validation, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn validate_inforom(self) -> Result<()> {
         // SAFETY: `nvmlDeviceValidateInforom` receives only plain values.
         unsafe { try_ffi!(sys::nvmlDeviceValidateInforom(self.0)) }
@@ -2237,9 +2052,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the BBX object has not
-    /// been flushed yet, if the device does not have an infoROM, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the BBX object has not been flushed yet, if the device does not have an infoROM, or if NVML reports an unexpected failure.
     pub fn last_bbx_flush_time(self) -> Result<BbxFlushTime> {
         let mut timestamp = 0;
         let mut duration_us = 0;
@@ -2261,9 +2074,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support adaptive-clock status,
-    /// or if NVML has not been initialized.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support adaptive-clock status, or if NVML has not been initialized.
     pub fn adaptive_clock_info_status(self) -> Result<AdaptiveClockInfoStatus> {
         let mut status = 0;
         // SAFETY: `nvmlDeviceGetAdaptiveClockInfoStatus` receives valid output locations.
@@ -2285,10 +2096,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support frequency-monitor
-    /// status, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support frequency-monitor status, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn clk_mon_status(self) -> Result<ClkMonStatus> {
         let mut status = sys::nvmlClkMonStatus_t::default();
         // SAFETY: `nvmlDeviceGetClkMonStatus` receives a live handle and writes only into the local `status`.
@@ -2307,10 +2115,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the handle
-    /// or output, if the device does not support SRAM ECC status, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the handle or output, if the device does not support SRAM ECC status, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn sram_ecc_error_status(self) -> Result<EccSramErrorStatus> {
         let mut status = sys::nvmlEccSramErrorStatus_t {
             version: struct_version::<sys::nvmlEccSramErrorStatus_t>(1),
@@ -2330,7 +2135,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the native record version is unsupported, or this SRAM error query is unavailable. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the native record version is unsupported, or this SRAM error query is unavailable.
+    /// Also propagates NVML query failures.
     pub fn sram_unique_uncorrected_ecc_error_counts(
         self,
     ) -> Result<EccSramUniqueUncorrectedErrorCounts> {
@@ -2364,9 +2170,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support IRQ-number reporting, or
-    /// if NVML has not been initialized.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support IRQ-number reporting, or if NVML has not been initialized.
     pub fn irq_number(self) -> Result<u32> {
         let mut irq = 0;
         // SAFETY: `nvmlDeviceGetIrqNum` receives valid output locations.
@@ -2383,9 +2187,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device or MIG device does not support core-count
-    /// reporting, or if NVML has not been initialized.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device or MIG device does not support core-count reporting, or if NVML has not been initialized.
     pub fn num_gpu_cores(self) -> Result<u32> {
         let mut cores = 0;
         // SAFETY: `nvmlDeviceGetNumGpuCores` receives valid output locations.
@@ -2399,9 +2201,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support memory-bus-width
-    /// reporting, or if NVML has not been initialized.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support memory-bus-width reporting, or if NVML has not been initialized.
     pub fn memory_bus_width(self) -> Result<u32> {
         let mut width = 0;
         // SAFETY: `nvmlDeviceGetMemoryBusWidth` receives valid output locations.
@@ -2415,8 +2215,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML has not been initialized, if NVML rejects the
-    /// handle or output, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML has not been initialized, if NVML rejects the handle or output, or if NVML reports an unexpected failure.
     pub fn bus_type(self) -> Result<BusType> {
         let mut bus_type = 0;
         // SAFETY: `nvmlDeviceGetBusType` receives valid output locations.
@@ -2430,9 +2229,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support power-source reporting,
-    /// or if NVML has not been initialized.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support power-source reporting, or if NVML has not been initialized.
     pub fn power_source(self) -> Result<PowerSource> {
         let mut power_source = 0;
         // SAFETY: `nvmlDeviceGetPowerSource` receives valid output locations.
@@ -2456,10 +2253,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, error type, counter type, or output, if the device does not
-    /// support ECC error reporting, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, error type, counter type, or output, if the device does not support ECC error reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn total_ecc_errors(
         self,
         error_type: MemoryErrorType,
@@ -2482,7 +2276,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates errors from the component [`Self::memory_error_counter`] queries, including unsupported error types, counter scopes, or memory locations. No partial record is returned if one location query fails.
+    /// Propagates errors from the component [`Self::memory_error_counter`] queries, including unsupported error types, counter scopes, or memory locations.
+    /// No partial record is returned if one location query fails.
     pub fn detailed_ecc_errors(
         self,
         error_type: MemoryErrorType,
@@ -2532,11 +2327,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, error type, counter type, memory location, or output, if the
-    /// device does not support ECC error reporting for the requested memory
-    /// location, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, error type, counter type, memory location, or output, if the device does not support ECC error reporting for the requested memory location, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn memory_error_counter(
         self,
         error_type: MemoryErrorType,
@@ -2561,7 +2352,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates field-query and per-field NVML errors, including an empty single-field response or an unknown field-value type. Also rejects a negative duration or a floating-point duration where an integer is required.
+    /// Propagates field-query and per-field NVML errors, including an empty single-field response or an unknown field-value type.
+    /// Also rejects a negative duration or a floating-point duration where an integer is required.
     pub fn violation_status(self, perf_policy: PerfPolicyType) -> Result<ViolationTime> {
         let sample = self.single_field_value(field_id_for_perf_policy(perf_policy), 0)?;
         Ok(ViolationTime {
@@ -2572,8 +2364,7 @@ impl Device {
 
     /// Returns the list of retired pages by source, including pages that are pending retirement.
     /// The returned address information is the hardware address of the retired page.
-    /// This does not match the virtual address used in CUDA, but it matches the
-    /// address information in Xid 63.
+    /// This does not match the virtual address used in CUDA, but it matches the address information in Xid 63.
     ///
     /// [`Device::retired_pages`] adds an additional timestamps parameter to return the time of each page's retirement.
     /// This is supported for Pascal and newer architecture.
@@ -2582,11 +2373,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the retired-page list
-    /// changes while the wrapper is fetching it, if NVML rejects the handle,
-    /// cause, count, or outputs, if the device does not support page retirement,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the device is inaccessible, if the retired-page list changes while the wrapper is fetching it, if NVML rejects the handle, cause, count, or outputs, if the device does not support page retirement, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn retired_pages(self, cause: PageRetirementCause) -> Result<Vec<RetiredPage>> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetRetiredPages_v2` receives valid output locations.
@@ -2602,6 +2389,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -2618,6 +2406,7 @@ impl Device {
                 timestamps.as_mut_ptr(),
             ))?;
         }
+
         addresses.truncate(count as usize);
         timestamps.truncate(count as usize);
         Ok(addresses
@@ -2636,10 +2425,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support page-retirement status,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support page-retirement status, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn retired_pages_pending_status(self) -> Result<EnableState> {
         let mut pending = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetRetiredPagesPendingStatus` receives valid output locations.
@@ -2657,8 +2443,7 @@ impl Device {
     /// `is_pending` indicates whether there are pending remappings.
     /// A reset is required to actually remap the row.
     /// `failure_occurred` is set if a row remapping ever failed in the past.
-    /// A pending remapping does not affect future GPU work because error
-    /// containment and dynamic page blacklisting handle it.
+    /// A pending remapping does not affect future GPU work because error containment and dynamic page blacklisting handle it.
     ///
     /// On MIG-enabled GPUs with active instances, querying the number of remapped rows is not supported.
     ///
@@ -2666,9 +2451,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or outputs, if MIG is enabled
-    /// or the device does not support remapped-row reporting, or if NVML reports
-    /// an unexpected failure.
+    /// Returns an error if NVML rejects the handle or outputs, if MIG is enabled or the device does not support remapped-row reporting, or if NVML reports an unexpected failure.
     pub fn remapped_rows(self) -> Result<RemappedRows> {
         let mut corrected = 0;
         let mut uncorrected = 0;
@@ -2697,8 +2480,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML reports an unexpected row-remapper query
-    /// failure.
+    /// Returns an error if NVML reports an unexpected row-remapper query failure.
     pub fn row_remapper_histogram(self) -> Result<RowRemapperHistogram> {
         let mut histogram = sys::nvmlRowRemapperHistogramValues_t::default();
         // SAFETY: `nvmlDeviceGetRowRemapperHistogram` receives a live handle and writes only into the local `histogram`.
@@ -2713,8 +2495,7 @@ impl Device {
 
     /// Requests values for a list of device fields.
     /// Allows multiple fields to be queried at once.
-    /// If multiple field IDs are populated by the same driver call, NVML
-    /// populates those results from one call rather than one call per field ID.
+    /// If multiple field IDs are populated by the same driver call, NVML populates those results from one call rather than one call per field ID.
     ///
     /// # Errors
     ///
@@ -2795,9 +2576,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if the device does not support the requested sample type, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if the device does not support the requested sample type, if NVML has not been initialized, or if NVML reports an unexpected failure.
     /// Missing sample entries are returned as an empty sample list.
     pub fn samples(self, kind: SamplingType, last_seen_timestamp: u64) -> Result<Samples> {
         let mut value_type = sys::nvmlValueType_t::NVML_VALUE_TYPE_UNSIGNED_INT;
@@ -2819,12 +2598,14 @@ impl Device {
                 samples: Vec::new(),
             });
         }
+
         if status == sys::nvmlReturn_t::NVML_ERROR_NOT_FOUND {
             return Ok(Samples {
                 value_type: try_from_nvml_enum("field value type", u32::from(value_type))?,
                 samples: Vec::new(),
             });
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -2841,6 +2622,7 @@ impl Device {
                 samples.as_mut_ptr(),
             ))?;
         }
+
         samples.truncate(count as usize);
         Ok(Samples {
             value_type: try_from_nvml_enum("field value type", u32::from(value_type))?,
@@ -2857,9 +2639,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the device or output buffer, if GSP
-    /// firmware is not enabled for the GPU, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if NVML rejects the device or output buffer, if GSP firmware is not enabled for the GPU, or if NVML reports an unexpected failure.
     pub fn gsp_firmware_version(self) -> Result<String> {
         let mut buffer = vec![0i8; sys::NVML_GSP_FIRMWARE_VERSION_BUF_SIZE as usize];
         // SAFETY: `nvmlDeviceGetGspFirmwareVersion` receives valid output locations.
@@ -2878,8 +2658,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if GSP firmware is not
-    /// enabled for the GPU, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the query, if GSP firmware is not enabled for the GPU, or if NVML reports an unexpected failure.
     pub fn gsp_firmware_mode(self) -> Result<GspFirmwareMode> {
         let mut enabled = 0;
         let mut default_mode = 0;
@@ -2903,9 +2682,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not have a fan, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not have a fan, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn num_fans(self) -> Result<u32> {
         let mut fans = 0;
         // SAFETY: `nvmlDeviceGetNumFans` receives valid output locations.
@@ -2918,8 +2695,7 @@ impl Device {
     /// Returns the intended operating speed of the device's fan.
     ///
     /// The reported speed is the intended fan speed.
-    /// If the fan is physically blocked and unable to spin, the output does not
-    /// match the actual fan speed.
+    /// If the fan is physically blocked and unable to spin, the output does not match the actual fan speed.
     ///
     /// For all discrete products with dedicated fans.
     ///
@@ -2928,9 +2704,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not have a fan, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not have a fan, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn default_fan_speed(self) -> Result<u32> {
         let mut speed = 0;
         // SAFETY: `nvmlDeviceGetFanSpeed` receives valid output locations.
@@ -2943,8 +2717,7 @@ impl Device {
     /// Returns the intended operating speed of the device's specified fan.
     ///
     /// The reported speed is the intended fan speed.
-    /// If the fan is physically blocked and unable to spin, the output does not
-    /// match the actual fan speed.
+    /// If the fan is physically blocked and unable to spin, the output does not match the actual fan speed.
     ///
     /// For all discrete products with dedicated fans.
     ///
@@ -2953,10 +2726,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, fan index, or output, if the device does not have a supported fan
-    /// interface, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, fan index, or output, if the device does not have a supported fan interface, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fan_speed(self, fan: u32) -> Result<u32> {
         let mut speed = 0;
         // SAFETY: `nvmlDeviceGetFanSpeed_v2` receives valid output locations.
@@ -2973,15 +2743,11 @@ impl Device {
     /// For all discrete products with dedicated fans.
     ///
     /// The reported speed is the intended fan speed.
-    /// If the fan is physically blocked and unable to spin, the output does not
-    /// match the actual fan speed.
+    /// If the fan is physically blocked and unable to spin, the output does not match the actual fan speed.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle, fan index, or output, if the
-    /// device does not support fan RPM reporting, or if NVML has not been
-    /// initialized.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle, fan index, or output, if the device does not support fan RPM reporting, or if NVML has not been initialized.
     pub fn fan_speed_rpm(self, fan: u32) -> Result<FanSpeedInfo> {
         let mut info = sys::nvmlFanSpeedInfo_t {
             version: struct_version::<sys::nvmlFanSpeedInfo_t>(1),
@@ -3006,9 +2772,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, fan index, or output, if
-    /// the device does not support fan policies, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, fan index, or output, if the device does not support fan policies, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fan_control_policy(self, fan: u32) -> Result<FanPolicy> {
         let mut policy = 0;
         // SAFETY: `nvmlDeviceGetFanControlPolicy_v2` receives valid output locations.
@@ -3028,9 +2792,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or fan index, if the device
-    /// does not support fan-speed control, if NVML has not been initialized, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or fan index, if the device does not support fan-speed control, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_default_fan_speed(self, fan: u32) -> Result<()> {
         // SAFETY: `nvmlDeviceSetDefaultFanSpeed_v2` receives only plain values.
         unsafe {
@@ -3049,9 +2811,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, fan index, or policy, if the
-    /// device does not support fan policies, if NVML has not been initialized,
-    /// or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, fan index, or policy, if the device does not support fan policies, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_fan_control_policy(self, fan: u32, policy: FanPolicy) -> Result<()> {
         // SAFETY: `nvmlDeviceSetFanControlPolicy` receives only plain values.
         unsafe {
@@ -3075,9 +2835,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML has not been initialized, if NVML rejects the
-    /// handle, fan index, or speed, if the device does not support manual fan
-    /// speed control, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML has not been initialized, if NVML rejects the handle, fan index, or speed, if the device does not support manual fan speed control, or if NVML reports an unexpected failure.
     pub fn set_fan_speed(self, fan: u32, speed: u32) -> Result<()> {
         // SAFETY: `nvmlDeviceSetFanSpeed_v2` receives only plain values.
         unsafe {
@@ -3099,10 +2857,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, fan index, or output, if the device does not have a supported fan
-    /// interface, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, fan index, or output, if the device does not have a supported fan interface, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn target_fan_speed(self, fan: u32) -> Result<u32> {
         let mut speed = 0;
         // SAFETY: `nvmlDeviceGetTargetFanSpeed` receives valid output locations.
@@ -3122,9 +2877,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support fan-speed range reporting, if NVML has not been initialized,
-    /// or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support fan-speed range reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn min_max_fan_speed(self) -> Result<MinMaxFanSpeed> {
         let mut min = 0;
         let mut max = 0;
@@ -3153,9 +2906,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle or cooler index, if the device
-    /// does not support cooler reporting, or if NVML has not been initialized.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle or cooler index, if the device does not support cooler reporting, or if NVML has not been initialized.
     pub fn cooler_info(self, index: u32) -> Result<CoolerInfo> {
         let mut info = sys::nvmlCoolerInfo_t {
             version: struct_version::<sys::nvmlCoolerInfo_t>(1),
@@ -3179,10 +2930,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, sensor type, or output, if the device does not have the requested
-    /// sensor, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, sensor type, or output, if the device does not have the requested sensor, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn temperature(self, sensor: TemperatureSensor) -> Result<TemperatureInfo> {
         let mut temperature = sys::nvmlTemperature_t {
             version: struct_version::<sys::nvmlTemperature_t>(1),
@@ -3200,18 +2948,14 @@ impl Device {
     }
 
     /// Returns minor number for the device.
-    /// The minor number is the suffix in the Linux device node path
-    /// `/dev/nvidia[minor_number]`.
+    /// The minor number is the suffix in the Linux device node path `/dev/nvidia[minor_number]`.
     ///
     /// For all products.
     /// Supported only for Linux.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support Linux minor-number
-    /// reporting, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support Linux minor-number reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn minor_number(self) -> Result<u32> {
         let mut minor_number = 0;
         // SAFETY: `nvmlDeviceGetMinorNumber` receives valid output locations.
@@ -3229,10 +2973,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support compute-mode reporting,
-    /// if NVML has not been initialized, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support compute-mode reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn compute_mode(self) -> Result<ComputeMode> {
         let mut compute_mode = sys::nvmlComputeMode_t::NVML_COMPUTEMODE_DEFAULT;
         // SAFETY: `nvmlDeviceGetComputeMode` receives valid output locations.
@@ -3254,9 +2995,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output, if the device does not support persistence mode, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output, if the device does not support persistence mode, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn persistence_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetPersistenceMode` receives valid output locations.
@@ -3277,20 +3016,15 @@ impl Device {
     /// Under Linux it is not persistent across reboots and always resets to "Default".
     /// Under Windows it is persistent.
     ///
-    /// Under Windows, compute mode may only be set to default when running in
-    /// WDDM.
+    /// Under Windows, compute mode may only be set to default when running in WDDM.
     ///
-    /// On MIG-enabled GPUs, compute mode is set to default and changing it is
-    /// not supported.
+    /// On MIG-enabled GPUs, compute mode is set to default and changing it is not supported.
     ///
     /// See [`ComputeMode`] for details on available compute modes.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or mode, if the device does not support compute-mode changes, if
-    /// the current process lacks permission, if NVML has not been initialized,
-    /// or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or mode, if the device does not support compute-mode changes, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_compute_mode(self, mode: ComputeMode) -> Result<()> {
         // SAFETY: `nvmlDeviceSetComputeMode` receives only plain values.
         unsafe {
@@ -3313,17 +3047,13 @@ impl Device {
     ///
     /// See [`EnableState`] for available modes.
     ///
-    /// After disabling persistence mode on a device that has its own NUMA memory,
-    /// the current device handle is no longer valid. Acquire a fresh handle from
-    /// the library before continuing to interact with the device.
+    /// After disabling persistence mode on a device that has its own NUMA memory, the current device handle is no longer valid.
+    /// Acquire a fresh handle from the library before continuing to interact with the device.
     /// This limitation is currently only applicable to devices that have a coherent `NVLink` connection to system memory.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or mode, if the device does not support persistence mode, if the
-    /// current process lacks permission, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or mode, if the device does not support persistence mode, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_persistence_mode(self, mode: EnableState) -> Result<()> {
         // SAFETY: `nvmlDeviceSetPersistenceMode` receives only plain values.
         unsafe {
@@ -3347,10 +3077,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or mode, if the device does not support ECC mode changes, if the
-    /// current process lacks permission, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or mode, if the device does not support ECC mode changes, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_ecc_mode(self, mode: EnableState) -> Result<()> {
         // SAFETY: `nvmlDeviceSetEccMode` receives only plain values.
         unsafe {
@@ -3376,10 +3103,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or counter type, if the device does not support clearing ECC
-    /// counters, if the current process lacks permission, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or counter type, if the device does not support clearing ECC counters, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn clear_ecc_error_counts(self, counter_type: EccCounterType) -> Result<()> {
         // SAFETY: `nvmlDeviceClearEccErrorCounts` receives only plain values.
         unsafe {
@@ -3400,9 +3124,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or outputs, if the device
-    /// does not support MIG mode, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or outputs, if the device does not support MIG mode, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn mig_mode(self) -> Result<CurrentPending<MigMode>> {
         let mut current = 0;
         let mut pending = 0;
@@ -3438,13 +3160,12 @@ impl Device {
     /// For example, if device unbind fails because the device is not idle, the status is [`Status::InUse`].
     /// Idle the device and retry setting the mode in that case.
     ///
-    /// On Windows, only disabling MIG mode is supported. `activation_status` returns [`Status::NotSupported`] because GPU reset is not supported on Windows through this operation.
+    /// On Windows, only disabling MIG mode is supported.
+    /// `activation_status` returns [`Status::NotSupported`] because GPU reset is not supported on Windows through this operation.
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, requested mode, or
-    /// activation-status output, if the device does not support MIG mode, if the
-    /// current process lacks permission, or if NVML has not been initialized.
+    /// Returns an error if NVML rejects the handle, requested mode, or activation-status output, if the device does not support MIG mode, if the current process lacks permission, or if NVML has not been initialized.
     pub fn set_mig_mode(self, mode: MigMode) -> Result<MigModeActivation> {
         let mut activation_status = sys::nvmlReturn_t::NVML_SUCCESS;
         // SAFETY: `nvmlDeviceSetMigMode` receives valid output locations.
@@ -3467,8 +3188,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn max_mig_device_count(self) -> Result<u32> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetMaxMigDeviceCount` receives valid output locations.
@@ -3488,9 +3208,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support this check, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support this check, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn is_mig_device_handle(self) -> Result<bool> {
         let mut is_mig_device = 0;
         // SAFETY: `nvmlDeviceIsMigDeviceHandle` receives valid output locations.
@@ -3510,9 +3228,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the MIG device handle or parent output,
-    /// if the device does not support this query, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the MIG device handle or parent output, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn parent_device_from_mig_handle(self) -> Result<Self> {
         let mut device = ptr::null_mut();
         // SAFETY: `nvmlDeviceGetDeviceHandleFromMigDeviceHandle` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
@@ -3535,9 +3251,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, index, or output, if no MIG
-    /// device exists at `index`, if the device does not support this query, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, index, or output, if no MIG device exists at `index`, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn mig_device(self, index: u32) -> Result<Self> {
         let mut device = ptr::null_mut();
         // SAFETY: `nvmlDeviceGetMigDeviceHandleByIndex` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
@@ -3557,7 +3271,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Propagates maximum-count and device-handle query errors. `Status::NotFound` for an unpopulated slot is skipped; other NVML failures terminate enumeration.
+    /// Propagates maximum-count and device-handle query errors.
+    /// `Status::NotFound` for an unpopulated slot is skipped; other NVML failures terminate enumeration.
     pub fn mig_devices(self) -> Result<Vec<Self>> {
         let max_count = self.max_mig_device_count()?;
         let mut devices = Vec::with_capacity(max_count as usize);
@@ -3585,9 +3300,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, profile, or request layout,
-    /// if MIG mode is disabled or the profile is unsupported, if the current
-    /// process lacks permission, or if NVML has not been initialized.
+    /// Returns an error if NVML rejects the handle, profile, or request layout, if MIG mode is disabled or the profile is unsupported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn gpu_instance_profile_info(self, profile: u32) -> Result<GpuInstanceProfileInfo> {
         let mut info = sys::nvmlGpuInstanceProfileInfo_v3_t {
             version: struct_version::<sys::nvmlGpuInstanceProfileInfo_v3_t>(3),
@@ -3614,9 +3327,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, profile ID, or request
-    /// layout, if MIG mode is disabled or the profile is unsupported, if the
-    /// current process lacks permission, or if NVML has not been initialized.
+    /// Returns an error if NVML rejects the handle, profile ID, or request layout, if MIG mode is disabled or the profile is unsupported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn gpu_instance_profile_info_by_id(
         self,
         profile_id: u32,
@@ -3644,9 +3355,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if MIG mode is disabled or
-    /// `profile_id` is unsupported, if the current process lacks permission, or
-    /// if NVML has not been initialized.
+    /// Returns an error if NVML rejects the query, if MIG mode is disabled or `profile_id` is unsupported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn gpu_instance_remaining_capacity(self, profile_id: u32) -> Result<u32> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetGpuInstanceRemainingCapacity` receives valid output locations.
@@ -3665,8 +3374,7 @@ impl Device {
     /// A placement represents the location of a GPU instance within a device.
     /// Returns all possible placements for the given profile, regardless of whether MIG is enabled.
     /// A created GPU instance occupies memory slices described by its placement.
-    /// Creating a GPU instance fails if its placement overlaps already occupied
-    /// memory slices.
+    /// Creating a GPU instance fails if its placement overlaps already occupied memory slices.
     ///
     /// For Ampere or newer fully supported devices.
     /// Supported on Linux only.
@@ -3674,9 +3382,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if the device does not
-    /// support MIG or `profile_id` is unsupported, if the current process lacks
-    /// permission, or if NVML has not been initialized.
+    /// Returns an error if NVML rejects the query, if the device does not support MIG or `profile_id` is unsupported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn gpu_instance_possible_placements(
         self,
         profile_id: u32,
@@ -3694,6 +3400,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -3708,6 +3415,7 @@ impl Device {
                 &raw mut count,
             ))?;
         }
+
         placements.truncate(count as usize);
         Ok(placements.into_iter().map(Into::into).collect())
     }
@@ -3720,9 +3428,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if no GPU instance has the
-    /// requested ID, if MIG mode is disabled, if the current process lacks
-    /// permission, or if NVML has not been initialized.
+    /// Returns an error if NVML rejects the query, if no GPU instance has the requested ID, if MIG mode is disabled, if the current process lacks permission, or if NVML has not been initialized.
     pub fn gpu_instance_by_id(self, id: u32) -> Result<GpuInstance> {
         let mut instance = ptr::null_mut();
         // SAFETY: `nvmlDeviceGetGpuInstanceById` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
@@ -3747,10 +3453,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML cannot allocate the requested GPU instance, if
-    /// NVML rejects the query, if MIG mode is disabled or the device is a vGPU
-    /// guest, if the current process lacks permission, or if NVML has not been
-    /// initialized.
+    /// Returns an error if NVML cannot allocate the requested GPU instance, if NVML rejects the query, if MIG mode is disabled or the device is a vGPU guest, if the current process lacks permission, or if NVML has not been initialized.
     pub fn create_gpu_instance(self, profile_id: u32) -> Result<OwnedGpuInstance> {
         let mut instance = ptr::null_mut();
         // SAFETY: `nvmlDeviceCreateGpuInstance` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
@@ -3775,10 +3478,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML cannot allocate the requested GPU instance, if
-    /// NVML rejects the query or placement, if MIG mode is disabled or the
-    /// device is a vGPU guest, if the current process lacks permission, or if
-    /// NVML has not been initialized.
+    /// Returns an error if NVML cannot allocate the requested GPU instance, if NVML rejects the query or placement, if MIG mode is disabled or the device is a vGPU guest, if the current process lacks permission, or if NVML has not been initialized.
     pub fn create_gpu_instance_with_placement(
         self,
         profile_id: u32,
@@ -3806,9 +3506,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if MIG mode is disabled, if
-    /// the current process lacks permission, or if NVML has not been
-    /// initialized.
+    /// Returns an error if NVML rejects the query, if MIG mode is disabled, if the current process lacks permission, or if NVML has not been initialized.
     pub fn gpu_instances(self, profile_id: u32) -> Result<Vec<GpuInstance>> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetGpuInstances` receives valid output locations.
@@ -3818,6 +3516,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -3832,6 +3531,7 @@ impl Device {
                 &raw mut count,
             ))?;
         }
+
         instances.truncate(count as usize);
         Ok(instances
             .into_iter()
@@ -3849,9 +3549,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support this query, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn gpu_instance_id(self) -> Result<u32> {
         let mut id = 0;
         // SAFETY: `nvmlDeviceGetGpuInstanceId` receives valid output locations.
@@ -3870,9 +3568,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support this query, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support this query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn compute_instance_id(self) -> Result<u32> {
         let mut id = 0;
         // SAFETY: `nvmlDeviceGetComputeInstanceId` receives valid output locations.
@@ -3888,9 +3584,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn virtualization_mode(self) -> Result<VirtualizationMode> {
         let mut mode = sys::nvmlGpuVirtualizationMode_t::NVML_GPU_VIRTUALIZATION_MODE_NONE as u32;
         // SAFETY: `nvmlDeviceGetVirtualizationMode` receives valid output locations.
@@ -3909,9 +3603,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if the device does not
-    /// support host vGPU mode reporting, or if NVML reports an unexpected
-    /// failure.
+    /// Returns an error if NVML rejects the query, if the device does not support host vGPU mode reporting, or if NVML reports an unexpected failure.
     pub fn host_vgpu_mode(self) -> Result<HostVgpuMode> {
         let mut mode = sys::nvmlHostVgpuMode_t::NVML_HOST_VGPU_MODE_NON_SRIOV;
         // SAFETY: `nvmlDeviceGetHostVgpuMode` receives valid output locations.
@@ -3927,9 +3619,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the vGPU type list changes while the wrapper is
-    /// fetching it, if NVML rejects the query, if vGPU is unsupported by the
-    /// device, or if NVML reports an unexpected failure.
+    /// Returns an error if the vGPU type list changes while the wrapper is fetching it, if NVML rejects the query, if vGPU is unsupported by the device, or if NVML reports an unexpected failure.
     pub fn supported_vgpus(self) -> Result<Vec<VgpuTypeId>> {
         // SAFETY: `nvmlDeviceGetSupportedVgpus` receives only plain values.
         Ok(query_u32_list(|count, values| unsafe {
@@ -3942,17 +3632,13 @@ impl Device {
 
     /// Returns the currently creatable vGPU types on a physical GPU.
     ///
-    /// The creatable vGPU types for a device may differ over time because
-    /// restrictions can limit which vGPU types may run concurrently.
-    /// For example, if only one vGPU type is allowed at a time on a device, the
-    /// creatable list is restricted to the currently running vGPU type.
+    /// The creatable vGPU types for a device may differ over time because restrictions can limit which vGPU types may run concurrently.
+    /// For example, if only one vGPU type is allowed at a time on a device, the creatable list is restricted to the currently running vGPU type.
     /// This wrapper performs the NVML size query internally and returns the creatable vGPU types as a [`Vec`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the vGPU type list changes while the wrapper is
-    /// fetching it, if NVML rejects the query, if vGPU is unsupported by the
-    /// device, or if NVML reports an unexpected failure.
+    /// Returns an error if the vGPU type list changes while the wrapper is fetching it, if NVML rejects the query, if vGPU is unsupported by the device, or if NVML reports an unexpected failure.
     pub fn creatable_vgpus(self) -> Result<Vec<VgpuTypeId>> {
         // SAFETY: `nvmlDeviceGetCreatableVgpus` receives only plain values.
         Ok(query_u32_list(|count, values| unsafe {
@@ -3967,7 +3653,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device, vGPU type, or placement mode is invalid or unsupported, the native buffer size cannot be represented, or the placement list outgrows the allocated buffer. Also propagates NVML enumeration failures.
+    /// Returns an error if the device, vGPU type, or placement mode is invalid or unsupported, the native buffer size cannot be represented, or the placement list outgrows the allocated buffer.
+    /// Also propagates NVML enumeration failures.
     pub fn vgpu_type_supported_placements(
         self,
         vgpu_type_id: VgpuTypeId,
@@ -3984,7 +3671,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device, vGPU type, or placement mode is invalid or unsupported, the native buffer size cannot be represented, or the placement list outgrows the allocated buffer. Also propagates NVML enumeration failures.
+    /// Returns an error if the device, vGPU type, or placement mode is invalid or unsupported, the native buffer size cannot be represented, or the placement list outgrows the allocated buffer.
+    /// Also propagates NVML enumeration failures.
     pub fn vgpu_type_creatable_placements(
         self,
         vgpu_type_id: VgpuTypeId,
@@ -4005,10 +3693,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the active vGPU list changes while the wrapper is
-    /// fetching it, if NVML rejects the query, if vGPU is unsupported by the
-    /// device, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the active vGPU list changes while the wrapper is fetching it, if NVML rejects the query, if vGPU is unsupported by the device, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn active_vgpus(self) -> Result<Vec<VgpuInstance>> {
         // SAFETY: `nvmlDeviceGetActiveVgpus` receives only plain values.
         Ok(query_u32_list(|count, values| unsafe {
@@ -4027,10 +3712,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the query, if MIG is enabled or the
-    /// device does not support vGPU heterogeneous mode, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the query, if MIG is enabled or the device does not support vGPU heterogeneous mode, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_heterogeneous_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlVgpuHeterogeneousMode_t {
             version: struct_version::<sys::nvmlVgpuHeterogeneousMode_t>(1),
@@ -4053,9 +3735,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the metadata buffer changes while the wrapper is
-    /// fetching it, if NVML rejects the metadata request, if vGPU is unsupported
-    /// by the system, or if NVML reports an unexpected failure.
+    /// Returns an error if the metadata buffer changes while the wrapper is fetching it, if NVML rejects the metadata request, if vGPU is unsupported by the system, or if NVML reports an unexpected failure.
     pub fn vgpu_metadata(self) -> Result<PgpuMetadata> {
         let raw = query_sized_raw(|size, buffer| {
             // SAFETY: `size` points to the buffer length, and `buffer` is null or points to
@@ -4071,9 +3751,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the metadata buffer changes while the wrapper is
-    /// fetching it, if NVML rejects the metadata request, if vGPU is unsupported
-    /// by the system, or if NVML reports an unexpected failure.
+    /// Returns an error if the metadata buffer changes while the wrapper is fetching it, if NVML rejects the metadata request, if vGPU is unsupported by the system, or if NVML reports an unexpected failure.
     pub fn pgpu_metadata_string(self) -> Result<String> {
         // SAFETY: `nvmlDeviceGetPgpuMetadataString` receives only plain values.
         let raw = query_sized_raw(|size, buffer| unsafe {
@@ -4092,9 +3770,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the device, capability, or output, if
-    /// the current state does not support this vGPU capability query, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the device, capability, or output, if the current state does not support this vGPU capability query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_capability(self, capability: DeviceVgpuCapability) -> Result<u32> {
         let mut result = 0;
         // SAFETY: `nvmlDeviceGetVgpuCapabilities` receives valid output locations.
@@ -4130,6 +3806,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && placement_list.count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -4140,6 +3817,7 @@ impl Device {
         unsafe {
             try_ffi!(query(self.0, vgpu_type_id.0, &raw mut placement_list))?;
         }
+
         placements.truncate(placement_list.count as usize);
         Ok(placements.into_iter().map(VgpuPlacementId).collect())
     }
@@ -4153,10 +3831,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle or output buffer, if the device does not support CPU affinity
-    /// reporting, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle or output buffer, if the device does not support CPU affinity reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn cpu_affinity(self) -> Result<Vec<u64>> {
         // SAFETY: `nvmlDeviceGetCpuAffinity` receives only plain values.
         device_ulong_bitmask_list(|set_size, set| unsafe {
@@ -4167,19 +3842,14 @@ impl Device {
     /// Returns bitmasks with the ideal CPU affinity within a node or socket for the device.
     /// For example, if processors 0, 1, 32, and 33 are ideal for the device and two mask words are requested, then `result[0] = 0x3` and `result[1] = 0x3`.
     ///
-    /// If the requested scope is not applicable to the target topology, NVML
-    /// falls back to reporting CPU affinity for the device's immediate non-I/O
-    /// ancestor.
+    /// If the requested scope is not applicable to the target topology, NVML falls back to reporting CPU affinity for the device's immediate non-I/O ancestor.
     ///
     /// For Kepler or newer fully supported devices.
     /// Supported on Linux only.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, scope, or output buffer, if the device does not support scoped CPU
-    /// affinity reporting, if NVML has not been initialized, or if NVML reports
-    /// an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, scope, or output buffer, if the device does not support scoped CPU affinity reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn cpu_affinity_within_scope(self, scope: AffinityScope) -> Result<Vec<u64>> {
         // SAFETY: `nvmlDeviceGetCpuAffinityWithinScope` receives only plain values.
         device_ulong_bitmask_list(|set_size, set| unsafe {
@@ -4197,9 +3867,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, if the device does not support CPU affinity binding, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, if the device does not support CPU affinity binding, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_cpu_affinity(self) -> Result<()> {
         // SAFETY: `nvmlDeviceSetCpuAffinity` receives only plain values.
         unsafe { try_ffi!(sys::nvmlDeviceSetCpuAffinity(self.0)) }
@@ -4213,8 +3881,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn clear_cpu_affinity(self) -> Result<()> {
         // SAFETY: `nvmlDeviceClearCpuAffinity` receives only plain values.
         unsafe { try_ffi!(sys::nvmlDeviceClearCpuAffinity(self.0)) }
@@ -4223,19 +3890,14 @@ impl Device {
     /// Returns bitmasks with the ideal memory affinity within a node or socket for this device.
     /// For example, if NUMA nodes 0 and 1 are ideal within the socket and one mask word is requested, `result[0] = 0x3`.
     ///
-    /// If the requested scope is not applicable to the target topology, NVML
-    /// falls back to reporting memory affinity for the device's immediate
-    /// non-I/O ancestor.
+    /// If the requested scope is not applicable to the target topology, NVML falls back to reporting memory affinity for the device's immediate non-I/O ancestor.
     ///
     /// For Kepler or newer fully supported devices.
     /// Supported on Linux only.
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, scope, or output buffer, if the device does not support memory
-    /// affinity reporting, if NVML has not been initialized, or if NVML reports
-    /// an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, scope, or output buffer, if the device does not support memory affinity reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn memory_affinity(self, scope: AffinityScope) -> Result<Vec<u64>> {
         // SAFETY: `nvmlDeviceGetMemoryAffinity` receives only plain values.
         device_ulong_bitmask_list(|set_size, set| unsafe {
@@ -4245,22 +3907,16 @@ impl Device {
 
     /// Returns the addressing mode for the given GPU.
     ///
-    /// [`DeviceAddressingMode::Hmm`] makes system-allocated memory (`malloc`,
-    /// `mmap`) addressable from the GPU through software-based mirroring of the
-    /// CPU page tables. [`DeviceAddressingMode::Ats`] makes system-allocated
-    /// memory addressable from the GPU through Address Translation Services,
-    /// which means there is effectively a single set of page tables used by
-    /// both CPU and GPU. [`DeviceAddressingMode::None`] means neither HMM nor
-    /// ATS is active.
+    /// [`DeviceAddressingMode::Hmm`] makes system-allocated memory (`malloc`, `mmap`) addressable from the GPU through software-based mirroring of the CPU page tables.
+    /// [`DeviceAddressingMode::Ats`] makes system-allocated memory addressable from the GPU through Address Translation Services, which means there is effectively a single set of page tables used by both CPU and GPU.
+    /// [`DeviceAddressingMode::None`] means neither HMM nor ATS is active.
     ///
     /// For Turing or newer fully supported devices.
     /// Supported on Linux only.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle, or if the current platform
-    /// does not support addressing-mode reporting.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle, or if the current platform does not support addressing-mode reporting.
     pub fn addressing_mode(self) -> Result<DeviceAddressingMode> {
         let mut mode = sys::nvmlDeviceAddressingMode_t {
             version: struct_version::<sys::nvmlDeviceAddressingMode_t>(1),
@@ -4279,10 +3935,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle or output, if the device does
-    /// not support repair-status reporting, if NVML has not been initialized, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle or output, if the device does not support repair-status reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn repair_status(self) -> Result<RepairStatus> {
         let mut status = sys::nvmlRepairStatus_t {
             version: struct_version::<sys::nvmlRepairStatus_t>(1),
@@ -4300,8 +3953,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, or if the current
-    /// platform does not support GPU NUMA-node reporting.
+    /// Returns an error if NVML rejects the handle or output, or if the current platform does not support GPU NUMA-node reporting.
     pub fn numa_node_id(self) -> Result<u32> {
         let mut node = 0;
         // SAFETY: `nvmlDeviceGetNumaNodeId` receives valid output locations.
@@ -4315,7 +3967,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, NVML is uninitialized, the native record version is unsupported, or capability reporting is unavailable. Also propagates NVML query failures.
+    /// Returns an error if the device is inaccessible, NVML is uninitialized, the native record version is unsupported, or capability reporting is unavailable.
+    /// Also propagates NVML query failures.
     pub fn capabilities(self) -> Result<DeviceCapabilities> {
         let mut caps = sys::nvmlDeviceCapabilities_t {
             version: struct_version::<sys::nvmlDeviceCapabilities_t>(1),
@@ -4332,9 +3985,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// query, if the device does not support dynamic P-state samples, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the query, if the device does not support dynamic P-state samples, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn dynamic_pstates_info(self) -> Result<DynamicPstatesInfo> {
         let mut info = sys::nvmlGpuDynamicPstatesInfo_t::default();
         // SAFETY: `nvmlDeviceGetDynamicPstatesInfo` receives a live handle and writes only into the local `info`.
@@ -4355,7 +4006,7 @@ impl Device {
         let mut info = sys::nvmlGpuFabricInfo_v4_t::default();
         // SAFETY: `nvmlDeviceGetGpuFabricInfo_v4` receives a live handle and a versioned local struct that outlives the call.
         unsafe {
-            try_ffi!(nvmlDeviceGetGpuFabricInfo_v4(self.0, &raw mut info))?;
+            try_ffi!(sys::nvmlDeviceGetGpuFabricInfo_v4(self.0, &raw mut info))?;
         }
         GpuFabricInfo::from_raw(&info)
     }
@@ -4364,17 +4015,12 @@ impl Device {
     ///
     /// For Blackwell or newer fully supported devices.
     /// Returns the workload power profile information reported by NVML.
-    /// The `perf_profiles_mask` field is a bitmask of all supported mode indices where the mode is supported if the index is 1.
-    /// Each supported mode has a corresponding entry in the profile array containing the profile ID, the priority of this mode, and a conflicting mask.
+    /// The `perf_profiles_mask` field is a bitmask of all supported mode indices where the mode is supported if the index is 1. Each supported mode has a corresponding entry in the profile array containing the profile ID, the priority of this mode, and a conflicting mask.
     /// Lower priority values indicate higher priority, and each bit set in the conflicting mask corresponds to a different profile that cannot be used with the given profile.
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML reports that the
-    /// output layout is too small, if NVML rejects the query, if the device does
-    /// not support workload power profiles, if NVML has not been initialized, or
-    /// if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML reports that the output layout is too small, if NVML rejects the query, if the device does not support workload power profiles, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn workload_power_profiles_info(self) -> Result<WorkloadPowerProfilesInfo> {
         let mut info = sys::nvmlWorkloadPowerProfileProfilesInfo_t {
             version: struct_version::<sys::nvmlWorkloadPowerProfileProfilesInfo_t>(1),
@@ -4399,10 +4045,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the query,
-    /// if the device does not support workload power profiles, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the query, if the device does not support workload power profiles, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn workload_power_current_profiles(self) -> Result<WorkloadPowerCurrentProfiles> {
         let mut profiles = sys::nvmlWorkloadPowerProfileCurrentProfiles_t {
             version: struct_version::<sys::nvmlWorkloadPowerProfileCurrentProfiles_t>(1),
@@ -4431,10 +4074,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the handle
-    /// or outputs, if the device does not support DRAM encryption, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the handle or outputs, if the device does not support DRAM encryption, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn dram_encryption_mode(self) -> Result<CurrentPending<DramEncryptionInfo>> {
         let mut current = sys::nvmlDramEncryptionInfo_t {
             version: struct_version::<sys::nvmlDramEncryptionInfo_t>(1),
@@ -4473,11 +4113,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the handle
-    /// or requested mode, if the device does not support DRAM encryption, if the
-    /// current process lacks permission, if NVML has not been initialized, or if
-    /// NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the handle or requested mode, if the device does not support DRAM encryption, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn set_dram_encryption_mode(self, dram_encryption: DramEncryptionInfo) -> Result<()> {
         let dram_encryption = sys::nvmlDramEncryptionInfo_t {
             version: struct_version::<sys::nvmlDramEncryptionInfo_t>(1),
@@ -4499,9 +4135,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if the device does not
-    /// support Confidential Computing memory-size reporting, or if NVML has not
-    /// been initialized.
+    /// Returns an error if NVML rejects the query, if the device does not support Confidential Computing memory-size reporting, or if NVML has not been initialized.
     pub fn conf_compute_mem_size_info(self) -> Result<ConfComputeMemSizeInfo> {
         let mut info = sys::nvmlConfComputeMemSizeInfo_t::default();
         // SAFETY: `nvmlDeviceGetConfComputeMemSizeInfo` receives valid output locations.
@@ -4521,9 +4155,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if the device does not
-    /// support Confidential Computing protected-memory reporting, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the query, if the device does not support Confidential Computing protected-memory reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn conf_compute_protected_memory_usage(self) -> Result<MemoryInfo> {
         let mut memory = sys::nvmlMemory_v2_t {
             version: struct_version::<sys::nvmlMemory_v2_t>(2),
@@ -4546,9 +4178,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if the device does not
-    /// support Confidential Computing certificate reporting, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the query, if the device does not support Confidential Computing certificate reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn conf_compute_gpu_certificate(self) -> Result<ConfComputeGpuCertificate> {
         let mut certificate = sys::nvmlConfComputeGpuCertificate_t::default();
         // SAFETY: `nvmlDeviceGetConfComputeGpuCertificate` receives a live handle and writes only into the local `certificate`.
@@ -4568,9 +4198,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the query, if the device does not
-    /// support Confidential Computing attestation reports, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the query, if the device does not support Confidential Computing attestation reports, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn conf_compute_gpu_attestation_report(self) -> Result<ConfComputeGpuAttestationReport> {
         let mut report = sys::nvmlConfComputeGpuAttestationReport_t::default();
         // SAFETY: `nvmlDeviceGetConfComputeGpuAttestationReport` receives a live handle and writes only into the local `report`.
@@ -4589,9 +4217,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, link index, or output, if
-    /// the device does not support `NVLink` state reporting, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, link index, or output, if the device does not support `NVLink` state reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_state(self, link: u32) -> Result<EnableState> {
         let mut state = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetNvLinkState` receives valid output locations.
@@ -4607,9 +4233,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, link index, or output, if
-    /// the device does not support `NVLink` version reporting, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, link index, or output, if the device does not support `NVLink` version reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_version(self, link: u32) -> Result<NvLinkVersion> {
         let mut version = 0;
         // SAFETY: `nvmlDeviceGetNvLinkVersion` receives valid output locations.
@@ -4631,9 +4255,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, link index, capability, or
-    /// output, if the device does not support `NVLink` capability reporting, if
-    /// NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, link index, capability, or output, if the device does not support `NVLink` capability reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_capability(self, link: u32, capability: NvLinkCapability) -> Result<bool> {
         let mut result = 0;
         // SAFETY: `nvmlDeviceGetNvLinkCapability` receives valid output locations.
@@ -4656,9 +4278,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, link index, or output, if
-    /// the device does not support remote PCI reporting for `NVLink`, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, link index, or output, if the device does not support remote PCI reporting for `NVLink`, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_remote_pci_info(self, link: u32) -> Result<PciInfo> {
         let mut pci = sys::nvmlPciInfo_t::default();
         // SAFETY: `nvmlDeviceGetNvLinkRemotePciInfo_v2` receives a live handle and writes only into the local `pci`.
@@ -4676,9 +4296,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, link index, or output, if `NVLink` is unsupported, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, link index, or output, if `NVLink` is unsupported, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_remote_device_type(self, link: u32) -> Result<NvLinkRemoteDeviceType> {
         let mut device_type = sys::nvmlIntNvLinkDeviceType_t::NVML_NVLINK_DEVICE_TYPE_UNKNOWN;
         // SAFETY: `nvmlDeviceGetNvLinkRemoteDeviceType` receives valid output locations.
@@ -4700,9 +4318,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, link index, counter, or
-    /// output, if the device does not support `NVLink` error counters, if NVML has
-    /// not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle, link index, counter, or output, if the device does not support `NVLink` error counters, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_error_counter(self, link: u32, counter: NvLinkErrorCounter) -> Result<u64> {
         let mut value = 0;
         // SAFETY: `nvmlDeviceGetNvLinkErrorCounter` receives valid output locations.
@@ -4723,9 +4339,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle or output, or if the device
-    /// does not support `NVLink` bandwidth modes.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle or output, or if the device does not support `NVLink` bandwidth modes.
     pub fn nvlink_supported_bw_modes(self) -> Result<NvLinkSupportedBwModes> {
         let mut modes = sys::nvmlNvlinkSupportedBwModes_t {
             version: struct_version::<sys::nvmlNvlinkSupportedBwModes_t>(1),
@@ -4747,9 +4361,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if NVML rejects the handle or output, or if the device
-    /// does not support `NVLink` bandwidth mode reporting.
+    /// Returns an error if the installed NVML version does not support the request layout, if NVML rejects the handle or output, or if the device does not support `NVLink` bandwidth mode reporting.
     pub fn nvlink_bw_mode(self) -> Result<NvLinkBwMode> {
         let mut mode = sys::nvmlNvlinkGetBwMode_t {
             version: struct_version::<sys::nvmlNvlinkGetBwMode_t>(1),
@@ -4766,10 +4378,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if NVML rejects the handle
-    /// or output, if the device does not support `NVLink` info reporting, if NVML
-    /// has not been initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if NVML rejects the handle or output, if the device does not support `NVLink` info reporting, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn nvlink_info(self) -> Result<NvLinkInfo> {
         let mut info = sys::nvmlNvLinkInfo_t {
             version: struct_version::<sys::nvmlNvLinkInfo_t>(2),
@@ -4788,9 +4397,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the stats
-    /// output, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if NVML rejects the stats output, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fbc_stats(self) -> Result<FbcStats> {
         let mut stats = sys::nvmlFBCStats_t::default();
         // SAFETY: `nvmlDeviceGetFBCStats` receives a live handle and writes only into the local `stats`.
@@ -4810,10 +4417,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the FBC session list
-    /// changes while the wrapper is fetching it, if NVML reports an invalid
-    /// session count, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if the device is inaccessible, if the FBC session list changes while the wrapper is fetching it, if NVML reports an invalid session count, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn fbc_sessions(self) -> Result<Vec<FbcSessionInfo>> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetFBCSessions` receives live handles owned by the wrappers and valid output locations.
@@ -4823,6 +4427,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -4836,6 +4441,7 @@ impl Device {
                 sessions.as_mut_ptr(),
             ))?;
         }
+
         sessions.truncate(count as usize);
         Ok(sessions.into_iter().map(Into::into).collect())
     }
@@ -4847,9 +4453,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects either handle or the output, if topology
-    /// discovery is not supported on this device or OS, or if NVML fails during
-    /// topology discovery.
+    /// Returns an error if NVML rejects either handle or the output, if topology discovery is not supported on this device or OS, or if NVML fails during topology discovery.
     pub fn topology_common_ancestor(self, other: Self) -> Result<TopologyLevel> {
         let mut level = sys::nvmlGpuTopologyLevel_t::NVML_TOPOLOGY_SYSTEM;
         // SAFETY: `nvmlDeviceGetTopologyCommonAncestor` receives valid output locations.
@@ -4868,9 +4472,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, topology level, count, or
-    /// output buffer, if topology discovery is not supported on this device or
-    /// OS, or if NVML fails during topology discovery.
+    /// Returns an error if NVML rejects the handle, topology level, count, or output buffer, if topology discovery is not supported on this device or OS, or if NVML fails during topology discovery.
     pub fn topology_nearest_gpus(self, level: TopologyLevel) -> Result<Vec<Self>> {
         let mut count = 0;
         // SAFETY: `nvmlDeviceGetTopologyNearestGpus` receives valid output locations.
@@ -4885,6 +4487,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -4899,6 +4502,7 @@ impl Device {
                 devices.as_mut_ptr(),
             ))?;
         }
+
         devices.truncate(count as usize);
         Ok(devices.into_iter().map(Self).collect())
     }
@@ -4907,8 +4511,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects either device handle, the capability, or
-    /// output, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects either device handle, the capability, or output, or if NVML reports an unexpected failure.
     pub fn p2p_status(self, other: Self, capability: P2pCapabilityIndex) -> Result<P2pStatus> {
         let mut status = sys::nvmlGpuP2PStatus_t::NVML_P2P_STATUS_UNKNOWN;
         // SAFETY: `nvmlDeviceGetP2PStatus` receives valid output locations.
@@ -4929,9 +4532,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if either device is inaccessible, if NVML rejects either
-    /// handle or output, if the check is unsupported, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if either device is inaccessible, if NVML rejects either handle or output, if the check is unsupported, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn on_same_board(self, other: Self) -> Result<bool> {
         let mut on_same_board = 0;
         // SAFETY: `nvmlDeviceOnSameBoard` receives valid output locations.
@@ -4949,7 +4550,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, process reporting is unsupported, or NVML cannot size or retrieve the process list. Also propagates native process-list query failures.
+    /// Returns an error if the device is inaccessible, process reporting is unsupported, or NVML cannot size or retrieve the process list.
+    /// Also propagates native process-list query failures.
     pub fn compute_running_processes(self) -> Result<Vec<ProcessInfo>> {
         query_process_info_list(self, sys::nvmlDeviceGetComputeRunningProcesses)
     }
@@ -4975,11 +4577,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if the process list
-    /// changes while the wrapper is fetching it, if NVML rejects the device,
-    /// process mode, or output, if the query is unsupported, if the current
-    /// process lacks permission, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the device is inaccessible, if the process list changes while the wrapper is fetching it, if NVML rejects the device, process mode, or output, if the query is unsupported, if the current process lacks permission, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn running_process_details(self, mode: ProcessMode) -> Result<Vec<ProcessDetail>> {
         let mut list = sys::nvmlProcessDetailList_t {
             version: struct_version::<sys::nvmlProcessDetailList_t>(1),
@@ -4991,6 +4589,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && list.numProcArrayEntries == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -5005,6 +4604,7 @@ impl Device {
                 &raw mut list
             ))?;
         }
+
         entries.truncate(list.numProcArrayEntries as usize);
         Ok(entries.into_iter().map(Into::into).collect())
     }
@@ -5013,7 +4613,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, process reporting is unsupported, or NVML cannot size or retrieve the process list. Also propagates native process-list query failures.
+    /// Returns an error if the device is inaccessible, process reporting is unsupported, or NVML cannot size or retrieve the process list.
+    /// Also propagates native process-list query failures.
     pub fn graphics_running_processes(self) -> Result<Vec<ProcessInfo>> {
         query_process_info_list(self, sys::nvmlDeviceGetGraphicsRunningProcesses)
     }
@@ -5022,7 +4623,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, process reporting is unsupported, or NVML cannot size or retrieve the process list. Also propagates native process-list query failures.
+    /// Returns an error if the device is inaccessible, process reporting is unsupported, or NVML cannot size or retrieve the process list.
+    /// Also propagates native process-list query failures.
     pub fn mps_compute_running_processes(self) -> Result<Vec<ProcessInfo>> {
         query_process_info_list(self, sys::nvmlDeviceGetMPSComputeRunningProcesses)
     }
@@ -5033,8 +4635,7 @@ impl Device {
     ///
     /// Reads recent utilization of GPU SM (3D/Compute), framebuffer, video encoder, and video decoder for processes running.
     /// This wrapper returns utilization values as a [`Vec`] of process samples.
-    /// One utilization sample structure is returned per running process that had
-    /// non-zero utilization during the last sample period.
+    /// One utilization sample structure is returned per running process that had non-zero utilization during the last sample period.
     /// It includes the CPU timestamp at which the samples were recorded.
     /// Individual utilization values are returned as unsigned integer values.
     /// If no valid sample entries are found since `last_seen_timestamp`, [`Status::NotFound`] is returned.
@@ -5052,11 +4653,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the device is inaccessible, if NVML rejects the
-    /// handle, utilization buffer, or sampling timestamp, if the device does not
-    /// support process utilization sampling, if NVML has not been initialized,
-    /// or if NVML reports an unexpected failure. Missing sample entries are
-    /// returned as an empty list.
+    /// Returns an error if the device is inaccessible, if NVML rejects the handle, utilization buffer, or sampling timestamp, if the device does not support process utilization sampling, if NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Missing sample entries are returned as an empty list.
     pub fn process_utilization(
         self,
         last_seen_timestamp: u64,
@@ -5074,9 +4672,11 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status == sys::nvmlReturn_t::NVML_ERROR_NOT_FOUND {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -5091,6 +4691,7 @@ impl Device {
                 last_seen_timestamp,
             ))?;
         }
+
         samples.truncate(count as usize);
         Ok(samples.into_iter().map(Into::into).collect())
     }
@@ -5101,8 +4702,7 @@ impl Device {
     ///
     /// Reads recent utilization of GPU SM (3D/Compute), framebuffer, video encoder, and video decoder, jpeg decoder, OFA (Optical Flow Accelerator) for all running processes.
     /// This wrapper returns utilization values as a [`Vec`] of process utilization records.
-    /// One utilization sample structure is returned per running process that had
-    /// non-zero utilization during the last sample period.
+    /// One utilization sample structure is returned per running process that had non-zero utilization during the last sample period.
     /// It includes the CPU timestamp at which the samples were recorded.
     /// Individual utilization values are returned as unsigned integer values.
     ///
@@ -5119,12 +4719,8 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the installed NVML version does not support the
-    /// request layout, if the device is inaccessible, if the process list
-    /// changes while the wrapper is fetching it, if NVML rejects the query, if
-    /// the device does not support process utilization sampling, if NVML has not
-    /// been initialized, or if NVML reports an unexpected failure. Missing
-    /// sample entries are returned as an empty list.
+    /// Returns an error if the installed NVML version does not support the request layout, if the device is inaccessible, if the process list changes while the wrapper is fetching it, if NVML rejects the query, if the device does not support process utilization sampling, if NVML has not been initialized, or if NVML reports an unexpected failure.
+    /// Missing sample entries are returned as an empty list.
     pub fn processes_utilization(
         self,
         last_seen_timestamp: u64,
@@ -5140,9 +4736,11 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.processSamplesCount == 0 {
             return Ok(Vec::new());
         }
+
         if status == sys::nvmlReturn_t::NVML_ERROR_NOT_FOUND {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -5159,6 +4757,7 @@ impl Device {
                 &raw mut info
             ))?;
         }
+
         entries.truncate(info.processSamplesCount as usize);
         Ok(entries.into_iter().map(Into::into).collect())
     }
@@ -5172,9 +4771,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if the device does
-    /// not support accounting mode, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if the device does not support accounting mode, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_mode(self) -> Result<EnableState> {
         let mut mode = sys::nvmlEnableState_t::NVML_FEATURE_DISABLED;
         // SAFETY: `nvmlDeviceGetAccountingMode` receives valid output locations.
@@ -5204,10 +4801,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle, process ID, or output, if no
-    /// accounting stats exist for the process, if accounting is unsupported or
-    /// disabled, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if NVML rejects the handle, process ID, or output, if no accounting stats exist for the process, if accounting is unsupported or disabled, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_stats(self, pid: Pid) -> Result<AccountingStats> {
         let mut stats = sys::nvmlAccountingStats_t::default();
         // SAFETY: `nvmlDeviceGetAccountingStats` receives a live handle and writes only into the local `stats`.
@@ -5235,10 +4829,7 @@ impl Device {
     ///
     /// # Errors
     ///
-    /// Returns an error if the accounting PID list changes while the wrapper is
-    /// fetching it, if NVML rejects the handle or count output, if accounting is
-    /// unsupported or disabled, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if the accounting PID list changes while the wrapper is fetching it, if NVML rejects the handle or count output, if accounting is unsupported or disabled, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_pids(self) -> Result<Vec<Pid>> {
         let mut count = 0;
         let status =
@@ -5247,6 +4838,7 @@ impl Device {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -5260,6 +4852,7 @@ impl Device {
                 pids.as_mut_ptr(),
             ))?;
         }
+
         pids.truncate(count as usize);
         Ok(pids.into_iter().map(Pid).collect())
     }
@@ -5268,14 +4861,11 @@ impl Device {
     ///
     /// For Kepler or newer fully supported devices.
     ///
-    /// This is the maximum number of processes with stored accounting information before
-    /// information about the oldest processes is overwritten by newer process information.
+    /// This is the maximum number of processes with stored accounting information before information about the oldest processes is overwritten by newer process information.
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the handle or output, if accounting is
-    /// unsupported or disabled, if NVML has not been initialized, or if NVML
-    /// reports an unexpected failure.
+    /// Returns an error if NVML rejects the handle or output, if accounting is unsupported or disabled, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn accounting_buffer_size(self) -> Result<u32> {
         let mut size = 0;
         // SAFETY: `nvmlDeviceGetAccountingBufferSize` receives valid output locations.

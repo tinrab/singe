@@ -3,6 +3,8 @@ resolver = "3"
 
 members = [
     "singe-core",
+    "singe",
+    "singe-codegen",
     "singe-cublas",
     "singe-cublas-sys",
     "singe-cuda",
@@ -28,8 +30,21 @@ members = [
     "singe-cutensor",
     "singe-cutensor-sys",
     "singe-kernel",
+    "singe-kernel-sys",
+    "singe-loader",
+    "singe-macros",
+    "singe-model",
+    "singe-testing",
     "singe-nvml",
     "singe-nvml-sys",
+    "singe-nvcomp",
+    "singe-nvcomp-sys",
+    "singe-nvjpeg",
+    "singe-nvjpeg-sys",
+    "singe-nvtiff",
+    "singe-nvtiff-sys",
+    "singe-nvimagecodec",
+    "singe-nvimagecodec-sys",
     "singe-nccl",
     "singe-nccl-sys",
     "singe-npp",
@@ -43,45 +58,59 @@ members = [
 edition = "2024"
 repository = "https://github.com/tinrab/singe"
 license-file = "LICENSE"
-include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*"]
+include = ["src/**/*.rs", "/Cargo.toml", "/README.md", "/LICENSE*", "/dist/katex_header.html"]
 
 [workspace.dependencies]
-singe-core = { path = "singe-core", version = "0.1.0-alpha.7" }
-singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.9" }
-singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.8" }
-singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.10" }
-singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.9" }
-singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.8" }
-singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0-alpha.8" }
-singe-cufile = { path = "singe-cufile", version = "0.1.0-alpha.7" }
-singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0-alpha.7" }
-singe-curand = { path = "singe-curand", version = "0.1.0-alpha.2" }
-singe-curand-sys = { path = "singe-curand-sys", version = "0.1.0-alpha.2" }
-singe-cudnn = { path = "singe-cudnn", version = "0.1.0-alpha.7" }
-singe-cudnn-sys = { path = "singe-cudnn-sys", version = "0.1.0-alpha.7" }
-singe-cudss = { path = "singe-cudss", version = "0.1.0-alpha.3" }
-singe-cudss-sys = { path = "singe-cudss-sys", version = "0.1.0-alpha.3" }
-singe-cufft = { path = "singe-cufft", version = "0.1.0-alpha.7" }
-singe-cufft-sys = { path = "singe-cufft-sys", version = "0.1.0-alpha.7" }
-singe-cusolver = { path = "singe-cusolver", version = "0.1.0-alpha.7" }
-singe-cusolver-sys = { path = "singe-cusolver-sys", version = "0.1.0-alpha.7" }
-singe-cupti = { path = "singe-cupti", version = "0.1.0-alpha.8" }
-singe-cupti-sys = { path = "singe-cupti-sys", version = "0.1.0-alpha.7" }
-singe-cusparse = { path = "singe-cusparse", version = "0.1.0-alpha.7" }
-singe-cusparse-sys = { path = "singe-cusparse-sys", version = "0.1.0-alpha.7" }
-singe-cutensor = { path = "singe-cutensor", version = "0.1.0-alpha.7" }
-singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0-alpha.7" }
-singe-kernel = { path = "singe-kernel", version = "0.1.0-alpha.4" }
-singe-nccl = { path = "singe-nccl", version = "0.1.0-alpha.8" }
-singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0-alpha.7" }
-singe-npp = { path = "singe-npp", version = "0.1.0-alpha.10" }
-singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.8" }
-singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.9" }
-singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.7" }
-singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.7" }
-singe-ptx = { path = "singe-ptx", version = "0.1.0-alpha.7" }
-
 libloading = "0.8.9"
+singe-core = { path = "singe-core", version = "0.1.0-alpha.8" }
+singe-cublas = { path = "singe-cublas", version = "0.1.0-alpha.10" }
+singe-cublas-sys = { path = "singe-cublas-sys", version = "0.1.0-alpha.9" }
+singe-cuda = { path = "singe-cuda", version = "0.1.0-alpha.10" }
+singe-cuda-macros = { path = "singe-cuda-macros", version = "0.1.0-alpha.10" }
+singe-cuda-find = { path = "singe-cuda-find", version = "0.1.0-alpha.9" }
+singe-cuda-sys = { path = "singe-cuda-sys", version = "0.1.0-alpha.9" }
+singe-cufile = { path = "singe-cufile", version = "0.1.0-alpha.8" }
+singe-cufile-sys = { path = "singe-cufile-sys", version = "0.1.0-alpha.8" }
+singe-curand = { path = "singe-curand", version = "0.1.0-alpha.3" }
+singe-curand-sys = { path = "singe-curand-sys", version = "0.1.0-alpha.3" }
+singe-cudnn = { path = "singe-cudnn", version = "0.1.0-alpha.8" }
+singe-cudnn-sys = { path = "singe-cudnn-sys", version = "0.1.0-alpha.8" }
+singe-cudss = { path = "singe-cudss", version = "0.1.0-alpha.4" }
+singe-cudss-sys = { path = "singe-cudss-sys", version = "0.1.0-alpha.4" }
+singe-cufft = { path = "singe-cufft", version = "0.1.0-alpha.8" }
+singe-cufft-sys = { path = "singe-cufft-sys", version = "0.1.0-alpha.8" }
+singe-cusolver = { path = "singe-cusolver", version = "0.1.0-alpha.8" }
+singe-cusolver-sys = { path = "singe-cusolver-sys", version = "0.1.0-alpha.8" }
+singe-codegen = { path = "singe-codegen", version = "0.1.0-alpha.1" }
+singe-cupti = { path = "singe-cupti", version = "0.1.0-alpha.9" }
+singe-cupti-sys = { path = "singe-cupti-sys", version = "0.1.0-alpha.8" }
+singe-cusparse = { path = "singe-cusparse", version = "0.1.0-alpha.8" }
+singe-cusparse-sys = { path = "singe-cusparse-sys", version = "0.1.0-alpha.8" }
+singe-cutensor = { path = "singe-cutensor", version = "0.1.0-alpha.8" }
+singe-cutensor-sys = { path = "singe-cutensor-sys", version = "0.1.0-alpha.8" }
+singe-kernel = { path = "singe-kernel", version = "0.1.0-alpha.5" }
+singe-loader = { path = "singe-loader", version = "0.1.0-alpha.1" }
+singe-macros = { path = "singe-macros", version = "0.1.0-alpha.7" }
+singe = { path = "singe", version = "0.1.0-alpha.1" }
+singe-model = { path = "singe-model", version = "0.1.0-alpha.1" }
+singe-testing = { path = "singe-testing" }
+singe-nccl = { path = "singe-nccl", version = "0.1.0-alpha.9" }
+singe-nccl-sys = { path = "singe-nccl-sys", version = "0.1.0-alpha.8" }
+singe-npp = { path = "singe-npp", version = "0.1.0-alpha.11" }
+singe-npp-sys = { path = "singe-npp-sys", version = "0.1.0-alpha.9" }
+singe-nvml = { path = "singe-nvml", version = "0.1.0-alpha.10" }
+singe-nvml-sys = { path = "singe-nvml-sys", version = "0.1.0-alpha.8" }
+singe-nvcomp = { path = "singe-nvcomp", version = "0.1.0-alpha.1" }
+singe-nvcomp-sys = { path = "singe-nvcomp-sys", version = "0.1.0-alpha.1" }
+singe-nvjpeg = { path = "singe-nvjpeg", version = "0.1.0-alpha.1" }
+singe-nvjpeg-sys = { path = "singe-nvjpeg-sys", version = "0.1.0-alpha.1" }
+singe-nvtiff = { path = "singe-nvtiff", version = "0.1.0-alpha.1" }
+singe-nvtiff-sys = { path = "singe-nvtiff-sys", version = "0.1.0-alpha.1" }
+singe-nvimagecodec = { path = "singe-nvimagecodec", version = "0.1.0-alpha.1" }
+singe-nvimagecodec-sys = { path = "singe-nvimagecodec-sys", version = "0.1.0-alpha.1" }
+singe-onnx = { path = "singe-onnx", version = "0.1.0-alpha.8" }
+singe-ptx = { path = "singe-ptx", version = "0.1.0-alpha.8" }
+
 thiserror = "2.0.21"
 num-traits = "0.2.19"
 num-rational = "0.4.2"
@@ -92,6 +121,7 @@ lazy_static = "1.5.1"
 half = "2.7.1"
 libm = "0.2.16"
 rand = "0.10.3"
+rayon = "1.12.0"
 anyhow = "1.0.104"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
@@ -121,6 +151,7 @@ cudarc = { version = "0.19.10", default-features = false, features = [
 oxide-artifacts = "0.2.1"
 cutile = "0.4.0"
 cutile-compiler = "0.4.0"
+cutile-ir = "0.4.0"
 
 pretty_assertions = "1.4.1"
 bindgen = "0.73.2"
@@ -141,3 +172,6 @@ opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[workspace.metadata.no-slop.rules]
+no-dense-statement-runs = "off"

@@ -13,23 +13,19 @@ where
 {
     /// Computes full normalized cross-correlation responses against `template`.
     ///
-    /// Uses the native normalized sum of corresponding source/template products, without
-    /// the mean subtraction used by `NormLevel`.
+    /// Uses the native normalized sum of corresponding source/template products, without the mean subtraction used by `NormLevel`.
     /// Each output dimension must equal source dimension plus template dimension minus one.
     /// NPP centers the template anchor and zero-pads source samples beyond the image.
     /// Applies native integer result scaling by `2^(-scale_factor)`.
     /// For alpha-ignoring layouts, destination alpha remains unwritten.
-    /// Prepares source, template, and destination regions, waits for producers on other
-    /// streams, rejects capture, and returns after successful stream completion. Row padding
-    /// remains unwritten.
+    /// Prepares source, template, and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, checked response-size arithmetic, native template matching, or
-    /// stream synchronization fail. The destination must have the exact dimensions
-    /// required by the selected response mode. NPP can reject native geometry or numerical
-    /// parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, checked response-size arithmetic, native template matching, or stream synchronization fail.
+    /// The destination must have the exact dimensions required by the selected response mode.
+    /// NPP can reject native geometry or numerical parameters.
     pub fn cross_correlation_full_norm_scaled_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -48,23 +44,19 @@ where
 
     /// Computes same normalized cross-correlation responses against `template`.
     ///
-    /// Uses the native normalized sum of corresponding source/template products, without
-    /// the mean subtraction used by `NormLevel`.
-    /// Output dimensions must equal the source dimensions. NPP starts the centered template
-    /// anchor at the top-left source pixel and zero-pads out-of-image source samples.
+    /// Uses the native normalized sum of corresponding source/template products, without the mean subtraction used by `NormLevel`.
+    /// Output dimensions must equal the source dimensions.
+    /// NPP starts the centered template anchor at the top-left source pixel and zero-pads out-of-image source samples.
     /// Applies native integer result scaling by `2^(-scale_factor)`.
     /// For alpha-ignoring layouts, destination alpha remains unwritten.
-    /// Prepares source, template, and destination regions, waits for producers on other
-    /// streams, rejects capture, and returns after successful stream completion. Row padding
-    /// remains unwritten.
+    /// Prepares source, template, and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, checked response-size arithmetic, native template matching, or
-    /// stream synchronization fail. The destination must have the exact dimensions
-    /// required by the selected response mode. NPP can reject native geometry or numerical
-    /// parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, checked response-size arithmetic, native template matching, or stream synchronization fail.
+    /// The destination must have the exact dimensions required by the selected response mode.
+    /// NPP can reject native geometry or numerical parameters.
     pub fn cross_correlation_same_norm_scaled_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,
@@ -83,24 +75,19 @@ where
 
     /// Computes valid normalized cross-correlation responses against `template`.
     ///
-    /// Uses the native normalized sum of corresponding source/template products, without
-    /// the mean subtraction used by `NormLevel`.
+    /// Uses the native normalized sum of corresponding source/template products, without the mean subtraction used by `NormLevel`.
     /// Each output dimension must equal source dimension minus template dimension plus one.
-    /// The template must fit within the source; only placements without out-of-image
-    /// source reads are evaluated.
+    /// The template must fit within the source; only placements without out-of-image source reads are evaluated.
     /// Applies native integer result scaling by `2^(-scale_factor)`.
     /// For alpha-ignoring layouts, destination alpha remains unwritten.
-    /// Prepares source, template, and destination regions, waits for producers on other
-    /// streams, rejects capture, and returns after successful stream completion. Row padding
-    /// remains unwritten.
+    /// Prepares source, template, and destination regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, checked response-size arithmetic, native template matching, or
-    /// stream synchronization fail. The destination must have the exact dimensions
-    /// required by the selected response mode. NPP can reject native geometry or numerical
-    /// parameters.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, checked response-size arithmetic, native template matching, or stream synchronization fail.
+    /// The destination must have the exact dimensions required by the selected response mode.
+    /// NPP can reject native geometry or numerical parameters.
     pub fn cross_correlation_valid_norm_scaled_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, L>,

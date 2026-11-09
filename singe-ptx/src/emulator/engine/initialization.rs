@@ -1,5 +1,5 @@
-//! Grid construction. The storage of the whole grid is reserved up front, then the grid
-//! is built in bounded scheduler turns so other streams keep running.
+//! Grid construction.
+//! The storage of the whole grid is reserved up front, then the grid is built in bounded scheduler turns so other streams keep running.
 
 use std::sync::atomic::AtomicBool;
 
@@ -104,6 +104,7 @@ fn storage_plan(code: &CompiledKernel, config: LaunchConfig) -> Result<StoragePl
             )
             .ok_or(ExecutionError::ExecutionStateLimit)?;
     }
+
     let local = code
         .artifact
         .executable
@@ -210,6 +211,7 @@ impl GridBuilder {
             self.initialize_pending(args, memory)?;
             return Ok(false);
         }
+
         match self.phase {
             Phase::Cta => self.begin_cta(globals)?,
             Phase::DynamicShared => self.reserve_dynamic_shared(memory)?,
@@ -225,8 +227,7 @@ impl GridBuilder {
         Ok(matches!(self.phase, Phase::Ready))
     }
 
-    /// Zero-initializes the pending allocation, then copies its kernel argument, one chunk
-    /// per turn.
+    /// Zero-initializes the pending allocation, then copies its kernel argument, one chunk per turn.
     fn initialize_pending(&mut self, args: &[Vec<u8>], memory: &mut Memory) -> Result<()> {
         let Some(pending) = &mut self.pending else {
             return Ok(());
@@ -236,6 +237,7 @@ impl GridBuilder {
             self.work_bytes += CHUNK_BYTES;
             return Ok(());
         }
+
         if let Some(argument) = pending.argument {
             let value = &args[argument];
             let end = pending.offset.saturating_add(CHUNK_BYTES).min(value.len());
@@ -245,8 +247,10 @@ impl GridBuilder {
             if end != value.len() {
                 return Ok(());
             }
+
             memory.protect(pending.address);
         }
+
         self.pending = None;
         Ok(())
     }
@@ -292,6 +296,7 @@ impl GridBuilder {
             self.phase = Phase::Warps;
             return Ok(());
         }
+
         let mut addresses = Vec::new();
         addresses
             .try_reserve_exact(globals.len())
@@ -318,12 +323,12 @@ impl GridBuilder {
             self.dynamic_address =
                 self.reserve_bytes(size, alignment, StateSpace::Shared, owner, None, memory)?;
         }
+
         self.phase = Phase::Globals;
         Ok(())
     }
 
-    /// Copies the module global addresses for this CTA, then binds its shared module
-    /// variables one per turn.
+    /// Copies the module global addresses for this CTA, then binds its shared module variables one per turn.
     fn bind_globals(&mut self, globals: &[u64], memory: &mut Memory) -> Result<()> {
         let addresses = &mut self.engine.globals[self.cta];
         if addresses.len() < globals.len() {
@@ -335,6 +340,7 @@ impl GridBuilder {
             addresses.extend_from_slice(&globals[addresses.len()..end]);
             return Ok(());
         }
+
         let variables = &self.engine.code.module.variables;
         if self.object == variables.len() {
             self.object = 0;
@@ -342,6 +348,7 @@ impl GridBuilder {
             self.phase = Phase::Shared;
             return Ok(());
         }
+
         let id = self.object;
         self.object += 1;
         let variable = &variables[id];
@@ -365,6 +372,7 @@ impl GridBuilder {
             self.phase = Phase::Lane;
             return Ok(());
         }
+
         let function = &engine.code.functions[self.function];
         if engine.shared[self.cta].len() == self.function {
             let mut objects = Vec::new();
@@ -373,6 +381,7 @@ impl GridBuilder {
                 .map_err(|_| ExecutionError::ExecutionStateLimit)?;
             engine.shared[self.cta].push(objects);
         }
+
         let objects = &mut engine.shared[self.cta][self.function];
         if objects.len() < function.objects.len() {
             let end = objects
@@ -383,11 +392,13 @@ impl GridBuilder {
             objects.resize(end, 0);
             return Ok(());
         }
+
         if self.object == function.objects.len() {
             self.object = 0;
             self.function += 1;
             return Ok(());
         }
+
         let id = self.object;
         self.object += 1;
         let object = &function.objects[id];
@@ -413,6 +424,7 @@ impl GridBuilder {
             self.phase = Phase::Cta;
             return Ok(());
         }
+
         let function = engine.code.entry_function();
         let mut registers = Vec::new();
         registers
@@ -508,12 +520,14 @@ impl GridBuilder {
             self.phase = Phase::Lane;
             return Ok(());
         }
+
         let id = self.object;
         self.object += 1;
         let object = self.engine.code.function(function).objects[id].clone();
         if object.space == StateSpace::Shared {
             return Ok(());
         }
+
         let argument = if matches!(object.role, FrameRole::Input | FrameRole::KernelInput) {
             self.argument += 1;
             Some(self.argument - 1)
@@ -536,6 +550,7 @@ impl GridBuilder {
             self.phase = Phase::Ready;
             return Ok(());
         }
+
         let start = self.cta * threads + self.warp * WARP_SIZE;
         engine.warps.push(Warp {
             lanes: start..(start + WARP_SIZE).min((self.cta + 1) * threads),

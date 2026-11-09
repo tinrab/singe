@@ -13,21 +13,18 @@ use crate::{
 impl ImagePipeline<'_, f32, C1> {
     /// Applies native alpha-weighted source accumulation to the C1 `f32` accumulator where the mask is nonzero.
     ///
-    /// The provided implementations accept C1 `u8`, `u16`, or `f32` sources. All source,
-    /// mask, and accumulator dimensions must match. Zero mask pixels preserve the previous
-    /// accumulator values.
-    /// `alpha` is the source weight, expected by NPP in `0.0..=1.0`; the wrapper forwards
-    /// it without validating its range.
+    /// The provided implementations accept C1 `u8`, `u16`, or `f32` sources.
+    /// All source, mask, and accumulator dimensions must match.
+    /// Zero mask pixels preserve the previous accumulator values.
+    /// `alpha` is the source weight, expected by NPP in `0.0..=1.0`; the wrapper forwards it without validating its range.
     /// Updates the supplied initialized accumulator in place.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail. Participating image and
-    /// mask dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
+    /// Participating image and mask dimensions must match.
     pub fn accumulate_weighted_masked_into<T>(
         stream_context: &StreamContext,
         source: &ImageView<'_, T, C1>,
@@ -55,22 +52,18 @@ where
 {
     /// Applies native alpha-weighted source accumulation to the C1 `f32` accumulator where the mask is nonzero.
     ///
-    /// The provided implementations accept C1 `u8`, `u16`, or `f32` sources. All source,
-    /// mask, and accumulator dimensions must match. Zero mask pixels preserve the previous
-    /// accumulator values.
-    /// `alpha` is the source weight, expected by NPP in `0.0..=1.0`; the wrapper forwards
-    /// it without validating its range.
-    /// Reuses an owned pipeline accumulator in place; for borrowed input, copies its
-    /// initialized values into a new owned image before the update.
-    /// Prepares participating regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains
-    /// unwritten.
+    /// The provided implementations accept C1 `u8`, `u16`, or `f32` sources.
+    /// All source, mask, and accumulator dimensions must match.
+    /// Zero mask pixels preserve the previous accumulator values.
+    /// `alpha` is the source weight, expected by NPP in `0.0..=1.0`; the wrapper forwards it without validating its range.
+    /// Reuses an owned pipeline accumulator in place; for borrowed input, copies its initialized values into a new owned image before the update.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits, native execution, or synchronization fail. Participating image and
-    /// mask dimensions must match.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits, native execution, or synchronization fail.
+    /// Participating image and mask dimensions must match.
     /// Output allocation, copying borrowed input, or image view construction can also fail.
     pub fn accumulate_weighted_masked_from<T>(
         self,

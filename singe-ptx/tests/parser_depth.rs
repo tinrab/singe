@@ -1,25 +1,31 @@
 //! Run stack-overflow regressions out of process so aborts and hangs fail the test.
-use singe_ptx::{emulator::ParsedModule, parser::ParseErrorKind};
 use std::{
     env,
     process::{Command, Stdio},
     thread,
     time::{Duration, Instant},
 };
+
+use singe_ptx::{emulator::ParsedModule, parser::ParseErrorKind};
+
 const CHILD_CASE: &str = "SINGE_PTX_DEPTH_CASE";
 const LIMIT: usize = 128;
+
 fn module(body: &str) -> String {
     format!(".version 9.4\n.target sm_80\n.address_size 64\n.visible .entry k() {{ {body} }}")
 }
+
 fn initializer(expression: &str, dimensions: usize) -> String {
     format!(
         ".version 9.4\n.target sm_80\n.address_size 64\n.global .u32 value{} = {expression};\n.visible .entry k() {{ ret; }}",
         "[1]".repeat(dimensions)
     )
 }
+
 fn wrapped(left: &str, right: &str, count: usize) -> String {
     format!("{}1{}", left.repeat(count), right.repeat(count))
 }
+
 fn check(source: &str, accepted: bool, executable: bool) {
     let result = ParsedModule::parse(source);
     if accepted {
@@ -41,6 +47,7 @@ fn check(source: &str, accepted: bool, executable: bool) {
         assert!(error.span.end <= source.len());
     }
 }
+
 fn check_expressions() {
     for (left, right, executable) in [
         ("(", ")", true),
@@ -165,6 +172,7 @@ fn run_case(case: &str) {
         _ => panic!("unknown parser depth case"),
     }
 }
+
 fn subprocess(case: &str) {
     let mut child = Command::new(env::current_exe().expect("test executable"))
         .args(["--exact", "test_parser_depth_child", "--nocapture"])
@@ -193,6 +201,7 @@ fn subprocess(case: &str) {
         thread::sleep(Duration::from_millis(10));
     }
 }
+
 #[test]
 fn test_parser_depth_child() {
     let Ok(case) = env::var(CHILD_CASE) else {
@@ -205,6 +214,7 @@ fn test_parser_depth_child() {
         .join()
         .expect("parser regression thread panicked");
 }
+
 #[test]
 fn test_rejects_excessive_depth_without_aborting() {
     for case in [

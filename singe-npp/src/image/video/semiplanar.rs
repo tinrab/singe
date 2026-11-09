@@ -143,6 +143,7 @@ pub fn decode_u8(
             }
         })?;
     }
+
     // SAFETY: the completed color-twist conversion writes every packed color sample.
     let colors = unsafe { colors.assume_init() };
     write_u8(context, &colors, destination, alpha)
@@ -217,6 +218,7 @@ pub fn decode_u16_to_u8(
             }
         })?;
     }
+
     // SAFETY: completed scaling writes every packed output color sample.
     let reduced = unsafe { reduced.assume_init() };
     write_u8(context, &reduced, destination, alpha)

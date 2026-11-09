@@ -25,6 +25,7 @@ pub fn required_tensor_bindings(
         {
             continue;
         }
+
         let access = operand.access.ok_or(Error::DescriptorMismatch {
             name: "execution binding access".into(),
         })?;
@@ -38,6 +39,7 @@ pub fn required_tensor_bindings(
                 name: "caller binding storage".into(),
             });
         }
+
         let binding = required.entry(source_id).or_insert_with(|| RequiredTensor {
             id: source_id,
             bindings: Vec::new(),

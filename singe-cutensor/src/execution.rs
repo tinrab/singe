@@ -37,15 +37,12 @@ impl Plan {
     ///
     /// See [`OperationDescriptor::elementwise_trinary`](crate::operation::OperationDescriptor::elementwise_trinary) for details.
     ///
-    /// The call enqueues asynchronous CUDA work on `stream`. cuTENSOR treats this
-    /// operation as thread-safe but not reentrant.
+    /// The call enqueues asynchronous CUDA work on `stream`.
+    /// cuTENSOR treats this operation as thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, scalar
-    /// or tensor types do not match the plan, tensor dimensions or modes are
-    /// invalid, a data type or operation combination is unsupported, or
-    /// cuTENSOR rejects the operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, scalar or tensor types do not match the plan, tensor dimensions or modes are invalid, a data type or operation combination is unsupported, or cuTENSOR rejects the operation.
     ///
     /// # Safety
     /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
@@ -98,15 +95,12 @@ impl Plan {
     ///
     /// See [`OperationDescriptor::elementwise_binary`](crate::operation::OperationDescriptor::elementwise_binary) for details.
     ///
-    /// The call enqueues asynchronous CUDA work on `stream`. cuTENSOR treats this
-    /// operation as thread-safe but not reentrant.
+    /// The call enqueues asynchronous CUDA work on `stream`.
+    /// cuTENSOR treats this operation as thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, scalar
-    /// or tensor types do not match the plan, tensor dimensions or modes are
-    /// invalid, a data type or operation combination is unsupported, or
-    /// cuTENSOR rejects the operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, scalar or tensor types do not match the plan, tensor dimensions or modes are invalid, a data type or operation combination is unsupported, or cuTENSOR rejects the operation.
     ///
     /// # Safety
     /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
@@ -158,18 +152,14 @@ impl Plan {
     ///
     /// * `A` and `B` are multi-mode tensors of arbitrary data types.
     /// * $\Pi^A$ and $\Pi^B$ permute the modes of `A` and `B`, respectively.
-    /// * $op\_A$ is the unary element-wise operator specified when creating the
-    ///   operation descriptor with [`OperationDescriptor::permutation`](crate::operation::OperationDescriptor::permutation).
+    /// * $op\_A$ is the unary element-wise operator specified when creating the operation descriptor with [`OperationDescriptor::permutation`](crate::operation::OperationDescriptor::permutation).
     ///
-    /// The call enqueues asynchronous CUDA work on `stream`. cuTENSOR treats this
-    /// operation as thread-safe but not reentrant.
+    /// The call enqueues asynchronous CUDA work on `stream`.
+    /// cuTENSOR treats this operation as thread-safe but not reentrant.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, scalar
-    /// or tensor types do not match the plan, tensor dimensions or modes are
-    /// invalid, a data type or operation combination is unsupported, or
-    /// cuTENSOR rejects the operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, scalar or tensor types do not match the plan, tensor dimensions or modes are invalid, a data type or operation combination is unsupported, or cuTENSOR rejects the operation.
     ///
     /// # Safety
     /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
@@ -208,24 +198,19 @@ impl Plan {
     ///
     /// $$ \mathcal{D}\_{{modes}\_\mathcal{D}} \gets \alpha \cdot \mathcal{A}\_{{modes}\_\mathcal{A}} B\_{{modes}\_\mathcal{B}} + \beta \mathcal{C}\_{{modes}\_\mathcal{C}} $$
     ///
-    /// The active CUDA device must match the CUDA device that was active when
-    /// the plan was created.
+    /// The active CUDA device must match the CUDA device that was active when the plan was created.
     ///
     /// See [NVIDIA/CUDALibrarySamples](https://github.com/NVIDIA/CUDALibrarySamples/tree/master/cuTENSOR/contraction.cu) for a concrete example.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, scalar
-    /// or tensor types do not match the plan, the active device does not match
-    /// the plan, the provided workspace is smaller than
-    /// [`Plan::required_workspace_size`], the CUDA driver is insufficient, or
-    /// cuTENSOR rejects or fails the operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, scalar or tensor types do not match the plan, the active device does not match the plan, the provided workspace is smaller than [`Plan::required_workspace_size`], the CUDA driver is insufficient, or cuTENSOR rejects or fails the operation.
     /// # Safety
     ///
-    /// Tensor ranges must cover the plan's complete strided accesses and
-    /// remain live until `stream` completes. Prior producers must precede this
-    /// operation. Input elements must be valid when read. Output and workspace
-    /// writes must not conflict with other access.
+    /// Tensor ranges must cover the plan's complete strided accesses and remain live until `stream` completes.
+    /// Prior producers must precede this operation.
+    /// Input elements must be valid when read.
+    /// Output and workspace writes must not conflict with other access.
     /// Uninitialized output storage is permitted.
     /// Only the descriptor's tensor elements are written, so padding remains uninitialized unless initialized separately.
     pub unsafe fn contract<TA, TB, TC, TD, TScalar>(
@@ -278,16 +263,12 @@ impl Plan {
     /// Performs the tensor reduction that is encoded by this plan.
     ///
     /// See [`OperationDescriptor::reduction`](crate::operation::OperationDescriptor::reduction) for details.
-    /// The call enqueues asynchronous CUDA work on `stream`. The provided
-    /// `workspace`, when required by the plan, must remain valid until the
-    /// queued work has completed.
+    /// The call enqueues asynchronous CUDA work on `stream`.
+    /// The provided `workspace`, when required by the plan, must remain valid until the queued work has completed.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, the
-    /// scalar and tensor types do not match the plan, the provided workspace is
-    /// smaller than [`Plan::required_workspace_size`], or cuTENSOR rejects the
-    /// operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, the scalar and tensor types do not match the plan, the provided workspace is smaller than [`Plan::required_workspace_size`], or cuTENSOR rejects the operation.
     ///
     /// # Safety
     /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
@@ -339,18 +320,13 @@ impl Plan {
     ///
     /// $$ \mathcal{E}\_{{modes}\_\mathcal{E}} \gets \alpha \cdot \mathcal{A}\_{{modes}\_\mathcal{A}} \mathcal{B}\_{{modes}\_\mathcal{B}} \mathcal{C}\_{{modes}\_\mathcal{C}} + \beta \mathcal{D}\_{{modes}\_\mathcal{D}} $$
     ///
-    /// The active CUDA device must match the CUDA device that was active when
-    /// the plan was created.
+    /// The active CUDA device must match the CUDA device that was active when the plan was created.
     ///
     /// See [NVIDIA/CUDALibrarySamples](https://github.com/NVIDIA/CUDALibrarySamples/tree/master/cuTENSOR/contraction_trinary.cu) for a concrete example.
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, scalar
-    /// or tensor types do not match the plan, the active device does not match
-    /// the plan, the provided workspace is smaller than
-    /// [`Plan::required_workspace_size`], the CUDA driver is insufficient, or
-    /// cuTENSOR rejects or fails the operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, scalar or tensor types do not match the plan, the active device does not match the plan, the provided workspace is smaller than [`Plan::required_workspace_size`], the CUDA driver is insufficient, or cuTENSOR rejects or fails the operation.
     ///
     /// # Safety
     /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
@@ -415,8 +391,7 @@ impl Plan {
     ///
     /// $$ \mathcal{D}\_{{modes}\_\mathcal{D}} \gets \alpha \cdot \mathcal{A}\_{{modes}\_\mathcal{A}} B\_{{modes}\_\mathcal{B}} + \beta \mathcal{C}\_{{modes}\_\mathcal{C}} $$
     ///
-    /// The active CUDA device must match the CUDA device that was active when
-    /// the plan was created.
+    /// The active CUDA device must match the CUDA device that was active when the plan was created.
     ///
     /// The array parameters `A`, `B`, `C`, and `D` are host arrays containing pointers to GPU-accessible memory.
     /// For example, `A` is a host array whose size equals the number of non-zero blocks in tensor $\mathcal{A}$.
@@ -426,11 +401,7 @@ impl Plan {
     ///
     /// # Errors
     ///
-    /// Returns an error if `stream` belongs to a different CUDA context, the
-    /// pointer slices do not match the block counts encoded in the plan, the
-    /// active device does not match the plan, the provided workspace is smaller
-    /// than [`Plan::required_workspace_size`], the CUDA driver is insufficient,
-    /// or cuTENSOR rejects or fails the operation.
+    /// Returns an error if `stream` belongs to a different CUDA context, the pointer slices do not match the block counts encoded in the plan, the active device does not match the plan, the provided workspace is smaller than [`Plan::required_workspace_size`], the CUDA driver is insufficient, or cuTENSOR rejects or fails the operation.
     ///
     /// # Safety
     /// Follow the [raw execution contract](crate::execution#raw-execution-contract).
@@ -718,10 +689,12 @@ fn workspace_ptr_and_size(
     if workspace.context() != context {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     let actual = workspace.byte_len() as u64;
     if actual < required {
         return Err(Error::InsufficientWorkspaceSize { required, actual });
     }
+
     if required != 0
         && !workspace.as_ptr().is_null()
         && !workspace.as_ptr().addr().is_multiple_of(256)

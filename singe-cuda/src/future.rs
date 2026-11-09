@@ -14,6 +14,7 @@ use crate::{
     graph::ExecutableGraph,
     stream::{Stream, StreamScope},
     submission::{Completion, Execution, Resources, Submission},
+    utility::lock_for_cleanup,
 };
 
 #[derive(Debug)]
@@ -32,7 +33,7 @@ impl CompletionState {
 
     fn signal(&self) {
         self.complete.store(true, Ordering::Release);
-        let waker = self.waker.lock().expect("completion waker poisoned").take();
+        let waker = lock_for_cleanup(&self.waker).take();
         if let Some(waker) = waker {
             waker.wake();
         }
@@ -41,7 +42,9 @@ impl CompletionState {
 
 /// A callback-backed notification that preceding stream work has reached a host function.
 ///
-/// The future retains the stream and resolves to `()`, without reporting asynchronous CUDA errors. Dropping it does not cancel queued work or the callback. Use [`CheckedStreamFuture`] when completion must include CUDA status.
+/// The future retains the stream and resolves to `()`, without reporting asynchronous CUDA errors.
+/// Dropping it does not cancel queued work or the callback.
+/// Use [`CheckedStreamFuture`] when completion must include CUDA status.
 #[derive(Debug)]
 pub struct StreamFuture {
     state: Arc<CompletionState>,
@@ -57,7 +60,7 @@ impl Future for StreamFuture {
         }
 
         {
-            let mut waker = self.state.waker.lock().expect("completion waker poisoned");
+            let mut waker = lock_for_cleanup(&self.state.waker);
             *waker = Some(cx.waker().clone());
         }
 
@@ -74,8 +77,8 @@ impl Unpin for StreamFuture {}
 /// Checked event-backed completion that observes CUDA errors even when callbacks do not run.
 ///
 /// The completion worker retains the stream until the recorded work finishes.
-/// Dropping the future does not cancel queued work. The future does not retain
-/// owners of raw pointers or graph code; those lifetimes follow the submission API's contract.
+/// Dropping the future does not cancel queued work.
+/// The future does not retain owners of raw pointers or graph code; those lifetimes follow the submission API's contract.
 #[derive(Debug)]
 pub struct CheckedStreamFuture {
     completion: Completion,
@@ -98,7 +101,8 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture is active or invalidated, stream capture state cannot be queried, the context cannot be bound, or CUDA cannot enqueue the notification callback. Errors after successful registration are not reported by the returned future.
+    /// Returns an error if capture is active or invalidated, stream capture state cannot be queried, the context cannot be bound, or CUDA cannot enqueue the notification callback.
+    /// Errors after successful registration are not reported by the returned future.
     pub fn completion_future(&self) -> Result<StreamFuture> {
         self.ensure_not_capturing()?;
 
@@ -119,7 +123,8 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Returns an error if capture is active or invalidated, CUDA cannot query capture state, create or record the completion event, or bind the context, or the completion worker cannot be started or accept work. The returned future reports asynchronous CUDA completion errors.
+    /// Returns an error if capture is active or invalidated, CUDA cannot query capture state, create or record the completion event, or bind the context, or the completion worker cannot be started or accept work.
+    /// The returned future reports asynchronous CUDA completion errors.
     pub fn checked_completion_future(&self) -> Result<CheckedStreamFuture> {
         self.ensure_not_capturing()?;
 
@@ -135,7 +140,8 @@ impl Stream {
 
     /// Waits asynchronously for work preceding a newly recorded completion event.
     ///
-    /// Registration occurs when the returned future is polled. Dropping the future after registration does not cancel stream work.
+    /// Registration occurs when the returned future is polled.
+    /// Dropping the future after registration does not cancel stream work.
     ///
     /// # Errors
     ///
@@ -152,7 +158,8 @@ impl Stream {
     ///
     /// # Errors
     ///
-    /// Propagates capture-state, context, access-tracking, dependency-ordering, and completion-event errors, errors returned by `enqueue`, and failures to start or submit to the completion worker. The callback may already have enqueued work when a later step fails.
+    /// Propagates capture-state, context, access-tracking, dependency-ordering, and completion-event errors, errors returned by `enqueue`, and failures to start or submit to the completion worker.
+    /// The callback may already have enqueued work when a later step fails.
     pub unsafe fn enqueue_async_unchecked<T, F>(
         &self,
         resources: Resources,
@@ -175,7 +182,8 @@ impl StreamScope<'_, '_> {
     ///
     /// # Errors
     ///
-    /// Propagates registration errors from [`Stream::completion_future`]. The returned future does not report asynchronous CUDA errors.
+    /// Propagates registration errors from [`Stream::completion_future`].
+    /// The returned future does not report asynchronous CUDA errors.
     pub fn completion_future(&self) -> Result<StreamFuture> {
         self.stream().completion_future()
     }
@@ -186,7 +194,8 @@ impl StreamScope<'_, '_> {
     ///
     /// # Errors
     ///
-    /// Propagates registration errors from [`Stream::checked_completion_future`]. The returned future reports asynchronous CUDA completion errors.
+    /// Propagates registration errors from [`Stream::checked_completion_future`].
+    /// The returned future reports asynchronous CUDA completion errors.
     pub fn checked_completion_future(&self) -> Result<CheckedStreamFuture> {
         self.stream().checked_completion_future()
     }
@@ -206,11 +215,14 @@ impl StreamScope<'_, '_> {
 impl Event {
     /// Orders `stream` after this event, then registers callback-backed stream completion.
     ///
-    /// The future also waits for work already queued on `stream`. It does not report asynchronous CUDA errors. Dropping it does not cancel the wait or queued work.
+    /// The future also waits for work already queued on `stream`.
+    /// It does not report asynchronous CUDA errors.
+    /// Dropping it does not cancel the wait or queued work.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot enqueue the event wait or callback registration fails. The wait may already be queued when registration fails; see [`Stream::completion_future`].
+    /// Returns an error if CUDA cannot enqueue the event wait or callback registration fails.
+    /// The wait may already be queued when registration fails; see [`Stream::completion_future`].
     pub fn completion_future_on(&self, stream: &Stream) -> Result<StreamFuture> {
         stream.wait_event(self)?;
         stream.completion_future()
@@ -218,11 +230,14 @@ impl Event {
 
     /// Orders `stream` after this event, then registers event-backed checked stream completion.
     ///
-    /// The future also covers work already queued on `stream`. Dropping it does not cancel the wait or queued work.
+    /// The future also covers work already queued on `stream`.
+    /// Dropping it does not cancel the wait or queued work.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA cannot enqueue the event wait or checked completion registration fails. The wait may already be queued when registration fails; see [`Stream::checked_completion_future`]. The future reports asynchronous CUDA completion errors.
+    /// Returns an error if CUDA cannot enqueue the event wait or checked completion registration fails.
+    /// The wait may already be queued when registration fails; see [`Stream::checked_completion_future`].
+    /// The future reports asynchronous CUDA completion errors.
     pub fn checked_completion_future_on(&self, stream: &Stream) -> Result<CheckedStreamFuture> {
         stream.wait_event(self)?;
         stream.checked_completion_future()
@@ -230,7 +245,8 @@ impl Event {
 
     /// Orders `stream` after this event and waits asynchronously for checked stream completion.
     ///
-    /// The wait and completion registration occur when the future is polled. Dropping it does not cancel queued work.
+    /// The wait and completion registration occur when the future is polled.
+    /// Dropping it does not cancel queued work.
     ///
     /// # Errors
     ///
@@ -248,7 +264,9 @@ impl ExecutableGraph {
     ///
     /// # Errors
     ///
-    /// Propagates graph launch errors and errors from registering [`Stream::checked_completion_future`]. A successful launch remains queued if completion registration subsequently fails. The returned future reports asynchronous CUDA completion errors.
+    /// Propagates graph launch errors and errors from registering [`Stream::checked_completion_future`].
+    /// A successful launch remains queued if completion registration subsequently fails.
+    /// The returned future reports asynchronous CUDA completion errors.
     pub unsafe fn launch_async(&self, stream: &Stream) -> Result<CheckedStreamFuture> {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe {
@@ -264,7 +282,8 @@ impl ExecutableGraph {
     ///
     /// # Errors
     ///
-    /// Propagates graph launch, completion registration, and asynchronous CUDA completion errors from [`Self::launch_async`]. Dropping this future after launch does not cancel the queued graph.
+    /// Propagates graph launch, completion registration, and asynchronous CUDA completion errors from [`Self::launch_async`].
+    /// Dropping this future after launch does not cancel the queued graph.
     #[expect(
         clippy::future_not_send,
         reason = "raw graph mutation is thread confined; this future borrows the graph"
@@ -276,11 +295,14 @@ impl ExecutableGraph {
 
     /// Enqueues this executable graph's upload and registers checked stream completion.
     ///
-    /// The future covers the upload and earlier stream work. Dropping it does not cancel queued operations.
+    /// The future covers the upload and earlier stream work.
+    /// Dropping it does not cancel queued operations.
     ///
     /// # Errors
     ///
-    /// Propagates graph upload errors and errors from registering [`Stream::checked_completion_future`]. The upload may already be queued when registration fails. The returned future reports asynchronous CUDA completion errors.
+    /// Propagates graph upload errors and errors from registering [`Stream::checked_completion_future`].
+    /// The upload may already be queued when registration fails.
+    /// The returned future reports asynchronous CUDA completion errors.
     pub fn upload_async(&self, stream: &Stream) -> Result<CheckedStreamFuture> {
         self.upload(stream)?;
         stream.checked_completion_future()
@@ -288,7 +310,8 @@ impl ExecutableGraph {
 
     /// Uploads this executable graph and waits asynchronously for checked stream completion.
     ///
-    /// Submission begins when the future is polled. Dropping it after submission does not cancel queued work.
+    /// Submission begins when the future is polled.
+    /// Dropping it after submission does not cancel queued work.
     ///
     /// # Errors
     ///

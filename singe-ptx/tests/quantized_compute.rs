@@ -1,6 +1,6 @@
-use std::{array, error::Error, fmt::Write, result::Result as StdResult};
-
 mod support;
+
+use std::{array, error::Error, fmt::Write, result::Result as StdResult};
 
 use singe_ptx::emulator::{
     Emulator, EmulatorOptions, F16, LaunchConfig, ParsedModule, ShutdownMode,

@@ -18,6 +18,9 @@ pub struct CompileError {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[non_exhaustive]
 pub enum CompileErrorKind {
+    /// The compiled kernel cache was poisoned by a thread that panicked while holding it.
+    #[error("compiled kernel cache lock is poisoned")]
+    CachePoisoned,
     /// The source uses a PTX feature the emulator does not implement.
     #[error("unsupported PTX feature: {0}")]
     Unsupported(String),

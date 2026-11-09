@@ -135,26 +135,18 @@ pub fn zsytrf_buffer_size(context: &Context, n: usize, lda: usize) -> Result<usi
 /// The workspace size in bytes is `size_of::<T>() * lwork`.
 /// When no pivoting is performed, the other triangular part of the input matrix `A` is used as workspace.
 ///
-/// If Bunch-Kaufman factorization failed, that is, `A` is singular,
-/// `dev_info = i` indicates `D(i, i) = 0`.
+/// If Bunch-Kaufman factorization failed, that is, `A` is singular, `dev_info = i` indicates `D(i, i) = 0`.
 ///
 /// If the reported `dev_info` value is `-i`, the `i`th parameter is invalid.
 ///
 /// `pivots` contains the pivoting sequence.
-/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A`
-/// is interchanged with row/column `k`.
-/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged
-/// with row/column `m`.
-/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged
-/// with row/column `m`.
+/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A` is interchanged with row/column `k`.
+/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`, `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged with row/column `m`.
+/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`, `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged with row/column `m`.
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -175,10 +167,12 @@ pub unsafe fn ssytrf(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
         require_pivot_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let lwork = ssytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
@@ -221,26 +215,18 @@ pub unsafe fn ssytrf(
 /// The workspace size in bytes is `size_of::<T>() * lwork`.
 /// When no pivoting is performed, the other triangular part of the input matrix `A` is used as workspace.
 ///
-/// If Bunch-Kaufman factorization failed, that is, `A` is singular,
-/// `dev_info = i` indicates `D(i, i) = 0`.
+/// If Bunch-Kaufman factorization failed, that is, `A` is singular, `dev_info = i` indicates `D(i, i) = 0`.
 ///
 /// If the reported `dev_info` value is `-i`, the `i`th parameter is invalid.
 ///
 /// `pivots` contains the pivoting sequence.
-/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A`
-/// is interchanged with row/column `k`.
-/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged
-/// with row/column `m`.
-/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged
-/// with row/column `m`.
+/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A` is interchanged with row/column `k`.
+/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`, `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged with row/column `m`.
+/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`, `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged with row/column `m`.
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -261,10 +247,12 @@ pub unsafe fn dsytrf(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
         require_pivot_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let lwork = dsytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
@@ -307,26 +295,18 @@ pub unsafe fn dsytrf(
 /// The workspace size in bytes is `size_of::<T>() * lwork`.
 /// When no pivoting is performed, the other triangular part of the input matrix `A` is used as workspace.
 ///
-/// If Bunch-Kaufman factorization failed, that is, `A` is singular,
-/// `dev_info = i` indicates `D(i, i) = 0`.
+/// If Bunch-Kaufman factorization failed, that is, `A` is singular, `dev_info = i` indicates `D(i, i) = 0`.
 ///
 /// If the reported `dev_info` value is `-i`, the `i`th parameter is invalid.
 ///
 /// `pivots` contains the pivoting sequence.
-/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A`
-/// is interchanged with row/column `k`.
-/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged
-/// with row/column `m`.
-/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged
-/// with row/column `m`.
+/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A` is interchanged with row/column `k`.
+/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`, `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged with row/column `m`.
+/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`, `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged with row/column `m`.
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -347,10 +327,12 @@ pub unsafe fn csytrf(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
         require_pivot_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let lwork = csytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;
@@ -393,26 +375,18 @@ pub unsafe fn csytrf(
 /// The workspace size in bytes is `size_of::<T>() * lwork`.
 /// When no pivoting is performed, the other triangular part of the input matrix `A` is used as workspace.
 ///
-/// If Bunch-Kaufman factorization failed, that is, `A` is singular,
-/// `dev_info = i` indicates `D(i, i) = 0`.
+/// If Bunch-Kaufman factorization failed, that is, `A` is singular, `dev_info = i` indicates `D(i, i) = 0`.
 ///
 /// If the reported `dev_info` value is `-i`, the `i`th parameter is invalid.
 ///
 /// `pivots` contains the pivoting sequence.
-/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A`
-/// is interchanged with row/column `k`.
-/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged
-/// with row/column `m`.
-/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`,
-/// `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged
-/// with row/column `m`.
+/// If `pivots[i] = k` with `k > 0`, `D(i, i)` is a 1x1 block, and row/column `i` of `A` is interchanged with row/column `k`.
+/// If `fill_mode` is [`FillMode::Upper`] and `pivots[i - 1] = pivots[i] = -m` with `m > 0`, `D(i-1:i,i-1:i)` is a 2x2 block, and row/column `i - 1` is interchanged with row/column `m`.
+/// If `fill_mode` is [`FillMode::Lower`] and `pivots[i + 1] = pivots[i] = -m` with `m > 0`, `D(i:i+1,i:i+1)` is a 2x2 block, and row/column `i + 1` is interchanged with row/column `m`.
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions or leading dimension are invalid, if the current GPU
-/// architecture is unsupported, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions or leading dimension are invalid, if the current GPU architecture is unsupported, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw solver contracts](crate::dense#raw-solver-contracts).
@@ -433,10 +407,12 @@ pub unsafe fn zsytrf(
     if let Some(value) = pivots.as_ref() {
         context.validate_region(value)?;
     }
+
     validate_square_matrix(n, a.len(), lda)?;
     if let Some(pivots) = pivots.as_ref() {
         require_pivot_buffer(pivots.len(), n)?;
     }
+
     require_info_buffer(dev_info.len())?;
     let lwork = zsytrf_buffer_size(context, n, lda)?;
     require_workspace(workspace.len(), lwork)?;

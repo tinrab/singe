@@ -83,6 +83,7 @@ pub fn validate_lookup_table(value_count: usize, level_count: usize) -> Result<i
             actual: level_count,
         });
     }
+
     if level_count < 2 {
         return Err(Error::out_of_range("lookup table levels"));
     }
@@ -172,6 +173,7 @@ pub fn lookup_table_trilinear_descriptors(
         if level.len() < 2 {
             return Err(Error::out_of_range("lookup table trilinear levels"));
         }
+
         level_counts[index] = i32::try_from(level.len())
             .map_err(|_| Error::out_of_range("lookup table trilinear levels"))?;
         expected_values = expected_values
@@ -211,6 +213,7 @@ pub fn subsampled_size(
     if size.width % horizontal_subsampling != 0 {
         return Err(Error::out_of_range("image width"));
     }
+
     if size.height % vertical_subsampling != 0 {
         return Err(Error::out_of_range("image height"));
     }
@@ -430,6 +433,7 @@ where
             actual: source_plane_1.len(),
         });
     }
+
     if source_plane_2.len() != source_plane_0.len() {
         return Err(Error::LengthMismatch {
             name: "subsampled source plane 2 batch".into(),
@@ -524,6 +528,7 @@ where
             actual: source_plane_1.len(),
         });
     }
+
     if source_plane_2.len() != source_plane_0.len() {
         return Err(Error::LengthMismatch {
             name: "subsampled source plane 2 batch".into(),
@@ -858,6 +863,7 @@ where
             // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
             .push(unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?);
     }
+
     let source_descriptor_memory: [DeviceMemory<sys::NppiImageDescriptor>; C] =
         source_descriptor_memory
             .try_into()
@@ -903,6 +909,7 @@ where
             // SAFETY: the descriptors are plain C structs, so copying them yields valid device values.
             .push(unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?);
     }
+
     let source_descriptor_memory: [DeviceMemory<sys::NppiImageDescriptor>; C] =
         source_descriptor_memory
             .try_into()

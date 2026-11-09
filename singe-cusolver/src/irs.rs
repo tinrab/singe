@@ -20,7 +20,8 @@ use crate::{
 
 /// Owns iterative-refinement configuration and tracks its main and lowest precisions.
 ///
-/// Complete each solve before reconfiguring or destroying the parameters. [`Self::create`] selects [`IrsRefinement::None`] initially.
+/// Complete each solve before reconfiguring or destroying the parameters.
+/// [`Self::create`] selects [`IrsRefinement::None`] initially.
 #[derive(Debug)]
 pub struct IrsParams {
     handle: sys::cusolverDnIRSParams_t,
@@ -30,7 +31,8 @@ pub struct IrsParams {
 
 /// Owns iteration counts and optional residual history for one iterative-refinement solve.
 ///
-/// Create native storage with [`Self::create`]. Complete the solve before inspecting its results; raw execution must retain this object through completion.
+/// Create native storage with [`Self::create`].
+/// Complete the solve before inspecting its results; raw execution must retain this object through completion.
 #[derive(Debug, Default)]
 pub struct IrsInfos {
     handle: sys::cusolverDnIRSInfos_t,
@@ -78,7 +80,8 @@ impl IrsSolve {
 
     /// Returns the device scratch requirement in bytes for `T` and the current IRS parameters.
     ///
-    /// Fills any unset precision selectors from `T`. Requery after changing the solver configuration.
+    /// Fills any unset precision selectors from `T`.
+    /// Requery after changing the solver configuration.
     ///
     /// # Errors
     ///
@@ -97,7 +100,8 @@ impl IrsSolve {
     ///
     /// Follow [`xgesv`]'s initialization, ordering, aliasing, and lifetime contract.
     ///
-    /// Returns the host iteration report. This wrapper does not add a stream-completion wait; follow the raw solve contract before inspecting device status or solution values.
+    /// Returns the host iteration report.
+    /// This wrapper does not add a stream-completion wait; follow the raw solve contract before inspecting device status or solution values.
     ///
     /// # Errors
     ///
@@ -129,14 +133,16 @@ impl IrsSolve {
 
 /// Borrowed matrices, output capacity, and device scratch for a square IRS solve.
 ///
-/// These views retain their storage borrows only for the Rust call. Unsafe execution requires the caller to retain all resources through native completion.
+/// These views retain their storage borrows only for the Rust call.
+/// Unsafe execution requires the caller to retain all resources through native completion.
 #[derive(Debug)]
 pub struct IrsSolveBindings<'a, T: DeviceRepr> {
     /// Initialized square coefficient matrix; native solving may overwrite its logical contents.
     pub a: MatrixMut<'a, T>,
     /// Initialized right-hand-side matrix with `n` rows per column.
     pub b: MatrixRef<'a, T>,
-    /// Exclusive solution capacity for `n` rows per right-hand-side column. Padding is not produced.
+    /// Exclusive solution capacity for `n` rows per right-hand-side column.
+    /// Padding is not produced.
     pub x: MatrixOutput<'a, T>,
     /// Exclusive device scratch capacity in bytes, sized for the current IRS configuration.
     pub device_workspace: DeviceOutputView<'a, u8>,
@@ -155,31 +161,28 @@ unsafe impl Send for IrsInfos {}
 unsafe impl Sync for IrsInfos {}
 
 impl IrsParams {
-    /// Creates and initializes the parameter structure for IRS solvers such as
-    /// [`xgesv`] and [`xgels`].
+    /// Creates and initializes the parameter structure for IRS solvers such as [`xgesv`] and [`xgels`].
     ///
-    /// The returned parameter structure can be reused across calls to the same
-    /// IRS solver or to different IRS solvers.
+    /// The returned parameter structure can be reused across calls to the same IRS solver or to different IRS solvers.
     ///
-    /// In CUDA 10.2, the behavior was different and a new parameter structure
-    /// was required for each IRS solve call.
+    /// In CUDA 10.2, the behavior was different and a new parameter structure was required for each IRS solve call.
     ///
-    /// You can also reconfigure the parameters between solves, but only after
-    /// the previous IRS call has completed.
+    /// You can also reconfigure the parameters between solves, but only after the previous IRS call has completed.
     ///
     /// # Errors
     ///
-    /// Returns an error if cuSOLVER cannot allocate the required resources
-    /// or does not return a valid handle.
+    /// Returns an error if cuSOLVER cannot allocate the required resources or does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
         // SAFETY: `cusolverDnIRSParamsCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSParamsCreate(&raw mut handle))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
+
         let mut params = Self {
             handle,
             main_precision: None,
@@ -189,10 +192,10 @@ impl IrsParams {
         Ok(params)
     }
 
-    /// Sets the refinement solver used by IRS operations such as [`xgesv`] and
-    /// [`xgels`].
+    /// Sets the refinement solver used by IRS operations such as [`xgesv`] and [`xgels`].
     ///
-    /// Configure the refinement algorithm before the first IRS solve. [`IrsParams::create`] initially selects [`IrsRefinement::None`].
+    /// Configure the refinement algorithm before the first IRS solve.
+    /// [`IrsParams::create`] initially selects [`IrsRefinement::None`].
     ///
     /// The supported values are described below.
     ///
@@ -200,27 +203,19 @@ impl IrsParams {
     /// error if this value is used.
     ///
     /// [`IrsRefinement::None`]: No refinement solver; the IRS solver performs a factorization followed by a solve without any refinement.
-    /// For example, if the IRS solver was [`xgesv`], this is equivalent to an
-    /// [`xgesv`] solve without refinement, with the factorization carried out in
-    /// the lowest configured precision.
-    /// If both the main and lowest precision are [`PrecisionType::R64F`], the
-    /// solve is effectively performed in `f64`.
+    /// For example, if the IRS solver was [`xgesv`], this is equivalent to an [`xgesv`] solve without refinement, with the factorization carried out in the lowest configured precision.
+    /// If both the main and lowest precision are [`PrecisionType::R64F`], the solve is effectively performed in `f64`.
     ///
     /// [`IrsRefinement::Classical`]: Classical iterative refinement solver.
     /// Similar to the value used in LAPACK operations.
     ///
     /// [`IrsRefinement::Gmres`]: GMRES (Generalized Minimal Residual) based iterative refinement solver.
-    /// Recent studies use GMRES as a refinement solver that can outperform
-    /// classical iterative refinement.
+    /// Recent studies use GMRES as a refinement solver that can outperform classical iterative refinement.
     /// Recommended setting based on cuSOLVER experimentation.
     ///
     /// [`IrsRefinement::ClassicalGmres`]: Classical iterative refinement solver that uses the GMRES (Generalized Minimal Residual) internally to solve the correction equation at each iteration.
-    /// The classical refinement iteration is the outer iteration, and GMRES is
-    /// the inner iteration.
-    /// If the tolerance of the inner GMRES is set very low, for
-    /// example near machine precision, then the outer *classical refinement
-    /// iteration* performs only one iteration and this option behaves like
-    /// [`IrsRefinement::Gmres`].
+    /// The classical refinement iteration is the outer iteration, and GMRES is the inner iteration.
+    /// If the tolerance of the inner GMRES is set very low, for example near machine precision, then the outer *classical refinement iteration* performs only one iteration and this option behaves like [`IrsRefinement::Gmres`].
     ///
     /// [`IrsRefinement::GmresGmres`]: GMRES-based iterative refinement solver
     /// that uses another GMRES solve internally for the preconditioned system.
@@ -242,11 +237,9 @@ impl IrsParams {
     /// Sets the main precision for the Iterative Refinement Solver (IRS).
     ///
     /// The main precision is the type of the input and output data.
-    /// Configure both the main and lowest precision before the first IRS solve. Those
-    /// values are not inferred when the parameter structure is created because
-    /// they depend on the input/output data type and the requested solver
-    /// configuration. You can set them independently or together with
-    /// [`IrsParams::set_solver_precisions`].
+    /// Configure both the main and lowest precision before the first IRS solve.
+    /// Those values are not inferred when the parameter structure is created because they depend on the input/output data type and the requested solver configuration.
+    /// You can set them independently or together with [`IrsParams::set_solver_precisions`].
     ///
     /// # Errors
     ///
@@ -259,28 +252,21 @@ impl IrsParams {
                 precision.into(),
             ))?;
         }
+
         self.main_precision = Some(precision);
         Ok(())
     }
 
     /// Sets the lowest precision that the IRS solver may use.
     ///
-    /// The lowest precision is the minimum compute precision used
-    /// during the LU factorization process.
+    /// The lowest precision is the minimum compute precision used during the LU factorization process.
     ///
-    /// Configure both the main and lowest precision before the first IRS solve. They
-    /// are not inferred when creating the parameter structure because they
-    /// depend on the input and output data types and the requested solver
-    /// configuration.
+    /// Configure both the main and lowest precision before the first IRS solve.
+    /// They are not inferred when creating the parameter structure because they depend on the input and output data types and the requested solver configuration.
     /// Usually the lowest precision defines the speedup that can be achieved.
-    /// The ratio between the performance of the lowest precision and the main
-    /// precision gives an approximate upper bound on the speedup.
-    /// More precisely, it depends on many factors, but for large matrices it is
-    /// often tied to the performance ratio of large GEMM-like kernels.
-    /// For instance, if the input/output precision is real double precision
-    /// [`PrecisionType::R64F`] and the lowest precision is
-    /// [`PrecisionType::R32F`], then a speedup of at most about 2x is expected
-    /// for large problem sizes.
+    /// The ratio between the performance of the lowest precision and the main precision gives an approximate upper bound on the speedup.
+    /// More precisely, it depends on many factors, but for large matrices it is often tied to the performance ratio of large GEMM-like kernels.
+    /// For instance, if the input/output precision is real double precision [`PrecisionType::R64F`] and the lowest precision is [`PrecisionType::R32F`], then a speedup of at most about 2x is expected for large problem sizes.
     /// If the lowest precision is [`PrecisionType::R16F`], expect 3x-4x.
     /// A reasonable strategy accounts for the number of right-hand sides, the matrix size, and the convergence rate.
     ///
@@ -295,34 +281,25 @@ impl IrsParams {
                 precision.into(),
             ))?;
         }
+
         self.lowest_precision = Some(precision);
         Ok(())
     }
 
-    /// Sets both the main and lowest precision for the Iterative Refinement
-    /// Solver (IRS).
+    /// Sets both the main and lowest precision for the Iterative Refinement Solver (IRS).
     ///
     /// The main precision is the precision of the input and output data.
-    /// The lowest precision is the minimum compute precision used
-    /// during the LU factorization process.
+    /// The lowest precision is the minimum compute precision used during the LU factorization process.
     ///
-    /// Configure both values before the first IRS solve. They are not inferred when
-    /// creating the parameter structure because they depend on the input and
-    /// output data types and the requested solver configuration.
+    /// Configure both values before the first IRS solve.
+    /// They are not inferred when creating the parameter structure because they depend on the input and output data types and the requested solver configuration.
     ///
-    /// Convenience wrapper around
-    /// [`IrsParams::set_main_precision`] and
-    /// [`IrsParams::set_lowest_precision`].
+    /// Convenience wrapper around [`IrsParams::set_main_precision`] and [`IrsParams::set_lowest_precision`].
     /// All possible combinations of main/lowest precision are described in the table below.
     /// Usually the lowest precision defines the speedup that can be achieved.
-    /// The ratio between the performance of the lowest precision and the main
-    /// precision gives an approximate upper bound on the speedup.
-    /// More precisely, it depends on many factors, but for large matrices it is
-    /// often tied to the performance ratio of large GEMM-like kernels.
-    /// For instance, if the input/output precision is real double precision
-    /// [`PrecisionType::R64F`] and the lowest precision is
-    /// [`PrecisionType::R32F`], then a speedup of at most about 2x is expected
-    /// for large problem sizes.
+    /// The ratio between the performance of the lowest precision and the main precision gives an approximate upper bound on the speedup.
+    /// More precisely, it depends on many factors, but for large matrices it is often tied to the performance ratio of large GEMM-like kernels.
+    /// For instance, if the input/output precision is real double precision [`PrecisionType::R64F`] and the lowest precision is [`PrecisionType::R32F`], then a speedup of at most about 2x is expected for large problem sizes.
     /// If the lowest precision is [`PrecisionType::R16F`], expect 3x-4x.
     /// A reasonable strategy accounts for the number of right-hand sides, the matrix size, and the convergence rate.
     ///
@@ -351,6 +328,7 @@ impl IrsParams {
                 lowest_precision.into(),
             ))?;
         }
+
         self.main_precision = Some(main_precision);
         self.lowest_precision = Some(lowest_precision);
         Ok(())
@@ -364,13 +342,11 @@ impl IrsParams {
     /// * RNRM is the infinity-norm of the residual
     /// * XNRM is the infinity-norm of the solution
     /// * ANRM is the infinity-operator-norm of the matrix A
-    /// * EPS is the machine epsilon for the input/output data type that matches
-    ///   LAPACK `xLAMCH('Epsilon')`
+    /// * EPS is the machine epsilon for the input/output data type that matches LAPACK `xLAMCH('Epsilon')`
     /// * BWDMAX, the value BWDMAX is fixed to 1.0
     ///
     /// Use this to set the tolerance to a lower or higher value.
-    /// The tolerance value is always stored in real double precision,
-    /// regardless of the input and output data type.
+    /// The tolerance value is always stored in real double precision, regardless of the input and output data type.
     ///
     /// # Errors
     ///
@@ -383,18 +359,11 @@ impl IrsParams {
         Ok(())
     }
 
-    /// Sets the tolerance for the inner refinement solver when
-    /// the refinement solver consists of two levels, for example
-    /// [`IrsRefinement::ClassicalGmres`] or [`IrsRefinement::GmresGmres`].
+    /// Sets the tolerance for the inner refinement solver when the refinement solver consists of two levels, for example [`IrsRefinement::ClassicalGmres`] or [`IrsRefinement::GmresGmres`].
     /// Ignored for one-level refinement solvers such as [`IrsRefinement::Classical`] or [`IrsRefinement::Gmres`].
-    /// The default value is 1e-4.
-    /// This sets the tolerance for the inner solver, such as the inner GMRES.
-    /// For example, if the refinement solver is
-    /// [`IrsRefinement::ClassicalGmres`], setting this tolerance means that the
-    /// inner GMRES solver converges to that tolerance at each outer
-    /// iteration of the classical refinement solver.
-    /// The tolerance value is always stored in real double precision,
-    /// regardless of the input and output data type.
+    /// The default value is 1e-4. This sets the tolerance for the inner solver, such as the inner GMRES.
+    /// For example, if the refinement solver is [`IrsRefinement::ClassicalGmres`], setting this tolerance means that the inner GMRES solver converges to that tolerance at each outer iteration of the classical refinement solver.
+    /// The tolerance value is always stored in real double precision, regardless of the input and output data type.
     ///
     /// # Errors
     ///
@@ -411,7 +380,8 @@ impl IrsParams {
     }
 
     /// Sets the total number of allowed refinement iterations before the solver stops.
-    /// The total is the sum of the outer and inner iterations. Inner iterations are meaningful when a two-level refinement solver is configured.
+    /// The total is the sum of the outer and inner iterations.
+    /// Inner iterations are meaningful when a two-level refinement solver is configured.
     /// The default value is 50.
     ///
     /// # Errors
@@ -431,14 +401,12 @@ impl IrsParams {
     /// Sets the maximum number of iterations allowed for the inner refinement solver.
     /// Ignored for one-level refinement solvers such as [`IrsRefinement::Classical`] or [`IrsRefinement::Gmres`].
     /// The inner refinement solver stops after reaching either the inner tolerance or `MaxItersInner`.
-    /// The default value is 50.
-    /// Cannot be larger than `MaxIters` because `MaxIters` is the total number of allowed iterations.
+    /// The default value is 50. Cannot be larger than `MaxIters` because `MaxIters` is the total number of allowed iterations.
     /// If [`IrsParams::set_max_iterations`] is called after this method, it has priority and overwrites `MaxItersInner` with `min(MaxIters, MaxItersInner)`.
     ///
     /// # Errors
     ///
-    /// Returns an error if `max_iterations` is larger than `MaxIters`, or if
-    /// cuSOLVER rejects the parameter structure.
+    /// Returns an error if `max_iterations` is larger than `MaxIters`, or if cuSOLVER rejects the parameter structure.
     pub fn set_max_inner_iterations(&mut self, max_iterations: i32) -> Result<()> {
         // SAFETY: `cusolverDnIRSParamsSetMaxItersInner` receives live handles owned by the wrappers.
         unsafe {
@@ -514,6 +482,7 @@ impl IrsParams {
             None => self.set_main_precision(precision)?,
             _ => {}
         }
+
         if self.lowest_precision.is_none() {
             self.set_lowest_precision(precision)?;
         }
@@ -531,8 +500,7 @@ impl IrsParams {
     /// # Safety
     ///
     /// `handle` must be a valid `cusolverDnIRSParams_t` created by cuSOLVER.
-    /// The returned wrapper takes ownership and will destroy it with
-    /// `cusolverDnIRSParamsDestroy`; no other owner may destroy or keep using it.
+    /// The returned wrapper takes ownership and will destroy it with `cusolverDnIRSParamsDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -564,8 +532,10 @@ impl Drop for IrsParams {
         // SAFETY: `cusolverDnIRSParamsDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnIRSParamsDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver irs params: {error}");
+                eprintln!(
+                    "failed to destroy cusolver irs params: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -579,14 +549,14 @@ impl IrsInfos {
     ///
     /// # Errors
     ///
-    /// Returns an error if cuSOLVER cannot allocate the required resources
-    /// or does not return a valid handle.
+    /// Returns an error if cuSOLVER cannot allocate the required resources or does not return a valid handle.
     pub fn create() -> Result<Self> {
         let mut handle = ptr::null_mut();
         // SAFETY: `cusolverDnIRSInfosCreate` receives valid output locations.
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosCreate(&raw mut handle))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -597,7 +567,8 @@ impl IrsInfos {
     }
 
     /// Returns the total number of iterations performed by the IRS solver.
-    /// If this value is negative, the IRS solver did not converge. If fallback to full precision was enabled, the solver fell back to a full-precision solution.
+    /// If this value is negative, the IRS solver did not converge.
+    /// If fallback to full precision was enabled, the solver fell back to a full-precision solution.
     /// See [`xgesv`] and [`xgels`] for the meaning of negative `niters` values.
     ///
     /// # Errors
@@ -655,9 +626,7 @@ impl IrsInfos {
         Ok(value)
     }
 
-    /// Asks the IRS solver to store the convergence history
-    /// (residual norms) of the refinement phase so it can later be queried with
-    /// [`IrsInfos::residual_history_f32`] or [`IrsInfos::residual_history_f64`].
+    /// Asks the IRS solver to store the convergence history (residual norms) of the refinement phase so it can later be queried with [`IrsInfos::residual_history_f32`] or [`IrsInfos::residual_history_f64`].
     ///
     /// # Errors
     ///
@@ -667,6 +636,7 @@ impl IrsInfos {
         unsafe {
             try_ffi!(sys::cusolverDnIRSInfosRequestResidual(self.as_raw()))?;
         }
+
         self.residual_history_requested = true;
         Ok(())
     }
@@ -685,22 +655,24 @@ impl IrsInfos {
     /// If the refinement solver was [`IrsRefinement::Classical`] or [`IrsRefinement::Gmres`], then `OuterNiters == Niters`, and there are `Niters + 1` rows of norms corresponding to the `Niters` outer iterations.
     ///
     /// If the refinement solver was [`IrsRefinement::ClassicalGmres`] or [`IrsRefinement::GmresGmres`], then `OuterNiters <= Niters` corresponds to the outer iterations performed by the outer refinement loop.
-    /// There are `OuterNiters + 1` residual norms. Row `i` corresponds to outer iteration `i`; the first column contains the total number of outer and inner iterations performed up to that step, and the second column contains the residual norm at that step.
+    /// There are `OuterNiters + 1` residual norms.
+    /// Row `i` corresponds to outer iteration `i`; the first column contains the total number of outer and inner iterations performed up to that step, and the second column contains the residual norm at that step.
     ///
     /// For example, if [`IrsRefinement::ClassicalGmres`] needs 3 outer iterations to converge and 4, 3, and 3 inner iterations at each outer iteration, it performs 10 total iterations.
     /// Row 0 corresponds to the first residual before the refinement start, so it has 0 in its first column.
     /// Row 1 corresponds to outer iteration 1 and contains 4 in its first column, row 2 contains 7, and row 3 contains 10.
     ///
-    /// In summary, let `ldh = MaxIters + 1`, the leading dimension of the residual matrix. Then `residual_history[i]` contains the total number of iterations performed at outer iteration `i`, and `residual_history[i + ldh]` contains the residual norm at that outer iteration.
+    /// In summary, let `ldh = MaxIters + 1`, the leading dimension of the residual matrix.
+    /// Then `residual_history[i]` contains the total number of iterations performed at outer iteration `i`, and `residual_history[i + ldh]` contains the residual norm at that outer iteration.
     ///
     /// # Errors
     ///
-    /// Returns an error if residual history was not requested before solving,
-    /// or if cuSOLVER rejects the `Infos` structure.
+    /// Returns an error if residual history was not requested before solving, or if cuSOLVER rejects the `Infos` structure.
     pub fn residual_history_f32(&self) -> Result<ResidualHistory<f32>> {
         if !self.residual_history_requested {
             return Err(Error::InvalidPrecisionConfiguration);
         }
+
         let (leading_dimension, valid_rows) = self.residual_history_layout()?;
         let mut history = ptr::null_mut();
         // SAFETY: `cusolverDnIRSInfosGetResidualHistory` receives live handles owned by the wrappers and valid output locations.
@@ -731,22 +703,24 @@ impl IrsInfos {
     /// If the refinement solver was [`IrsRefinement::Classical`] or [`IrsRefinement::Gmres`], then `OuterNiters == Niters`, and there are `Niters + 1` rows of norms corresponding to the `Niters` outer iterations.
     ///
     /// If the refinement solver was [`IrsRefinement::ClassicalGmres`] or [`IrsRefinement::GmresGmres`], then `OuterNiters <= Niters` corresponds to the outer iterations performed by the outer refinement loop.
-    /// There are `OuterNiters + 1` residual norms. Row `i` corresponds to outer iteration `i`; the first column contains the total number of outer and inner iterations performed up to that step, and the second column contains the residual norm at that step.
+    /// There are `OuterNiters + 1` residual norms.
+    /// Row `i` corresponds to outer iteration `i`; the first column contains the total number of outer and inner iterations performed up to that step, and the second column contains the residual norm at that step.
     ///
     /// For example, if [`IrsRefinement::ClassicalGmres`] needs 3 outer iterations to converge and 4, 3, and 3 inner iterations at each outer iteration, it performs 10 total iterations.
     /// Row 0 corresponds to the first residual before the refinement start, so it has 0 in its first column.
     /// Row 1 corresponds to outer iteration 1 and contains 4 in its first column, row 2 contains 7, and row 3 contains 10.
     ///
-    /// In summary, let `ldh = MaxIters + 1`, the leading dimension of the residual matrix. Then `residual_history[i]` contains the total number of iterations performed at outer iteration `i`, and `residual_history[i + ldh]` contains the residual norm at that outer iteration.
+    /// In summary, let `ldh = MaxIters + 1`, the leading dimension of the residual matrix.
+    /// Then `residual_history[i]` contains the total number of iterations performed at outer iteration `i`, and `residual_history[i + ldh]` contains the residual norm at that outer iteration.
     ///
     /// # Errors
     ///
-    /// Returns an error if residual history was not requested before solving,
-    /// or if cuSOLVER rejects the `Infos` structure.
+    /// Returns an error if residual history was not requested before solving, or if cuSOLVER rejects the `Infos` structure.
     pub fn residual_history_f64(&self) -> Result<ResidualHistory<f64>> {
         if !self.residual_history_requested {
             return Err(Error::InvalidPrecisionConfiguration);
         }
+
         let (leading_dimension, valid_rows) = self.residual_history_layout()?;
         let mut history = ptr::null_mut();
         // SAFETY: `cusolverDnIRSInfosGetResidualHistory` receives live handles owned by the wrappers and valid output locations.
@@ -774,8 +748,7 @@ impl IrsInfos {
     /// # Safety
     ///
     /// `handle` must be a valid `cusolverDnIRSInfos_t` created by cuSOLVER.
-    /// The returned wrapper takes ownership and will destroy it with
-    /// `cusolverDnIRSInfosDestroy`; no other owner may destroy or keep using it.
+    /// The returned wrapper takes ownership and will destroy it with `cusolverDnIRSInfosDestroy`; no other owner may destroy or keep using it.
     ///
     /// # Errors
     ///
@@ -830,8 +803,10 @@ impl Drop for IrsInfos {
         // SAFETY: `cusolverDnIRSInfosDestroy` receives live handles owned by the wrappers.
         unsafe {
             if let Err(error) = try_ffi!(sys::cusolverDnIRSInfosDestroy(self.handle)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cusolver irs infos: {error}");
+                eprintln!(
+                    "failed to destroy cusolver irs infos: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }
@@ -839,7 +814,8 @@ impl Drop for IrsInfos {
 
 /// Returns the device workspace requirement in bytes for a square IRS linear solve.
 ///
-/// Fills any unset precision selectors from `T`. Configure refinement and precision before querying, and requery after changing the parameters.
+/// Fills any unset precision selectors from `T`.
+/// Configure refinement and precision before querying, and requery after changing the parameters.
 ///
 /// # Errors
 ///
@@ -854,6 +830,7 @@ pub fn xgesv_buffer_size<T: DataTypeLike>(
     if n == 0 || nrhs == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     params.ensure_type_precision::<T>()?;
     let mut workspace_bytes = 0;
     // SAFETY: `cusolverDnIRSXgesv_bufferSize` receives live handles owned by the wrappers and valid output locations.
@@ -869,9 +846,7 @@ pub fn xgesv_buffer_size<T: DataTypeLike>(
     to_usize(workspace_bytes, "workspace size")
 }
 
-/// Provides the same solve as the typed cuSOLVER `gesv` entry
-/// points, but through a generic Rust wrapper that exposes IRS configuration
-/// and reporting more directly.
+/// Provides the same solve as the typed cuSOLVER `gesv` entry points, but through a generic Rust wrapper that exposes IRS configuration and reporting more directly.
 /// [`xgesv`] allows additional control of the solver parameters such as setting:
 ///
 /// * the main precision (input/output precision) of the solver
@@ -887,21 +862,20 @@ pub fn xgesv_buffer_size<T: DataTypeLike>(
 /// [`IrsInfos`] exposes the information reported for a particular solve.
 ///
 /// The returned value describes the solving process.
-/// `Ok` indicates that the solve finished successfully. An error indicates that one of the arguments is incorrect, that the parameter or info structures are misconfigured, or that the solve did not finish successfully.
+/// `Ok` indicates that the solve finished successfully.
+/// An error indicates that one of the arguments is incorrect, that the parameter or info structures are misconfigured, or that the solve did not finish successfully.
 /// Check `niters` and `dinfo` for additional error details.
 /// Provide the required device workspace through `workspace`.
 /// Query the required byte count with [`xgesv_buffer_size`].
 /// Apply any required configuration through the parameter structure before calling [`xgesv_buffer_size`] so the workspace size matches that configuration.
 ///
 /// Tensor Float (TF32), introduced with NVIDIA Ampere architecture GPUs, is the most robust tensor core accelerated compute mode for the iterative refinement solver.
-/// It solves a broad range of HPC problems and can provide up to 4x and 5x
-/// speedups for real and complex systems, respectively.
+/// It solves a broad range of HPC problems and can provide up to 4x and 5x speedups for real and complex systems, respectively.
 /// On Volta and Turing architecture GPUs, half precision tensor core acceleration is recommended.
 /// In cases where the iterative refinement solver fails to converge to the desired accuracy (main precision, input/output data precision), it is recommended to use main precision as internal lowest precision.
 ///
 /// The following table provides all possible lowest-precision values corresponding to the input/output data type.
-/// If the lowest precision matches the input/output data type, the main
-/// precision factorization is used.
+/// If the lowest precision matches the input/output data type, the main precision factorization is used.
 ///
 /// **Supported input/output data type and lower precision for the IRS solver**
 ///
@@ -912,33 +886,26 @@ pub fn xgesv_buffer_size<T: DataTypeLike>(
 /// | [`PrecisionType::R64F`] | [`PrecisionType::R64F`], [`PrecisionType::R32F`], [`PrecisionType::R16F`], [`PrecisionType::R16Bf`], [`PrecisionType::RTf32`] |
 /// | [`PrecisionType::R32F`] | [`PrecisionType::R32F`], [`PrecisionType::R16F`], [`PrecisionType::R16Bf`], [`PrecisionType::RTf32`] |
 ///
-/// [`xgesv_buffer_size`] returns the required workspace size in bytes for the
-/// current [`IrsParams`] configuration.
+/// [`xgesv_buffer_size`] returns the required workspace size in bytes for the current [`IrsParams`] configuration.
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER rejects the matrix dimensions, leading
-/// dimensions, parameter structure, info structure, or workspace. The workspace
-/// can become invalid if [`xgesv_buffer_size`] is called and then an IRS
-/// configuration value, such as the lowest precision, is changed. cuSOLVER can
-/// also report an error if host memory allocation fails, if the selected IRS
-/// configuration is not supported on the current GPU architecture, if the
-/// library has not been initialized, or if the solve ends with an internal or
-/// numerical failure. Check `niters` and `dinfo` for additional solver details.
+/// Returns an error if cuSOLVER rejects the matrix dimensions, leading dimensions, parameter structure, info structure, or workspace.
+/// The workspace can become invalid if [`xgesv_buffer_size`] is called and then an IRS configuration value, such as the lowest precision, is changed.
+/// cuSOLVER can also report an error if host memory allocation fails, if the selected IRS configuration is not supported on the current GPU architecture, if the library has not been initialized, or if the solve ends with an internal or numerical failure.
+/// Check `niters` and `dinfo` for additional solver details.
 /// # Safety
 ///
-/// `A` and `B` must be initialized and ordered before this operation on the
-/// handle's stream. Retain their allocations, the exclusive `A`, `X`, workspace,
-/// and status ranges, and both IRS handles until completion on every path and
-/// throughout captured replay. All ranges must belong to the handle's actual
-/// CUDA context and must not overlap. Do not inspect or mutate IRS handles while
-/// queued work may access them.
+/// `A` and `B` must be initialized and ordered before this operation on the handle's stream.
+/// Retain their allocations, the exclusive `A`, `X`, workspace, and status ranges, and both IRS handles until completion on every path and throughout captured replay.
+/// All ranges must belong to the handle's actual CUDA context and must not overlap.
+/// Do not inspect or mutate IRS handles while queued work may access them.
 ///
-/// On successful completion with `dev_info[0] == 0`, `X` contains n rows in
-/// each right-hand-side column. Leading-dimension padding and unused allocation
-/// tails are not produced. Only the first status element is written. Scratch
-/// contents never establish initialized output values. A successful enqueue
-/// alone does not establish completion or a valid solution.
+/// On successful completion with `dev_info[0] == 0`, `X` contains n rows in each right-hand-side column.
+/// Leading-dimension padding and unused allocation tails are not produced.
+/// Only the first status element is written.
+/// Scratch contents never establish initialized output values.
+/// A successful enqueue alone does not establish completion or a valid solution.
 pub unsafe fn xgesv<T: DataTypeLike>(
     context: &Context,
     params: &mut IrsParams,
@@ -984,11 +951,13 @@ pub unsafe fn xgesv<T: DataTypeLike>(
 
 /// Returns the device workspace requirement in bytes for an overdetermined IRS least-squares solve.
 ///
-/// Fills any unset precision selectors from `T`. Configure refinement and precision before querying, and requery after changing the parameters.
+/// Fills any unset precision selectors from `T`.
+/// Configure refinement and precision before querying, and requery after changing the parameters.
 ///
 /// # Errors
 ///
-/// Returns an error if CUDA context binding fails, dimensions are zero or exceed native integer limits, the element type cannot be mapped to a supported precision, configured main precision differs from the element type, native precision setup or workspace querying fails, or the returned byte count does not fit `usize`. Also returns an error if `n > m`.
+/// Returns an error if CUDA context binding fails, dimensions are zero or exceed native integer limits, the element type cannot be mapped to a supported precision, configured main precision differs from the element type, native precision setup or workspace querying fails, or the returned byte count does not fit `usize`.
+/// Also returns an error if `n > m`.
 pub fn xgels_buffer_size<T: DataTypeLike>(
     context: &Context,
     params: &mut IrsParams,
@@ -1000,6 +969,7 @@ pub fn xgels_buffer_size<T: DataTypeLike>(
     if m == 0 || n == 0 || nrhs == 0 || n > m {
         return Err(Error::InvalidMatrixShape);
     }
+
     params.ensure_type_precision::<T>()?;
     let mut workspace_bytes = 0;
     // SAFETY: `cusolverDnIRSXgels_bufferSize` receives live handles owned by the wrappers and valid output locations.
@@ -1016,9 +986,7 @@ pub fn xgels_buffer_size<T: DataTypeLike>(
     to_usize(workspace_bytes, "workspace size")
 }
 
-/// Provides the same solve as the typed cuSOLVER `gels` entry
-/// points, but through a generic Rust wrapper that exposes IRS configuration
-/// and reporting more directly.
+/// Provides the same solve as the typed cuSOLVER `gels` entry points, but through a generic Rust wrapper that exposes IRS configuration and reporting more directly.
 /// [`xgels`] allows additional control of the solver parameters such as setting:
 ///
 /// * the main precision (input/output precision) of the solver,
@@ -1034,19 +1002,18 @@ pub fn xgels_buffer_size<T: DataTypeLike>(
 /// [`IrsInfos`] exposes the information reported for a particular solve.
 ///
 /// The returned value describes the solving process.
-/// `Ok` indicates that the solve finished successfully. An error indicates that one of the arguments is incorrect, that the parameter or info structures are misconfigured, or that the solve did not finish successfully.
+/// `Ok` indicates that the solve finished successfully.
+/// An error indicates that one of the arguments is incorrect, that the parameter or info structures are misconfigured, or that the solve did not finish successfully.
 /// Check `niters` and `dinfo` for additional error details.
 /// Provide the required device workspace through `workspace`.
 /// Query the required byte count with [`xgels_buffer_size`].
 /// Apply any required configuration through the parameter structure before calling [`xgels_buffer_size`] so the workspace size matches that configuration.
 ///
 /// The following table provides all possible lowest-precision values corresponding to the input/output data type.
-/// If the lowest precision matches the input/output data type, the main
-/// precision factorization is used.
+/// If the lowest precision matches the input/output data type, the main precision factorization is used.
 ///
 /// Tensor Float (TF32), introduced with NVIDIA Ampere architecture GPUs, is the most robust tensor core accelerated compute mode for the iterative refinement solver.
-/// It solves a broad range of HPC problems and can provide up to 4x and 5x
-/// speedups for real and complex systems, respectively.
+/// It solves a broad range of HPC problems and can provide up to 4x and 5x speedups for real and complex systems, respectively.
 /// On Volta and Turing architecture GPUs, half precision tensor core acceleration is recommended.
 /// In cases where the iterative refinement solver fails to converge to the desired accuracy (main precision, input/output data precision), it is recommended to use main precision as internal lowest precision.
 ///
@@ -1059,25 +1026,27 @@ pub fn xgels_buffer_size<T: DataTypeLike>(
 /// | [`PrecisionType::R64F`] | [`PrecisionType::R64F`], [`PrecisionType::R32F`], [`PrecisionType::R16F`], [`PrecisionType::R16Bf`], [`PrecisionType::RTf32`] |
 /// | [`PrecisionType::R32F`] | [`PrecisionType::R32F`], [`PrecisionType::R16F`], [`PrecisionType::R16Bf`], [`PrecisionType::RTf32`] |
 ///
-/// [`xgels_buffer_size`] returns the required workspace size in bytes for the
-/// current [`IrsParams`] configuration.
+/// [`xgels_buffer_size`] returns the required workspace size in bytes for the current [`IrsParams`] configuration.
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER rejects the matrix dimensions, leading
-/// dimensions, parameter structure, info structure, or workspace. The workspace
-/// can become invalid if [`xgels_buffer_size`] is called and then an IRS
-/// configuration value, such as the lowest precision, is changed. cuSOLVER can
-/// also report an error if host memory allocation fails, if the selected IRS
-/// configuration is not supported on the current GPU architecture, if the
-/// library has not been initialized, or if the solve ends with an internal or
-/// numerical failure. Check `niters` and `dinfo` for additional solver details.
+/// Returns an error if cuSOLVER rejects the matrix dimensions, leading dimensions, parameter structure, info structure, or workspace.
+/// The workspace can become invalid if [`xgels_buffer_size`] is called and then an IRS configuration value, such as the lowest precision, is changed.
+/// cuSOLVER can also report an error if host memory allocation fails, if the selected IRS configuration is not supported on the current GPU architecture, if the library has not been initialized, or if the solve ends with an internal or numerical failure.
+/// Check `niters` and `dinfo` for additional solver details.
 ///
 /// # Safety
 ///
-/// `A` and `B` must be initialized and ordered before this operation on the handle's stream. Retain their allocations, exclusive `A`, `X`, workspace, and status ranges, and both IRS handles until completion on every path and throughout captured replay. All ranges must belong to the handle's actual CUDA context and must not overlap. Do not inspect or mutate IRS handles while queued work may access them.
+/// `A` and `B` must be initialized and ordered before this operation on the handle's stream.
+/// Retain their allocations, exclusive `A`, `X`, workspace, and status ranges, and both IRS handles until completion on every path and throughout captured replay.
+/// All ranges must belong to the handle's actual CUDA context and must not overlap.
+/// Do not inspect or mutate IRS handles while queued work may access them.
 ///
-/// `A` has `m` rows and `n` columns; `B` has `m` rows per right-hand side. On successful completion with `dev_info[0] == 0`, `X` contains `n` solution rows in each right-hand-side column. Only the first status element is written. Leading-dimension padding and allocation tails are not produced, and scratch contents are not initialized results. A successful enqueue alone establishes neither completion nor a valid solution.
+/// `A` has `m` rows and `n` columns; `B` has `m` rows per right-hand side.
+/// On successful completion with `dev_info[0] == 0`, `X` contains `n` solution rows in each right-hand-side column.
+/// Only the first status element is written.
+/// Leading-dimension padding and allocation tails are not produced, and scratch contents are not initialized results.
+/// A successful enqueue alone establishes neither completion nor a valid solution.
 pub unsafe fn xgels<T: DataTypeLike>(
     context: &Context,
     params: &mut IrsParams,
@@ -1095,6 +1064,7 @@ pub unsafe fn xgels<T: DataTypeLike>(
     if n > m {
         return Err(Error::InvalidMatrixShape);
     }
+
     validate_matrix(m, n, a.data.len(), a.leading_dimension)?;
     validate_matrix(m, nrhs, b.data.len(), b.leading_dimension)?;
     validate_matrix(n, nrhs, x.data.len(), x.leading_dimension)?;
@@ -1164,9 +1134,11 @@ fn validate_matrix(rows: usize, cols: usize, len: usize, lda: usize) -> Result<(
     if rows == 0 || cols == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     if lda < rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     let required = lda.checked_mul(cols).ok_or(Error::InvalidMatrixShape)?;
     if len < required {
         return Err(Error::InvalidMatrixShape);

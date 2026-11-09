@@ -1,8 +1,9 @@
 //! Editable, syntax-based rules for common agent-generated Rust patterns.
 //!
-//! Integrate by dispatching `no-slop` to [`run`]. Only --fix writes application code.
-//! Rules inspect written syntax, including inactive cfg branches, without macro
-//! expansion, inferred types, or cross-file alias resolution.
+//! Integrate by dispatching `no-slop` to [`run`].
+//! Only --fix writes application code.
+//! Rules inspect written syntax, including inactive cfg branches, without macro expansion, inferred types, or cross-file alias resolution.
+//! Provenance is recorded in `UPSTREAM.md` beside this file.
 
 pub mod cli;
 pub mod config;
@@ -67,23 +68,27 @@ pub fn scan(options: &Options) -> Result<Report> {
             });
         }
     }
+
     test_scope::propagate(&mut parsed);
     for file in parsed {
         let path = file
             .path
             .strip_prefix(&workspace.root)
             .unwrap_or(&file.path);
-        let context = Context::new(path, &file.source, &file.syntax, file.is_test);
+        let mut context = Context::new(path, &file.source, &file.syntax, file.is_test);
+        context.crate_root = file.is_crate_root;
+
         let mut local = Report::default();
         check_file(&context, &file.syntax, &workspace.config, &mut local);
-        if (options.fix || options.fix_dry_run) && local.failures.is_empty() {
+        if options.fix_mode.enabled() && local.failures.is_empty() {
             let change = (|| -> Result<_> {
                 let candidate = fix::plan(path, &file.source, file.is_test, &workspace.config)?;
                 if candidate == file.source {
                     return Ok(None);
                 }
+
                 let syntax = syn::parse_file(&source::prepare(&candidate))?;
-                if options.fix {
+                if options.fix_mode.applies() {
                     fix::commit(&file.path, &file.source, &candidate)?;
                 }
                 Ok(Some((candidate, syntax)))
@@ -101,12 +106,13 @@ pub fn scan(options: &Options) -> Result<Report> {
                     report.changes.push(FileChange {
                         path: path.to_owned(),
                         diff,
-                        applied: options.fix,
+                        applied: options.fix_mode.applies(),
                     });
-                    if options.fix {
+                    if options.fix_mode.applies() {
                         report.summary.files_changed += 1;
                         local = Report::default();
-                        let context = Context::new(path, &candidate, &syntax, file.is_test);
+                        let mut context = Context::new(path, &candidate, &syntax, file.is_test);
+                        context.crate_root = file.is_crate_root;
                         check_file(&context, &syntax, &workspace.config, &mut local);
                     } else {
                         report.summary.files_would_change += 1;
@@ -120,10 +126,12 @@ pub fn scan(options: &Options) -> Result<Report> {
                 }),
             }
         }
+
         report.summary.suppressed += local.summary.suppressed;
         report.diagnostics.extend(local.diagnostics);
         report.failures.extend(local.failures);
     }
+
     report.sort();
     Ok(report)
 }
@@ -135,6 +143,7 @@ pub fn parse_source(path: &Path, source: &str, report: &mut Report) -> Option<Fi
         report.summary.skipped += 1;
         return None;
     }
+
     let file = match syn::parse_file(&prepared) {
         Ok(file) => file,
         Err(error) => {
@@ -163,9 +172,10 @@ pub fn check_file(context: &Context<'_>, file: &File, config: &Config, report: &
     let mut diagnostics = Vec::new();
     for rule in RULES {
         let level = config.level(rule.id);
-        if level == Level::Off {
+        if level == Level::Off || !config.in_scope(rule.id, context.path) {
             continue;
         }
+
         diagnostics.extend(
             (rule.check)(file, context)
                 .into_iter()
@@ -175,6 +185,7 @@ pub fn check_file(context: &Context<'_>, file: &File, config: &Config, report: &
                 }),
         );
     }
+
     let (suppressed, failures) = suppression::apply(context, comments, &mut diagnostics);
     report.summary.suppressed += suppressed;
     report.diagnostics.extend(diagnostics);

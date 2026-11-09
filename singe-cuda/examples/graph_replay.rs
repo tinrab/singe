@@ -48,6 +48,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // The allocation, module and executable outlive completion below.
         unsafe { executable.launch(&stream)? };
     }
+
     stream.synchronize()?;
     assert_eq!(values.copy_to_host_vec()?, vec![REPLAYS; values.len()]);
     println!("replayed the increment graph {REPLAYS} times");

@@ -18,9 +18,11 @@ pub fn validate_matrix(rows: usize, cols: usize, len: usize, lda: usize) -> Resu
     if rows == 0 || cols == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     if lda < rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     let required = lda.checked_mul(cols).ok_or(Error::InvalidMatrixShape)?;
     if len < required {
         return Err(Error::InvalidMatrixShape);
@@ -205,6 +207,7 @@ pub fn validate_batched_square_matrix_pointers<T: DeviceRepr>(
     if n == 0 || matrices.is_empty() {
         return Err(Error::InvalidMatrixShape);
     }
+
     if matrices.leading_dimension < n {
         return Err(Error::InvalidLeadingDimension);
     }
@@ -218,6 +221,7 @@ pub fn validate_batched_vector_pointers<T: DeviceRepr>(
     if n == 0 || vectors.is_empty() {
         return Err(Error::InvalidVectorShape);
     }
+
     if vectors.leading_dimension < n {
         return Err(Error::InvalidLeadingDimension);
     }
@@ -234,9 +238,11 @@ pub fn validate_x_matrix(
     if rows == 0 || cols == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     if lda < rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     let required = lda
         .checked_mul(cols)
         .and_then(|count| count.checked_mul(data_type.size_of()))
@@ -273,9 +279,11 @@ pub fn validate_xlarft_inputs(
     if n == 0 || k == 0 || k > n {
         return Err(Error::InvalidMatrixShape);
     }
+
     if storev != StorevMode::Columnwise {
         return Err(Error::InvalidMatrixShape);
     }
+
     validate_x_matrix(n, k, v_bytes, ldv, v_type)?;
     validate_x_vector(k, tau_bytes, tau_type)?;
     validate_x_matrix(k, k, t_bytes, ldt, t_type)?;

@@ -105,15 +105,14 @@ impl_divide_into_constant_signal!(
 impl SignalPipeline<'_, f32> {
     /// Adds each source element multiplied by `value` to the initialized destination.
     ///
-    /// Computes `destination += source * value` elementwise. The provided implementation
-    /// uses `f32`. Source and destination lengths must match. Prepares both regions, waits
-    /// for producers on other streams, rejects capture, and returns after successful native
-    /// execution and stream completion.
+    /// Computes `destination += source * value` elementwise.
+    /// The provided implementation uses `f32`.
+    /// Source and destination lengths must match.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits where performed, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits where performed, native execution, or stream synchronization fail.
     /// Source and destination lengths must match.
     pub fn add_product_constant_f32_in_place(
         stream_context: &StreamContext,
@@ -137,15 +136,14 @@ where
 {
     /// Adds each source element multiplied by `value` to the initialized destination.
     ///
-    /// Computes `destination += source * value` elementwise. The provided implementation
-    /// uses `f32`. Source and destination lengths must match. Prepares both regions, waits
-    /// for producers on other streams, rejects capture, and returns after successful native
-    /// execution and stream completion.
+    /// Computes `destination += source * value` elementwise.
+    /// The provided implementation uses `f32`.
+    /// Source and destination lengths must match.
+    /// Prepares both regions, waits for producers on other streams, rejects capture, and returns after successful native execution and stream completion.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region preparation,
-    /// producer waits where performed, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region preparation, producer waits where performed, native execution, or stream synchronization fail.
     /// Source and destination lengths must match.
     pub fn add_product_constant_in_place(
         stream_context: &StreamContext,

@@ -21,9 +21,9 @@ macro_rules! fill_fn {
         ///
         /// # Safety
         ///
-        /// Retain exclusive access to the destination in the stream's context through
-        /// completion on every path and throughout graph replay.
-        /// Order prior accesses before launch. Every destination element is written.
+        /// Retain exclusive access to the destination in the stream's context through completion on every path and throughout graph replay.
+        /// Order prior accesses before launch.
+        /// Every destination element is written.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -43,9 +43,9 @@ macro_rules! arange_fn {
         ///
         /// # Safety
         ///
-        /// Retain exclusive access to the destination in the stream's context through
-        /// completion on every path and throughout graph replay.
-        /// Order prior accesses before launch. Every destination element is written.
+        /// Retain exclusive access to the destination in the stream's context through completion on every path and throughout graph replay.
+        /// Order prior accesses before launch.
+        /// Every destination element is written.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -72,9 +72,9 @@ macro_rules! constant_fill_fn {
         ///
         /// # Safety
         ///
-        /// Retain exclusive access to the destination in the stream's context through
-        /// completion on every path and throughout graph replay.
-        /// Order prior accesses before launch. Every destination element is written.
+        /// Retain exclusive access to the destination in the stream's context through completion on every path and throughout graph replay.
+        /// Order prior accesses before launch.
+        /// Every destination element is written.
         pub unsafe fn $name(stream: &Stream, out: &mut impl DeviceOutput<$ty>) -> Result<()> {
             let stream = stream.to_cuda_core()?;
             // SAFETY: the caller upholds this function's safety contract.

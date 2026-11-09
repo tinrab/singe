@@ -1,13 +1,13 @@
 [package]
 name = "singe-kernel"
 description = "Reusable CPU and GPU kernels."
-version = "0.1.0-alpha.4"
+version = "0.1.0-alpha.5"
 edition.workspace = true
 repository.workspace = true
 license-file.workspace = true
 readme = "README.md"
 keywords = ["singe", "cuda", "kernel", "gpu"]
-include = ["**/*.rs", "Cargo.toml", "dist", "README.md", "LICENSE*", "docs/**/*.md"]
+include.workspace = true
 
 [features]
 default = ["dtype_f32"]

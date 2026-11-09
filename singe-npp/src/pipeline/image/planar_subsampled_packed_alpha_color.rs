@@ -17,7 +17,8 @@ impl SubsampledPlanarImage<u8> {
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
     /// The returned image has every alpha sample set to `alpha`.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -51,7 +52,8 @@ impl SubsampledPlanarImage<u8> {
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
     /// The returned image has every alpha sample set to `alpha`.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -85,7 +87,8 @@ impl SubsampledPlanarImage<u8> {
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
     /// The returned image has every alpha sample set to `alpha`.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -119,7 +122,8 @@ impl SubsampledPlanarImage<u8> {
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
     /// The returned image has every alpha sample set to `alpha`.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
@@ -153,7 +157,8 @@ impl SubsampledPlanarImage<u8> {
     /// Allocates an owned packed output image at the full-resolution first-plane dimensions.
     /// Prepares every source region, waiting for producers on other streams.
     /// The returned image has every alpha sample set to `alpha`.
-    /// Rejects stream capture and returns after successful stream completion. Row padding remains unwritten.
+    /// Rejects stream capture and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///

@@ -14,9 +14,8 @@ use crate::{
 
 /// Whether a concatenation input already occupies its final output region.
 ///
-/// `Input(index)` requires that input's address and strides to describe its
-/// final region inside the output allocation, including the offset of preceding
-/// inputs. This does not relocate data or change bindings automatically.
+/// `Input(index)` requires that input's address and strides to describe its final region inside the output allocation, including the offset of preceding inputs.
+/// This does not relocate data or change bindings automatically.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum ConcatInPlaceMode {
@@ -108,6 +107,7 @@ impl ConcatConfig {
         if axis >= first.rank() {
             return Err(Error::out_of_range("axis"));
         }
+
         let mut dimensions = first.dimensions().to_vec();
         let mut axis_sum = dimensions[axis];
         for input in inputs {
@@ -118,6 +118,7 @@ impl ConcatConfig {
                     actual: input.rank(),
                 });
             }
+
             for (index, (&expected, &actual)) in first
                 .dimensions()
                 .iter()
@@ -132,10 +133,12 @@ impl ConcatConfig {
                     });
                 }
             }
+
             axis_sum = axis_sum
                 .checked_add(input.dimensions()[axis])
                 .ok_or_else(|| Error::out_of_range("concat axis dimension"))?;
         }
+
         dimensions[axis] = axis_sum;
         Ok(dimensions)
     }
@@ -189,6 +192,7 @@ impl ConcatOperation {
                 name: "concat output shape".into(),
             });
         }
+
         config.validate_in_place_index(inputs.len())?;
 
         let mut descriptor = BackendDescriptor::create(BackendDescriptorType::OperationConcat)?;
@@ -211,6 +215,7 @@ impl ConcatOperation {
                 inplace_index,
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

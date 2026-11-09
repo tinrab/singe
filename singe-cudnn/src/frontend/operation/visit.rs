@@ -1,8 +1,7 @@
 //! One traversal of the tensor IDs stored in each operation.
 //!
-//! Dependency analysis and tensor remapping both derive from these visitors, so
-//! an operation's tensors are listed in exactly one place. Score subgraphs are
-//! separate graphs whose captured tensors are handled by the callers.
+//! Dependency analysis and tensor remapping both derive from these visitors, so an operation's tensors are listed in exactly one place.
+//! Score subgraphs are separate graphs whose captured tensors are handled by the callers.
 
 use crate::{
     backend::{execution::attention::AttentionSequenceInputs, tensor::TensorId},
@@ -128,14 +127,17 @@ impl MatmulOperation {
             visit(&mut id, TensorRole::Index)?;
             config = config.with_m_override(id);
         }
+
         if let Some(mut id) = config.n_override() {
             visit(&mut id, TensorRole::Index)?;
             config = config.with_n_override(id);
         }
+
         if let Some(mut id) = config.k_override() {
             visit(&mut id, TensorRole::Index)?;
             config = config.with_k_override(id);
         }
+
         self.config = config;
         Ok(())
     }
@@ -165,6 +167,7 @@ impl ReductionOperation {
                 for input in inputs {
                     visit(input, TensorRole::Read)?;
                 }
+
                 for output in outputs {
                     visit(output, TensorRole::Write)?;
                 }
@@ -438,6 +441,7 @@ impl NormalizationOperation {
                         visit(bias, Read)?;
                     }
                 }
+
                 visit(&mut outputs.output, Write)?;
                 visit_saved_statistics(&mut outputs.statistics, Write, visit)
             }
@@ -496,9 +500,11 @@ impl NormalizationOperation {
                     visit(&mut running.previous.mean, Read)?;
                     visit(&mut running.previous.variance, Read)?;
                 }
+
                 for peer in &mut config.peer_stats {
                     visit(peer, ReadWrite)?;
                 }
+
                 visit(&mut outputs.output, Write)?;
                 visit(&mut outputs.statistics.mean, Write)?;
                 visit(&mut outputs.statistics.inv_variance, Write)?;
@@ -531,11 +537,13 @@ impl NormalizationOperation {
                 ] {
                     visit(input, Read)?;
                 }
+
                 if let Some(running) = &mut config.running {
                     visit(&mut running.momentum, Read)?;
                     visit(&mut running.previous.mean, Read)?;
                     visit(&mut running.previous.variance, Read)?;
                 }
+
                 for output in [
                     &mut outputs.equivalent_scale,
                     &mut outputs.equivalent_bias,
@@ -544,6 +552,7 @@ impl NormalizationOperation {
                 ] {
                     visit(output, Write)?;
                 }
+
                 if let Some(running) = &mut outputs.running {
                     visit(&mut running.mean, Write)?;
                     visit(&mut running.variance, Write)?;
@@ -616,6 +625,7 @@ impl NormalizationOperation {
                 for peer in &mut config.peer_stats {
                     visit(peer, ReadWrite)?;
                 }
+
                 visit(&mut outputs.input_gradient, Write)?;
                 visit(&mut outputs.scale_gradient, Write)?;
                 visit(&mut outputs.bias_gradient, Write)
@@ -665,10 +675,12 @@ impl SdpaScoreModifiers {
         if let Some(AlibiBias::Slopes(slopes)) = &mut self.alibi {
             visit(slopes, TensorRole::Read)?;
         }
+
         if let Some(dropout) = &mut self.custom_dropout {
             visit(&mut dropout.mask, TensorRole::Read)?;
             visit(&mut dropout.scale, TensorRole::Read)?;
         }
+
         if let AttentionMaskMode::Block(block_mask) = &mut self.mask_mode {
             visit(block_mask, TensorRole::Index)?;
         }
@@ -707,6 +719,7 @@ impl AttentionConfig {
             visit(sequence_length_query, TensorRole::Index)?;
             visit(sequence_length_key_value, TensorRole::Index)?;
         }
+
         for cache in [&mut self.paged.k, &mut self.paged.v].into_iter().flatten() {
             visit(&mut cache.page_table, TensorRole::Index)?;
         }
@@ -745,6 +758,7 @@ impl DirectSdpaForwardConfig {
         if let Some(dropout) = &mut self.dropout {
             dropout.visit_tensor_ids(visit)?;
         }
+
         if let Some(quantization) = &mut self.quantization {
             for scale in [
                 &mut quantization.descale_query,
@@ -756,6 +770,7 @@ impl DirectSdpaForwardConfig {
             ] {
                 visit_optional(scale, TensorRole::Read, visit)?;
             }
+
             visit_optional(
                 &mut quantization.absolute_max_probabilities,
                 TensorRole::Write,
@@ -805,11 +820,13 @@ impl SdpaOperation {
                 ] {
                     visit(input, TensorRole::Read)?;
                 }
+
                 visit_optional(sink, TensorRole::Read, visit)?;
                 visit(&mut tensors.output, TensorRole::Write)?;
                 for output in [stats, logit_max, score_sum_exp, softmax_p, softmax_s] {
                     visit_optional(output, TensorRole::Write, visit)?;
                 }
+
                 score_modifiers.visit_tensor_ids(visit)?;
                 config.visit_tensor_ids(visit)
             }
@@ -825,6 +842,7 @@ impl SdpaOperation {
                 ] {
                     visit(input, TensorRole::Read)?;
                 }
+
                 for output in [
                     &mut tensors.query_gradient,
                     &mut tensors.key_gradient,
@@ -863,6 +881,7 @@ impl AttentionForwardRequest {
                 inputs.visit_tensor_ids(TensorRole::Read, visit)?;
             }
         }
+
         let outputs = &mut self.outputs;
         visit(&mut outputs.output, TensorRole::Write)?;
         for output in [

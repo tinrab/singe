@@ -23,13 +23,11 @@ impl Debug for StreamContext {
 impl StreamContext {
     /// Creates an NPP stream context from a CUDA stream.
     ///
-    /// The returned context retains the stream and caches the device properties
-    /// required by NPP context-aware entry points.
+    /// The returned context retains the stream and caches the device properties required by NPP context-aware entry points.
     ///
     /// # Errors
     ///
-    /// Returns an error if the stream's CUDA context cannot be bound, or if CUDA
-    /// cannot query the stream device, device properties, or stream flags.
+    /// Returns an error if the stream's CUDA context cannot be bound, or if CUDA cannot query the stream device, device properties, or stream flags.
     pub fn create(stream: &Stream) -> Result<Self> {
         stream.context().bind()?;
         let device = stream.device()?;
@@ -93,8 +91,7 @@ impl StreamContext {
     }
 
     /// Runs borrowed native work and drains this actual stream on every path.
-    /// Capture is rejected before submission; an unquiesced CUDA failure aborts
-    /// before borrowed resources can be returned to the caller.
+    /// Capture is rejected before submission; an unquiesced CUDA failure aborts before borrowed resources can be returned to the caller.
     ///
     /// # Errors
     ///

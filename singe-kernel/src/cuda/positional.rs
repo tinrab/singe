@@ -75,8 +75,7 @@ pub struct QkBatchedRotaryEmbeddingConfig {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 /// BSHD half-split `RoPE` config.
 ///
-/// This convention rotates dimensions from the first half of the head with the
-/// corresponding dimensions in the second half: `(0, head_dim / 2)`, `(1, head_dim / 2 + 1)`, and so on.
+/// This convention rotates dimensions from the first half of the head with the corresponding dimensions in the second half: `(0, head_dim / 2)`, `(1, head_dim / 2 + 1)`, and so on.
 pub struct BshdRopeConfig {
     pub batch: usize,
     pub seq_len: usize,
@@ -91,11 +90,10 @@ macro_rules! rotary_embedding_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -128,11 +126,10 @@ macro_rules! rotary_embedding_positioned_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -174,13 +171,11 @@ macro_rules! rotary_embedding_dynpos_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
-        /// The device position plus each sequence index must address a valid row in both
-        /// trigonometric tables and fit the kernel indexing width.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
+        /// The device position plus each sequence index must address a valid row in both trigonometric tables and fit the kernel indexing width.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -222,11 +217,10 @@ macro_rules! rotary_embedding_batched_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -259,11 +253,10 @@ macro_rules! rotary_embedding_qk_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         pub unsafe fn $name(
             stream: &Stream,
             q_out: &mut impl DeviceOutput<$ty>,
@@ -308,11 +301,10 @@ macro_rules! rotary_embedding_qk_batched_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         pub unsafe fn $name(
             stream: &Stream,
             q_out: &mut impl DeviceOutput<$ty>,
@@ -357,11 +349,10 @@ macro_rules! rotary_embedding_qk_batched_in_place_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         /// Input strides must match the contiguous output layout for in-place rotation.
         pub unsafe fn $name(
             stream: &Stream,
@@ -403,11 +394,10 @@ macro_rules! rotary_embedding_qk_in_place_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         /// Input strides must match the contiguous output layout for in-place rotation.
         pub unsafe fn $name(
             stream: &Stream,
@@ -449,11 +439,10 @@ macro_rules! rope_bshd_fn {
         /// # Safety
         ///
         /// Input values must be valid when read; order their producers before use.
-        /// Retain input allocations and exclusive writable ranges in the stream's context
-        /// through completion on every path and throughout captured replay.
-        /// Order prior accesses before launch. Distinct destinations must not overlap.
-        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-        /// must already be initialized and disjoint from the frequency tables.
+        /// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+        /// Order prior accesses before launch.
+        /// Distinct destinations must not overlap.
+        /// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$ty>,
@@ -485,11 +474,10 @@ macro_rules! rope_bshd_fn {
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rotary_embedding_qk_bnsd_bf16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<bf16>,
@@ -531,11 +519,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_bf16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rotary_embedding_qk_bnsd_f32(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f32>,
@@ -577,11 +564,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rotary_embedding_qk_bnsd_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
@@ -623,11 +609,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rotary_embedding_qk_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
@@ -665,11 +650,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rotary_embedding_qk_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
@@ -707,11 +691,10 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rotary_embedding_qk_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
@@ -746,18 +729,16 @@ pub unsafe fn rotary_embedding_qk_bnsd_in_place_bf16(
 #[cfg(feature = "dtype_bf16")]
 /// BNSD Q/K half-split RoPE.
 ///
-/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
-/// `rotate_half` layouts rather than adjacent interleaved pairs.
+/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split `rotate_half` layouts rather than adjacent interleaved pairs.
 /// Writes half-split rotary query and key embeddings in BNSD layout.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_embedding_qk_bnsd_bf16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<bf16>,
@@ -777,18 +758,16 @@ pub unsafe fn rope_embedding_qk_bnsd_bf16(
 #[cfg(feature = "dtype_f32")]
 /// BNSD Q/K half-split `RoPE`.
 ///
-/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
-/// `rotate_half` layouts rather than adjacent interleaved pairs.
+/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split `rotate_half` layouts rather than adjacent interleaved pairs.
 /// Writes half-split rotary query and key embeddings in BNSD layout.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_embedding_qk_bnsd_f32(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f32>,
@@ -808,18 +787,16 @@ pub unsafe fn rope_embedding_qk_bnsd_f32(
 #[cfg(feature = "dtype_f16")]
 /// BNSD Q/K half-split RoPE.
 ///
-/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split
-/// `rotate_half` layouts rather than adjacent interleaved pairs.
+/// Rotates dimensions `(pair, rotary_pairs + pair)`, matching half-split `rotate_half` layouts rather than adjacent interleaved pairs.
 /// Writes half-split rotary query and key embeddings in BNSD layout.
 ///
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_embedding_qk_bnsd_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
@@ -842,11 +819,10 @@ pub unsafe fn rope_embedding_qk_bnsd_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_qk_half_split_bnsd_bf16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<bf16>,
@@ -869,11 +845,10 @@ pub unsafe fn rope_qk_half_split_bnsd_bf16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_qk_half_split_bnsd_f32(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f32>,
@@ -896,11 +871,10 @@ pub unsafe fn rope_qk_half_split_bnsd_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_qk_half_split_bnsd_f16(
     stream: &Stream,
     q_out: &mut impl DeviceOutput<f16>,
@@ -923,11 +897,10 @@ pub unsafe fn rope_qk_half_split_bnsd_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_embedding_qk_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
@@ -946,11 +919,10 @@ pub unsafe fn rope_embedding_qk_bnsd_in_place_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_embedding_qk_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
@@ -969,11 +941,10 @@ pub unsafe fn rope_embedding_qk_bnsd_in_place_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_embedding_qk_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
@@ -992,11 +963,10 @@ pub unsafe fn rope_embedding_qk_bnsd_in_place_bf16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_qk_half_split_bnsd_in_place_f32(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f32>,
@@ -1015,11 +985,10 @@ pub unsafe fn rope_qk_half_split_bnsd_in_place_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_qk_half_split_bnsd_in_place_f16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<f16>,
@@ -1038,11 +1007,10 @@ pub unsafe fn rope_qk_half_split_bnsd_in_place_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn rope_qk_half_split_bnsd_in_place_bf16(
     stream: &Stream,
     q: &mut impl DeviceSliceMut<bf16>,
@@ -1298,13 +1266,11 @@ rope_bshd_fn!(rope_bshd_bf16, bf16);
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
-/// The device position plus each sequence index must address a valid row in both
-/// trigonometric tables and fit the kernel indexing width.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
+/// The device position plus each sequence index must address a valid row in both trigonometric tables and fit the kernel indexing width.
 pub unsafe fn rope_bshd_dynpos_f16(
     stream: &Stream,
     out: &mut impl DeviceOutput<f16>,
@@ -1322,6 +1288,7 @@ pub unsafe fn rope_bshd_dynpos_f16(
     {
         return Err(Error::InvalidLength);
     }
+
     let tensor_len = checked_element_count(
         checked_element_count(
             checked_element_count(config.batch, config.seq_len)?,
@@ -1355,11 +1322,10 @@ pub unsafe fn rope_bshd_dynpos_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn multiaxis_rope_qk_f32(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f32>,
@@ -1389,11 +1355,10 @@ pub unsafe fn multiaxis_rope_qk_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn multiaxis_rope_qk_f16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f16>,
@@ -1423,11 +1388,10 @@ pub unsafe fn multiaxis_rope_qk_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn multiaxis_rope_qk_bf16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<bf16>,
@@ -1457,11 +1421,10 @@ pub unsafe fn multiaxis_rope_qk_bf16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn interleaved_complex_rope_qk_f32(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f32>,
@@ -1489,11 +1452,10 @@ pub unsafe fn interleaved_complex_rope_qk_f32(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn interleaved_complex_rope_qk_f16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<f16>,
@@ -1521,11 +1483,10 @@ pub unsafe fn interleaved_complex_rope_qk_f16(
 /// # Safety
 ///
 /// Input values must be valid when read; order their producers before use.
-/// Retain input allocations and exclusive writable ranges in the stream's context
-/// through completion on every path and throughout captured replay.
-/// Order prior accesses before launch. Distinct destinations must not overlap.
-/// Out-of-place destinations must not overlap inputs; in-place query and key buffers
-/// must already be initialized and disjoint from the frequency tables.
+/// Retain input allocations and exclusive writable ranges in the stream's context through completion on every path and throughout captured replay.
+/// Order prior accesses before launch.
+/// Distinct destinations must not overlap.
+/// Out-of-place destinations must not overlap inputs; in-place query and key buffers must already be initialized and disjoint from the frequency tables.
 pub unsafe fn interleaved_complex_rope_qk_bf16(
     stream: &Stream,
     query: &mut impl DeviceSliceMut<bf16>,
@@ -1560,6 +1521,7 @@ fn validate_rotary(
     if config.rotary_pairs == 0 {
         return Ok(());
     }
+
     let head_dim = config.output_dimensions[3];
     if config
         .rotary_pairs
@@ -1569,6 +1531,7 @@ fn validate_rotary(
     {
         return Err(Error::LengthMismatch);
     }
+
     let trig_dimensions = [config.output_dimensions[2], config.rotary_pairs];
     ensure_rank2_reach(cos_len, trig_dimensions, config.cos_strides)?;
     ensure_rank2_reach(sin_len, trig_dimensions, config.sin_strides)
@@ -1588,6 +1551,7 @@ fn validate_rotary_positioned(
     if config.rotary_pairs == 0 {
         return Ok(());
     }
+
     let head_dim = config.output_dimensions[3];
     if config
         .rotary_pairs
@@ -1597,6 +1561,7 @@ fn validate_rotary_positioned(
     {
         return Err(Error::LengthMismatch);
     }
+
     let trig_rows = position_start
         .checked_add(config.output_dimensions[2])
         .ok_or(Error::SizeOverflow)?;
@@ -1630,10 +1595,12 @@ fn validate_rotary_batched(
     if config.rotary_pairs == 0 {
         return Ok(());
     }
+
     let output_batch = config.output_dimensions[0];
     if config.trig_batch != 1 && config.trig_batch != output_batch {
         return Err(Error::LengthMismatch);
     }
+
     let head_dim = config.output_dimensions[3];
     if config
         .rotary_pairs
@@ -1643,6 +1610,7 @@ fn validate_rotary_batched(
     {
         return Err(Error::LengthMismatch);
     }
+
     let trig_dimensions = [
         config.trig_batch,
         config.output_dimensions[2],
@@ -1667,6 +1635,7 @@ fn validate_rope_bshd(
     {
         return Err(Error::InvalidLength);
     }
+
     let tensor_len = checked_element_count(
         checked_element_count(
             checked_element_count(config.batch, config.seq_len)?,
@@ -1701,6 +1670,7 @@ fn validate_rope_qk_bnsd(
     {
         return Err(Error::InvalidLength);
     }
+
     if config
         .rotary_pairs
         .checked_mul(2)
@@ -1709,6 +1679,7 @@ fn validate_rope_qk_bnsd(
     {
         return Err(Error::LengthMismatch);
     }
+
     let batch_seq = checked_element_count(config.batch, config.seq_len)?;
     let q_len = checked_element_count(
         checked_element_count(batch_seq, config.query_heads)?,
@@ -1759,9 +1730,11 @@ fn validate_rotary_qk(
     {
         return Err(Error::LengthMismatch);
     }
+
     if config.rotary_pairs == 0 {
         return Ok(());
     }
+
     let head_dim = config.q_output_dimensions[3];
     if config
         .rotary_pairs
@@ -1771,6 +1744,7 @@ fn validate_rotary_qk(
     {
         return Err(Error::LengthMismatch);
     }
+
     let trig_dimensions = [config.q_output_dimensions[2], config.rotary_pairs];
     ensure_rank2_reach(cos_len, trig_dimensions, config.cos_strides)?;
     ensure_rank2_reach(sin_len, trig_dimensions, config.sin_strides)
@@ -1807,6 +1781,7 @@ fn validate_rotary_qk_batched(
     {
         return Err(Error::LengthMismatch);
     }
+
     validate_rotary_batched(q_out_len, q_input_len, cos_len, sin_len, q_config)?;
     validate_rotary_batched(k_out_len, k_input_len, cos_len, sin_len, k_config)?;
     Ok((q_config, k_config))
@@ -1828,6 +1803,7 @@ fn validate_multiaxis_rope_qk(
     {
         return Err(Error::InvalidLength);
     }
+
     let head_dim_half = config.head_dim / 2;
     let section_sum = config
         .section_t
@@ -1837,6 +1813,7 @@ fn validate_multiaxis_rope_qk(
     if section_sum != head_dim_half {
         return Err(Error::LengthMismatch);
     }
+
     let batch_seq = checked_element_count(config.batch, config.seq_len)?;
     let query_len_expected = checked_element_count(
         checked_element_count(batch_seq, config.query_heads)?,
@@ -1868,6 +1845,7 @@ fn validate_interleaved_complex_rope_qk(
     {
         return Err(Error::InvalidLength);
     }
+
     let batch_seq = checked_element_count(config.batch, config.seq_len)?;
     let query_len_expected = checked_element_count(
         checked_element_count(batch_seq, config.query_heads)?,

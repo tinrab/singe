@@ -345,6 +345,7 @@ pub fn bitwise(
             source: compiler.source(a, ty)?,
         }));
     }
+
     let op = match opcode {
         Opcode::And => ir::BitwiseBinary::And,
         Opcode::Or => ir::BitwiseBinary::Or,

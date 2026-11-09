@@ -1,7 +1,6 @@
 //! Executable form of a compiled kernel, produced by lowering and run by the engine.
 //!
-//! Operands are resolved to register indices, immediates, and memory references, so
-//! the engine never looks at names or qualifier strings.
+//! Operands are resolved to register indices, immediates, and memory references, so the engine never looks at names or qualifier strings.
 
 use std::sync::Arc;
 
@@ -365,8 +364,7 @@ pub enum FloatMath {
 pub struct MathControl {
     pub rounding: FloatRoundingMode,
     pub ftz: bool,
-    /// `rcp.approx.ftz.f64`: reads only the upper 32 bits of the input encoding and
-    /// rounds the result to the upper 32 bits.
+    /// `rcp.approx.ftz.f64`: reads only the upper 32 bits of the input encoding and rounds the result to the upper 32 bits.
     pub upper_word: bool,
 }
 

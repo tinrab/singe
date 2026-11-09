@@ -224,11 +224,13 @@ fn run() -> Result<()> {
         for (id, memory) in &inputs {
             bindings.set_input(*id, memory)?;
         }
+
         bindings.set(forward_o, &mut o_dev)?;
         bindings.set(forward_stats, &mut stats_dev)?;
         for (id, memory) in &mut amax_buffers {
             bindings.set(*id, memory)?;
         }
+
         // SAFETY: inputs, writable saved state and forward scratch remain live through stream completion.
         example.execute_and_wait(|context| unsafe {
             forward_compiled.execute(
@@ -237,6 +239,7 @@ fn run() -> Result<()> {
             )
         })?;
     }
+
     let mut output_buffers = output_ids
         .into_iter()
         .map(|id| {
@@ -249,12 +252,14 @@ fn run() -> Result<()> {
     for (id, memory) in &inputs {
         bindings.set_input(*id, memory)?;
     }
+
     bindings.set_input(o, &o_dev)?;
     bindings.set_input(d_o, &d_o_dev)?;
     bindings.set_input(stats, &stats_dev)?;
     for (id, memory) in &mut output_buffers {
         bindings.set_encoded_bytes(*id, memory)?;
     }
+
     // SAFETY: FP8 inputs, actual saved forward state, writable gradients and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(

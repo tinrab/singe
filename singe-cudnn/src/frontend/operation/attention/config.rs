@@ -12,8 +12,7 @@ use crate::{
 
 /// SDPA implementation selector.
 ///
-/// The frontend SDPA operation supports `AUTO`, `COMPOSITE`, and `UNIFIED`
-/// implementation choices.
+/// The frontend SDPA operation supports `AUTO`, `COMPOSITE`, and `UNIFIED` implementation choices.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum AttentionImplementation {
@@ -27,8 +26,7 @@ pub enum AttentionImplementation {
 
 /// High-level attention configuration used by composite and fused SDPA helpers.
 ///
-/// Combines fused SDPA attributes, softmax settings, score modifiers, dropout,
-/// paged attention, block masks, and implementation selection.
+/// Combines fused SDPA attributes, softmax settings, score modifiers, dropout, paged attention, block masks, and implementation selection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttentionConfig {
     pub(crate) fused: SdpaConfig,
@@ -93,8 +91,7 @@ impl AttentionPagedKvCache {
     }
 
     /// Sets the logical cache length for composite intermediates and score shapes, or clears the hint with `None`.
-    /// Without a hint, a dense cache supplies the length, then bias or RNG-dump dimensions,
-    /// then the smaller padded capacity when both caches are paged.
+    /// Without a hint, a dense cache supplies the length, then bias or RNG-dump dimensions, then the smaller padded capacity when both caches are paged.
     /// Unified execution uses its native sequence descriptors for runtime limits.
     /// FP8 and MXFP8 requests may retain a hint without paging, matching C++.
     /// Dense operands retain their declared dimensions and strides.
@@ -140,7 +137,8 @@ impl AttentionPagedKvCache {
 }
 
 impl AttentionConfig {
-    /// Selects softmax statistics encoding. SDPA backward requires natural log.
+    /// Selects softmax statistics encoding.
+    /// SDPA backward requires natural log.
     #[must_use]
     pub fn with_stats_base(mut self, base: SoftmaxStatsBase) -> Self {
         self.softmax = self.softmax.with_stats_base(base);
@@ -217,8 +215,7 @@ impl AttentionConfig {
 
     /// Records optional packed-token bounds for query and key/value storage.
     /// At least one of Q, K, V or the declared output must have ragged offsets.
-    /// Like C++, forward attention retains these as frontend hints without changing
-    /// native workspace sizing or adding backend attributes.
+    /// Like C++, forward attention retains these as frontend hints without changing native workspace sizing or adding backend attributes.
     #[must_use]
     pub fn with_max_total_sequence_lengths(
         mut self,

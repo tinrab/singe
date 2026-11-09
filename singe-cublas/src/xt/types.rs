@@ -6,10 +6,7 @@ use singe_cublas_sys as sys;
 
 /// Selects whether cuBLASXt may pin host memory passed to its routines.
 ///
-/// This mode is used with
-/// [`Context::set_pinning_memory_mode`](crate::xt::context::Context::set_pinning_memory_mode)
-/// and
-/// [`Context::pinning_memory_mode`](crate::xt::context::Context::pinning_memory_mode).
+/// This mode is used with [`Context::set_pinning_memory_mode`](crate::xt::context::Context::set_pinning_memory_mode) and [`Context::pinning_memory_mode`](crate::xt::context::Context::pinning_memory_mode).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[non_exhaustive]
 #[repr(u32)]
@@ -29,10 +26,7 @@ impl_enum_display!(PinningMemoryMode, {
 
 /// Identifies the scalar type used by a cuBLASXt BLAS routine.
 ///
-/// cuBLASXt uses this selector with
-/// [`Context::set_cpu_ratio`](crate::xt::context::Context::set_cpu_ratio)
-/// and the raw [`cublasXtSetCpuRoutine`](sys::cublasXtSetCpuRoutine) API to configure hybrid CPU/GPU
-/// execution for a routine.
+/// cuBLASXt uses this selector with [`Context::set_cpu_ratio`](crate::xt::context::Context::set_cpu_ratio) and the raw [`cublasXtSetCpuRoutine`](sys::cublasXtSetCpuRoutine) API to configure hybrid CPU/GPU execution for a routine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[non_exhaustive]
 #[repr(u32)]
@@ -58,9 +52,7 @@ impl_enum_display!(OperationType, {
 
 /// Identifies a BLAS3 or BLAS-like cuBLASXt routine.
 ///
-/// cuBLASXt uses this selector with
-/// [`Context::set_cpu_ratio`](crate::xt::context::Context::set_cpu_ratio)
-/// and the raw [`cublasXtSetCpuRoutine`](sys::cublasXtSetCpuRoutine) API to configure hybrid CPU/GPU execution for a routine.
+/// cuBLASXt uses this selector with [`Context::set_cpu_ratio`](crate::xt::context::Context::set_cpu_ratio) and the raw [`cublasXtSetCpuRoutine`](sys::cublasXtSetCpuRoutine) API to configure hybrid CPU/GPU execution for a routine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[non_exhaustive]
 #[repr(u32)]

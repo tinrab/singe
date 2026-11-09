@@ -7,7 +7,7 @@ pub mod tile_kernel {
         collections::HashMap,
         fs,
         path::Path,
-        sync::{Arc, Mutex, OnceLock, PoisonError},
+        sync::{Arc, Mutex, OnceLock},
     };
 
     pub use ::cutile::tile_kernel::*;
@@ -45,13 +45,14 @@ pub mod tile_kernel {
     /// Raw captured graphs must be destroyed or retain their compiled function owners through all replays.
     /// Do not compile or submit unowned raw kernels concurrently with this call.
     /// Owned `TileOperation` submissions and graphs retain their functions independently.
-    pub unsafe fn clear_context_kernel_cache(context: &Context) {
+    pub unsafe fn clear_context_kernel_cache(context: &Context) -> KernelResult<()> {
         if let Some(cache) = CACHE.get() {
             cache
                 .lock()
-                .unwrap_or_else(PoisonError::into_inner)
+                .map_err(|_| KernelError::KernelCachePoisoned)?
                 .retain(|(handle, _), _| *handle != context.as_raw().addr());
         }
+        Ok(())
     }
 
     pub fn prepared_function(
@@ -195,6 +196,7 @@ pub mod tile_kernel {
                     })?;
                 }
             }
+
             let (bytecode, _) = serialize_tile_ir_bytecode_for_version(
                 &module,
                 capabilities.target.bytecode_version,

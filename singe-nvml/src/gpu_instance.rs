@@ -41,8 +41,7 @@ impl GpuInstance {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlGpuInstance_t` for the duration of any
-    /// calls made through the returned wrapper.
+    /// `handle` must be a valid `nvmlGpuInstance_t` for the duration of any calls made through the returned wrapper.
     pub const unsafe fn from_raw(handle: sys::nvmlGpuInstance_t) -> Self {
         Self(handle)
     }
@@ -66,9 +65,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the handle or output arguments are rejected by NVML, if
-    /// the current process does not have permission to query the instance, or if
-    /// NVML has not been initialized.
+    /// Returns an error if the handle or output arguments are rejected by NVML, if the current process does not have permission to query the instance, or if NVML has not been initialized.
     pub fn info(&self) -> Result<GpuInstanceInfo> {
         let mut info = sys::nvmlGpuInstanceInfo_t::default();
         // SAFETY: `nvmlGpuInstanceGetInfo` receives valid output locations.
@@ -114,10 +111,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the GPU instance, profile, engine profile, or structure
-    /// version is invalid, if the profile is not supported, if the current process
-    /// does not have permission to perform the operation, or if NVML has not been
-    /// initialized.
+    /// Returns an error if the GPU instance, profile, engine profile, or structure version is invalid, if the profile is not supported, if the current process does not have permission to perform the operation, or if NVML has not been initialized.
     pub fn compute_instance_profile_info(
         &self,
         profile: u32,
@@ -147,9 +141,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the GPU instance or `profile_id` is invalid, if the
-    /// profile is not supported, if the current process does not have permission
-    /// to perform the operation, or if NVML has not been initialized.
+    /// Returns an error if the GPU instance or `profile_id` is invalid, if the profile is not supported, if the current process does not have permission to perform the operation, or if NVML has not been initialized.
     pub fn compute_instance_remaining_capacity(&self, profile_id: u32) -> Result<u32> {
         let mut count = 0;
         // SAFETY: `nvmlGpuInstanceGetComputeInstanceRemainingCapacity` receives valid output locations.
@@ -172,15 +164,11 @@ impl GpuInstance {
     /// A placement represents the location of a compute instance within a GPU instance.
     /// Returns all possible placements for the given profile.
     /// A created compute instance occupies compute slices described by its placement.
-    /// Creating a compute instance fails if its placement overlaps already
-    /// occupied compute slices.
+    /// Creating a compute instance fails if its placement overlaps already occupied compute slices.
     ///
     /// # Errors
     ///
-    /// Returns an error if the GPU instance or `profile_id` is invalid, if MIG mode
-    /// is not enabled or the profile is not supported, if the current process does
-    /// not have permission to perform the operation, or if NVML has not been
-    /// initialized.
+    /// Returns an error if the GPU instance or `profile_id` is invalid, if MIG mode is not enabled or the profile is not supported, if the current process does not have permission to perform the operation, or if NVML has not been initialized.
     pub fn compute_instance_possible_placements(
         &self,
         profile_id: u32,
@@ -198,6 +186,7 @@ impl GpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -212,6 +201,7 @@ impl GpuInstance {
                 &raw mut count,
             ))?;
         }
+
         placements.truncate(count as usize);
         Ok(placements.into_iter().map(Into::into).collect())
     }
@@ -224,9 +214,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the GPU instance or ID is invalid, if the compute
-    /// instance is not found, if MIG mode is not enabled, if the current process
-    /// lacks permission, or if NVML has not been initialized.
+    /// Returns an error if the GPU instance or ID is invalid, if the compute instance is not found, if MIG mode is not enabled, if the current process lacks permission, or if NVML has not been initialized.
     pub fn compute_instance_by_id(&self, id: u32) -> Result<ComputeInstance> {
         let mut instance = ptr::null_mut();
         // SAFETY: `nvmlGpuInstanceGetComputeInstanceById` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
@@ -251,9 +239,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the requested compute instance cannot be created, if the
-    /// GPU instance or `profile_id` is invalid, if the profile is not supported, if
-    /// the current process lacks permission, or if NVML has not been initialized.
+    /// Returns an error if the requested compute instance cannot be created, if the GPU instance or `profile_id` is invalid, if the profile is not supported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn create_compute_instance(&self, profile_id: u32) -> Result<OwnedComputeInstance> {
         let mut instance = ptr::null_mut();
         // SAFETY: `nvmlGpuInstanceCreateComputeInstance` writes a valid handle on success, and `try_ffi!` returns before it is wrapped otherwise.
@@ -278,10 +264,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the requested compute instance cannot be created, if the
-    /// GPU instance, `profile_id`, or placement is invalid, if the profile is not
-    /// supported, if the current process lacks permission, or if NVML has not been
-    /// initialized.
+    /// Returns an error if the requested compute instance cannot be created, if the GPU instance, `profile_id`, or placement is invalid, if the profile is not supported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn create_compute_instance_with_placement(
         &self,
         profile_id: u32,
@@ -309,9 +292,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if the GPU instance or `profile_id` is invalid, if the
-    /// profile is not supported, if the current process lacks permission, or if
-    /// NVML has not been initialized.
+    /// Returns an error if the GPU instance or `profile_id` is invalid, if the profile is not supported, if the current process lacks permission, or if NVML has not been initialized.
     pub fn compute_instances(&self, profile_id: u32) -> Result<Vec<ComputeInstance>> {
         let mut count = 0;
         // SAFETY: `nvmlGpuInstanceGetComputeInstances` receives valid output locations.
@@ -326,6 +307,7 @@ impl GpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -340,6 +322,7 @@ impl GpuInstance {
                 &raw mut count,
             ))?;
         }
+
         instances.truncate(count as usize);
         Ok(instances
             .into_iter()
@@ -357,11 +340,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the versioned request, if the intermediate
-    /// size query reports a larger buffer requirement than expected, if this GPU
-    /// instance or query arguments are invalid, if the host or GPU does not support
-    /// vGPU creation, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if NVML rejects the versioned request, if the intermediate size query reports a larger buffer requirement than expected, if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU creation, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn creatable_vgpus(&self) -> Result<Vec<VgpuTypeId>> {
         let mut info = sys::nvmlVgpuTypeIdInfo_t {
             vgpuCount: 0,
@@ -372,6 +351,7 @@ impl GpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.vgpuCount == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -382,6 +362,7 @@ impl GpuInstance {
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetCreatableVgpus(self.0, &raw mut info))?;
         }
+
         types.truncate(info.vgpuCount as usize);
         Ok(types.into_iter().map(VgpuTypeId).collect())
     }
@@ -392,11 +373,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the versioned request, if the intermediate
-    /// size query reports a larger buffer requirement than expected, if this GPU
-    /// instance or query arguments are invalid, if the host or GPU does not support
-    /// vGPU queries, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if NVML rejects the versioned request, if the intermediate size query reports a larger buffer requirement than expected, if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn active_vgpus(&self) -> Result<Vec<VgpuInstance>> {
         let mut info = sys::nvmlActiveVgpuInstanceInfo_t {
             version: struct_version::<sys::nvmlActiveVgpuInstanceInfo_t>(1),
@@ -408,6 +385,7 @@ impl GpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.vgpuCount == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -418,6 +396,7 @@ impl GpuInstance {
         unsafe {
             try_ffi!(sys::nvmlGpuInstanceGetActiveVgpus(self.0, &raw mut info))?;
         }
+
         instances.truncate(info.vgpuCount as usize);
         Ok(instances
             .into_iter()
@@ -435,10 +414,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the versioned request, if this GPU instance
-    /// or query arguments are invalid, if the host, GPU, or MIG mode does not
-    /// support the query, if NVML has not been initialized, or if NVML reports an
-    /// unexpected failure.
+    /// Returns an error if NVML rejects the versioned request, if this GPU instance or query arguments are invalid, if the host, GPU, or MIG mode does not support the query, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_heterogeneous_mode(&self) -> Result<EnableState> {
         let mut mode = sys::nvmlVgpuHeterogeneousMode_t {
             version: struct_version::<sys::nvmlVgpuHeterogeneousMode_t>(1),
@@ -464,11 +440,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if NVML rejects the versioned request, if the intermediate
-    /// size query reports a larger buffer requirement than expected, if this GPU
-    /// instance or query arguments are invalid, if the host or GPU does not support
-    /// the query or vGPU heterogeneous mode is disabled, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if NVML rejects the versioned request, if the intermediate size query reports a larger buffer requirement than expected, if this GPU instance or query arguments are invalid, if the host or GPU does not support the query or vGPU heterogeneous mode is disabled, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_type_creatable_placements(
         &self,
         vgpu_type_id: VgpuTypeId,
@@ -486,6 +458,7 @@ impl GpuInstance {
         if status == sys::nvmlReturn_t::NVML_SUCCESS && info.count == 0 {
             return Ok(Vec::new());
         }
+
         if status != sys::nvmlReturn_t::NVML_ERROR_INSUFFICIENT_SIZE {
             return Err(status.into());
         }
@@ -499,6 +472,7 @@ impl GpuInstance {
                 &raw mut info,
             ))?;
         }
+
         placements.truncate(info.count as usize);
         Ok(placements.into_iter().map(VgpuPlacementId).collect())
     }
@@ -510,9 +484,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if this GPU instance or query arguments are invalid, if the
-    /// host or GPU does not support vGPU scheduler queries, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU scheduler queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_scheduler_state(&self, engine: VgpuSchedulerEngine) -> Result<VgpuSchedulerState> {
         let mut info = sys::nvmlVgpuSchedulerStateInfo_v2_t {
             engineId: engine as u32,
@@ -529,8 +501,7 @@ impl GpuInstance {
     }
 
     /// Returns the vGPU scheduler logs for this GPU instance.
-    /// The number of returned elements never exceeds
-    /// `NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`.
+    /// The number of returned elements never exceeds `NVML_SCHEDULER_SW_MAX_LOG_ENTRIES`.
     ///
     /// To get the entire logs, call this method at least 5 times a second.
     ///
@@ -538,9 +509,7 @@ impl GpuInstance {
     ///
     /// # Errors
     ///
-    /// Returns an error if this GPU instance or query arguments are invalid, if the
-    /// host or GPU does not support vGPU scheduler queries, if NVML has not been
-    /// initialized, or if NVML reports an unexpected failure.
+    /// Returns an error if this GPU instance or query arguments are invalid, if the host or GPU does not support vGPU scheduler queries, if NVML has not been initialized, or if NVML reports an unexpected failure.
     pub fn vgpu_scheduler_log(&self, engine: VgpuSchedulerEngine) -> Result<VgpuSchedulerLog> {
         let mut info = sys::nvmlVgpuSchedulerLogInfo_v2_t {
             engineId: engine as u32,
@@ -562,10 +531,8 @@ impl OwnedGpuInstance {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid `nvmlGpuInstance_t` owned by the caller, and
-    /// ownership must not be used elsewhere after constructing this wrapper.
-    /// The wrapper destroys the GPU instance with `nvmlGpuInstanceDestroy`
-    /// unless ownership is transferred with [`OwnedGpuInstance::into_raw`].
+    /// `handle` must be a valid `nvmlGpuInstance_t` owned by the caller, and ownership must not be used elsewhere after constructing this wrapper.
+    /// The wrapper destroys the GPU instance with `nvmlGpuInstanceDestroy` unless ownership is transferred with [`OwnedGpuInstance::into_raw`].
     pub const unsafe fn from_raw(handle: sys::nvmlGpuInstance_t) -> Self {
         Self(GpuInstance(handle))
     }
@@ -588,9 +555,8 @@ impl OwnedGpuInstance {
 
     /// Transfers this owned GPU instance handle to the caller.
     ///
-    /// After this call, the wrapper will not destroy the GPU instance. The
-    /// caller becomes responsible for eventually passing the handle to
-    /// `nvmlGpuInstanceDestroy` or otherwise transferring ownership.
+    /// After this call, the wrapper will not destroy the GPU instance.
+    /// The caller becomes responsible for eventually passing the handle to `nvmlGpuInstanceDestroy` or otherwise transferring ownership.
     #[must_use]
     pub fn into_raw(self) -> sys::nvmlGpuInstance_t {
         self.into_inner().0
@@ -610,8 +576,10 @@ impl Drop for OwnedGpuInstance {
         // SAFETY: `nvmlGpuInstanceDestroy` receives only plain values.
         unsafe {
             if let Err(error) = try_ffi!(sys::nvmlGpuInstanceDestroy(self.0.0)) {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy nvml gpu instance: {error}");
+                eprintln!(
+                    "failed to destroy nvml gpu instance: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

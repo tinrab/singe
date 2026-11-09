@@ -41,7 +41,8 @@ impl CallbackDataPointer<'_> {
 
     /// Decodes this pointer using `domain` and passes the borrowed payload to `f`.
     ///
-    /// Use the domain delivered alongside this pointer by CUPTI. Returns `None` without calling `f` when the pointer is null; unrecognized domains produce [`CallbackPayload::Unknown`].
+    /// Use the domain delivered alongside this pointer by CUPTI.
+    /// Returns `None` without calling `f` when the pointer is null; unrecognized domains produce [`CallbackPayload::Unknown`].
     pub fn with_decoded<R>(
         self,
         domain: CallbackDomain,
@@ -337,7 +338,9 @@ impl Default for SubscriberParams {
 
 /// Owns a CUPTI callback subscription and its Rust callback.
 ///
-/// CUPTI invokes the callback on the host thread issuing the traced CUDA call. Callback panics are caught at the native trampoline. Subscription creation leaves callbacks disabled; enable the desired domains or identifiers explicitly.
+/// CUPTI invokes the callback on the host thread issuing the traced CUDA call.
+/// Callback panics are caught at the native trampoline.
+/// Subscription creation leaves callbacks disabled; enable the desired domains or identifiers explicitly.
 pub struct Subscriber {
     handle: Option<SubscriberHandle>,
     callback: Option<Box<CallbackBox>>,
@@ -352,7 +355,8 @@ impl Debug for Subscriber {
 impl Subscriber {
     /// Registers a Rust callback with unnamed, single-subscriber settings.
     ///
-    /// Retains the callback until unsubscription or drop. Individual callbacks remain disabled until explicitly enabled.
+    /// Retains the callback until unsubscription or drop.
+    /// Individual callbacks remain disabled until explicitly enabled.
     ///
     /// # Errors
     ///
@@ -421,6 +425,7 @@ impl Subscriber {
                 try_ffi!(sys::cuptiUnsubscribe(handle))?;
             }
         }
+
         drop(self.callback.take());
         Ok(())
     }
@@ -543,6 +548,7 @@ impl Subscriber {
                 &raw mut enabled_count,
             ))?;
         }
+
         callbacks.truncate(to_usize(enabled_count, "enabled_callbacks_count")?);
         Ok(callbacks.into_iter().map(CallbackId::from).collect())
     }
@@ -634,11 +640,14 @@ impl Drop for Subscriber {
             // SAFETY: `cuptiUnsubscribe` receives only plain values.
             unsafe {
                 if let Err(error) = try_ffi!(sys::cuptiUnsubscribe(handle)) {
-                    #[cfg(debug_assertions)]
-                    eprintln!("failed to unsubscribe cupti callbacks: {error}");
+                    eprintln!(
+                        "failed to unsubscribe cupti callbacks: {}",
+                        singe_core::ErrorChain(&error)
+                    );
                 }
             }
         }
+
         drop(self.callback.take());
     }
 }

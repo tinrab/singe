@@ -13,8 +13,8 @@ pub enum AttentionDiagonalAlignment {
 
 /// Optional diagonal-band bounds and padding, matching the C++ attention attributes.
 /// Positions satisfy `diagonal - left_window < key <= diagonal + right_window`.
-/// Omitted bounds leave that side unrestricted. Bottom-right alignment shifts
-/// the diagonal by key/value length minus query length for each batch.
+/// Omitted bounds leave that side unrestricted.
+/// Bottom-right alignment shifts the diagonal by key/value length minus query length for each batch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AttentionDiagonalBand {
     pub(crate) alignment: AttentionDiagonalAlignment,

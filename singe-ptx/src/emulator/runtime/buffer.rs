@@ -44,8 +44,8 @@ pub struct AllocationRef {
 
 /// An emulator allocation of `T` elements.
 ///
-/// Clones refer to the same allocation. A buffer dereferences to a [`BufferView`] of
-/// all its elements.
+/// Clones refer to the same allocation.
+/// A buffer dereferences to a [`BufferView`] of all its elements.
 #[derive(Debug, Clone)]
 pub struct Buffer<T: PtxScalar> {
     pub(crate) view: BufferView<T>,
@@ -59,7 +59,8 @@ impl<T: PtxScalar> Deref for Buffer<T> {
     }
 }
 
-/// A range of elements in an allocation. It keeps the allocation alive.
+/// A range of elements in an allocation.
+/// It keeps the allocation alive.
 #[derive(Debug, Clone)]
 pub struct BufferView<T: PtxScalar> {
     pub(crate) client: Arc<Client>,
@@ -86,8 +87,7 @@ impl<T: PtxScalar> BufferView<T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if `range` is reversed or extends past the end of this view, or if
-    /// its byte offset overflows.
+    /// Returns an error if `range` is reversed or extends past the end of this view, or if its byte offset overflows.
     pub fn view(&self, range: Range<usize>) -> Result<Self, SubmitError> {
         let len = range
             .end
@@ -110,8 +110,7 @@ impl<T: PtxScalar> BufferView<T> {
 
 /// A kernel argument: a scalar, a pointer to a buffer, or aggregate bytes.
 ///
-/// Scalars convert with `From`, as in `5u32.into()`, and pointers from `&Buffer` or
-/// `&BufferView`.
+/// Scalars convert with `From`, as in `5u32.into()`, and pointers from `&Buffer` or `&BufferView`.
 #[derive(Debug, Clone)]
 pub struct KernelArg {
     pub(crate) value: Argument,
@@ -140,13 +139,11 @@ impl Debug for Argument {
 impl KernelArg {
     /// Creates an argument for an aggregate (array) parameter from its raw bytes.
     ///
-    /// The launch checks that `bytes` has the parameter's size and that `alignment` is at
-    /// least the parameter's alignment.
+    /// The launch checks that `bytes` has the parameter's size and that `alignment` is at least the parameter's alignment.
     ///
     /// # Errors
     ///
-    /// Returns [`SubmitError::InvalidArgument`] if `alignment` is not a nonzero power of
-    /// two.
+    /// Returns [`SubmitError::InvalidArgument`] if `alignment` is not a nonzero power of two.
     pub fn aggregate(bytes: Vec<u8>, alignment: u32) -> Result<Self, SubmitError> {
         if !alignment.is_power_of_two() {
             return Err(SubmitError::InvalidArgument("aggregate alignment".into()));

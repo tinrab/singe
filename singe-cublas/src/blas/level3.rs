@@ -10,7 +10,7 @@ use singe_cuda::{
     error::Error as CudaError,
     memory::DeviceMemory,
     types::{Complex32, Complex64, DevicePtr},
-    view::{DeviceInput, DeviceOutput},
+    view::{DeviceInput, DeviceOutput, DeviceRepr},
 };
 
 use crate::{
@@ -29,9 +29,8 @@ use crate::{
 /// $$ C = \alpha\text{op}(A)\text{op}(B) + \beta C $$
 ///
 /// Here $\alpha$ and $\beta$ are scalars, and $A$, $B$ and $C$ are matrices stored in column-major format with dimensions $\text{op}(A)$ $m \times k$, $\text{op}(B)$ $k \times n$ and $C$ $m \times n$, respectively.
-/// `a`, `b`, and `c` are device allocations; leading dimensions are element
-/// strides in cuBLAS column-major layout. `alpha` and `beta` may be host
-/// values or device scalar pointers, but both must use the same pointer mode.
+/// `a`, `b`, and `c` are device allocations; leading dimensions are element strides in cuBLAS column-major layout.
+/// `alpha` and `beta` may be host values or device scalar pointers, but both must use the same pointer mode.
 /// For matrix $A$:
 ///
 /// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
@@ -44,15 +43,11 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if the context is not usable, scalar pointer modes do not
-/// match, dimensions or leading dimensions are invalid, device allocations are
-/// too small for the requested matrix shapes, or cuBLAS rejects or fails the
-/// operation.
+/// Returns an error if the context is not usable, scalar pointer modes do not match, dimensions or leading dimensions are invalid, device allocations are too small for the requested matrix shapes, or cuBLAS rejects or fails the operation.
 /// # Safety
 ///
-/// The matrix ranges and device scalar pointers must stay live and correctly
-/// ordered until the context's stream completes. Writes to `c` must not
-/// conflict with other access, including work submitted on another stream.
+/// The matrix ranges and device scalar pointers must stay live and correctly ordered until the context's stream completes.
+/// Writes to `c` must not conflict with other access, including work submitted on another stream.
 /// Accessed input elements must be valid when the operation reads them.
 /// If `beta` is nonzero, accessed elements of `c` must be valid when read.
 /// Uninitialized output is permitted when `beta` is zero.
@@ -83,6 +78,7 @@ pub unsafe fn sgemm<'alpha, 'beta>(
     {
         return Err(CudaError::MemoryContextMismatch.into());
     }
+
     let alpha = alpha.into();
     let beta = beta.into();
     let pointer_mode = scalar_pointer_mode(&alpha, &beta)?;
@@ -132,14 +128,11 @@ pub unsafe fn sgemm<'alpha, 'beta>(
 /// $$ C = \alpha\text{op}(A)\text{op}(B) + \beta C $$
 ///
 /// Here $\alpha$ and $\beta$ are scalars, and $A$, $B$ and $C$ are matrices stored in column-major format with dimensions $\text{op}(A)$ $m \times k$, $\text{op}(B)$ $k \times n$ and $C$ $m \times n$, respectively.
-/// `a`, `b`, and `c` are device allocations; leading dimensions are element
-/// strides in cuBLAS column-major layout. `alpha` and `beta` may be host
-/// values or device scalar pointers, but both must use the same pointer mode.
+/// `a`, `b`, and `c` are device allocations; leading dimensions are element strides in cuBLAS column-major layout.
+/// `alpha` and `beta` may be host values or device scalar pointers, but both must use the same pointer mode.
 /// For matrix $A$:
 ///
-/// $$
-/// \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right.
-/// $$
+/// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
 ///
 /// $\text{op}(B)$ is defined similarly for matrix $B$.
 ///
@@ -149,10 +142,7 @@ pub unsafe fn sgemm<'alpha, 'beta>(
 ///
 /// # Errors
 ///
-/// Returns an error if the context is not usable, scalar pointer modes do not
-/// match, dimensions or leading dimensions are invalid, device allocations are
-/// too small for the requested matrix shapes, or cuBLAS rejects or fails the
-/// operation.
+/// Returns an error if the context is not usable, scalar pointer modes do not match, dimensions or leading dimensions are invalid, device allocations are too small for the requested matrix shapes, or cuBLAS rejects or fails the operation.
 #[allow(
     clippy::doc_markdown,
     reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
@@ -1140,6 +1130,7 @@ pub fn dtrsm_batched(
     if a.len() != b.len() {
         return Err(Error::InvalidMatrixShape);
     }
+
     validate_triangular_solve_parameters(side, m, n, lda, ldb)?;
 
     let batch_count = to_i64(a.len(), "batch_count")?;
@@ -1175,8 +1166,7 @@ pub fn dtrsm_batched(
 
 /// Supports the 64-bit integer interface.
 ///
-/// Extends the typed cuBLAS GEMM routines by allowing separate data types for the A, B, and C
-/// matrices, the compute precision, and the GEMM algorithm.
+/// Extends the typed cuBLAS GEMM routines by allowing separate data types for the A, B, and C matrices, the compute precision, and the GEMM algorithm.
 /// This operation is only supported on devices with compute capability 5.0 or later.
 ///
 /// $$ C = \alpha\text{op}(A)\text{op}(B) + \beta C $$
@@ -1188,9 +1178,7 @@ pub fn dtrsm_batched(
 ///
 /// $\text{op}(B)$ is defined similarly for matrix $B$.
 ///
-/// Starting with cuBLAS 11.2, using typed functions instead of extension
-/// functions such as `cublasGemmEx` helps reduce binary size when linking to
-/// the static cuBLAS library.
+/// Starting with cuBLAS 11.2, using typed functions instead of extension functions such as `cublasGemmEx` helps reduce binary size when linking to the static cuBLAS library.
 ///
 /// See [sgemm()](https://www.netlib.org/blas/sgemm.f).
 ///
@@ -1198,10 +1186,7 @@ pub fn dtrsm_batched(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, the
-/// device does not support GEMM Ex, dimensions or leading dimensions are
-/// invalid, device allocations are too small, a data type or algorithm
-/// combination is unsupported, or cuBLAS rejects or fails the operation.
+/// Returns an error if the context cannot be used with host pointer mode, the device does not support GEMM Ex, dimensions or leading dimensions are invalid, device allocations are too small, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
 #[allow(
     clippy::doc_markdown,
     reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
@@ -1279,29 +1264,104 @@ pub fn gemm_ex<TAlpha, TA, TB, TBeta, TC>(
     Ok(())
 }
 
+/// Performs [`gemm_ex`] on device views, so callers can multiply typed views of larger allocations.
+///
+/// `alpha` and `beta` are host values of the type `compute_type` expects.
+/// The element types of the views only size them; `a_type`, `b_type`, and `c_type` give the matrix encodings.
+///
+/// # Safety
+///
+/// The views must hold values valid for their declared data types, `alpha` and `beta` must have the type `compute_type` reads, and the caller must order the work on `context`'s stream against other users of the memory until it completes.
+///
+/// # Errors
+///
+/// Returns an error if a view belongs to another CUDA context, the context cannot use host pointer mode, dimensions or leading dimensions are invalid, views are too small for the matrix shapes, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
+pub unsafe fn gemm_ex_views<TAlpha, TA: DeviceRepr, TB: DeviceRepr, TBeta, TC: DeviceRepr>(
+    context: &Context,
+    transpose_a: Operation,
+    transpose_b: Operation,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: &TAlpha,
+    a: &(impl DeviceInput<TA> + ?Sized),
+    a_type: DataType,
+    lda: usize,
+    b: &(impl DeviceInput<TB> + ?Sized),
+    b_type: DataType,
+    ldb: usize,
+    beta: &TBeta,
+    c: &mut impl DeviceOutput<TC>,
+    c_type: DataType,
+    ldc: usize,
+    compute_type: ComputeType,
+    algorithm: GemmAlgorithm,
+) -> Result<()> {
+    context.bind()?;
+    if a.region().context() != context.cuda_context()
+        || b.region().context() != context.cuda_context()
+        || c.region().context() != context.cuda_context()
+    {
+        return Err(CudaError::MemoryContextMismatch.into());
+    }
+
+    context.require_host_pointer_mode()?;
+    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
+    validate_gemm_shapes(
+        transpose_a,
+        transpose_b,
+        m,
+        n,
+        k,
+        a.len(),
+        lda,
+        b.len(),
+        ldb,
+        c.len(),
+        ldc,
+    )?;
+    // SAFETY: the views address live allocations in this context, sized by the validated shapes; the caller upholds the value and ordering contract.
+    unsafe {
+        try_ffi!(sys::cublasGemmEx_64(
+            context.as_raw(),
+            transpose_a.into(),
+            transpose_b.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            to_i64(k, "k")?,
+            ptr::from_ref(alpha).cast(),
+            a.as_device_ptr().cast(),
+            a_type.into(),
+            to_i64(lda, "lda")?,
+            b.as_device_ptr().cast(),
+            b_type.into(),
+            to_i64(ldb, "ldb")?,
+            ptr::from_ref(beta).cast(),
+            c.as_mut_ptr().cast(),
+            c_type.into(),
+            to_i64(ldc, "ldc")?,
+            compute_type.into(),
+            algorithm.into(),
+        ))?;
+    }
+    Ok(())
+}
+
 /// Supports the 64-bit integer interface.
 ///
-/// Extends the typed cuBLAS batched GEMM routines by performing batched matrix multiplication
-/// with separate data types for the A, B, and C matrix arrays, the compute precision,
-/// and the GEMM algorithm.
-/// Like the typed cuBLAS batched GEMM routines, the batch is uniform: all instances have the
-/// same dimensions (`m`, `n`, `k`), leading dimensions (`lda`, `ldb`, `ldc`),
-/// and transpositions (`transpose_a`, `transpose_b`) for their A, B, and C matrices.
-/// `a`, `b`, and `c` provide one matrix pointer per batch instance.
-/// $$ C\lbrack i\rbrack = \alpha\text{op}(A\lbrack i\rbrack)\text{op}(B\lbrack i\rbrack) + \beta C\lbrack i\rbrack,\text{ for i } \in \lbrack `0,\text{batch_count`} - 1\rbrack $$
+/// Extends the typed cuBLAS batched GEMM routines by performing batched matrix multiplication with separate data types for the A, B, and C matrix arrays, the compute precision, and the GEMM algorithm.
+/// Like the typed cuBLAS batched GEMM routines, the batch is uniform: all instances have the same dimensions (`m`, `n`, `k`), leading dimensions (`lda`, `ldb`, `ldc`), and transpositions (`transpose_a`, `transpose_b`) for their A, B, and C matrices.
+/// `a`, `b`, and `c` provide one matrix pointer per batch instance. $$ C\lbrack i\rbrack = \alpha\text{op}(A\lbrack i\rbrack)\text{op}(B\lbrack i\rbrack) + \beta C\lbrack i\rbrack,\text{ for i } \in \lbrack `0,\text{batch_count`} - 1\rbrack $$
 ///
-/// Here $\alpha$ and $\beta$ are scalars. `a`, `b`, and `c` are arrays of pointers
-/// to column-major matrices with dimensions $\text{op}(A\lbrack i\rbrack)$
-/// $m \times k$, $\text{op}(B\lbrack i\rbrack)$ $k \times n$, and
-/// $C\lbrack i\rbrack$ $m \times n$, respectively.
+/// Here $\alpha$ and $\beta$ are scalars.
+/// `a`, `b`, and `c` are arrays of pointers to column-major matrices with dimensions $\text{op}(A\lbrack i\rbrack)$ $m \times k$, $\text{op}(B\lbrack i\rbrack)$ $k \times n$, and $C\lbrack i\rbrack$ $m \times n$, respectively.
 /// For matrix $A$:
 ///
 /// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
 ///
 /// $\text{op}(B\lbrack i\rbrack)$ is defined similarly for matrix $B\lbrack i\rbrack$.
 ///
-/// For some problem sizes, multiple typed cuBLAS GEMM calls in different CUDA
-/// streams may be faster than this batched routine.
+/// For some problem sizes, multiple typed cuBLAS GEMM calls in different CUDA streams may be faster than this batched routine.
 ///
 /// If `a_type` is [`DataType::F16`] or [`DataType::Bf16`], or `compute_type` is any of the `FAST` options, or when math mode or `algorithm` enable fast math modes, pointers (not the pointer arrays) placed in the GPU memory must be properly aligned to avoid misaligned memory access errors.
 /// Ideally all matrix pointers are aligned to at least 16 bytes.
@@ -1310,11 +1370,7 @@ pub fn gemm_ex<TAlpha, TA, TB, TBeta, TC>(
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, the
-/// device does not support batched GEMM Ex, batch pointer slices have different
-/// lengths, dimensions or leading dimensions are invalid, a data type or
-/// algorithm combination is unsupported, or cuBLAS rejects or fails the
-/// operation.
+/// Returns an error if the context cannot be used with host pointer mode, the device does not support batched GEMM Ex, batch pointer slices have different lengths, dimensions or leading dimensions are invalid, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
 #[allow(
     clippy::doc_markdown,
     reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
@@ -1346,6 +1402,7 @@ pub fn gemm_batched_ex<TAlpha, TBeta>(
     if a.len() != b.len() || a.len() != c.len() {
         return Err(Error::InvalidMatrixShape);
     }
+
     validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
 
     let batch_count = to_i64(a.len(), "batch count")?;
@@ -1391,40 +1448,28 @@ pub fn gemm_batched_ex<TAlpha, TBeta>(
 
 /// Supports the 64-bit integer interface.
 ///
-/// Extends the typed cuBLAS strided-batched GEMM routines by performing strided batched matrix
-/// multiplication with separate data types for the A, B, and C matrices, the compute
-/// precision, and the GEMM algorithm.
-/// Like the typed cuBLAS strided-batched GEMM routines, the batch is uniform: all instances have
-/// the same dimensions (`m`, `n`, `k`), leading dimensions (`lda`, `ldb`, `ldc`),
-/// and transpositions (`transpose_a`, `transpose_b`) for their A, B, and C matrices.
+/// Extends the typed cuBLAS strided-batched GEMM routines by performing strided batched matrix multiplication with separate data types for the A, B, and C matrices, the compute precision, and the GEMM algorithm.
+/// Like the typed cuBLAS strided-batched GEMM routines, the batch is uniform: all instances have the same dimensions (`m`, `n`, `k`), leading dimensions (`lda`, `ldb`, `ldc`), and transpositions (`transpose_a`, `transpose_b`) for their A, B, and C matrices.
 /// Each batch instance is located at a fixed element offset from the previous instance.
-/// The first A, B, and C matrices are passed with element strides `stride_a`,
-/// `stride_b`, and `stride_c`, which determine the locations of later batch instances.
+/// The first A, B, and C matrices are passed with element strides `stride_a`, `stride_b`, and `stride_c`, which determine the locations of later batch instances.
 ///
 /// $$ C + i\cdot {\`text{stride_c`}} = \alpha\text{op}(A + i\cdot {\`text{stride_a}})\text{op}(B` + i\cdot {\`text{stride_b`}}) + \beta(C + i\cdot {\`text{stride_c}}),\text`{ for i } \in \lbrack `0,\text{batch_count`} - 1\rbrack $$
 ///
-/// Here $\alpha$ and $\beta$ are scalars. `a`, `b`, and `c` are strided
-/// column-major matrix batches with dimensions $\text{op}(A\lbrack i\rbrack)$
-/// $m \times k$, $\text{op}(B\lbrack i\rbrack)$ $k \times n$, and
-/// $C\lbrack i\rbrack$ $m \times n$, respectively.
+/// Here $\alpha$ and $\beta$ are scalars.
+/// `a`, `b`, and `c` are strided column-major matrix batches with dimensions $\text{op}(A\lbrack i\rbrack)$ $m \times k$, $\text{op}(B\lbrack i\rbrack)$ $k \times n$, and $C\lbrack i\rbrack$ $m \times n$, respectively.
 /// For matrix $A$:
 ///
 /// $$ \text{op}(A) = \left\\{ \begin{matrix} A & {\text{if } \`texttt{transpose_a` = `Operation::NonTranspose`}} \\\\ A^{T} & {\text{if } \`texttt{transpose_a` = `Operation::Transpose`}} \\\\ A^{H} & {\text{if } \`texttt{transpose_a` = `Operation::ConjugateTranspose`}} \\\\ \end{matrix} \right. $$
 ///
 /// $\text{op}(B\lbrack i\rbrack)$ is defined similarly for matrix $B\lbrack i\rbrack$.
 ///
-/// For some problem sizes, multiple typed cuBLAS GEMM calls in different CUDA
-/// streams may be faster than this batched routine.
+/// For some problem sizes, multiple typed cuBLAS GEMM calls in different CUDA streams may be faster than this batched routine.
 ///
 /// See [sgemm()](https://www.netlib.org/blas/sgemm.f).
 ///
 /// # Errors
 ///
-/// Returns an error if the context cannot be used with host pointer mode, the
-/// device does not support strided-batched GEMM Ex, dimensions, leading
-/// dimensions, or strides are invalid, device allocations are too small, a data
-/// type or algorithm combination is unsupported, or cuBLAS rejects or fails the
-/// operation.
+/// Returns an error if the context cannot be used with host pointer mode, the device does not support strided-batched GEMM Ex, dimensions, leading dimensions, or strides are invalid, device allocations are too small, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
 #[allow(
     clippy::doc_markdown,
     reason = "upstream LaTeX formulas contain identifiers that are not Markdown code spans"
@@ -1525,6 +1570,121 @@ pub fn gemm_strided_batched_ex<TAlpha, TA, TB, TBeta, TC>(
         ))?;
     }
 
+    Ok(())
+}
+
+/// Performs [`gemm_strided_batched_ex`] on device views, so callers can multiply strided batches inside larger allocations.
+///
+/// `alpha` and `beta` are host values of the type `compute_type` expects.
+/// The element types of the views only size them; `a_type`, `b_type`, and `c_type` give the matrix encodings.
+/// Input strides may be zero, which multiplies the same matrix in every batch instance.
+///
+/// # Safety
+///
+/// The views must hold values valid for their declared data types, `alpha` and `beta` must have the type `compute_type` reads, and the caller must order the work on `context`'s stream against other users of the memory until it completes.
+///
+/// # Errors
+///
+/// Returns an error if a view belongs to another CUDA context, the context cannot use host pointer mode, dimensions, leading dimensions, or strides are invalid, views are too small for the batches, output batches overlap, a data type or algorithm combination is unsupported, or cuBLAS rejects or fails the operation.
+pub unsafe fn gemm_strided_batched_ex_views<
+    TAlpha,
+    TA: DeviceRepr,
+    TB: DeviceRepr,
+    TBeta,
+    TC: DeviceRepr,
+>(
+    context: &Context,
+    transpose_a: Operation,
+    transpose_b: Operation,
+    m: usize,
+    n: usize,
+    k: usize,
+    alpha: &TAlpha,
+    a: &(impl DeviceInput<TA> + ?Sized),
+    a_type: DataType,
+    lda: usize,
+    stride_a: i64,
+    b: &(impl DeviceInput<TB> + ?Sized),
+    b_type: DataType,
+    ldb: usize,
+    stride_b: i64,
+    beta: &TBeta,
+    c: &mut impl DeviceOutput<TC>,
+    c_type: DataType,
+    ldc: usize,
+    stride_c: i64,
+    batch_count: usize,
+    compute_type: ComputeType,
+    algorithm: GemmAlgorithm,
+) -> Result<()> {
+    context.bind()?;
+    if a.region().context() != context.cuda_context()
+        || b.region().context() != context.cuda_context()
+        || c.region().context() != context.cuda_context()
+    {
+        return Err(CudaError::MemoryContextMismatch.into());
+    }
+
+    context.require_host_pointer_mode()?;
+    validate_gemm_parameters(transpose_a, transpose_b, m, n, k, lda, ldb, ldc)?;
+    validate_gemm_shapes(
+        transpose_a,
+        transpose_b,
+        m,
+        n,
+        k,
+        a.len(),
+        lda,
+        b.len(),
+        ldb,
+        c.len(),
+        ldc,
+    )?;
+    validate_strided_batched_gemm_shapes(
+        transpose_a,
+        transpose_b,
+        m,
+        n,
+        k,
+        a.len(),
+        lda,
+        stride_a,
+        b.len(),
+        ldb,
+        stride_b,
+        c.len(),
+        ldc,
+        stride_c,
+        batch_count,
+    )?;
+    // SAFETY: the views address live allocations in this context, sized by the validated batches; the caller upholds the value and ordering contract.
+    unsafe {
+        try_ffi!(sys::cublasGemmStridedBatchedEx_64(
+            context.as_raw(),
+            transpose_a.into(),
+            transpose_b.into(),
+            to_i64(m, "m")?,
+            to_i64(n, "n")?,
+            to_i64(k, "k")?,
+            ptr::from_ref(alpha).cast(),
+            a.as_device_ptr().cast(),
+            a_type.into(),
+            to_i64(lda, "lda")?,
+            stride_a,
+            b.as_device_ptr().cast(),
+            b_type.into(),
+            to_i64(ldb, "ldb")?,
+            stride_b,
+            ptr::from_ref(beta).cast(),
+            c.as_mut_ptr().cast(),
+            c_type.into(),
+            to_i64(ldc, "ldc")?,
+            stride_c,
+            to_i64(batch_count, "batch_count")?,
+            compute_type.into(),
+            algorithm.into(),
+        ))?;
+    }
     Ok(())
 }
 
@@ -2122,6 +2282,7 @@ fn validate_gemm_shapes(
     if m == 0 || n == 0 {
         return Ok(());
     }
+
     let (a_rows, a_cols) = if transpose_a == Operation::NonTranspose {
         (m, k)
     } else {
@@ -2190,42 +2351,55 @@ fn validate_strided_batched_gemm_shapes(
         return Ok(());
     }
 
-    let a_cols = if transpose_a == Operation::NonTranspose {
-        k
+    let (a_rows, a_cols) = if transpose_a == Operation::NonTranspose {
+        (m, k)
     } else {
-        m
+        (k, m)
     };
-    let b_cols = if transpose_b == Operation::NonTranspose {
-        n
+    let (b_rows, b_cols) = if transpose_b == Operation::NonTranspose {
+        (k, n)
     } else {
-        k
+        (n, k)
     };
 
+    // Inputs need only the elements their matrices address; outputs keep whole columns apart.
     validate_strided_buffer_len(
         a_len,
-        required_matrix_len(lda, a_cols)?,
+        required_matrix_span(a_rows, a_cols, lda)?,
         stride_a,
         batch_count,
+        true,
     )?;
     validate_strided_buffer_len(
         b_len,
-        required_matrix_len(ldb, b_cols)?,
+        required_matrix_span(b_rows, b_cols, ldb)?,
         stride_b,
         batch_count,
+        true,
     )?;
-    validate_strided_buffer_len(c_len, required_matrix_len(ldc, n)?, stride_c, batch_count)?;
+    validate_strided_buffer_len(
+        c_len,
+        required_matrix_len(ldc, n)?,
+        stride_c,
+        batch_count,
+        false,
+    )?;
 
     Ok(())
 }
 
+/// Checks that `length` elements hold `batch_count` matrices of `matrix_len` elements, `stride` apart.
+///
+/// Input batches may overlap, so a zero stride broadcasts one matrix to every batch instance; output batches may not.
 fn validate_strided_buffer_len(
     length: usize,
     matrix_len: usize,
     stride: i64,
     batch_count: usize,
+    overlap_allowed: bool,
 ) -> Result<()> {
     let stride = to_usize(stride, "stride")?;
-    if stride < matrix_len {
+    if !overlap_allowed && batch_count > 1 && stride < matrix_len {
         return Err(Error::InvalidMatrixShape);
     }
 
@@ -2282,6 +2456,7 @@ fn validate_geam_shapes(
     if lda < a_rows || ldb < b_rows || ldc < m {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, a_cols)?
         || b_len < required_matrix_len(ldb, b_cols)?
         || c_len < required_matrix_len(ldc, n)?
@@ -2306,6 +2481,7 @@ fn validate_dgmm_shapes(
     if lda < m || ldc < m || incx == 0 {
         return Err(Error::InvalidIncrement);
     }
+
     let x_size = match side {
         SideMode::Left => m,
         SideMode::Right => n,
@@ -2324,6 +2500,7 @@ fn validate_tpttr_shapes(n: usize, ap_len: usize, a_len: usize, lda: usize) -> R
     if lda < n {
         return Err(Error::InvalidLeadingDimension);
     }
+
     let packed_len = required_packed_triangular_len(n)?;
     if ap_len < packed_len || a_len < required_matrix_len(lda, n)? {
         return Err(Error::InvalidMatrixShape);
@@ -2359,9 +2536,11 @@ fn validate_symmetric_matrix_multiply_shapes(
     if lda < a_dimension || ldb < m || ldc < m {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, a_dimension)? {
         return Err(Error::InvalidMatrixShape);
     }
+
     if b_len < required_matrix_len(ldb, n)? || c_len < required_matrix_len(ldc, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -2391,6 +2570,7 @@ fn validate_syrk_shapes(
     if lda < a_rows || ldc < n {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if a_len < required_matrix_len(lda, a_cols)? || c_len < required_matrix_len(ldc, n)? {
         return Err(Error::InvalidMatrixShape);
     }
@@ -2424,6 +2604,7 @@ fn validate_syr2k_shapes(
     if ldb < b_rows {
         return Err(Error::InvalidLeadingDimension);
     }
+
     if b_len < required_matrix_len(ldb, b_cols)? {
         return Err(Error::InvalidMatrixShape);
     }

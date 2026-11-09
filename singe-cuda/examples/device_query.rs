@@ -1,5 +1,4 @@
-//! Rust take on the CUDA "deviceQuery" sample: print the driver and runtime
-//! versions and the main properties of every visible device.
+//! Rust take on the CUDA "deviceQuery" sample: print the driver and runtime versions and the main properties of every visible device.
 
 use std::error::Error;
 

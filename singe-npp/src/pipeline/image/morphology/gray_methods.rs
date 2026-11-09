@@ -14,25 +14,21 @@ where
     T: Copy + SupportedImage<C1>,
 {
     /// Performs grayscale dilation with the supplied mask weights.
-    /// Adds the corresponding signed mask value to each source sample before the native
-    /// clamping and maximum selection. The provided implementations use `i32` masks for
-    /// `u8` images and `f32` masks for `f32` images.
-    /// Passes `mask.as_ptr()` directly to NPP as its device mask address. The slice storage
-    /// must also be GPU-readable in the selected CUDA context; this call does not upload it.
+    /// Adds the corresponding signed mask value to each source sample before the native clamping and maximum selection.
+    /// The provided implementations use `i32` masks for `u8` images and `f32` masks for `f32` images.
+    /// Passes `mask.as_ptr()` directly to NPP as its device mask address.
+    /// The slice storage must also be GPU-readable in the selected CUDA context; this call does not upload it.
     /// `source_offset` locates the output ROI in the full source image.
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// Allocates a new owned image spanning from `source_offset` to the lower-right source edge.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and
-    /// `anchor` must lie within the mask.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     /// Image allocation, view construction can also fail.
     pub fn gray_dilate_border<M>(
         self,
@@ -57,25 +53,21 @@ where
     }
 
     /// Performs grayscale erosion with the supplied mask weights.
-    /// Adds the corresponding signed mask value to each source sample before the native
-    /// clamping and minimum selection. The provided implementations use `i32` masks for
-    /// `u8` images and `f32` masks for `f32` images.
-    /// Passes `mask.as_ptr()` directly to NPP as its device mask address. The slice storage
-    /// must also be GPU-readable in the selected CUDA context; this call does not upload it.
+    /// Adds the corresponding signed mask value to each source sample before the native clamping and minimum selection.
+    /// The provided implementations use `i32` masks for `u8` images and `f32` masks for `f32` images.
+    /// Passes `mask.as_ptr()` directly to NPP as its device mask address.
+    /// The slice storage must also be GPU-readable in the selected CUDA context; this call does not upload it.
     /// `source_offset` locates the output ROI in the full source image.
     /// The native routines support `BorderType::Replicate`; other values are forwarded to NPP.
     /// Allocates a new owned image spanning from `source_offset` to the lower-right source edge.
-    /// Prepares participating image regions, waits for their producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for their producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and
-    /// `anchor` must lie within the mask.
-    /// The source offset must select a source pixel, checked ROI endpoints must fit inside
-    /// the source, and output dimensions must be positive.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// Mask dimensions must be positive, their checked product must equal `mask.len()`, and `anchor` must lie within the mask.
+    /// The source offset must select a source pixel, checked ROI endpoints must fit inside the source, and output dimensions must be positive.
     /// Image allocation, view construction can also fail.
     pub fn gray_erode_border<M>(
         self,

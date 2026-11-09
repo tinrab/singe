@@ -15,18 +15,16 @@ where
     Self: DirectionalBorderFilterImage<T, L>,
 {
     /// Applies the native sharpening filter with border control.
-    /// `source_offset` locates the output ROI in the full source. Allocates a new owned
-    /// output spanning from that offset to the lower-right source edge.
+    /// `source_offset` locates the output ROI in the full source.
+    /// Allocates a new owned output spanning from that offset to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn filter_sharpen_border(
         self,
@@ -44,6 +42,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as DirectionalBorderFilterImage<T, L>>::filter_sharpen_border_image(
                 self.stream_context,
                 &source,
@@ -69,25 +68,23 @@ where
     Self: UnsharpBorderFilterImage<T, L>,
 {
     /// Sharpens the image with a Gaussian unsharp mask and border control.
-    /// `radius` is the Gaussian radius in pixels, excluding the center; `sigma` is its
-    /// standard deviation in pixels. Adds `weight * (source - blurred)` where the absolute
-    /// difference is at least `threshold`. `weight` and `threshold` are forwarded unchecked.
-    /// The native routine supports replicated borders; the wrapper forwards `border_type`
-    /// without validating it. Queries and allocates temporary device scratch.
-    /// `source_offset` locates the output ROI in the full source. Allocates a new owned
-    /// output spanning from that offset to the lower-right source edge.
+    /// `radius` is the Gaussian radius in pixels, excluding the center; `sigma` is its standard deviation in pixels.
+    /// Adds `weight * (source - blurred)` where the absolute difference is at least `threshold`.
+    /// `weight` and `threshold` are forwarded unchecked.
+    /// The native routine supports replicated borders; the wrapper forwards `border_type` without validating it.
+    /// Queries and allocates temporary device scratch.
+    /// `source_offset` locates the output ROI in the full source.
+    /// Allocates a new owned output spanning from that offset to the lower-right source edge.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The source offset must select a source pixel, and the destination-sized ROI must fit
-    /// inside the source without coordinate overflow.
-    /// `radius` and `sigma` must compare greater than zero. The scratch-size query and device
-    /// scratch allocation can also fail.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The source offset must select a source pixel, and the destination-sized ROI must fit inside the source without coordinate overflow.
+    /// `radius` and `sigma` must compare greater than zero.
+    /// The scratch-size query and device scratch allocation can also fail.
     /// Image allocation, view construction, or alpha preservation copies can also fail.
     pub fn filter_unsharp_border(
         self,
@@ -109,6 +106,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&output_window.view())?;
             }
+
             <Self as UnsharpBorderFilterImage<T, L>>::filter_unsharp_border_image(
                 self.stream_context,
                 &source,

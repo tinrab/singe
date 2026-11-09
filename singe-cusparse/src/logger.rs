@@ -13,8 +13,7 @@ use crate::{error::Result, try_ffi};
 ///
 /// # Safety
 ///
-/// `callback`, if present, must remain valid for use by cuSPARSE and must
-/// follow the callback ABI expected by the library.
+/// `callback`, if present, must remain valid for use by cuSPARSE and must follow the callback ABI expected by the library.
 ///
 /// # Errors
 ///
@@ -54,8 +53,7 @@ pub fn set_mask(mask: i32) -> Result<()> {
 }
 
 /// Experimental: sets the logging output file.
-/// Once registered, the provided file handle must remain open until another
-/// file handle is registered.
+/// Once registered, the provided file handle must remain open until another file handle is registered.
 ///
 /// # Safety
 ///
@@ -76,8 +74,7 @@ pub unsafe fn set_file(file: *mut sys::FILE) -> Result<()> {
 ///
 /// # Errors
 ///
-/// Returns an error if `path` cannot be converted to a C string or if
-/// cuSPARSE cannot open the log file.
+/// Returns an error if `path` cannot be converted to a C string or if cuSPARSE cannot open the log file.
 pub fn open_file(path: impl AsRef<Path>) -> Result<()> {
     let path = path_to_cstring(path.as_ref())?;
     // SAFETY: `cusparseLoggerOpenFile` receives pointers into buffers borrowed for the call.

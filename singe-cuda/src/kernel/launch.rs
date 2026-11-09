@@ -167,7 +167,8 @@ pub enum SharedMemoryRequirement {
 /// Leave them unspecified only when the kernel has no corresponding restriction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LaunchRequirements {
-    /// Axes used by the kernel's indexing scheme. Unused grid and block axes must equal one.
+    /// Axes used by the kernel's indexing scheme.
+    /// Unused grid and block axes must equal one.
     pub rank: LaunchRank,
     /// Optional integer width bounding the largest launched coordinate on every axis, including padded threads.
     pub axis_coordinates: Option<CoordinateWidth>,
@@ -179,9 +180,11 @@ pub struct LaunchRequirements {
     pub shared_memory: SharedMemoryRequirement,
     /// Minimum device compute capability as `(major, minor)`, or `None` for no additional minimum.
     pub min_compute_capability: Option<(u32, u32)>,
-    /// Required cluster dimensions in blocks, or `None` for no signature-specific cluster shape. Native kernel requirements still apply.
+    /// Required cluster dimensions in blocks, or `None` for no signature-specific cluster shape.
+    /// Native kernel requirements still apply.
     pub cluster: Option<Dim3>,
-    /// Whether the launch must explicitly enable cooperative execution. A false value also permits cooperative launches when the device supports them.
+    /// Whether the launch must explicitly enable cooperative execution.
+    /// A false value also permits cooperative launches when the device supports them.
     pub cooperative: bool,
 }
 
@@ -209,10 +212,10 @@ impl LaunchRequirements {
 ///
 /// # Safety
 ///
-/// `encode` must encode exactly `PARAMETERS`, in order, using the declared CUDA
-/// representation and access modes. `raw_arguments` must preserve that order and
-/// check every typed view's actual context. By-value representations must contain no
-/// uninitialized bytes. The requirements must describe the kernel being bound.
+/// `encode` must encode exactly `PARAMETERS`, in order, using the declared CUDA representation and access modes.
+/// `raw_arguments` must preserve that order and check every typed view's actual context.
+/// By-value representations must contain no uninitialized bytes.
+/// The requirements must describe the kernel being bound.
 /// This contract does not certify argument-dependent memory bounds or output coverage.
 pub unsafe trait KernelSignature: 'static {
     /// Typed values and borrowed device views in declaration order.
@@ -223,6 +226,7 @@ pub unsafe trait KernelSignature: 'static {
 
     /// Host ABI layouts of the CUDA parameters, in declaration order.
     const PARAMETERS: &'static [ParameterLayout];
+
     /// Indexing and execution requirements checked when binding a launch configuration.
     const REQUIREMENTS: LaunchRequirements;
 
@@ -230,7 +234,8 @@ pub unsafe trait KernelSignature: 'static {
     ///
     /// # Errors
     ///
-    /// Returns an error if a typed device view belongs to another context or the implementation cannot convert the supplied values to its raw argument representation. Implementations may impose additional argument-specific checks.
+    /// Returns an error if a typed device view belongs to another context or the implementation cannot convert the supplied values to its raw argument representation.
+    /// Implementations may impose additional argument-specific checks.
     fn raw_arguments(
         arguments: Self::Arguments<'_>,
         context: &Arc<Context>,
@@ -349,8 +354,8 @@ pub enum LaunchContractError {
 
 /// A typed kernel and checked configuration retaining the native code owner.
 ///
-/// Preparation checks the signature and launch requirements. It does not launch
-/// work, initialize output storage, or prove argument-dependent accesses valid.
+/// Preparation checks the signature and launch requirements.
+/// It does not launch work, initialize output storage, or prove argument-dependent accesses valid.
 /// Immediate submissions, capture and graph-node creation share this configuration.
 /// Executable-node updates reuse its geometry and preserve the executable's existing attributes.
 pub struct PreparedLaunch<K: KernelSignature> {
@@ -389,7 +394,9 @@ impl<K: KernelSignature> PreparedLaunch<K> {
     ///
     /// # Errors
     ///
-    /// Returns a [`LaunchContractError`] for parameter count or layout mismatches, layout overflow, incompatible launch requirements, or exceeded function or device limits. Also propagates context binding, native parameter or attribute query, occupancy, resource query, and integer conversion errors. No work is launched on success.
+    /// Returns a [`LaunchContractError`] for parameter count or layout mismatches, layout overflow, incompatible launch requirements, or exceeded function or device limits.
+    /// Also propagates context binding, native parameter or attribute query, occupancy, resource query, and integer conversion errors.
+    /// No work is launched on success.
     pub unsafe fn create(function: &KernelFunction, config: LaunchConfig) -> Result<Self> {
         validate_parameters::<K>(function)?;
         validate_requirements(function, &config, K::REQUIREMENTS)?;
@@ -551,7 +558,8 @@ impl<K: KernelSignature> PreparedLaunch<K> {
     ///
     /// # Errors
     ///
-    /// Returns `CudaError::StreamContextMismatch` if `stream` belongs to another context. Also propagates context binding and native kernel launch errors from [`KernelFunction::launch_on`].
+    /// Returns `CudaError::StreamContextMismatch` if `stream` belongs to another context.
+    /// Also propagates context binding and native kernel launch errors from [`KernelFunction::launch_on`].
     pub unsafe fn launch_on_raw(&self, arguments: K::RawArguments, stream: &Stream) -> Result<()> {
         self.validate_stream(stream)?;
         // SAFETY: the caller upholds this function's safety contract.
@@ -569,7 +577,8 @@ impl<K: KernelSignature> PreparedLaunch<K> {
     ///
     /// # Errors
     ///
-    /// Returns `CudaError::StreamContextMismatch` if the capture stream belongs to another context. Also propagates context binding and native launch errors from [`Self::launch_on_raw`].
+    /// Returns `CudaError::StreamContextMismatch` if the capture stream belongs to another context.
+    /// Also propagates context binding and native launch errors from [`Self::launch_on_raw`].
     pub unsafe fn record_raw(
         &self,
         arguments: K::RawArguments,
@@ -690,6 +699,7 @@ fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<
             &raw mut count
         ))?;
     }
+
     if to_usize(count, "kernel parameter count")? != K::PARAMETERS.len() {
         return Err(LaunchContractError::ParameterCount {
             expected: K::PARAMETERS.len(),
@@ -697,6 +707,7 @@ fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<
         }
         .into());
     }
+
     let mut expected_offset = 0_usize;
     for (index, parameter) in K::PARAMETERS.iter().enumerate() {
         let padding = expected_offset.wrapping_neg() & (parameter.alignment - 1);
@@ -714,6 +725,7 @@ fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<
                 &raw mut size
             ))?;
         }
+
         if to_usize(offset, "kernel parameter offset")? != expected_offset
             || to_usize(size, "kernel parameter size")? != parameter.size
         {
@@ -726,6 +738,7 @@ fn validate_parameters<K: KernelSignature>(function: &KernelFunction) -> Result<
             }
             .into());
         }
+
         expected_offset = expected_offset
             .checked_add(parameter.size)
             .ok_or(LaunchContractError::ParameterLayoutOverflow)?;
@@ -775,6 +788,7 @@ fn validate_geometry(
         }
         _ => {}
     }
+
     match required.block {
         BlockRequirement::MaxThreads(n) if volume(block) > u128::from(n) => {
             return Err(LaunchContractError::Block {
@@ -801,6 +815,7 @@ fn validate_geometry(
         }
         _ => {}
     }
+
     let context = function.module().context();
     let device = context.device();
     for (g, b, grid_attr, block_attr) in [
@@ -841,6 +856,7 @@ fn validate_geometry(
             )?;
         }
     }
+
     if let Some(width) = required.linear_coordinates {
         check_limit(
             "linear coordinate",
@@ -851,6 +867,7 @@ fn validate_geometry(
             width.max(),
         )?;
     }
+
     let threads = volume(block);
     check_limit(
         "threads per block",
@@ -897,6 +914,7 @@ fn validate_kernel_geometry(
         }
         _ => {}
     }
+
     if let Some(minimum) = required.min_compute_capability {
         let actual = (
             device.attribute(DeviceAttribute::ComputeCapabilityMajor)? as u32,
@@ -938,6 +956,7 @@ fn validate_requirements(
             _ => {}
         }
     }
+
     let native_cluster = Dim3::new(
         function.attribute(FunctionAttribute::RequiredClusterWidth)? as u32,
         function.attribute(FunctionAttribute::RequiredClusterHeight)? as u32,
@@ -954,6 +973,7 @@ fn validate_requirements(
         }
         .into());
     }
+
     let cluster = cluster.or(native_cluster);
     if required.cluster.is_some() && cluster != required.cluster {
         return Err(LaunchContractError::Cluster {
@@ -962,13 +982,16 @@ fn validate_requirements(
         }
         .into());
     }
+
     if function.attribute(FunctionAttribute::ClusterSizeMustBeSet)? != 0 && cluster.is_none() {
         return Err(LaunchContractError::ClusterRequired.into());
     }
+
     if let Some(dim) = cluster {
         if device.attribute(DeviceAttribute::ClusterLaunch)? == 0 {
             return Err(LaunchContractError::ClusterUnsupported.into());
         }
+
         if dim.x == 0
             || dim.y == 0
             || dim.z == 0
@@ -978,14 +1001,17 @@ fn validate_requirements(
         {
             return Err(LaunchContractError::ClusterGrid { grid, cluster: dim }.into());
         }
+
         let limit = function.occupancy_max_potential_cluster_size(config)?;
         check_limit("cluster blocks", volume(dim), limit as u128)?;
     }
+
     if required.cooperative && !cooperative
         || cooperative && device.attribute(DeviceAttribute::CooperativeLaunch)? == 0
     {
         return Err(LaunchContractError::Cooperative.into());
     }
+
     if let (true, Some(cluster)) = (cooperative, cluster) {
         let active = function.occupancy_max_active_clusters(config)?;
         check_limit(

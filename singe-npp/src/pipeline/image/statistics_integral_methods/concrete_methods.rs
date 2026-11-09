@@ -13,21 +13,18 @@ where
     i32: SupportedImage<C1>,
 {
     /// Computes a C1 integral image from `u8` samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
     /// Produces `i32` integral samples.
     /// The supplied destination must have the complete expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     pub fn integral_to_i32_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, u8, C1>,
@@ -44,21 +41,18 @@ where
     }
 
     /// Computes a C1 integral image from `u8` samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
     /// Produces `i32` integral samples.
     /// Allocates a new owned C1 image with the expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     /// Output allocation or image view construction can also fail.
     pub fn integral_to_i32(mut self, value: i32) -> Result<ImagePipeline<'a, i32, C1>> {
         self.ensure_eager()?;
@@ -77,21 +71,18 @@ where
     f32: SupportedImage<C1>,
 {
     /// Computes a C1 integral image from `u8` samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
     /// Produces `f32` integral samples.
     /// The supplied destination must have the complete expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     pub fn integral_to_f32_into(
         stream_context: &StreamContext,
         source: &ImageView<'_, u8, C1>,
@@ -108,21 +99,18 @@ where
     }
 
     /// Computes a C1 integral image from `u8` samples.
-    /// At output coordinate `(x, y)`, the integral sums source samples in columns before
-    /// `x` and rows before `y`, then adds `value`. This includes a top row and left column
-    /// filled with `value`. Each output is one pixel wider and taller than the source.
+    /// At output coordinate `(x, y)`, the integral sums source samples in columns before `x` and rows before `y`, then adds `value`.
+    /// This includes a top row and left column filled with `value`.
+    /// Each output is one pixel wider and taller than the source.
     /// Produces `f32` integral samples.
     /// Allocates a new owned C1 image with the expanded dimensions.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Writes every logical output
-    /// pixel, including the borders; row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Writes every logical output pixel, including the borders; row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail. Destination width and height
-    /// must each equal the corresponding source dimension plus one; those additions are checked
-    /// for overflow.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
+    /// Destination width and height must each equal the corresponding source dimension plus one; those additions are checked for overflow.
     /// Output allocation or image view construction can also fail.
     pub fn integral_to_f32(mut self, value: f32) -> Result<ImagePipeline<'a, f32, C1>> {
         self.ensure_eager()?;

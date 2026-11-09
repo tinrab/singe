@@ -38,7 +38,8 @@ bitflags::bitflags! {
         const SCHEDULE_YIELD = driver::CUctx_flags::CU_CTX_SCHED_YIELD as _;
         /// Set blocking synchronization as default scheduling.
         const SCHEDULE_BLOCKING_SYNC = driver::CUctx_flags::CU_CTX_SCHED_BLOCKING_SYNC as _;
-        /// Deprecated: This flag was deprecated as of CUDA 11.0 and it no longer has any effect. All contexts as of CUDA 3.2 behave as though the flag is enabled.
+        /// Deprecated: This flag was deprecated as of CUDA 11.0 and it no longer has any effect.
+        /// All contexts as of CUDA 3.2 behave as though the flag is enabled.
         const MAP_HOST = driver::CUctx_flags::CU_CTX_MAP_HOST as _;
         /// Keep local memory allocation after launch.
         const LOCAL_MEMORY_RESIZE_TO_MAX = driver::CUctx_flags::CU_CTX_LMEM_RESIZE_TO_MAX as _;
@@ -74,18 +75,13 @@ impl Display for PeerAccessFlags {
 
 /// A shared CUDA driver context.
 ///
-/// Unlike cuBLAS, cuDNN, cuFFT, and similar library handles, a CUDA context is
-/// the underlying execution environment for a device. It is intended to be
-/// shared by streams, modules, libraries, events, allocations, and higher-level
-/// library wrappers.
+/// Unlike cuBLAS, cuDNN, cuFFT, and similar library handles, a CUDA context is the underlying execution environment for a device.
+/// It is intended to be shared by streams, modules, libraries, events, allocations, and higher-level library wrappers.
 ///
-/// This type is therefore reference-counted by returning [`Arc<Self>`] from the
-/// constructors, and it remains `Send + Sync`. Shared references do not mutate
-/// Rust-visible state on the [`Context`] object itself; methods such as `bind`
-/// update the calling thread's current CUDA context in the driver.
+/// This type is therefore reference-counted by returning [`Arc<Self>`] from the constructors, and it remains `Send + Sync`.
+/// Shared references do not mutate Rust-visible state on the [`Context`] object itself; methods such as `bind` update the calling thread's current CUDA context in the driver.
 ///
-/// Prefer one long-lived context per device and share it across dependent CUDA
-/// objects instead of creating many short-lived contexts.
+/// Prefer one long-lived context per device and share it across dependent CUDA objects instead of creating many short-lived contexts.
 #[derive(Debug)]
 pub struct Context {
     handle: driver::CUcontext,
@@ -125,7 +121,9 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` for a range belonging to another context, `Error::ReentrantAccess` for nested tracked access, or `Error::AccessTrackingPoisoned` if tracking has failed or a tracking lock is poisoned. Also propagates CUDA synchronization or event-query errors and errors returned by `access`. The callback runs only after all required waits succeed.
+    /// Returns `Error::MemoryContextMismatch` for a range belonging to another context, `Error::ReentrantAccess` for nested tracked access, or `Error::AccessTrackingPoisoned` if tracking has failed or a tracking lock is poisoned.
+    /// Also propagates CUDA synchronization or event-query errors and errors returned by `access`.
+    /// The callback runs only after all required waits succeed.
     pub fn with_host_access<T>(
         &self,
         regions: &[DeviceRegion<'_>],
@@ -135,18 +133,19 @@ impl Context {
         access()
     }
 
-    /// Waits for conflicting submitted uses and declared readiness streams, then holds
-    /// these access declarations against concurrent tracked submissions while `access` runs.
+    /// Waits for conflicting submitted uses and declared readiness streams, then holds these access declarations against concurrent tracked submissions while `access` runs.
     /// The declarations retain context and ordering metadata, not allocation owners.
     ///
     /// # Safety
     /// Keep the declared storage live and obey each declaration's access mode.
-    /// Any asynchronous work using these ranges must complete before the callback returns
-    /// or unwinds. Nested tracked access is rejected rather than waiting on its own guard.
+    /// Any asynchronous work using these ranges must complete before the callback returns or unwinds.
+    /// Nested tracked access is rejected rather than waiting on its own guard.
     ///
     /// # Errors
     ///
-    /// Converts tracking errors into `E` if a nonportable access belongs to another context, access is reentrant, tracking has failed, or a tracking lock is poisoned. Also converts errors from synchronizing conflicting uses or readiness streams and querying completion events. Errors returned by `access` pass through unchanged; the callback runs only after all required waits succeed.
+    /// Converts tracking errors into `E` if a nonportable access belongs to another context, access is reentrant, tracking has failed, or a tracking lock is poisoned.
+    /// Also converts errors from synchronizing conflicting uses or readiness streams and querying completion events.
+    /// Errors returned by `access` pass through unchanged; the callback runs only after all required waits succeed.
     pub unsafe fn with_synchronized_accesses<T, E>(
         &self,
         accesses: &[Access],
@@ -174,6 +173,7 @@ impl Context {
         for access in accesses {
             access.validate_context(self)?;
         }
+
         let mut tracker = lock_access(&self.access_tracker, accesses)?;
         for access in accesses {
             tracker.synchronize_access(access)?;
@@ -185,17 +185,20 @@ impl Context {
     }
 
     /// Enables this actual context to directly access `peer` allocations.
-    /// Already-enabled access succeeds. The permission is unidirectional and
-    /// persists until explicitly disabled or either context is destroyed.
+    /// Already-enabled access succeeds.
+    /// The permission is unidirectional and persists until explicitly disabled or either context is destroyed.
     /// Pool allocations additionally follow their pool's access descriptors.
     ///
     /// # Errors
     ///
-    /// Returns `Error::InvalidValue` for nondefault flags. Also returns an error if this context cannot be bound or CUDA rejects peer access, for example because the device pair does not support it or the peer-access limit is reached. Already-enabled access succeeds.
+    /// Returns `Error::InvalidValue` for nondefault flags.
+    /// Also returns an error if this context cannot be bound or CUDA rejects peer access, for example because the device pair does not support it or the peer-access limit is reached.
+    /// Already-enabled access succeeds.
     pub fn enable_peer_access(&self, peer: &Self, flags: PeerAccessFlags) -> Result<()> {
         if flags != PeerAccessFlags::DEFAULT {
             return Err(Error::InvalidValue);
         }
+
         self.bind()?;
         // SAFETY: `cuCtxEnablePeerAccess` receives live handles owned by the wrappers.
         let status = unsafe { driver::cuCtxEnablePeerAccess(peer.as_raw(), flags.bits()) };
@@ -208,9 +211,9 @@ impl Context {
     /// Disables this actual context's direct access to `peer` allocations.
     ///
     /// # Safety
-    /// Complete every access that relies on this permission, including graph
-    /// replays, before disabling it. Do not use retained peer-copy objects or
-    /// peer pointers again until access is re-enabled. Exclude concurrent uses.
+    /// Complete every access that relies on this permission, including graph replays, before disabling it.
+    /// Do not use retained peer-copy objects or peer pointers again until access is re-enabled.
+    /// Exclude concurrent uses.
     ///
     /// # Errors
     ///
@@ -223,7 +226,8 @@ impl Context {
 
     /// Creates a context for the calling thread's current runtime device using default context flags.
     ///
-    /// The new context becomes current on this thread. The last owning wrapper destroys it.
+    /// The new context becomes current on this thread.
+    /// The last owning wrapper destroys it.
     ///
     /// # Errors
     ///
@@ -234,7 +238,8 @@ impl Context {
 
     /// Creates a context for the calling thread's current runtime device with `flags`.
     ///
-    /// The new context becomes current on this thread. The last owning wrapper destroys it.
+    /// The new context becomes current on this thread.
+    /// The last owning wrapper destroys it.
     ///
     /// # Errors
     ///
@@ -246,22 +251,26 @@ impl Context {
 
     /// Creates a context for `device` using default context flags.
     ///
-    /// The new context becomes current on the calling thread. The last owning wrapper destroys it.
+    /// The new context becomes current on the calling thread.
+    /// The last owning wrapper destroys it.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA initialization or context creation fails, including invalid creation flags, an unavailable device, or insufficient resources. Returns `Error::NullHandle` if CUDA reports success with a null context handle.
+    /// Returns an error if CUDA initialization or context creation fails, including invalid creation flags, an unavailable device, or insufficient resources.
+    /// Returns `Error::NullHandle` if CUDA reports success with a null context handle.
     pub fn create_for_device(device: Device) -> Result<Arc<Self>> {
         Self::create_for_device_with_flags(device, ContextFlags::empty())
     }
 
     /// Creates a context for `device` with `flags` and makes it current on the calling thread.
     ///
-    /// The last owning wrapper destroys this context. Creating another context for the same device creates a separate execution environment.
+    /// The last owning wrapper destroys this context.
+    /// Creating another context for the same device creates a separate execution environment.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA initialization or context creation fails, including invalid creation flags, an unavailable device, or insufficient resources. Returns `Error::NullHandle` if CUDA reports success with a null context handle.
+    /// Returns an error if CUDA initialization or context creation fails, including invalid creation flags, an unavailable device, or insufficient resources.
+    /// Returns `Error::NullHandle` if CUDA reports success with a null context handle.
     pub fn create_for_device_with_flags(device: Device, flags: ContextFlags) -> Result<Arc<Self>> {
         // SAFETY: `cuInit`, `cuCtxCreate_v4` receive valid output locations.
         unsafe {
@@ -283,18 +292,20 @@ impl Context {
                 handle,
                 device,
                 ownership: RawContextOwnership::Created,
-                access_tracker: AccessTracker::for_context(handle as usize),
+                access_tracker: AccessTracker::for_context(handle as usize)?,
             }))
         }
     }
 
     /// Retains the primary context for `device` and makes it current on the calling thread.
     ///
-    /// The device's primary context is shared with the CUDA runtime. Dropping the last owning wrapper releases this retain; other native retainers may keep the context alive.
+    /// The device's primary context is shared with the CUDA runtime.
+    /// Dropping the last owning wrapper releases this retain; other native retainers may keep the context alive.
     ///
     /// # Errors
     ///
-    /// Returns an error if CUDA initialization, retaining the primary context, or setting it current fails. Returns `Error::NullHandle` if CUDA reports success with a null context handle.
+    /// Returns an error if CUDA initialization, retaining the primary context, or setting it current fails.
+    /// Returns `Error::NullHandle` if CUDA reports success with a null context handle.
     pub fn retain_primary_for_device(device: Device) -> Result<Arc<Self>> {
         // SAFETY: `cuInit`, `cuDevicePrimaryCtxRetain`, `cuCtxSetCurrent` receive valid output locations.
         unsafe {
@@ -316,17 +327,15 @@ impl Context {
                 handle,
                 device,
                 ownership: RawContextOwnership::Primary,
-                access_tracker: AccessTracker::for_context(handle as usize),
+                access_tracker: AccessTracker::for_context(handle as usize)?,
             }))
         }
     }
 
     /// Binds this CUDA context to the calling CPU thread.
     ///
-    /// The "current context" is thread-local driver state. Calling this method
-    /// does not mutate the Rust [`Context`] value itself; it makes this context
-    /// current for subsequent CUDA driver and interoperating runtime calls on
-    /// the current host thread.
+    /// The "current context" is thread-local driver state.
+    /// Calling this method does not mutate the Rust [`Context`] value itself; it makes this context current for subsequent CUDA driver and interoperating runtime calls on the current host thread.
     ///
     /// # Errors
     ///
@@ -339,6 +348,7 @@ impl Context {
             if current_context == self.as_raw() {
                 return Ok(());
             }
+
             try_ffi!(driver::cuCtxSetCurrent(self.as_raw()))?;
         }
         Ok(())
@@ -349,8 +359,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, CUDA cannot load the module, or a
-    /// previous asynchronous launch reported an error.
+    /// Returns an error if the context cannot be bound, CUDA cannot load the module, or a previous asynchronous launch reported an error.
     pub fn load_module(self: &Arc<Self>, image: &ModuleImage<'_>) -> Result<Module> {
         self.load_module_with_metadata(image, None)
     }
@@ -375,10 +384,8 @@ impl Context {
 
     /// Creates an empty CUDA graph associated with this context.
     ///
-    /// Prefer this over [`RawGraph::create`](crate::graph::RawGraph::create)
-    /// for ordinary Singe code. The returned graph carries its context
-    /// association into instantiated executable graphs, allowing launches and
-    /// uploads to reject streams from another context before calling CUDA.
+    /// Prefer this over [`RawGraph::create`](crate::graph::RawGraph::create) for ordinary Singe code.
+    /// The returned graph carries its context association into instantiated executable graphs, allowing launches and uploads to reject streams from another context before calling CUDA.
     ///
     /// # Errors
     ///
@@ -389,11 +396,13 @@ impl Context {
 
     /// Drops this module handle.
     ///
-    /// The module remains loaded while other module handles or objects retaining it exist. Cleanup uses the module's own context; `self` is not used to select a context.
+    /// The module remains loaded while other module handles or objects retaining it exist.
+    /// Cleanup uses the module's own context; `self` is not used to select a context.
     ///
     /// # Errors
     ///
-    /// This method always returns `Ok(())`. Native unloading failures during final cleanup are not returned.
+    /// This method always returns `Ok(())`.
+    /// Native unloading failures during final cleanup are not returned.
     pub fn unload_module(self: &Arc<Self>, module: Module) -> Result<()> {
         drop(module);
         Ok(())
@@ -404,8 +413,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, CUDA cannot load the module, JIT options
-    /// are rejected, or a previous asynchronous launch reported an error.
+    /// Returns an error if the context cannot be bound, CUDA cannot load the module, JIT options are rejected, or a previous asynchronous launch reported an error.
     pub fn load_module_with_options(
         self: &Arc<Self>,
         image: &ModuleImage<'_>,
@@ -430,11 +438,14 @@ impl Context {
 
     /// Retrieves `output` from a compiled NVRTC program and loads it as a module using default JIT settings.
     ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly. LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
+    /// Only PTX, cubin, and Tile IR can be loaded directly.
+    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
     ///
     /// # Errors
     ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or loading the module. Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output. Loading can fail if the context cannot be bound, CUDA rejects the image or JIT settings, the JIT option count exceeds `u32`, or CUDA returns a null module handle.
+    /// Propagates errors from retrieving the selected NVRTC artifact or loading the module.
+    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
+    /// Loading can fail if the context cannot be bound, CUDA rejects the image or JIT settings, the JIT option count exceeds `u32`, or CUDA returns a null module handle.
     pub fn load_nvrtc_module(
         self: &Arc<Self>,
         program: &nvrtc::Program,
@@ -445,11 +456,14 @@ impl Context {
 
     /// Retrieves `output` from a compiled NVRTC program and loads it as a module with `jit_options`.
     ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly. LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
+    /// Only PTX, cubin, and Tile IR can be loaded directly.
+    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
     ///
     /// # Errors
     ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or loading the module. Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output. Loading can fail if the context cannot be bound, CUDA rejects the image or JIT settings, the JIT option count exceeds `u32`, or CUDA returns a null module handle.
+    /// Propagates errors from retrieving the selected NVRTC artifact or loading the module.
+    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
+    /// Loading can fail if the context cannot be bound, CUDA rejects the image or JIT settings, the JIT option count exceeds `u32`, or CUDA returns a null module handle.
     pub fn load_nvrtc_module_with_options(
         self: &Arc<Self>,
         program: &nvrtc::Program,
@@ -462,7 +476,8 @@ impl Context {
 
     /// Loads a CUDA library from `image` using default JIT settings.
     ///
-    /// See [`Self::load_library_with_options`] for eager and lazy loading behavior. The returned library retains this context.
+    /// See [`Self::load_library_with_options`] for eager and lazy loading behavior.
+    /// The returned library retains this context.
     ///
     /// # Errors
     ///
@@ -473,10 +488,8 @@ impl Context {
 
     /// Loads the corresponding library from the given image based on the application defined library loading mode:
     ///
-    /// * If module loading is set to EAGER by the environment variables described in "Module loading", the library is loaded eagerly into all contexts at the time of the call and future contexts at the time of creation until the library
-    ///   is unloaded with [`sys::cuLibraryUnload`](singe_cuda_sys::driver::cuLibraryUnload).
-    /// * If the environment variables are set to LAZY, the library is not immediately loaded into existing contexts and is loaded only when a function is needed for that context,
-    ///   such as a kernel launch.
+    /// * If module loading is set to EAGER by the environment variables described in "Module loading", the library is loaded eagerly into all contexts at the time of the call and future contexts at the time of creation until the library is unloaded with [`sys::cuLibraryUnload`](singe_cuda_sys::driver::cuLibraryUnload).
+    /// * If the environment variables are set to LAZY, the library is not immediately loaded into existing contexts and is loaded only when a function is needed for that context, such as a kernel launch.
     ///
     /// These environment variables are described in the CUDA programming guide under the "CUDA environment variables" section.
     ///
@@ -487,7 +500,9 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, the JIT option count exceeds `u32`, or CUDA rejects the image, options, or required device features. Returns `Error::NullHandle` if CUDA reports success with a null library handle. CUDA may also report errors from previous asynchronous work.
+    /// Returns an error if the context cannot be bound, the JIT option count exceeds `u32`, or CUDA rejects the image, options, or required device features.
+    /// Returns `Error::NullHandle` if CUDA reports success with a null library handle.
+    /// CUDA may also report errors from previous asynchronous work.
     pub fn load_library_with_options(
         self: &Arc<Self>,
         image: &ModuleImage<'_>,
@@ -510,6 +525,7 @@ impl Context {
                 0,
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -519,13 +535,15 @@ impl Context {
 
     /// Retrieves `output` from a compiled NVRTC program and loads it as a CUDA library using default JIT settings.
     ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly. LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
+    /// Only PTX, cubin, and Tile IR can be loaded directly.
+    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
     ///
     /// See [`Self::load_library_with_options`] for eager and lazy loading behavior.
     ///
     /// # Errors
     ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or from [`Self::load_library_with_options`]. Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
+    /// Propagates errors from retrieving the selected NVRTC artifact or from [`Self::load_library_with_options`].
+    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
     pub fn load_nvrtc_library(
         self: &Arc<Self>,
         program: &nvrtc::Program,
@@ -536,13 +554,15 @@ impl Context {
 
     /// Retrieves `output` from a compiled NVRTC program and loads it as a CUDA library with `jit_options`.
     ///
-    /// Only PTX, cubin, and Tile IR can be loaded directly. LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
+    /// Only PTX, cubin, and Tile IR can be loaded directly.
+    /// LTO IR and `OptiX` IR are rejected; link LTO IR before loading it.
     ///
     /// See [`Self::load_library_with_options`] for eager and lazy loading behavior.
     ///
     /// # Errors
     ///
-    /// Propagates errors from retrieving the selected NVRTC artifact or from [`Self::load_library_with_options`]. Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
+    /// Propagates errors from retrieving the selected NVRTC artifact or from [`Self::load_library_with_options`].
+    /// Returns `Error::InvalidValue` for LTO IR or `OptiX` IR; artifact retrieval also rejects empty PTX and cubin output.
     pub fn load_nvrtc_library_with_options(
         self: &Arc<Self>,
         program: &nvrtc::Program,
@@ -555,10 +575,8 @@ impl Context {
 
     /// Loads the corresponding library from the given file based on the application defined library loading mode:
     ///
-    /// * If module loading is set to EAGER by the environment variables described in "Module loading", the library is loaded eagerly into all contexts at the time of the call and future contexts at the time of creation until the library
-    ///   is unloaded with [`sys::cuLibraryUnload`](singe_cuda_sys::driver::cuLibraryUnload).
-    /// * If the environment variables are set to LAZY, the library is not immediately loaded into existing contexts and is loaded only when a function is needed for that context,
-    ///   such as a kernel launch.
+    /// * If module loading is set to EAGER by the environment variables described in "Module loading", the library is loaded eagerly into all contexts at the time of the call and future contexts at the time of creation until the library is unloaded with [`sys::cuLibraryUnload`](singe_cuda_sys::driver::cuLibraryUnload).
+    /// * If the environment variables are set to LAZY, the library is not immediately loaded into existing contexts and is loaded only when a function is needed for that context, such as a kernel launch.
     ///
     /// These environment variables are described in the CUDA programming guide under the "CUDA environment variables" section.
     ///
@@ -569,8 +587,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if this context cannot be bound, if `path` contains an
-    /// interior NUL byte, or if CUDA Driver cannot load the library.
+    /// Returns an error if this context cannot be bound, if `path` contains an interior NUL byte, or if CUDA Driver cannot load the library.
     pub fn load_library_from_file(self: &Arc<Self>, path: &str) -> Result<Library> {
         self.bind()?;
         let path = CString::new(path)?;
@@ -588,6 +605,7 @@ impl Context {
                 0,
             ))?;
         }
+
         if handle.is_null() {
             return Err(Error::NullHandle);
         }
@@ -602,8 +620,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, a preceding task failed, or a previous
-    /// asynchronous launch reported an error.
+    /// Returns an error if the context cannot be bound, a preceding task failed, or a previous asynchronous launch reported an error.
     pub fn synchronize(&self) -> Result<()> {
         self.bind()?;
         // SAFETY: `cuCtxSynchronize` takes no arguments.
@@ -618,8 +635,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, CUDA cannot query the flags, or a
-    /// previous asynchronous launch reported an error.
+    /// Returns an error if the context cannot be bound, CUDA cannot query the flags, or a previous asynchronous launch reported an error.
     pub fn flags(&self) -> Result<ContextFlags> {
         self.bind()?;
         // SAFETY: `cuCtxGetFlags` receives valid output locations.
@@ -643,8 +659,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `limit` is unsupported, CUDA cannot query
-    /// the limit, or a previous asynchronous launch reported an error.
+    /// Returns an error if the context cannot be bound, `limit` is unsupported, CUDA cannot query the limit, or a previous asynchronous launch reported an error.
     pub fn limit(&self, limit: Limit) -> Result<usize> {
         self.bind()?;
         // SAFETY: `cuCtxGetLimit` receives valid output locations.
@@ -662,11 +677,9 @@ impl Context {
     /// Setting each [`Limit`] has its own restrictions.
     ///
     /// * [`Limit::StackSize`] controls the stack size in bytes of each GPU thread.
-    ///   The driver automatically increases the per-thread stack size for each
-    ///   kernel launch as needed.
+    ///   The driver automatically increases the per-thread stack size for each kernel launch as needed.
     ///   This size is not reset back to the original value after each launch.
-    ///   Setting this value will take
-    ///   effect immediately, and if necessary, the device will block until all preceding requested tasks are complete.
+    ///   Setting this value will take effect immediately, and if necessary, the device will block until all preceding requested tasks are complete.
     ///
     /// * [`Limit::PrintfFifoSize`] controls the size in bytes of the FIFO used by the `printf()` device system call.
     ///   Configure [`Limit::PrintfFifoSize`] before launching any kernel that uses the `printf()` device system call; otherwise [`crate::error::Status::InvalidValue`] is returned.
@@ -677,8 +690,7 @@ impl Context {
     /// * [`Limit::DevRuntimeSyncDepth`] controls the maximum nesting depth of a grid at which a thread can safely call [`Device::synchronize`].
     ///   Setting this limit must be performed before any launch of a kernel that uses the device runtime and calls [`Device::synchronize`] above the default sync depth, two levels of grids.
     ///   Calls to [`Device::synchronize`] fail if this limit is violated.
-    ///   This limit can be set smaller than the default or up to the maximum launch depth of 24.
-    ///   Additional sync-depth levels require the driver to reserve large amounts of device memory that can no longer be used for application allocations.
+    ///   This limit can be set smaller than the default or up to the maximum launch depth of 24. Additional sync-depth levels require the driver to reserve large amounts of device memory that can no longer be used for application allocations.
     ///   If these reservations of device memory fail, [`Context::set_limit`] returns [`crate::error::Status::OutOfMemory`], and the limit can be reset to a lower value.
     ///   This limit is only applicable to devices of compute capability &lt; 9.0.
     ///   Setting this limit on devices of other compute capability versions returns [`crate::error::Status::UnsupportedLimit`].
@@ -701,8 +713,7 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// Returns an error if the context cannot be bound, `limit` is unsupported, CUDA rejects the
-    /// requested value, or a previous asynchronous launch reported an error.
+    /// Returns an error if the context cannot be bound, `limit` is unsupported, CUDA rejects the requested value, or a previous asynchronous launch reported an error.
     pub fn set_limit(&self, limit: Limit, value: usize) -> Result<()> {
         self.bind()?;
         // SAFETY: `cuCtxSetLimit` receives only plain values.
@@ -720,7 +731,8 @@ impl Context {
 
     /// Returns the borrowed native context handle.
     ///
-    /// The handle remains owned according to this wrapper's [`RawContextOwnership`]. Returning it does not retain the context or transfer release responsibility.
+    /// The handle remains owned according to this wrapper's [`RawContextOwnership`].
+    /// Returning it does not retain the context or transfer release responsibility.
     #[must_use]
     pub const fn as_raw(&self) -> driver::CUcontext {
         self.handle
@@ -730,16 +742,14 @@ impl Context {
     ///
     /// # Safety
     ///
-    /// `handle` must be a valid CUDA context for `device`, and no other Rust
-    /// wrapper may own the same release responsibility. `ownership` must match
-    /// how the context should be released: created contexts are destroyed with
-    /// `cuCtxDestroy`, while primary contexts are released with
-    /// `cuDevicePrimaryCtxRelease`.
+    /// `handle` must be a valid CUDA context for `device`, and no other Rust wrapper may own the same release responsibility.
+    /// `ownership` must match how the context should be released: created contexts are destroyed with `cuCtxDestroy`, while primary contexts are released with `cuDevicePrimaryCtxRelease`.
     /// Borrowed contexts retain an external owner instead of acquiring release responsibility.
     ///
     /// # Errors
     ///
-    /// Returns `Error::NullHandle` if `handle` is null. Other handle validity and ownership requirements are the caller's responsibility.
+    /// Returns `Error::NullHandle` if `handle` is null.
+    /// Other handle validity and ownership requirements are the caller's responsibility.
     pub unsafe fn from_raw(
         handle: driver::CUcontext,
         device: Device,
@@ -753,14 +763,13 @@ impl Context {
             handle,
             device,
             ownership,
-            access_tracker: AccessTracker::for_context(handle as usize),
+            access_tracker: AccessTracker::for_context(handle as usize)?,
         }))
     }
 
     /// Transfers ownership of the raw CUDA context to the caller.
     ///
-    /// The caller becomes responsible for releasing the returned context
-    /// according to the returned ownership mode.
+    /// The caller becomes responsible for releasing the returned context according to the returned ownership mode.
     /// For borrowed contexts, keep the returned external token live while using the raw handle.
     #[must_use]
     pub fn into_raw_parts(mut self) -> (driver::CUcontext, Device, RawContextOwnership) {
@@ -793,8 +802,10 @@ impl Drop for Context {
             };
 
             if let Err(error) = result {
-                #[cfg(debug_assertions)]
-                eprintln!("failed to destroy cuda context wrapper: {error}");
+                eprintln!(
+                    "failed to destroy cuda context wrapper: {}",
+                    singe_core::ErrorChain(&error)
+                );
             }
         }
     }

@@ -13,9 +13,7 @@ use singe_cublas_sys as sys;
 /// Indicates whether scalar values are read from host memory or device memory.
 ///
 /// If an operation uses several scalar values, all of them must use the same pointer mode.
-/// The pointer mode can be set and retrieved using
-/// [`Context::set_scalar_pointer_mode`](crate::context::Context::set_scalar_pointer_mode) and
-/// [`Context::scalar_pointer_mode`](crate::context::Context::scalar_pointer_mode), respectively.
+/// The pointer mode can be set and retrieved using [`Context::set_scalar_pointer_mode`](crate::context::Context::set_scalar_pointer_mode) and [`Context::scalar_pointer_mode`](crate::context::Context::scalar_pointer_mode), respectively.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -30,9 +28,7 @@ impl_enum_conversion!(sys::cublasPointerMode_t, PointerMode);
 
 /// Indicates whether cuBLAS operations that have an alternate implementation using atomics can use it.
 ///
-/// The atomics mode can be set and queried using
-/// [`Context::set_atomics_mode`](crate::context::Context::set_atomics_mode) and
-/// [`Context::atomics_mode`](crate::context::Context::atomics_mode), respectively.
+/// The atomics mode can be set and queried using [`Context::set_atomics_mode`](crate::context::Context::set_atomics_mode) and [`Context::atomics_mode`](crate::context::Context::atomics_mode), respectively.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -46,15 +42,12 @@ pub enum AtomicsMode {
 impl_enum_conversion!(sys::cublasAtomicsMode_t, AtomicsMode);
 
 bitflags::bitflags! {
-    /// [`MathMode`] is used with [`Context::set_math_mode`](crate::context::Context::set_math_mode)
-    /// to choose compute precision modes.
+    /// [`MathMode`] is used with [`Context::set_math_mode`](crate::context::Context::set_math_mode) to choose compute precision modes.
     ///
-    /// The values can be combined with [`MathMode::DISALLOW_REDUCED_PRECISION_REDUCTION`],
-    /// except for deprecated [`MathMode::TENSOR_OP`].
+    /// The values can be combined with [`MathMode::DISALLOW_REDUCED_PRECISION_REDUCTION`], except for deprecated [`MathMode::TENSOR_OP`].
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct MathMode: u32 {
-        /// Default and highest-performance mode, using compute and intermediate storage
-        /// precisions with at least the requested mantissa and exponent bit counts.
+        /// Default and highest-performance mode, using compute and intermediate storage precisions with at least the requested mantissa and exponent bit counts.
         /// Tensor Cores are used whenever possible.
         const DEFAULT = sys::cublasMath_t::CUBLAS_DEFAULT_MATH as _;
         /// Deprecated mode.
@@ -62,8 +55,7 @@ bitflags::bitflags! {
         /// For single precision GEMM operations, cuBLAS uses the [`ComputeType::F32FastF16`] compute type.
         #[deprecated]
         const TENSOR_OP = sys::cublasMath_t::CUBLAS_TENSOR_OP_MATH as _;
-        /// Uses the prescribed precision and standardized arithmetic for all calculation
-        /// phases, primarily for numerical robustness studies, testing, and debugging.
+        /// Uses the prescribed precision and standardized arithmetic for all calculation phases, primarily for numerical robustness studies, testing, and debugging.
         /// May be slower than the other modes.
         const PEDANTIC = sys::cublasMath_t::CUBLAS_PEDANTIC_MATH as _;
         /// Enable acceleration of single-precision operations using TF32 tensor cores.
@@ -77,9 +69,7 @@ bitflags::bitflags! {
         /// See [`EmulationStrategy`] for floating-point emulation controls.
         const FP64_EMULATED_FIXED_POINT =
             sys::cublasMath_t::CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH as _;
-        /// Forces reductions during matrix multiplications to use the accumulator
-        /// type, not the output type, for mixed precision operations whose output
-        /// precision is lower than the compute type precision.
+        /// Forces reductions during matrix multiplications to use the accumulator type, not the output type, for mixed precision operations whose output precision is lower than the compute type precision.
         const DISALLOW_REDUCED_PRECISION_REDUCTION =
             sys::cublasMath_t::CUBLAS_MATH_DISALLOW_REDUCED_PRECISION_REDUCTION as _;
     }
@@ -130,8 +120,7 @@ impl_enum_conversion!(sys::cublasSideMode_t, SideMode);
 
 /// Selects the operation to perform with a dense matrix.
 ///
-/// This corresponds to BLAS `N`/`n` (non-transpose), `T`/`t` (transpose), and
-/// `C`/`c` (conjugate transpose) arguments.
+/// This corresponds to BLAS `N`/`n` (non-transpose), `T`/`t` (transpose), and `C`/`c` (conjugate transpose) arguments.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -156,15 +145,14 @@ impl_enum_conversion!(sys::cublasOperation_t, Operation);
 /// Specifies the GEMM algorithm for matrix-matrix multiplication on GPU architectures up to `sm_75`.
 /// On `sm_80` and newer GPU architectures, this value has no effect.
 ///
-/// `Algo0` through `Algo23` explicitly choose legacy GEMM algorithms. The
-/// deprecated `Algo*TensorOp` values explicitly choose legacy Tensor Core GEMM
-/// algorithms and allow reduced-precision [`ComputeType::F32FastF16`] kernels
-/// for backward compatibility.
+/// `Algo0` through `Algo23` explicitly choose legacy GEMM algorithms.
+/// The deprecated `Algo*TensorOp` values explicitly choose legacy Tensor Core GEMM algorithms and allow reduced-precision [`ComputeType::F32FastF16`] kernels for backward compatibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(i32)]
 #[non_exhaustive]
 pub enum GemmAlgorithm {
-    /// Heuristic selection of the native GEMM algorithm. This selector has no effect on Ampere or later GPU architectures.
+    /// Heuristic selection of the native GEMM algorithm.
+    /// This selector has no effect on Ampere or later GPU architectures.
     Default = sys::cublasGemmAlgo_t::CUBLAS_GEMM_DFALT as _,
     /// Selects cuBLAS algorithm `0`.
     ///
@@ -264,112 +252,128 @@ pub enum GemmAlgorithm {
     Algo23 = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO23 as _,
     /// Selects legacy Tensor Core GEMM algorithm `0`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo0TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO0_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `1`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo1TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO1_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `2`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo2TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO2_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `3`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo3TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO3_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `4`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo4TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO4_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `5`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo5TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO5_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `6`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo6TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO6_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `7`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo7TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO7_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `8`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo8TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO8_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `9`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo9TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO9_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `10`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo10TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO10_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `11`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo11TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO11_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `12`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo12TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO12_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `13`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo13TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO13_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `14`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
     Algo14TensorOp = sys::cublasGemmAlgo_t::CUBLAS_GEMM_ALGO14_TENSOR_OP as _,
     /// Selects legacy Tensor Core GEMM algorithm `15`.
     ///
-    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility. NVIDIA deprecates these explicit Tensor Core algorithm selectors.
+    /// This selection permits reduced-precision `CUBLAS_COMPUTE_32F_FAST_16F` kernels for backward compatibility.
+    /// NVIDIA deprecates these explicit Tensor Core algorithm selectors.
     ///
     /// This selection has no effect on NVIDIA Ampere GPUs or later architectures.
     #[deprecated]
@@ -388,9 +392,11 @@ impl_enum_conversion!(i32, sys::cublasGemmAlgo_t, GemmAlgorithm);
 #[repr(u32)]
 #[non_exhaustive]
 pub enum ComputeType {
-    /// This is the default and highest-performance mode for 16-bit half precision floating point and all compute and intermediate storage precisions with at least 16-bit half precision. Tensor Cores will be used whenever possible.
+    /// This is the default and highest-performance mode for 16-bit half precision floating point and all compute and intermediate storage precisions with at least 16-bit half precision.
+    /// Tensor Cores will be used whenever possible.
     F16 = sys::cublasComputeType_t::CUBLAS_COMPUTE_16F as _,
-    /// This mode uses 16-bit half precision floating point standardized arithmetic for all phases of calculations and is primarily intended for numerical robustness studies, testing, and debugging. This mode might not be as performant as the other modes since it disables use of tensor cores.
+    /// This mode uses 16-bit half precision floating point standardized arithmetic for all phases of calculations and is primarily intended for numerical robustness studies, testing, and debugging.
+    /// This mode might not be as performant as the other modes since it disables use of tensor cores.
     F16Pedantic = sys::cublasComputeType_t::CUBLAS_COMPUTE_16F_PEDANTIC as _,
     /// This is the default 32-bit single precision floating point and uses compute and intermediate storage precisions of at least 32-bits.
     F32 = sys::cublasComputeType_t::CUBLAS_COMPUTE_32F as _,
@@ -398,17 +404,22 @@ pub enum ComputeType {
     F32Pedantic = sys::cublasComputeType_t::CUBLAS_COMPUTE_32F_PEDANTIC as _,
     /// Allows the library to use Tensor Cores with automatic down-conversion and 16-bit half-precision compute for 32-bit input and output matrices.
     F32FastF16 = sys::cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_16F as _,
-    /// Allows the library to use Tensor Cores with automatic down-convesion and bfloat16 compute for 32-bit input and output matrices. See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on bfloat16.
+    /// Allows the library to use Tensor Cores with automatic down-convesion and bfloat16 compute for 32-bit input and output matrices.
+    /// See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on bfloat16.
     F32FastBf16 = sys::cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_16BF as _,
-    /// Allows the library to use Tensor Cores with TF32 compute for 32-bit floating point input and output matrices. Note that input conversions round to nearest even. See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on TF32 compute.
+    /// Allows the library to use Tensor Cores with TF32 compute for 32-bit floating point input and output matrices.
+    /// Note that input conversions round to nearest even.
+    /// See [Alternate Floating Point](http://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-altfp) section for more details on TF32 compute.
     F32FastTf32 = sys::cublasComputeType_t::CUBLAS_COMPUTE_32F_FAST_TF32 as _,
-    /// Allows the library to use the `BF16x9` floating point emulation algorithm for 32-bit floating point arithmetic. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
+    /// Allows the library to use the `BF16x9` floating point emulation algorithm for 32-bit floating point arithmetic.
+    /// See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
     F32EmulatedBf16x9 = sys::cublasComputeType_t::CUBLAS_COMPUTE_32F_EMULATED_16BFX9 as _,
     /// This is the default 64-bit double precision floating point and uses compute and intermediate storage precisions of at least 64-bits.
     F64 = sys::cublasComputeType_t::CUBLAS_COMPUTE_64F as _,
     /// Uses 64-bit double precision floating point arithmetic for all phases of calculations and also disables algorithmic optimizations such as Gaussian complexity reduction (3M).
     F64Pedantic = sys::cublasComputeType_t::CUBLAS_COMPUTE_64F_PEDANTIC as _,
-    /// Allows the library to use fixed-point emulation algorithms for 64-bit double precision floating point arithmetic. See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
+    /// Allows the library to use fixed-point emulation algorithms for 64-bit double precision floating point arithmetic.
+    /// See [Floating Point Emulation](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#floating-point-emulation) for more details.
     F64EmulatedFixedPoint = sys::cublasComputeType_t::CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT as _,
     /// This is the default 32-bit integer mode and uses compute and intermediate storage precisions of at least 32-bits.
     I32 = sys::cublasComputeType_t::CUBLAS_COMPUTE_32I as _,
@@ -418,15 +429,12 @@ pub enum ComputeType {
 
 impl_enum_conversion!(sys::cublasComputeType_t, ComputeType);
 
-/// [`EmulationStrategy`] is used with
-/// [`Context::set_emulation_strategy`](crate::context::Context::set_emulation_strategy) to choose
-/// how to leverage floating point emulation algorithms.
+/// [`EmulationStrategy`] is used with [`Context::set_emulation_strategy`](crate::context::Context::set_emulation_strategy) to choose how to leverage floating point emulation algorithms.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
 pub enum EmulationStrategy {
-    /// Default emulation strategy; equivalent to [`EmulationStrategy::Performant`]
-    /// unless the `CUBLAS_EMULATION_STRATEGY` environment variable is set.
+    /// Default emulation strategy; equivalent to [`EmulationStrategy::Performant`] unless the `CUBLAS_EMULATION_STRATEGY` environment variable is set.
     Default = sys::cublasEmulationStrategy_t::CUBLAS_EMULATION_STRATEGY_DEFAULT as _,
     /// Uses emulation whenever it provides a performance benefit.
     Performant = sys::cublasEmulationStrategy_t::CUBLAS_EMULATION_STRATEGY_PERFORMANT as _,

@@ -8,9 +8,8 @@ use crate::{
 
 /// Naming, math and sink attributes for composite softmax and SDPA score computation.
 ///
-/// SDPA uses softmax over attention scores and may emit statistics needed by
-/// backward training computation. This config stores the compute type and NaN
-/// propagation for the composite helper.
+/// SDPA uses softmax over attention scores and may emit statistics needed by backward training computation.
+/// This config stores the compute type and NaN propagation for the composite helper.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoftmaxConfig {
     name: Option<String>,

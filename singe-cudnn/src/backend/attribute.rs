@@ -28,8 +28,7 @@ use crate::{
     math::NanPropagation,
 };
 
-/// Backend descriptor attribute name that can be set or retrieved with
-/// [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods.
+/// Backend descriptor attribute name that can be set or retrieved with [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods.
 /// The backend descriptor to which an attribute belongs is identified by the prefix of the attribute name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[non_exhaustive]
@@ -48,21 +47,28 @@ pub enum BackendAttributeName {
     ///< Backward output descriptor for `MoE` grouped matmul. @since cuDNN 9.22.0
     OperationMoeGroupedMatmulBackwardOutputGradientDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_MOE_GROUPED_MATMUL_BWD_DOUTPUT_DESC as _,
 
-    /// `RoPE` input tensor descriptor with shape `[B, H, S, D]`. Available since cuDNN 9.24.0.
+    /// `RoPE` input tensor descriptor with shape `[B, H, S, D]`.
+    /// Available since cuDNN 9.24.0.
     OperationRopeForwardInputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_XDESC as _,
-    /// `RoPE` output tensor descriptor with shape `[B, H, S, D]`. Available since cuDNN 9.24.0.
+    /// `RoPE` output tensor descriptor with shape `[B, H, S, D]`.
+    /// Available since cuDNN 9.24.0.
     OperationRopeForwardOutputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_YDESC as _,
-    /// `RoPE` frequency-angle tensor with shape `[S, 1, 1, D]`. The kernel computes `sincosf` internally. Available since cuDNN 9.24.0.
+    /// `RoPE` frequency-angle tensor with shape `[S, 1, 1, D]`.
+    /// The kernel computes `sincosf` internally.
+    /// Available since cuDNN 9.24.0.
     OperationRopeForwardFrequenciesDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_FREQSDESC as _,
     ///< `RoPE` host-side fp32 scalar multiplied into cos/sin (default 1.0). Used to fold YARN mscale and/or SDPA `attn_scale`. @since cuDNN 9.24.0
     OperationRopeForwardOutputScale = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_OUTPUT_SCALE as _,
     ///< `RoPE` rotation width in last dim (int64, default = `head_dim`). When < `head_dim`, the last `rope_dim` slots get rotated; the first (`head_dim` - `rope_dim`) are scaled-pass-through (used for DSv3-style MLA). @since cuDNN 9.24.0
     OperationRopeForwardRotationDimension = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_FWD_ROPE_DIM as _,
-    /// `RoPE` input-gradient (`dY`) tensor descriptor with shape `[B, H, S, D]`. Available since cuDNN 9.25.0.
+    /// `RoPE` input-gradient (`dY`) tensor descriptor with shape `[B, H, S, D]`.
+    /// Available since cuDNN 9.25.0.
     OperationRopeBackwardInputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_DYDESC as _,
-    /// `RoPE` output-gradient (`dX`) tensor descriptor with shape `[B, H, S, D]`. Available since cuDNN 9.25.0.
+    /// `RoPE` output-gradient (`dX`) tensor descriptor with shape `[B, H, S, D]`.
+    /// Available since cuDNN 9.25.0.
     OperationRopeBackwardOutputDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_DXDESC as _,
-    /// `RoPE` backward frequency-angle tensor with shape `[S, 1, 1, D]`, using the same semantics as forward execution. Available since cuDNN 9.25.0.
+    /// `RoPE` backward frequency-angle tensor with shape `[S, 1, 1, D]`, using the same semantics as forward execution.
+    /// Available since cuDNN 9.25.0.
     OperationRopeBackwardFrequenciesDesc = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_FREQSDESC as _,
     ///< `RoPE` bwd host fp32 scalar (default 1.0). Symmetric to fwd: cos/sin pre-scaled, passthrough scaled. @since cuDNN 9.25.0
     OperationRopeBackwardOutputScale = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_ROPE_BWD_OUTPUT_SCALE as _,
@@ -99,7 +105,8 @@ pub enum BackendAttributeName {
     KernelCacheRevision = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_REVISION as _,
     /// Number of entries in the kernel cache.
     KernelCacheEntryCount = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_KERNEL_CACHE_ENTRY_COUNT as _,
-    /// Emit statistics as natural-log LSE multiplied by log2(e). SDPA backward expects natural-log statistics.
+    /// Emit statistics as natural-log LSE multiplied by log2(e).
+    /// SDPA backward expects natural-log statistics.
     OperationSoftmaxStatsLog2 = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_SOFTMAX_STATS_LOG2 as _,
     /// Indices of the input dimensions to reduce, ascending and distinct.
     OperationReductionDims = sys::cudnnBackendAttributeName_t::CUDNN_ATTR_OPERATION_REDUCTION_DIMS as _,
@@ -1490,8 +1497,7 @@ impl_enum_display!(BackendAttributeName, {
     Self::DevicePropJsonRepresentation => "CUDNN_ATTR_DEVICEPROP_JSON_REPRESENTATION",
 });
 
-/// [`BackendAttributeType`] specifies the data type of an attribute of a cuDNN backend
-/// descriptor.
+/// [`BackendAttributeType`] specifies the data type of an attribute of a cuDNN backend descriptor.
 /// [`BackendDescriptor`](crate::backend::descriptor::BackendDescriptor) attribute methods use this enum to pass the matching cuDNN attribute type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]

@@ -86,8 +86,7 @@ impl RandomNumberDistribution {
     /// Validates the active distribution without creating a native descriptor.
     ///
     /// # Errors
-    /// Returns an error for probabilities outside `[0, 1]`, reversed or nonfinite
-    /// uniform bounds, nonfinite means, or negative/nonfinite standard deviations.
+    /// Returns an error for probabilities outside `[0, 1]`, reversed or nonfinite uniform bounds, nonfinite means, or negative/nonfinite standard deviations.
     /// Equal uniform bounds and zero standard deviation reach native support selection.
     pub fn validate(self) -> Result<()> {
         match self {
@@ -163,6 +162,7 @@ impl RngDescriptor {
                 )?;
             }
         }
+
         descriptor.finalize()?;
         Ok(Self {
             descriptor,
@@ -334,6 +334,7 @@ impl RngOperation {
                 offset.descriptor(),
             )?;
         }
+
         descriptor.finalize()?;
 
         Ok(Self {

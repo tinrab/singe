@@ -4,23 +4,30 @@
 //! Enable the `lt` feature for cuBLASLt APIs and the `xt` feature for cuBLASXt APIs.
 
 pub mod blas;
+
 /// cuBLAS handle ownership, CUDA contexts, streams, and execution settings.
 pub mod context;
+
 /// cuBLAS statuses, wrapper errors, and result types.
 pub mod error;
+
 /// Typed matrix views and general matrix multiplication.
 pub mod gemm;
+
 pub mod logger;
 pub mod memory;
 pub mod operation;
+
 /// Borrowed host and device scalars with their cuBLAS pointer modes.
 pub mod scalar;
+
 /// Typed cuBLAS operations, algorithms, and execution settings.
 pub mod types;
 
 /// Descriptor-based matrix operations and algorithm selection with cuBLASLt.
 #[cfg(feature = "lt")]
 pub mod lt;
+
 /// Multi-GPU and hybrid CPU/GPU matrix operations with cuBLASXt.
 #[cfg(feature = "xt")]
 pub mod xt;
@@ -52,8 +59,7 @@ pub fn version() -> Result<LibraryVersion> {
 
 /// Returns the CUDA runtime version used by cuBLAS.
 ///
-/// This is the version of the CUDA runtime that cuBLAS was linked against at
-/// build time.
+/// This is the version of the CUDA runtime that cuBLAS was linked against at build time.
 ///
 /// # Errors
 ///

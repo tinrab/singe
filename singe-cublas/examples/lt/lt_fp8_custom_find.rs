@@ -88,6 +88,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             if splitk > 1 && !splitk_support {
                 continue;
             }
+
             algorithm.set_split_k_count(splitk as usize)?;
             let heuristic = match check_matmul_algorithm(
                 &lt, &desc, &a_layout, &b_layout, &c_layout, &d_layout, &algorithm,
@@ -120,6 +121,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     )
                 }?;
             }
+
             stop.record(&stream, EventRecordFlags::DEFAULT)?;
             stop.synchronize()?;
             let elapsed = stop.elapsed_time_since(&start)? / REPEATS as f32;

@@ -60,6 +60,7 @@ fn run() -> Result<()> {
             name: "page table offset".into(),
         })?);
     }
+
     let table_elements = usize::try_from(num_blocks).map_err(|_| Error::OutOfRange {
         name: "page table storage".into(),
     })?;
@@ -109,6 +110,7 @@ fn run() -> Result<()> {
     if packed_page_tables {
         page_table_spec = page_table_spec.with_ragged_byte_capacity(table_bytes);
     }
+
     let page_table_k = graph.insert_tensor(TensorId::new(1009), page_table_spec.clone())?;
     let page_table_v = graph.insert_tensor(TensorId::new(1010), page_table_spec)?;
     let page_table_offsets = if packed_page_tables {
@@ -172,6 +174,7 @@ fn run() -> Result<()> {
         if unified {
             config = config.with_implementation(AttentionImplementation::Unified);
         }
+
         config = config.with_paged_cache(
             AttentionPagedKvCache::new()
                 .with_k(AttentionPagedCache::new(page_table_k))
@@ -323,6 +326,7 @@ fn run() -> Result<()> {
     {
         bindings.set_input(offsets, &offsets_dev.view())?;
     }
+
     bindings.set(o, &mut o_dev)?;
     bindings.set(stats, &mut stats_dev)?;
     if let Some(rng_dump) = rng_dump
@@ -330,9 +334,11 @@ fn run() -> Result<()> {
     {
         bindings.set(rng_dump, rng_dev)?;
     }
+
     if let Some(saved_value) = &mut saved_value_dev {
         bindings.set(value, saved_value)?;
     }
+
     // SAFETY: initialized inputs, writable outputs, native plans and workspace remain live through completion.
     example.execute_and_wait(|context| unsafe {
         compiled.execute(

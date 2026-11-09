@@ -19,8 +19,8 @@ use crate::{
 
 /// A directed copy path retaining its source and destination contexts.
 /// Different devices must support direct peer access, which is enabled at creation.
-/// Permission remains enabled after this value drops, until explicitly disabled
-/// or either context is destroyed. This type does not stage copies through the host.
+/// Permission remains enabled after this value drops, until explicitly disabled or either context is destroyed.
+/// This type does not stage copies through the host.
 #[derive(Debug, Clone)]
 pub struct PeerCopy {
     source: Arc<Context>,
@@ -28,14 +28,16 @@ pub struct PeerCopy {
 }
 
 impl PeerCopy {
-    /// Prepares a direct copy path. Unsupported peer access is returned to the caller.
+    /// Prepares a direct copy path.
+    /// Unsupported peer access is returned to the caller.
     /// Contexts on the same device can copy without inter-device peer permission.
-    /// Both endpoints must support unified addressing. Pool and VMM allocations
-    /// retain their own access-descriptor requirements.
+    /// Both endpoints must support unified addressing.
+    /// Pool and VMM allocations retain their own access-descriptor requirements.
     ///
     /// # Errors
     ///
-    /// Returns the native not-supported status if either endpoint lacks unified addressing. Also propagates device-attribute query errors and failures to enable directed peer access from the destination context to the source context.
+    /// Returns the native not-supported status if either endpoint lacks unified addressing.
+    /// Also propagates device-attribute query errors and failures to enable directed peer access from the destination context to the source context.
     pub fn create(source: &Arc<Context>, destination: &Arc<Context>) -> Result<Self> {
         if source
             .device()
@@ -48,6 +50,7 @@ impl PeerCopy {
         {
             return Err(Status::NotSupported.into());
         }
+
         if source.device() != destination.device() {
             destination.enable_peer_access(source, PeerAccessFlags::DEFAULT)?;
         }
@@ -70,12 +73,13 @@ impl PeerCopy {
     }
 
     /// Completes copying an initialized source into an equally sized writable range.
-    /// Both readiness streams are ordered before the copy. Borrowed storage and
-    /// contexts remain live through completion on success, error, and unwind.
+    /// Both readiness streams are ordered before the copy.
+    /// Borrowed storage and contexts remain live through completion on success, error, and unwind.
     ///
     /// # Errors
     ///
-    /// Returns an error for source or destination context mismatches, a stream from another destination context, unequal element counts, overlapping ranges in one allocation, or an unrepresentable byte count. Also rejects active or invalidated capture on the copy or readiness streams and propagates access-tracking, synchronization, stream-ordering, native copy, and output-view construction errors.
+    /// Returns an error for source or destination context mismatches, a stream from another destination context, unequal element counts, overlapping ranges in one allocation, or an unrepresentable byte count.
+    /// Also rejects active or invalidated capture on the copy or readiness streams and propagates access-tracking, synchronization, stream-ordering, native copy, and output-view construction errors.
     pub fn copy<'destination, T, S, D>(
         &self,
         destination: &'destination mut D,
@@ -96,6 +100,7 @@ impl PeerCopy {
                 require_eager(producer)?;
             }
         }
+
         let accesses = [
             Access::new(source_region, AccessMode::Read),
             Access::new(destination_region, AccessMode::Write),
@@ -109,6 +114,7 @@ impl PeerCopy {
             {
                 stream.join(producer)?;
             }
+
             stream.join_regions(&[destination.region()])?;
             // SAFETY: initialized, exclusive disjoint ranges and both actual
             // contexts stay borrowed until scope completion; readiness is joined.
@@ -121,15 +127,16 @@ impl PeerCopy {
     /// Enqueues a direct native copy using both retained actual contexts.
     ///
     /// # Safety
-    /// Source values must be valid when read and both allocation readiness
-    /// dependencies must precede the copy. Keep the source, exclusive destination,
-    /// both contexts, and stream live until completion, including after errors.
+    /// Source values must be valid when read and both allocation readiness dependencies must precede the copy.
+    /// Keep the source, exclusive destination, both contexts, and stream live until completion, including after errors.
     /// During capture retain all dependencies through every graph replay.
     /// Do not revoke peer or pool access while this path or its work can use it.
     ///
     /// # Errors
     ///
-    /// Returns `Error::MemoryContextMismatch` for an allocation from the wrong endpoint context, `Error::StreamContextMismatch` for a stream outside the destination context, or `Error::InvalidMemoryAccess` for unequal counts, overlapping ranges, or an unrepresentable byte count. Also propagates destination context binding and native copy errors. An empty, otherwise valid copy succeeds without binding or enqueueing native work.
+    /// Returns `Error::MemoryContextMismatch` for an allocation from the wrong endpoint context, `Error::StreamContextMismatch` for a stream outside the destination context, or `Error::InvalidMemoryAccess` for unequal counts, overlapping ranges, or an unrepresentable byte count.
+    /// Also propagates destination context binding and native copy errors.
+    /// An empty, otherwise valid copy succeeds without binding or enqueueing native work.
     pub unsafe fn copy_async_unchecked<T, S, D>(
         &self,
         destination: &mut D,
@@ -151,6 +158,7 @@ impl PeerCopy {
         if bytes == 0 {
             return Ok(());
         }
+
         self.destination.bind()?;
         // Explicit context validation and peer setup precede this UVA copy.
         // Unlike the context-parameter peer primitives, cuMemcpyAsync supports
@@ -176,9 +184,11 @@ impl PeerCopy {
         if source.context() != &self.source || destination.context() != &self.destination {
             return Err(Error::MemoryContextMismatch);
         }
+
         if stream.context() != &self.destination {
             return Err(Error::StreamContextMismatch);
         }
+
         if source.len() != destination.len() {
             return Err(Error::InvalidMemoryAccess);
         }

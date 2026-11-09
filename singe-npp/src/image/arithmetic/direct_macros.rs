@@ -7,7 +7,8 @@ macro_rules! impl_add_constant_scaled_scalar {
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// The source and destination image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -54,7 +55,8 @@ macro_rules! impl_add_constant_scaled_scalar_in_place {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -97,7 +99,8 @@ macro_rules! impl_add_constant_scaled_array {
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// The source and destination image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -144,7 +147,8 @@ macro_rules! impl_add_constant_scaled_array_in_place {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -190,7 +194,8 @@ macro_rules! impl_add_constant_scalar {
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// The source and destination image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -246,7 +251,8 @@ macro_rules! impl_add_constant_scalar_in_place {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -287,7 +293,8 @@ macro_rules! impl_add_constant_array {
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
         /// The source and destination image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -332,7 +339,8 @@ macro_rules! impl_add_constant_array_in_place {
         /// # Errors
         ///
         /// Returns an error if CUDA context binding fails or an image belongs to another CUDA context.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -374,7 +382,8 @@ macro_rules! impl_add_device_constant_scaled {
         /// Returns an error if CUDA context binding fails or an image or device-constant buffer belongs to another CUDA context.
         /// Also returns an error if the device-constant buffer is shorter than the required channel count.
         /// The source and destination image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -425,7 +434,8 @@ macro_rules! impl_add_device_constant_scaled_in_place {
         ///
         /// Returns an error if CUDA context binding fails or an image or device-constant buffer belongs to another CUDA context.
         /// Also returns an error if the device-constant buffer is shorter than the required channel count.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -472,7 +482,8 @@ macro_rules! impl_add_device_constant {
         /// Returns an error if CUDA context binding fails or an image or device-constant buffer belongs to another CUDA context.
         /// Also returns an error if the device-constant buffer is shorter than the required channel count.
         /// The source and destination image sizes must match; differing sizes return an error.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///
@@ -521,7 +532,8 @@ macro_rules! impl_add_device_constant_in_place {
         ///
         /// Returns an error if CUDA context binding fails or an image or device-constant buffer belongs to another CUDA context.
         /// Also returns an error if the device-constant buffer is shorter than the required channel count.
-        /// Native NPP failures are returned as errors. Success reports native submission.
+        /// Native NPP failures are returned as errors.
+        /// Success reports native submission.
         ///
         /// # Safety
         ///

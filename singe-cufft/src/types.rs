@@ -6,8 +6,7 @@ use singe_core::{impl_enum_conversion, impl_enum_display};
 
 /// Sign of the Fourier exponent for a complex-to-complex transform.
 ///
-/// cuFFT leaves both directions unnormalized; a forward transform followed by
-/// an inverse scales values by the transform element count.
+/// cuFFT leaves both directions unnormalized; a forward transform followed by an inverse scales values by the transform element count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(i32)]
 #[non_exhaustive]
@@ -23,7 +22,8 @@ impl_enum_display!(Direction, {
     Direction::Inverse => "CUFFT_INVERSE",
 });
 
-/// The cuFFT library supports complex- and real-data transforms. The `cufftType` data type is an enumeration of the types of transform data supported by cuFFT.
+/// The cuFFT library supports complex- and real-data transforms.
+/// The `cufftType` data type is an enumeration of the types of transform data supported by cuFFT.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, TryFromPrimitive, IntoPrimitive)]
 #[repr(u32)]
 #[non_exhaustive]
@@ -64,7 +64,8 @@ pub enum PlanProperty {
     DisableFma = sys::cufftProperty_t::NVFFT_PLAN_PROPERTY_INT64_DISABLE_FMA as _,
     /// Enables runtime link-time-optimized kernels when nonzero; zero is the default.
     ///
-    /// Set before planning. cuFFT does not allow changing this property after planning.
+    /// Set before planning.
+    /// cuFFT does not allow changing this property after planning.
     PatientJit = sys::cufftProperty_t::NVFFT_PLAN_PROPERTY_INT64_PATIENT_JIT as _,
     /// Limits the number of host threads available to the native plan.
     MaxNumHostThreads = sys::cufftProperty_t::NVFFT_PLAN_PROPERTY_INT64_MAX_NUM_HOST_THREADS as _,

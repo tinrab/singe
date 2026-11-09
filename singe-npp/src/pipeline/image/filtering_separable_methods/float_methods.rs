@@ -18,23 +18,20 @@ where
     Self: FloatSeparableFilterImage<T, L>,
 {
     /// Applies a one-dimensional vertical filter with `f32` coefficients.
-    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
-    /// zero-based kernel origin along the filtered axis. The result retains the image sample
-    /// type. Passes the slice address directly as a device pointer, without uploading it;
-    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
-    /// The source window must retain the parent-image halo needed for the vertical window
-    /// and anchor. Source-window and destination dimensions must match.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Supply `kernel` in the reversed coefficient order required by NPP.
+    /// `anchor` gives the zero-based kernel origin along the filtered axis.
+    /// The result retains the image sample type.
+    /// Passes the slice address directly as a device pointer, without uploading it; the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// The source window must retain the parent-image halo needed for the vertical window and anchor.
+    /// Source-window and destination dimensions must match.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
-    /// `0..kernel.len()`.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in `0..kernel.len()`.
     /// The source window must match the destination size and retain the required halo.
     pub fn filter_column32f_into(
         stream_context: &StreamContext,
@@ -53,23 +50,20 @@ where
     }
 
     /// Applies a one-dimensional horizontal filter with `f32` coefficients.
-    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
-    /// zero-based kernel origin along the filtered axis. The result retains the image sample
-    /// type. Passes the slice address directly as a device pointer, without uploading it;
-    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
-    /// The source window must retain the parent-image halo needed for the horizontal window
-    /// and anchor. Source-window and destination dimensions must match.
-    /// AC4 destination alpha retains its previous initialization state; this call does not
-    /// initialize alpha.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Supply `kernel` in the reversed coefficient order required by NPP.
+    /// `anchor` gives the zero-based kernel origin along the filtered axis.
+    /// The result retains the image sample type.
+    /// Passes the slice address directly as a device pointer, without uploading it; the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// The source window must retain the parent-image halo needed for the horizontal window and anchor.
+    /// Source-window and destination dimensions must match.
+    /// AC4 destination alpha retains its previous initialization state; this call does not initialize alpha.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
-    /// `0..kernel.len()`.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in `0..kernel.len()`.
     /// The source window must match the destination size and retain the required halo.
     pub fn filter_row32f_into(
         stream_context: &StreamContext,
@@ -95,22 +89,20 @@ where
     Self: FloatSeparableFilterImage<T, L>,
 {
     /// Applies a one-dimensional vertical filter with `f32` coefficients.
-    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
-    /// zero-based kernel origin along the filtered axis. The result retains the image sample
-    /// type. Passes the slice address directly as a device pointer, without uploading it;
-    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
-    /// Allocates a new owned image for the valid source window. Reduces height by
-    /// `kernel.len() - 1` and preserves width.
+    /// Supply `kernel` in the reversed coefficient order required by NPP.
+    /// `anchor` gives the zero-based kernel origin along the filtered axis.
+    /// The result retains the image sample type.
+    /// Passes the slice address directly as a device pointer, without uploading it; the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// Allocates a new owned image for the valid source window.
+    /// Reduces height by `kernel.len() - 1` and preserves width.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
-    /// `0..kernel.len()`.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in `0..kernel.len()`.
     /// The source must contain the complete filter window and its valid output window.
     /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn filter_column32f(self, kernel: &[f32], anchor: i32) -> Result<Self> {
@@ -123,22 +115,20 @@ where
     }
 
     /// Applies a one-dimensional horizontal filter with `f32` coefficients.
-    /// Supply `kernel` in the reversed coefficient order required by NPP. `anchor` gives the
-    /// zero-based kernel origin along the filtered axis. The result retains the image sample
-    /// type. Passes the slice address directly as a device pointer, without uploading it;
-    /// the coefficient storage must also be GPU-readable in the selected CUDA context.
-    /// Allocates a new owned image for the valid source window. Reduces width by
-    /// `kernel.len() - 1` and preserves height.
+    /// Supply `kernel` in the reversed coefficient order required by NPP.
+    /// `anchor` gives the zero-based kernel origin along the filtered axis.
+    /// The result retains the image sample type.
+    /// Passes the slice address directly as a device pointer, without uploading it; the coefficient storage must also be GPU-readable in the selected CUDA context.
+    /// Allocates a new owned image for the valid source window.
+    /// Reduces width by `kernel.len() - 1` and preserves height.
     /// Preserves AC4 alpha from the corresponding source window.
-    /// Prepares participating image regions, waits for producers on other streams, rejects
-    /// capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or image validation, producer
-    /// waits, native execution, or stream synchronization fail.
-    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in
-    /// `0..kernel.len()`.
+    /// Returns an error if capture checks, CUDA context binding or image validation, producer waits, native execution, or stream synchronization fail.
+    /// The kernel must be nonempty, its length must fit `i32`, and `anchor` must be in `0..kernel.len()`.
     /// The source must contain the complete filter window and its valid output window.
     /// Image allocation or view construction, including alpha preservation copies, can also fail.
     pub fn filter_row32f(self, kernel: &[f32], anchor: i32) -> Result<Self> {
@@ -168,6 +158,7 @@ where
             if L::IGNORES_ALPHA {
                 destination_view.copy_from(&source.view())?;
             }
+
             filter(
                 self.stream_context,
                 &source,

@@ -81,8 +81,7 @@ fn derive_representation(
 /// Export aliases retain independent annotations; generated name collisions require distinct aliases.
 /// Submission remains unsafe because ABI checks do not establish semantic bounds, access ordering, storage lifetimes or output initialization coverage.
 ///
-/// Expansion parses the CUDA source with tree-sitter and emits a Rust module
-/// with a `create` constructor plus typed wrappers for exported kernels.
+/// Expansion parses the CUDA source with tree-sitter and emits a Rust module with a `create` constructor plus typed wrappers for exported kernels.
 /// CUDA compilation, PTX/cubin generation, and lowered kernel-name resolution happen through NVRTC when the generated module is created.
 #[proc_macro]
 pub fn cuda_module(input: TokenStream) -> TokenStream {

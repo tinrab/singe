@@ -1,22 +1,19 @@
 //! Direct native Jacobi and approximate SVD entry points.
 //!
-//! Raw execution requires inputs, outputs, scratch, parameter objects, and the
-//! context to survive completion and every captured replay. Order inputs before
-//! use and exclude concurrent access to writes and mutable Jacobi parameters.
+//! Raw execution requires inputs, outputs, scratch, parameter objects, and the context to survive completion and every captured replay.
+//! Order inputs before use and exclude concurrent access to writes and mutable Jacobi parameters.
 //! Successful enqueue does not establish initialization or a valid numerical result.
 //! Inspect completed status before promoting the documented logical results.
 //! Leading-dimension padding, stride gaps, allocation tails, and scratch are not results.
 //!
-//! Jacobi SVD produces min(m,n) singular values. Full vectors have m columns in
-//! U and n columns in V; economy vectors both have min(m,n) columns. Batched
-//! Jacobi always produces full vectors and one status per matrix.
-//! Approximate SVD produces rank values and rank columns of U and V per matrix,
-//! one status per matrix, and one host residual per matrix when requested with
-//! Vector mode. `NoVector` mode leaves host residuals unwritten.
+//! Jacobi SVD produces min(m,n) singular values.
+//! Full vectors have m columns in U and n columns in V; economy vectors both have min(m,n) columns.
+//! Batched Jacobi always produces full vectors and one status per matrix.
+//! Approximate SVD produces rank values and rank columns of U and V per matrix, one status per matrix, and one host residual per matrix when requested with Vector mode.
+//! `NoVector` mode leaves host residuals unwritten.
 //! Both families return V, rather than its conjugate transpose.
 //!
-//! The linked cuSOLVER 12.3.4 batched Jacobi values-only implementation requires
-//! full U storage when m >= n, or full V storage when m < n, as temporary storage.
+//! The linked cuSOLVER 12.3.4 batched Jacobi values-only implementation requires full U storage when m >= n, or full V storage when m < n, as temporary storage.
 //! A null pointer for that buffer causes a device fault even in `NoVector` mode.
 //! Those contents are scratch.
 #![expect(
@@ -141,9 +138,7 @@ pub fn sgesvdj_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, or vector-computation mode are
-/// invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, or vector-computation mode are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -186,6 +181,7 @@ pub unsafe fn sgesvdj(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = sgesvdj_buffer_size(context, mode, economy, m, n, layout, params)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -193,6 +189,7 @@ pub unsafe fn sgesvdj(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, economy);
     let (u, ldu) = output_parts(u, m, left, 1, mode)?;
     let (v, ldv) = output_parts(v, n, right, 1, mode)?;
@@ -296,9 +293,7 @@ pub fn sgesvdj_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -347,6 +342,7 @@ pub unsafe fn sgesvdj_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = sgesvdj_batched_buffer_size(context, mode, m, n, layout, params, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -354,6 +350,7 @@ pub unsafe fn sgesvdj_batched(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, false);
     let (u, ldu) = output_parts(u, m, left, batch_size, mode)?;
     let (v, ldv) = output_parts(v, n, right, batch_size, mode)?;
@@ -431,23 +428,18 @@ pub fn sgesvda_strided_batched_buffer_size(
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
 /// `gesvda` (`a` stands for approximate) approximates the singular value decomposition of a tall skinny $m \times n$ matrix `A` and the corresponding left and right singular vectors.
-/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is
-/// an $n \times n$ matrix.
+/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is an $n \times n$ matrix.
 /// `U` is an $m \times n$ unitary matrix, and `V` is an $n \times n$ unitary matrix.
 /// The diagonal elements of `Σ` are the singular values of `A`; they are real and non-negative, and are returned in descending order.
 /// `U` and `V` are the left and right singular vectors of `A`.
 ///
-/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is
-/// complex, to approximate singular values and singular vectors.
-/// It generates matrices `U` and `V` and transforms matrix `A` to
-/// $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding
-/// errors.
+/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is complex, to approximate singular values and singular vectors.
+/// It generates matrices `U` and `V` and transforms matrix `A` to $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding errors.
 /// To certain conditions, `U`, `V` and `S` approximate singular values and singular vectors up to machine zero of single precision.
 /// In general, `V` is unitary, `S` is more accurate than `U`.
 /// If singular value is far from zero, then left singular vector `U` is accurate.
 /// In other words, the accuracy of singular values and left singular vectors depend on the distance between singular value and zero.
-/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use
-/// `gesvda` only with well-conditioned data.
+/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use `gesvda` only with well-conditioned data.
 ///
 /// `rank` controls how many singular values and singular vectors are computed in `S`, `U`, and `V`.
 ///
@@ -484,9 +476,7 @@ pub fn sgesvda_strided_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, strides, or
-/// batch size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, strides, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw), retaining the host residual array too.
@@ -521,6 +511,7 @@ pub unsafe fn sgesvda_strided_batched(
     {
         return Err(Error::InvalidVectorShape);
     }
+
     context.bind()?;
     context.validate_region(&a.data)?;
     context.validate_region(&s.data)?;
@@ -529,6 +520,7 @@ pub unsafe fn sgesvda_strided_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = sgesvda_strided_batched_buffer_size(context, mode, rank, m, n, layout, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -536,6 +528,7 @@ pub unsafe fn sgesvda_strided_batched(
             actual: workspace.len(),
         });
     }
+
     let (u, ldu, su) = strided_output_parts(u, m, rank, batch_size, mode)?;
     let (v, ldv, sv) = strided_output_parts(v, n, rank, batch_size, mode)?;
     // SAFETY: the caller retains and orders all device and host participants through completion.
@@ -659,9 +652,7 @@ pub fn dgesvdj_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, or vector-computation mode are
-/// invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, or vector-computation mode are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -704,6 +695,7 @@ pub unsafe fn dgesvdj(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = dgesvdj_buffer_size(context, mode, economy, m, n, layout, params)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -711,6 +703,7 @@ pub unsafe fn dgesvdj(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, economy);
     let (u, ldu) = output_parts(u, m, left, 1, mode)?;
     let (v, ldv) = output_parts(v, n, right, 1, mode)?;
@@ -814,9 +807,7 @@ pub fn dgesvdj_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -865,6 +856,7 @@ pub unsafe fn dgesvdj_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = dgesvdj_batched_buffer_size(context, mode, m, n, layout, params, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -872,6 +864,7 @@ pub unsafe fn dgesvdj_batched(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, false);
     let (u, ldu) = output_parts(u, m, left, batch_size, mode)?;
     let (v, ldv) = output_parts(v, n, right, batch_size, mode)?;
@@ -949,23 +942,18 @@ pub fn dgesvda_strided_batched_buffer_size(
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
 /// `gesvda` (`a` stands for approximate) approximates the singular value decomposition of a tall skinny $m \times n$ matrix `A` and the corresponding left and right singular vectors.
-/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is
-/// an $n \times n$ matrix.
+/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is an $n \times n$ matrix.
 /// `U` is an $m \times n$ unitary matrix, and `V` is an $n \times n$ unitary matrix.
 /// The diagonal elements of `Σ` are the singular values of `A`; they are real and non-negative, and are returned in descending order.
 /// `U` and `V` are the left and right singular vectors of `A`.
 ///
-/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is
-/// complex, to approximate singular values and singular vectors.
-/// It generates matrices `U` and `V` and transforms matrix `A` to
-/// $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding
-/// errors.
+/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is complex, to approximate singular values and singular vectors.
+/// It generates matrices `U` and `V` and transforms matrix `A` to $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding errors.
 /// To certain conditions, `U`, `V` and `S` approximate singular values and singular vectors up to machine zero of single precision.
 /// In general, `V` is unitary, `S` is more accurate than `U`.
 /// If singular value is far from zero, then left singular vector `U` is accurate.
 /// In other words, the accuracy of singular values and left singular vectors depend on the distance between singular value and zero.
-/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use
-/// `gesvda` only with well-conditioned data.
+/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use `gesvda` only with well-conditioned data.
 ///
 /// `rank` controls how many singular values and singular vectors are computed in `S`, `U`, and `V`.
 ///
@@ -1002,9 +990,7 @@ pub fn dgesvda_strided_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, strides, or
-/// batch size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, strides, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw), retaining the host residual array too.
@@ -1039,6 +1025,7 @@ pub unsafe fn dgesvda_strided_batched(
     {
         return Err(Error::InvalidVectorShape);
     }
+
     context.bind()?;
     context.validate_region(&a.data)?;
     context.validate_region(&s.data)?;
@@ -1047,6 +1034,7 @@ pub unsafe fn dgesvda_strided_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = dgesvda_strided_batched_buffer_size(context, mode, rank, m, n, layout, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -1054,6 +1042,7 @@ pub unsafe fn dgesvda_strided_batched(
             actual: workspace.len(),
         });
     }
+
     let (u, ldu, su) = strided_output_parts(u, m, rank, batch_size, mode)?;
     let (v, ldv, sv) = strided_output_parts(v, n, rank, batch_size, mode)?;
     // SAFETY: the caller retains and orders all device and host participants through completion.
@@ -1177,9 +1166,7 @@ pub fn cgesvdj_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, or vector-computation mode are
-/// invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, or vector-computation mode are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -1222,6 +1209,7 @@ pub unsafe fn cgesvdj(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = cgesvdj_buffer_size(context, mode, economy, m, n, layout, params)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -1229,6 +1217,7 @@ pub unsafe fn cgesvdj(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, economy);
     let (u, ldu) = output_parts(u, m, left, 1, mode)?;
     let (v, ldv) = output_parts(v, n, right, 1, mode)?;
@@ -1332,9 +1321,7 @@ pub fn cgesvdj_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -1383,6 +1370,7 @@ pub unsafe fn cgesvdj_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = cgesvdj_batched_buffer_size(context, mode, m, n, layout, params, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -1390,6 +1378,7 @@ pub unsafe fn cgesvdj_batched(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, false);
     let (u, ldu) = output_parts(u, m, left, batch_size, mode)?;
     let (v, ldv) = output_parts(v, n, right, batch_size, mode)?;
@@ -1467,23 +1456,18 @@ pub fn cgesvda_strided_batched_buffer_size(
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
 /// `gesvda` (`a` stands for approximate) approximates the singular value decomposition of a tall skinny $m \times n$ matrix `A` and the corresponding left and right singular vectors.
-/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is
-/// an $n \times n$ matrix.
+/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is an $n \times n$ matrix.
 /// `U` is an $m \times n$ unitary matrix, and `V` is an $n \times n$ unitary matrix.
 /// The diagonal elements of `Σ` are the singular values of `A`; they are real and non-negative, and are returned in descending order.
 /// `U` and `V` are the left and right singular vectors of `A`.
 ///
-/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is
-/// complex, to approximate singular values and singular vectors.
-/// It generates matrices `U` and `V` and transforms matrix `A` to
-/// $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding
-/// errors.
+/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is complex, to approximate singular values and singular vectors.
+/// It generates matrices `U` and `V` and transforms matrix `A` to $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding errors.
 /// To certain conditions, `U`, `V` and `S` approximate singular values and singular vectors up to machine zero of single precision.
 /// In general, `V` is unitary, `S` is more accurate than `U`.
 /// If singular value is far from zero, then left singular vector `U` is accurate.
 /// In other words, the accuracy of singular values and left singular vectors depend on the distance between singular value and zero.
-/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use
-/// `gesvda` only with well-conditioned data.
+/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use `gesvda` only with well-conditioned data.
 ///
 /// `rank` controls how many singular values and singular vectors are computed in `S`, `U`, and `V`.
 ///
@@ -1520,9 +1504,7 @@ pub fn cgesvda_strided_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, strides, or
-/// batch size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, strides, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw), retaining the host residual array too.
@@ -1557,6 +1539,7 @@ pub unsafe fn cgesvda_strided_batched(
     {
         return Err(Error::InvalidVectorShape);
     }
+
     context.bind()?;
     context.validate_region(&a.data)?;
     context.validate_region(&s.data)?;
@@ -1565,6 +1548,7 @@ pub unsafe fn cgesvda_strided_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = cgesvda_strided_batched_buffer_size(context, mode, rank, m, n, layout, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -1572,6 +1556,7 @@ pub unsafe fn cgesvda_strided_batched(
             actual: workspace.len(),
         });
     }
+
     let (u, ldu, su) = strided_output_parts(u, m, rank, batch_size, mode)?;
     let (v, ldv, sv) = strided_output_parts(v, n, rank, batch_size, mode)?;
     // SAFETY: the caller retains and orders all device and host participants through completion.
@@ -1695,9 +1680,7 @@ pub fn zgesvdj_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, or vector-computation mode are
-/// invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, or vector-computation mode are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -1740,6 +1723,7 @@ pub unsafe fn zgesvdj(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = zgesvdj_buffer_size(context, mode, economy, m, n, layout, params)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -1747,6 +1731,7 @@ pub unsafe fn zgesvdj(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, economy);
     let (u, ldu) = output_parts(u, m, left, 1, mode)?;
     let (v, ldv) = output_parts(v, n, right, 1, mode)?;
@@ -1850,9 +1835,7 @@ pub fn zgesvdj_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, or batch
-/// size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw).
@@ -1901,6 +1884,7 @@ pub unsafe fn zgesvdj_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = zgesvdj_batched_buffer_size(context, mode, m, n, layout, params, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -1908,6 +1892,7 @@ pub unsafe fn zgesvdj_batched(
             actual: workspace.len(),
         });
     }
+
     let (left, right) = jacobi_columns(m, n, false);
     let (u, ldu) = output_parts(u, m, left, batch_size, mode)?;
     let (v, ldv) = output_parts(v, n, right, batch_size, mode)?;
@@ -1985,23 +1970,18 @@ pub fn zgesvda_strided_batched_buffer_size(
 /// The C and Z data types are complex valued single and double precision, respectively.
 ///
 /// `gesvda` (`a` stands for approximate) approximates the singular value decomposition of a tall skinny $m \times n$ matrix `A` and the corresponding left and right singular vectors.
-/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is
-/// an $n \times n$ matrix.
+/// The economy form of SVD is written as $A = U \Sigma V^{H}$, where `Σ` is an $n \times n$ matrix.
 /// `U` is an $m \times n$ unitary matrix, and `V` is an $n \times n$ unitary matrix.
 /// The diagonal elements of `Σ` are the singular values of `A`; they are real and non-negative, and are returned in descending order.
 /// `U` and `V` are the left and right singular vectors of `A`.
 ///
-/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is
-/// complex, to approximate singular values and singular vectors.
-/// It generates matrices `U` and `V` and transforms matrix `A` to
-/// $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding
-/// errors.
+/// `gesvda` computes eigenvalues of $A^{T}A$, or $A^{H}A$ if `A` is complex, to approximate singular values and singular vectors.
+/// It generates matrices `U` and `V` and transforms matrix `A` to $A = U(S + E)V^{H}$, where `S` is diagonal and `E` depends on rounding errors.
 /// To certain conditions, `U`, `V` and `S` approximate singular values and singular vectors up to machine zero of single precision.
 /// In general, `V` is unitary, `S` is more accurate than `U`.
 /// If singular value is far from zero, then left singular vector `U` is accurate.
 /// In other words, the accuracy of singular values and left singular vectors depend on the distance between singular value and zero.
-/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use
-/// `gesvda` only with well-conditioned data.
+/// Since computing $A^{T}A$ or $A^{H}A$ can greatly amplify errors, use `gesvda` only with well-conditioned data.
 ///
 /// `rank` controls how many singular values and singular vectors are computed in `S`, `U`, and `V`.
 ///
@@ -2038,9 +2018,7 @@ pub fn zgesvda_strided_batched_buffer_size(
 ///
 /// # Errors
 ///
-/// Returns an error if cuSOLVER has not been initialized, if the
-/// matrix dimensions, leading dimensions, vector-computation mode, strides, or
-/// batch size are invalid, or if cuSOLVER reports an internal failure.
+/// Returns an error if cuSOLVER has not been initialized, if the matrix dimensions, leading dimensions, vector-computation mode, strides, or batch size are invalid, or if cuSOLVER reports an internal failure.
 /// # Safety
 ///
 /// Follow the [raw SVD contracts](crate::svd::raw), retaining the host residual array too.
@@ -2075,6 +2053,7 @@ pub unsafe fn zgesvda_strided_batched(
     {
         return Err(Error::InvalidVectorShape);
     }
+
     context.bind()?;
     context.validate_region(&a.data)?;
     context.validate_region(&s.data)?;
@@ -2083,6 +2062,7 @@ pub unsafe fn zgesvda_strided_batched(
     for matrix in [u.as_ref(), v.as_ref()].into_iter().flatten() {
         context.validate_region(&matrix.data)?;
     }
+
     let lwork = zgesvda_strided_batched_buffer_size(context, mode, rank, m, n, layout, batch_size)?;
     if workspace.len() < lwork {
         return Err(Error::InsufficientWorkspaceSize {
@@ -2090,6 +2070,7 @@ pub unsafe fn zgesvda_strided_batched(
             actual: workspace.len(),
         });
     }
+
     let (u, ldu, su) = strided_output_parts(u, m, rank, batch_size, mode)?;
     let (v, ldv, sv) = strided_output_parts(v, n, rank, batch_size, mode)?;
     // SAFETY: the caller retains and orders all device and host participants through completion.

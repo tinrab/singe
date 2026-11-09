@@ -1,0 +1,25 @@
+        bool forced_chosen = false;
+@forced@        if (!forced_chosen) {
+        cublasLtMatmulPreference_t preference;
+        SINGE_LIBRARY(@CUBLAS_BASE@, cublasLtMatmulPreferenceCreate(&preference));
+        const size_t workspace = 0;
+        SINGE_LIBRARY(@CUBLAS_BASE@, cublasLtMatmulPreferenceSetAttribute(preference, CUBLASLT_MATMUL_PREF_MAX_WORKSPACE_BYTES, &workspace, sizeof(workspace)));
+        cublasLtMatmulHeuristicResult_t results[16];
+        int found = 0;
+        SINGE_LIBRARY(@CUBLAS_BASE@, cublasLtMatmulAlgoGetHeuristic(s->cublaslt, s->lt_desc_@index@, s->lt_a_@index@, s->lt_b_@index@, s->lt_c_@index@, s->lt_c_@index@, preference, 16, results, &found));
+        cublasLtMatmulPreferenceDestroy(preference);
+        bool chosen = false;
+        for (int candidate = 0; candidate < found && !chosen; ++candidate) {
+            if (results[candidate].state != CUBLAS_STATUS_SUCCESS) continue;
+            int split = 0;
+            uint32_t reduction = 0;
+            SINGE_LIBRARY(@CUBLAS_BASE@, cublasLtMatmulAlgoConfigGetAttribute(&results[candidate].algo, CUBLASLT_ALGO_CONFIG_SPLITK_NUM, &split, sizeof(split), nullptr));
+            SINGE_LIBRARY(@CUBLAS_BASE@, cublasLtMatmulAlgoConfigGetAttribute(&results[candidate].algo, CUBLASLT_ALGO_CONFIG_REDUCTION_SCHEME, &reduction, sizeof(reduction), nullptr));
+            // Half-precision results keep a full-precision accumulator, and a deterministic program does not split.
+            if (@half@ && reduction != CUBLASLT_REDUCTION_SCHEME_NONE && reduction != CUBLASLT_REDUCTION_SCHEME_COMPUTE_TYPE) continue;
+            if (@deterministic@ && (split > 1 || reduction != CUBLASLT_REDUCTION_SCHEME_NONE)) continue;
+            s->lt_algorithm_@index@ = results[candidate];
+            chosen = true;
+        }
+        if (!chosen) return @CUBLAS_BASE@ + CUBLAS_STATUS_NOT_SUPPORTED;
+        }

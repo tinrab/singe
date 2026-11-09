@@ -16,13 +16,12 @@ where
 {
     /// Combines corresponding active samples using the native per-sample maximum.
     /// Updates the supplied destination image in place; AC4 alpha remains unchanged.
-    /// Prepares participating image regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn max_every_in_place(
         stream_context: &StreamContext,
@@ -34,13 +33,12 @@ where
 
     /// Combines corresponding active samples using the native per-sample minimum.
     /// Updates the supplied destination image in place; AC4 alpha remains unchanged.
-    /// Prepares participating image regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     pub fn min_every_in_place(
         stream_context: &StreamContext,
@@ -51,15 +49,14 @@ where
     }
 
     /// Combines corresponding active samples using the native per-sample maximum.
-    /// Reuses owned backing; borrowed input is copied to a new owned image before updating
-    /// it in place. Preserves AC4 alpha from the pipeline image.
-    /// Prepares participating image regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Reuses owned backing; borrowed input is copied to a new owned image before updating it in place.
+    /// Preserves AC4 alpha from the pipeline image.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, copying, or view construction can also fail.
     pub fn max_every(self, other: &ImageView<'_, T, L>) -> Result<Self> {
@@ -67,15 +64,14 @@ where
     }
 
     /// Combines corresponding active samples using the native per-sample minimum.
-    /// Reuses owned backing; borrowed input is copied to a new owned image before updating
-    /// it in place. Preserves AC4 alpha from the pipeline image.
-    /// Prepares participating image regions, waits for producers on other streams,
-    /// rejects capture, and returns after successful stream completion. Row padding remains unwritten.
+    /// Reuses owned backing; borrowed input is copied to a new owned image before updating it in place.
+    /// Preserves AC4 alpha from the pipeline image.
+    /// Prepares participating image regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, CUDA context binding or region validation, producer
-    /// waits, native execution, or stream synchronization fail.
+    /// Returns an error if capture checks, CUDA context binding or region validation, producer waits, native execution, or stream synchronization fail.
     /// All participating image dimensions must match.
     /// Image allocation, copying, or view construction can also fail.
     pub fn min_every(self, other: &ImageView<'_, T, L>) -> Result<Self> {

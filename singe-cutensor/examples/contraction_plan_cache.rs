@@ -25,6 +25,7 @@ fn main() -> Result<()> {
         }) => println!("no existing plan cache at {}", cache_path.display()),
         Err(error) => return Err(error),
     }
+
     context.resize_plan_cache(128)?;
 
     let mode_c = vec!['m'.into(), 'u'.into(), 'n'.into(), 'v'.into()];

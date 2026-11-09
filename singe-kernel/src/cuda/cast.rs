@@ -53,6 +53,7 @@ where
     if config.length == 0 {
         return Ok(());
     }
+
     match config.tuning {
         TuningChoice::Default => return launch(None),
         TuningChoice::Explicit(tuning) => return launch(Some(tuning)),
@@ -111,9 +112,9 @@ macro_rules! cast_tuned_fn {
         ///
         /// Inputs must be valid when read and belong to the stream's context.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain both ranges and exclusive output access until queued work
-        /// completes, including on errors. Order previous accesses before the
-        /// launch. Captured graphs must retain the ranges for every replay.
+        /// Retain both ranges and exclusive output access until queued work completes, including on errors.
+        /// Order previous accesses before the launch.
+        /// Captured graphs must retain the ranges for every replay.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out_ty>,
@@ -148,8 +149,7 @@ macro_rules! cast_tuned_fn {
         ///
         /// # Safety
         ///
-        /// The conversion's input validity, context, ordering, and asynchronous
-        /// resource lifetime requirements apply to every candidate launch.
+        /// The conversion's input validity, context, ordering, and asynchronous resource lifetime requirements apply to every candidate launch.
         pub unsafe fn $tune_name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out_ty>,
@@ -197,9 +197,9 @@ macro_rules! cast_raw_fn {
         ///
         /// Inputs must be valid when read and belong to the stream's context.
         /// Order preceding producers before every read, including graph replay.
-        /// Retain both ranges and exclusive output access until queued work
-        /// completes, including on errors. Order previous accesses before the
-        /// launch. Captured graphs must retain the ranges for every replay.
+        /// Retain both ranges and exclusive output access until queued work completes, including on errors.
+        /// Order previous accesses before the launch.
+        /// Captured graphs must retain the ranges for every replay.
         pub unsafe fn $name(
             stream: &Stream,
             out: &mut impl DeviceOutput<$out_ty>,

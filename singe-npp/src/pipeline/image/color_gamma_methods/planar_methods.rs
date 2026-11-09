@@ -11,13 +11,12 @@ where
 {
     /// Applies native forward gamma correction to three separate `u8` image planes.
     /// Writes into the supplied destination planes.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA
-    /// context binding or validation, native gamma correction, or stream synchronization fails.
+    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA context binding or validation, native gamma correction, or stream synchronization fails.
     /// Source and destination image dimensions must match.
     /// Native plane dimensions and byte strides must satisfy the planar gamma operation.
     pub fn gamma_forward_planar_into(
@@ -30,13 +29,12 @@ where
 
     /// Applies native forward gamma correction to three separate `u8` image planes.
     /// Updates the image in place.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA
-    /// context binding or validation, native gamma correction, or stream synchronization fails.
+    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA context binding or validation, native gamma correction, or stream synchronization fails.
     /// Native plane dimensions and byte strides must satisfy the planar gamma operation.
     pub fn gamma_forward_planar_in_place(
         stream_context: &StreamContext,
@@ -47,13 +45,12 @@ where
 
     /// Applies native inverse gamma correction to three separate `u8` image planes.
     /// Writes into the supplied destination planes.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA
-    /// context binding or validation, native gamma correction, or stream synchronization fails.
+    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA context binding or validation, native gamma correction, or stream synchronization fails.
     /// Source and destination image dimensions must match.
     /// Native plane dimensions and byte strides must satisfy the planar gamma operation.
     pub fn gamma_inverse_planar_into(
@@ -66,13 +63,12 @@ where
 
     /// Applies native inverse gamma correction to three separate `u8` image planes.
     /// Updates the image in place.
-    /// Prepares participating regions, waits for producers on other streams, rejects capture,
-    /// and returns after successful stream completion. Row padding remains unwritten.
+    /// Prepares participating regions, waits for producers on other streams, rejects capture, and returns after successful stream completion.
+    /// Row padding remains unwritten.
     ///
     /// # Errors
     ///
-    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA
-    /// context binding or validation, native gamma correction, or stream synchronization fails.
+    /// Returns an error if capture checks, preparing regions or waiting for producers, CUDA context binding or validation, native gamma correction, or stream synchronization fails.
     /// Native plane dimensions and byte strides must satisfy the planar gamma operation.
     pub fn gamma_inverse_planar_in_place(
         stream_context: &StreamContext,

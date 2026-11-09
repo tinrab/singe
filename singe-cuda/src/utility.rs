@@ -1,3 +1,5 @@
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
 use singe_core::checked_conversions;
 
 use crate::error::Error;
@@ -62,4 +64,35 @@ pub const fn usage_bits(value: u32) -> u16 {
         "native usage flag exceeds its ABI field"
     );
     value as u16
+}
+
+// Locks `mutex` on a path that must finish even after a panic: cleanup and completion.
+// Stopping here could release memory that queued work still uses or leave a waiter blocked forever, which is worse than reading what a panicked holder left.
+pub fn lock_for_cleanup<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread;
+
+    use super::*;
+
+    #[test]
+    fn test_cleanup_locks_reach_their_state_after_a_panic() {
+        let cell = Mutex::new(1);
+        let panicked = thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let mut guard = cell.lock().unwrap();
+                    *guard = 2;
+                    panic!("poison the lock");
+                })
+                .join()
+                .is_err()
+        });
+        assert!(panicked);
+        assert!(cell.lock().is_err());
+        assert_eq!(*lock_for_cleanup(&cell), 2);
+    }
 }

@@ -172,12 +172,14 @@ impl Engine {
                 to_i32(count, "sm_count_target")?,
             )?;
         }
+
         if let Some(limit) = planning.shared_memory_limit {
             descriptor.set_attribute_i32(
                 BackendAttributeName::EngineSharedMemoryLimit,
                 to_i32(limit, "shared_memory_limit")?,
             )?;
         }
+
         descriptor.finalize()?;
         Ok(Self {
             descriptor,
@@ -239,7 +241,8 @@ impl Engine {
     ///
     /// # Errors
     ///
-    /// Returns an error if engine enumeration fails. If no engine configuration can be finalized, returns the last attempted construction error, or [`Error::NoAvailableEngines`] when enumeration yields no engines.
+    /// Returns an error if engine enumeration fails.
+    /// If no engine configuration can be finalized, returns the last attempted construction error, or [`Error::NoAvailableEngines`] when enumeration yields no engines.
     pub fn find_compatible(graph: &OperationGraph) -> Result<Self> {
         let mut last_error = None;
         for index in Self::engine_indices_for_operation_graph(graph)? {
@@ -278,6 +281,7 @@ impl Engine {
         if let Some(notes) = self.behavior_notes.get() {
             return Ok(notes);
         }
+
         bind_context(self.cuda_context())?;
         let notes = self
             .descriptor
@@ -296,6 +300,7 @@ impl Engine {
         if let Some(notes) = self.numerical_notes.get() {
             return Ok(notes);
         }
+
         bind_context(self.cuda_context())?;
         let notes = self
             .descriptor
@@ -314,6 +319,7 @@ impl Engine {
         if let Some(knobs) = self.knob_infos.get() {
             return Ok(knobs);
         }
+
         bind_context(self.cuda_context())?;
         // SAFETY: this attribute returns objects of the explicitly selected native class.
         let knobs = unsafe {
@@ -350,6 +356,7 @@ impl Engine {
         if let Some(layouts) = self.layout_infos.get() {
             return Ok(layouts);
         }
+
         bind_context(self.cuda_context())?;
         // SAFETY: the named attribute requires the explicitly selected native class.
         let layouts = unsafe {

@@ -26,7 +26,8 @@ pub struct StridedSvdLayout {
 impl StridedSvdLayout {
     /// Records the input batch layout and singular-value stride with no singular-vector output layouts.
     ///
-    /// All distances are measured in elements. The solver workspace query validates dimensions and required outputs.
+    /// All distances are measured in elements.
+    /// The solver workspace query validates dimensions and required outputs.
     #[must_use]
     pub const fn new(input: StridedMatrixLayout, singular_value_stride: usize) -> Self {
         Self {
@@ -76,6 +77,7 @@ pub fn jacobi_layout(
     if batch_size == 0 || batched && (m > 32 || n > 32) {
         return Err(Error::InvalidMatrixShape);
     }
+
     MatrixLayout::new(layout.input_leading_dimension).validate(m, n)?;
     m.min(n)
         .checked_mul(batch_size)
@@ -85,6 +87,7 @@ pub fn jacobi_layout(
         if mode == EigenMode::NoVector && leading.is_none() {
             return to_i32(rows, "leading dimension");
         }
+
         let leading = leading.ok_or(Error::InvalidMatrixShape)?;
         let columns = columns
             .checked_mul(batch_size)
@@ -109,6 +112,7 @@ pub fn output_parts<T: DeviceRepr>(
     if mode == EigenMode::NoVector && matrix.is_none() {
         return Ok((ptr::null_mut(), to_i32(rows, "leading dimension")?));
     }
+
     let mut matrix = matrix.ok_or(Error::InvalidMatrixShape)?;
     let columns = columns
         .checked_mul(batch_size)
@@ -135,6 +139,7 @@ fn strided_capacity(stride: usize, batch_size: usize) -> Result<usize> {
     if batch_size == 0 {
         return Err(Error::InvalidMatrixShape);
     }
+
     let capacity = stride
         .checked_mul(batch_size)
         .ok_or(Error::InvalidMatrixShape)?;
@@ -157,6 +162,7 @@ fn strided_layout(
     if layout.stride < footprint {
         return Err(Error::InvalidMatrixShape);
     }
+
     strided_capacity(layout.stride, batch_size)?;
     Ok(())
 }
@@ -172,10 +178,12 @@ pub fn approximate_layout(
     if rank == 0 || rank > n || m < n {
         return Err(Error::InvalidMatrixShape);
     }
+
     strided_layout(layout.input, m, n, batch_size)?;
     if layout.singular_value_stride < rank {
         return Err(Error::InvalidVectorShape);
     }
+
     strided_capacity(layout.singular_value_stride, batch_size)?;
     let vectors = |layout: Option<StridedMatrixLayout>, rows: usize| -> Result<(i32, i64)> {
         if mode == EigenMode::NoVector {
@@ -186,6 +194,7 @@ pub fn approximate_layout(
                 to_i64(stride, "stride")?,
             ));
         }
+
         let layout = layout.ok_or(Error::InvalidMatrixShape)?;
         strided_layout(layout, rows, rank, batch_size)?;
         Ok((
@@ -227,6 +236,7 @@ pub fn strided_output_parts<T: DeviceRepr>(
             to_i64(stride, "stride")?,
         ));
     }
+
     let mut matrix = matrix.ok_or(Error::InvalidMatrixShape)?;
     strided_layout(matrix.layout(), rows, rank, batch_size)?;
     require_strided(matrix.data.len(), matrix.stride, batch_size)?;

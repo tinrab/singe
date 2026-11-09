@@ -71,6 +71,7 @@ impl Graph {
         if let Some(sink) = config.modifiers().sink_token() {
             softmax_config = softmax_config.with_sink(sink);
         }
+
         let compute_type = self.resolve_compute_data_type(softmax_config.compute_type());
         let scores_shape = self.shape(scores)?.clone();
         let summary = TensorOutputConfig::new()
@@ -125,12 +126,11 @@ impl Graph {
     /// Adds FP8 SDPA with independent output and auxiliary placement and encoding.
     /// Stats, RNG dumps and Amax outputs default to FP32 independently of graph policies.
     ///
-    /// FP8 SDPA uses explicit descale/scale tensors for Q, K, V, scores, and
-    /// output as documented in the frontend attention support surface.
-    /// Quantization scales need not be scalars. Composite operations accept shapes
-    /// broadcastable at their point of use; native engines determine their supported layouts.
-    /// The separate attention-scale operand remains a logical scalar and can be a device tensor,
-    /// host by-value input or constant. A configured numeric attention factor multiplies it.
+    /// FP8 SDPA uses explicit descale/scale tensors for Q, K, V, scores, and output as documented in the frontend attention support surface.
+    /// Quantization scales need not be scalars.
+    /// Composite operations accept shapes broadcastable at their point of use; native engines determine their supported layouts.
+    /// The separate attention-scale operand remains a logical scalar and can be a device tensor, host by-value input or constant.
+    /// A configured numeric attention factor multiplies it.
     /// `AttentionConfig` carries sequence lengths, paging, score modifiers, dropout and implementation selection.
     /// Cumulative lengths and block masks require the unified implementation.
     /// Preparation selects an implementation for the target and validates its support restrictions.
@@ -158,6 +158,7 @@ impl Graph {
         if implementation == ResolvedAttentionImplementation::Composite {
             return self.sdpa_fp8_composite_infer(inputs, output_io_type, config);
         }
+
         self.validate_fp8_forward_support(output_io_type)?;
         self.sdpa_unified_infer(
             SdpaInputs {
@@ -303,7 +304,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts. Caller-declared outputs must exist and match inferred output requirements.
+    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
+    /// Caller-declared outputs must exist and match inferred output requirements.
     pub fn sdpa_fp8_into(
         &mut self,
         inputs: SdpaFp8Inputs,
@@ -323,7 +325,8 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts. MXFP8 requests cannot use paged caches.
+    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
+    /// MXFP8 requests cannot use paged caches.
     pub fn sdpa_mxfp8(
         &mut self,
         inputs: SdpaMxfp8Inputs,
@@ -352,9 +355,11 @@ impl Graph {
             }
             .into());
         }
+
         if implementation == ResolvedAttentionImplementation::Composite {
             return self.sdpa_mxfp8_composite_infer(inputs, output_data_type, config);
         }
+
         for (input, scale, blocks) in [
             (inputs.query, inputs.scale_query, [1, 32]),
             (inputs.key, inputs.scale_key, [1, 32]),
@@ -371,6 +376,7 @@ impl Graph {
                 }
                 .into());
             }
+
             let expected_dims = BlockScaleDequantizeConfig::new(blocks)
                 .infer_scale_dimensions(&input_tensor.shape)?;
             let dims = scale_tensor.shape.dimensions();
@@ -382,6 +388,7 @@ impl Graph {
             {
                 return Err(FrontendError::TensorLayoutMismatch { tensor_id: scale, operation: "mxfp8 scale layout", reason: "expected matching batch/head dimensions and scale dimensions covering the input".into() }.into());
             }
+
             let last_stride = scale_tensor.shape.strides()[3];
             if blocks[0] == 1 && last_stride != 1 {
                 return Err(FrontendError::TensorLastStrideMismatch {
@@ -508,7 +515,9 @@ impl Graph {
     ///
     /// # Errors
     ///
-    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts. Caller-declared outputs must exist and match inferred output requirements. MXFP8 requests cannot use paged caches.
+    /// Returns an error for unknown or incompatible query/key/value or paged-cache geometry, invalid sequence-length combinations, an RNG dump requested without dropout, or unrepresentable inferred score, result, or auxiliary layouts.
+    /// Caller-declared outputs must exist and match inferred output requirements.
+    /// MXFP8 requests cannot use paged caches.
     pub fn sdpa_mxfp8_into(
         &mut self,
         inputs: SdpaMxfp8Inputs,

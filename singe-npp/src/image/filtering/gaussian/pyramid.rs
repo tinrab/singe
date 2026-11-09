@@ -18,8 +18,7 @@ use crate::{
 ///
 /// # Errors
 ///
-/// Returns an error if either source ROI dimension is nonpositive, `rate` is not greater
-/// than `1.0` and at most `10.0`, or NPP rejects the size query.
+/// Returns an error if either source ROI dimension is nonpositive, `rate` is not greater than `1.0` and at most `10.0`, or NPP rejects the size query.
 pub fn filter_gauss_pyramid_layer_down_border_dst_roi(source_roi: Size, rate: f32) -> Result<Size> {
     validate_positive_size(source_roi)?;
     validate_gauss_pyramid_rate(rate)?;
@@ -43,8 +42,7 @@ pub fn filter_gauss_pyramid_layer_down_border_dst_roi(source_roi: Size, rate: f3
 ///
 /// # Errors
 ///
-/// Returns an error if either source ROI dimension is nonpositive, `rate` is not greater
-/// than `1.0` and at most `10.0`, or NPP rejects the size query.
+/// Returns an error if either source ROI dimension is nonpositive, `rate` is not greater than `1.0` and at most `10.0`, or NPP rejects the size query.
 pub fn filter_gauss_pyramid_layer_up_border_dst_roi(
     source_roi: Size,
     rate: f32,
@@ -172,9 +170,8 @@ impl_filter_gauss_pyramid_border!(
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations, filter semantics,
-/// and sampling requirements. Uphold the method's validation, source-halo requirements where
-/// applicable, coefficient address-space requirements, and queued allocation lifetimes.
+/// Implementations must preserve native pixel and layout representations, filter semantics, and sampling requirements.
+/// Uphold the method's validation, source-halo requirements where applicable, coefficient address-space requirements, and queued allocation lifetimes.
 pub unsafe trait FilterGaussPyramidLayerDownBorder<L: ChannelLayout>: DataTypeLike {
     /// Filters and downsamples a Gaussian-pyramid layer with border control.
     ///
@@ -321,9 +318,8 @@ where
 ///
 /// # Safety
 ///
-/// Implementations must preserve native pixel and layout representations, filter semantics,
-/// and sampling requirements. Uphold the method's validation, source-halo requirements where
-/// applicable, coefficient address-space requirements, and queued allocation lifetimes.
+/// Implementations must preserve native pixel and layout representations, filter semantics, and sampling requirements.
+/// Uphold the method's validation, source-halo requirements where applicable, coefficient address-space requirements, and queued allocation lifetimes.
 pub unsafe trait FilterGaussPyramidLayerUpBorder<L: ChannelLayout>: DataTypeLike {
     /// Filters and upsamples a Gaussian-pyramid layer with border control.
     ///

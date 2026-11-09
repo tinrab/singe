@@ -24,11 +24,9 @@ pub struct RawResource<H> {
 
 /// A transferred native descriptor and its actual CUDA context and buffer borrows.
 ///
-/// Destroy `handle` with its corresponding cuSPARSE destroy function before
-/// releasing these fields, or transfer the complete value back to its wrapper.
+/// Destroy `handle` with its corresponding cuSPARSE destroy function before releasing these fields, or transfer the complete value back to its wrapper.
 /// Regions describe available storage, including pending values and stride gaps.
-/// Descriptors adopted without storage metadata have an empty region list;
-/// their original unsafe lifetime and access obligations still apply.
+/// Descriptors adopted without storage metadata have an empty region list; their original unsafe lifetime and access obligations still apply.
 #[derive(Debug)]
 pub struct RawDescriptor<'a, H> {
     /// Native descriptor handle transferred to the caller.
@@ -58,6 +56,7 @@ pub(crate) fn output_region_for<'a, T: DeviceRepr>(
     if output.context() != context {
         return Err(Error::PlanContextMismatch);
     }
+
     if output.len() < minimum {
         return Err(Error::LengthMismatch {
             name: name.to_owned().into(),
@@ -78,6 +77,7 @@ pub(crate) fn input_region<'a, T: DeviceRepr>(
     if input.context() != context.cuda_context() {
         return Err(Error::PlanContextMismatch);
     }
+
     if input.len() < minimum {
         return Err(Error::LengthMismatch {
             name: name.to_owned().into(),
@@ -97,6 +97,7 @@ pub(crate) fn matrix_extent(rows: usize, cols: usize, ld: usize, row_major: bool
     if major == 0 || minor == 0 {
         return Ok(0);
     }
+
     if ld < minor {
         return Err(Error::out_of_range("leading dimension"));
     }

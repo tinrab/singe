@@ -218,6 +218,7 @@ mod kernels {
                 padded_count = padded_count + select(padded_valid, one_f64, zero_f64);
             }
         }
+
         let denominator = if count_include_pad != 0 {
             padded_count
         } else {
