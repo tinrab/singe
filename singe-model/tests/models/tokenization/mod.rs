@@ -26,6 +26,19 @@ fn check(model: &str) {
             case["decoded"].as_str().unwrap(),
             "{model}: decoding {text:?}"
         );
+        // Streamed one id at a time, the pieces are whole text and join to the same.
+        let mut stream = tokenizer.stream(true);
+        let mut streamed = String::new();
+        for id in ids("special") {
+            if let Some(piece) = stream.push(id).unwrap() {
+                streamed.push_str(&piece);
+            }
+        }
+        assert_eq!(
+            streamed,
+            case["decoded"].as_str().unwrap(),
+            "{model}: streaming {text:?}"
+        );
     }
 
     let batch = &reference.metadata()["batch"];

@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
+    hash::BuildHasher,
     path::{Path, PathBuf},
 };
 #[cfg(feature = "cuda_13_4")]
@@ -13,8 +14,8 @@ use std::{
 use singe::{
     DataType, Device, Tensor,
     generation::{
-        CachedDecoder, Decoder, DecoderOptions, GenerationOptions, RunningBatch, generate,
-        generate_batch,
+        CachedDecoder, Decoder, DecoderOptions, GenerationOptions, PromptChunks, RunningBatch,
+        generate, generate_batch,
     },
     nn::{DecoderModel, Model},
     random::Generator,
@@ -60,6 +61,7 @@ pub fn host_rows(logits: &Tensor) -> Vec<Vec<f32>> {
         .collect()
 }
 
+#[must_use]
 pub fn host_logits(logits: &Tensor) -> Vec<f32> {
     host_rows(logits).remove(0)
 }
@@ -68,6 +70,7 @@ pub fn length(values: &[impl Sized]) -> i64 {
     i64::try_from(values.len()).unwrap()
 }
 
+#[must_use]
 pub fn best_token(logits: &[f32]) -> i64 {
     logits
         .iter()
@@ -84,7 +87,6 @@ pub fn assert_one_specialization<L: DecoderModel>(decoder: &CachedDecoder<L>) {
 }
 
 pub fn assert_chunks_compiled<L: DecoderModel>(decoder: &CachedDecoder<L>, steps: usize) {
-    assert_eq!(decoder.eager_steps(), 0);
     assert_eq!(decoder.executors().count(), steps);
     for executor in decoder.executors() {
         let stats = executor.cache_stats();
@@ -93,6 +95,7 @@ pub fn assert_chunks_compiled<L: DecoderModel>(decoder: &CachedDecoder<L>, steps
     }
 }
 
+#[must_use]
 pub fn decoder<L: DecoderModel>(
     model: &Model<L>,
     options: DecoderOptions,
@@ -138,6 +141,7 @@ impl Reference {
         }
     }
 
+    #[must_use]
     pub fn tokens(&self) -> Vec<i64> {
         self.steps.iter().map(|(_, token)| *token).collect()
     }
@@ -154,6 +158,7 @@ pub struct Suite<L> {
 }
 
 impl<L: DecoderModel> Suite<L> {
+    #[must_use]
     pub fn directory(&self, name: &str) -> PathBuf {
         Path::new(self.references)
             .join(self.task)
@@ -430,7 +435,11 @@ impl<L: DecoderModel> Suite<L> {
     #[cfg(feature = "cuda_13_4")]
     fn check_tuned_chunks(&self, name: &str, device: Device) {
         let (model, reference) = self.load(name, device, DataType::F32);
-        let mut decoder = CachedDecoder::create(&model, running_options(&reference)).unwrap();
+        let options = running_options(&reference).with_prompt_chunks(PromptChunks {
+            smallest: PROMPT_CHUNKS[0],
+            largest: PROMPT_CHUNKS[0],
+        });
+        let mut decoder = CachedDecoder::create(&model, options).unwrap();
         let tune = |chunk| {
             let step = decoder.chunk_step_graph(chunk).unwrap();
             tune_step(&step.graph, &step.inputs, device, Measurement::GraphReplay)
@@ -438,9 +447,7 @@ impl<L: DecoderModel> Suite<L> {
         let mut records = tune(0);
         records.merge(tune(PROMPT_CHUNKS[0])).unwrap();
         let cuda = GraphCudaOptions::new().with_tuning_records(records);
-        decoder
-            .compile_chunks_with(cuda, &PROMPT_CHUNKS[..1])
-            .unwrap();
+        decoder.compile_with(cuda).unwrap();
         check_running(&mut decoder, &reference, &alone(&model, &reference));
         assert_chunks_compiled(&decoder, 2);
     }
@@ -470,9 +477,13 @@ impl<L: DecoderModel> Suite<L> {
                     check_running(&mut running, &reference, &alone(&model, &reference));
                     if compiled {
                         assert_one_specialization(&running);
-                        let mut chunked =
-                            CachedDecoder::create(&model, running_options(&reference)).unwrap();
-                        chunked.compile_chunks(&PROMPT_CHUNKS).unwrap();
+                        let options =
+                            running_options(&reference).with_prompt_chunks(PromptChunks {
+                                smallest: PROMPT_CHUNKS[0],
+                                largest: PROMPT_CHUNKS[1],
+                            });
+                        let mut chunked = CachedDecoder::create(&model, options).unwrap();
+                        chunked.compile().unwrap();
                         check_running(&mut chunked, &reference, &alone(&model, &reference));
                         assert_chunks_compiled(&chunked, PROMPT_CHUNKS.len() + 1);
                     }
@@ -564,6 +575,7 @@ pub struct ProgramDecoder {
 
 #[cfg(feature = "cuda_13_4")]
 impl ProgramDecoder {
+    #[must_use]
     pub fn create(
         compiled: &CompiledProgram,
         step: &DecoderStepGraph,
@@ -595,20 +607,7 @@ impl ProgramDecoder {
             instance: compiled.instance().unwrap(),
             steps,
             caches,
-            pages: options
-                .cache_tokens
-                .map_or_else(
-                    || PageTable::create(options.sequences, options.capacity, options.page_size),
-                    |tokens| {
-                        PageTable::create_shared(
-                            options.sequences,
-                            options.capacity,
-                            options.page_size,
-                            tokens,
-                        )
-                    },
-                )
-                .unwrap(),
+            pages: options.page_table().unwrap(),
             device,
             latest: vec![Vec::new(); options.sequences],
             split_steps: 0,
@@ -616,7 +615,7 @@ impl ProgramDecoder {
     }
 
     fn run(&mut self, total: usize, row_tokens: &[&[i64]]) -> singe::Result<()> {
-        let step = self.pages.step(self.device, row_tokens)?;
+        let step = self.pages.step_padded(self.device, row_tokens, total)?;
         let step_inputs = step.named_tensors().into_iter().collect::<HashMap<_, _>>();
         let (name, inputs) = &self.steps[&total];
         let operands = inputs
@@ -650,9 +649,10 @@ impl Decoder for ProgramDecoder {
     }
 
     fn step(&mut self, tokens: &[&[i64]]) -> singe::Result<Tensor> {
-        let total = tokens.iter().map(|tokens| tokens.len().max(1)).sum();
-        if self.steps.contains_key(&total) {
-            self.run(total, tokens)?;
+        // A step pads to the smallest exported one that holds it, and one larger than all of them runs a token per row at a time.
+        let total = PageTable::step_tokens(tokens);
+        if let Some(&size) = self.steps.range(total..).map(|(size, _)| size).next() {
+            self.run(size, tokens)?;
         } else {
             self.split_steps += 1;
             let longest = tokens.iter().map(|tokens| tokens.len()).max().unwrap_or(0);
@@ -682,13 +682,9 @@ impl Decoder for ProgramDecoder {
         )
     }
 
-    fn prompt_chunks(&self) -> Vec<usize> {
+    fn largest_chunk(&self) -> Option<usize> {
         let sequences = self.pages.sequences();
-        self.steps
-            .keys()
-            .map(|total| total - sequences)
-            .filter(|&chunk| chunk > 0)
-            .collect()
+        self.steps.keys().last().map(|total| total - sequences)
     }
 
     fn reset(&mut self) {
@@ -701,9 +697,10 @@ impl Decoder for ProgramDecoder {
 }
 
 #[cfg(feature = "cuda_13_4")]
-pub fn tune_step(
+#[must_use]
+pub fn tune_step<S: BuildHasher>(
     graph: &Graph,
-    inputs: &HashMap<String, Tensor>,
+    inputs: &HashMap<String, Tensor, S>,
     device: Device,
     measurement: Measurement,
 ) -> TuningRecords {

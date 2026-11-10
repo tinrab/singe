@@ -3,7 +3,10 @@
 use std::{path::Path, result::Result as StdResult};
 
 use singe::{DataType, Device, Shape, Tensor, nn::TokenBatch};
-use tokenizers::{EncodeInput, Tokenizer, TruncationParams};
+use tokenizers::{
+    DecodeStream, DecoderWrapper, EncodeInput, ModelWrapper, NormalizerWrapper,
+    PostProcessorWrapper, PreTokenizerWrapper, Tokenizer, TruncationParams,
+};
 
 use crate::{Error, Result};
 
@@ -120,11 +123,45 @@ impl TextTokenizer {
             })
     }
 
+    // Starts turning generated ids into text one at a time, leaving out special tokens when `skip_special_tokens` is set.
+    #[must_use]
+    pub fn stream(&self, skip_special_tokens: bool) -> TextStream<'_> {
+        TextStream {
+            inner: self.inner.decode_stream(skip_special_tokens),
+        }
+    }
+
     // Returns the id of a token by its text, such as Whisper's `<|en|>`.
     pub fn token_id(&self, token: &str) -> Result<i64> {
         self.inner
             .token_to_id(token)
             .map(i64::from)
             .ok_or_else(|| Error::UnsupportedConfig(format!("a tokenizer without {token}")))
+    }
+}
+
+// Generated ids turned into text as they arrive.
+//
+// An id that ends partway through a character, as byte-level tokenizers split one, gives no text until the ids after it complete the character, so each piece is whole text and the pieces join to what `decode` gives.
+pub struct TextStream<'a> {
+    inner: DecodeStream<
+        'a,
+        ModelWrapper,
+        NormalizerWrapper,
+        PreTokenizerWrapper,
+        PostProcessorWrapper,
+        DecoderWrapper,
+    >,
+}
+
+impl TextStream<'_> {
+    // Adds the next id, and returns the text it completes, or `None` while the text it starts is not whole.
+    pub fn push(&mut self, id: i64) -> Result<Option<String>> {
+        let id = u32::try_from(id)
+            .map_err(|_| Error::UnsupportedConfig("a token id outside u32".to_owned()))?;
+        self.inner.step(id).map_err(|source| Error::Tokenizer {
+            what: "decode a streamed id",
+            source,
+        })
     }
 }

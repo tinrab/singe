@@ -38,10 +38,9 @@ pub trait Decoder {
     // Forgets one sequence and frees what it holds, so its row can start another while the others run.
     fn release(&mut self, sequence: usize) -> Result<()>;
 
-    // The extra tokens a step may read in one go, past one token per row, without leaving what the decoder compiled, smallest first.
-    // With none, a step takes whatever it is given, and a whole prompt reads in one step.
-    fn prompt_chunks(&self) -> Vec<usize> {
-        Vec::new()
+    // The most extra tokens a step may read, past one token per row, or `None` when a step takes whatever it is given, and a whole prompt reads in one step.
+    fn largest_chunk(&self) -> Option<usize> {
+        None
     }
 
     // Summarizes what a compiled decoder prepared, if it did.
@@ -178,7 +177,7 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             .iter()
             .map(|row| row.as_ref().map_or(0, |row| row.pending.len()))
             .collect::<Vec<_>>();
-        let portions = step_portions(&pending, &self.decoder.prompt_chunks());
+        let portions = step_portions(&pending, self.decoder.largest_chunk());
         let tokens = self
             .rows
             .iter()
@@ -289,19 +288,14 @@ impl<D: Decoder + ?Sized> RunningBatch<'_, D> {
     }
 }
 
-// How many of its `pending` tokens each row reads in a step, so the step is one the decoder compiled: a token per running row, and the largest chunk of what is left that fits, given to the first rows that have it.
-fn step_portions(pending: &[usize], chunks: &[usize]) -> Vec<usize> {
-    if chunks.is_empty() {
+// How many of its `pending` tokens each row reads in a step, so the step fits what the decoder compiled: a token per running row, and up to `largest` more, given to the first rows that have them.
+fn step_portions(pending: &[usize], largest: Option<usize>) -> Vec<usize> {
+    let Some(largest) = largest else {
         return pending.to_vec();
-    }
+    };
 
-    let spare = pending.iter().map(|tokens| tokens.saturating_sub(1)).sum();
-    let mut extra = chunks
-        .iter()
-        .copied()
-        .filter(|&chunk| chunk <= spare)
-        .max()
-        .unwrap_or(0);
+    let spare: usize = pending.iter().map(|tokens| tokens.saturating_sub(1)).sum();
+    let mut extra = spare.min(largest);
     pending
         .iter()
         .map(|&tokens| {
@@ -370,7 +364,56 @@ fn next_tokens(
         .to_vec::<i64>()
 }
 
-// How much a [`CachedDecoder`] holds.
+// The steps past one token per row that a compiled decoder compiles, by the extra tokens they read: `smallest`, then four times as many each time, up to `largest` and to one less than a sequence's capacity, which is always the last.
+// A step pads to the smallest compiled one that holds it, so a prompt up to the largest reads in one step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PromptChunks {
+    pub smallest: usize,
+    pub largest: usize,
+}
+
+impl PromptChunks {
+    // Compiles only the step of one token per row, so a prompt reads a token per step.
+    pub const NONE: Self = Self {
+        smallest: 0,
+        largest: 0,
+    };
+
+    // Prompts read in steps of at most 1024 tokens, the larger compiled only when the capacity reaches them.
+    pub const STANDARD: Self = Self {
+        smallest: 16,
+        largest: 1024,
+    };
+
+    // Returns the extra tokens of each step to compile for sequences of `capacity` tokens, smallest first.
+    #[must_use]
+    pub fn sizes(self, capacity: i64) -> Vec<usize> {
+        let limit = self
+            .largest
+            .min(usize::try_from(capacity.saturating_sub(1)).unwrap_or(0));
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let mut sizes = Vec::new();
+        let mut size = self.smallest.max(1);
+        while size < limit {
+            sizes.push(size);
+            size = size.saturating_mul(4);
+        }
+
+        sizes.push(limit);
+        sizes
+    }
+}
+
+impl Default for PromptChunks {
+    fn default() -> Self {
+        Self::STANDARD
+    }
+}
+
+// How much a [`CachedDecoder`] holds, and which steps it compiles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecoderOptions {
     // How many sequences each step takes.
@@ -381,6 +424,8 @@ pub struct DecoderOptions {
     pub page_size: i64,
     // The tokens a cache holds across its sequences, or enough for every sequence's capacity at once.
     pub cache_tokens: Option<i64>,
+    // The prompt steps a compiled decoder compiles beside the step of one token per row.
+    pub prompt_chunks: PromptChunks,
 }
 
 impl DecoderOptions {
@@ -391,6 +436,7 @@ impl DecoderOptions {
             capacity,
             page_size: 32,
             cache_tokens: None,
+            prompt_chunks: PromptChunks::STANDARD,
         }
     }
 
@@ -406,6 +452,32 @@ impl DecoderOptions {
         self.cache_tokens = Some(cache_tokens);
         self
     }
+
+    #[must_use]
+    pub const fn with_prompt_chunks(mut self, prompt_chunks: PromptChunks) -> Self {
+        self.prompt_chunks = prompt_chunks;
+        self
+    }
+
+    // Returns the extra tokens of each prompt step a compiled decoder compiles, smallest first.
+    #[must_use]
+    pub fn chunk_sizes(&self) -> Vec<usize> {
+        self.prompt_chunks.sizes(self.capacity)
+    }
+
+    // Plans the pages of a decoder with these options, with room in each step's page table to pad it up to the largest prompt step.
+    pub fn page_table(&self) -> Result<PageTable> {
+        let table = match self.cache_tokens {
+            Some(cache_tokens) => PageTable::create_shared(
+                self.sequences,
+                self.capacity,
+                self.page_size,
+                cache_tokens,
+            )?,
+            None => PageTable::create(self.sequences, self.capacity, self.page_size)?,
+        };
+        table.with_padding(self.chunk_sizes().last().copied().unwrap_or(0))
+    }
 }
 
 // One decode step as a graph, the inputs it reads, and the logits it computed on them.
@@ -419,6 +491,8 @@ pub struct DecoderStepGraph {
 }
 
 // A model's generation state: its pages and caches, and optionally compiled steps, by the tokens they read.
+//
+// Once compiled, a decoder runs only steps it compiled: a step pads to the smallest compiled one that holds it, and a larger step fails.
 #[derive(Debug)]
 pub struct CachedDecoder<L: DecoderModel> {
     model: Model<L>,
@@ -426,8 +500,8 @@ pub struct CachedDecoder<L: DecoderModel> {
     pages: PageTable,
     tables: L::Tables,
     caches: Vec<L::Cache>,
+    chunks: Vec<usize>,
     compiled: BTreeMap<usize, GraphExecutor>,
-    eager_steps: usize,
 }
 
 impl<L: DecoderModel> CachedDecoder<L> {
@@ -435,15 +509,7 @@ impl<L: DecoderModel> CachedDecoder<L> {
     pub fn create(model: &Model<L>, options: DecoderOptions) -> Result<Self> {
         let device = model.state().device()?;
         let data_type = model.state().floating_type()?;
-        let pages = match options.cache_tokens {
-            Some(cache_tokens) => PageTable::create_shared(
-                options.sequences,
-                options.capacity,
-                options.page_size,
-                cache_tokens,
-            )?,
-            None => PageTable::create(options.sequences, options.capacity, options.page_size)?,
-        };
+        let pages = options.page_table()?;
         Ok(Self {
             model: model.clone(),
             device,
@@ -452,46 +518,29 @@ impl<L: DecoderModel> CachedDecoder<L> {
                 .layer()
                 .caches(data_type, device, pages.cache_size()?)?,
             pages,
+            chunks: options.chunk_sizes(),
             compiled: BTreeMap::new(),
-            eager_steps: 0,
         })
     }
 
-    // Compiles the step of one token per sequence, which later steps then run; a prompt of several tokens stays eager.
+    // Compiles the step of one token per sequence and a step for each prompt chunk the options asked for, which every later step then runs.
     //
-    // Preparing freezes bound state, and the cache changes on every step and during an eager prompt, so the cache is an input the step reads and writes in place.
+    // Preparing freezes bound state, and the cache changes on every step, so the cache is an input the step reads and writes in place.
     pub fn compile(&mut self) -> Result<()> {
-        self.compile_under(GraphPrepareOptions::new(self.device), &[])
+        self.compile_under(GraphPrepareOptions::new(self.device))
     }
 
-    // Compiles the step as `compile` does, under `cuda`, which may hold tuning records.
+    // Compiles the steps as `compile` does, under `cuda`, whose records hold for a step only if they were tuned on `chunk_step_graph` of its size.
     #[cfg(feature = "cuda")]
     pub fn compile_with(&mut self, cuda: GraphCudaOptions) -> Result<()> {
-        self.compile_under(
-            GraphPrepareOptions::new(self.device).with_cuda_options(cuda),
-            &[],
-        )
+        self.compile_under(GraphPrepareOptions::new(self.device).with_cuda_options(cuda))
     }
 
-    // Compiles that step and one more for each of `chunks`, reading that many extra tokens, so a prompt of any length reads with no eager step.
-    pub fn compile_chunks(&mut self, chunks: &[usize]) -> Result<()> {
-        self.compile_under(GraphPrepareOptions::new(self.device), chunks)
-    }
-
-    // Compiles the steps as `compile_chunks` does, under `cuda`, whose records hold for a step only if they were tuned on `chunk_step_graph` of its size.
-    #[cfg(feature = "cuda")]
-    pub fn compile_chunks_with(&mut self, cuda: GraphCudaOptions, chunks: &[usize]) -> Result<()> {
-        self.compile_under(
-            GraphPrepareOptions::new(self.device).with_cuda_options(cuda),
-            chunks,
-        )
-    }
-
-    fn compile_under(&mut self, options: GraphPrepareOptions, chunks: &[usize]) -> Result<()> {
+    fn compile_under(&mut self, options: GraphPrepareOptions) -> Result<()> {
         // Only one step runs at a time, so the steps share their buffers.
         let options = options.sharing_buffers(&SharedBuffers::default());
         let mut compiled = BTreeMap::new();
-        for &chunk in iter::once(&0).chain(chunks) {
+        for &chunk in iter::once(&0).chain(&self.chunks) {
             let tokens = self.pages.sequences() + chunk;
             compiled.insert(tokens, self.compile_step(options.clone(), tokens)?);
         }
@@ -598,6 +647,8 @@ impl<L: DecoderModel> CachedDecoder<L> {
         if self.pages.sequences() != other.pages.sequences()
             || self.pages.capacity() != other.pages.capacity()
             || self.pages.page_size() != other.pages.page_size()
+            || self.pages.table_length()? != other.pages.table_length()?
+            || self.chunks != other.chunks
         {
             return Err(Error::invalid_argument(
                 "decoders share a compiled step only at one size",
@@ -637,12 +688,6 @@ impl<L: DecoderModel> CachedDecoder<L> {
         self.compiled.values()
     }
 
-    // How many steps ran eagerly since this decoder was created, for lack of a compiled step of their size.
-    #[must_use]
-    pub const fn eager_steps(&self) -> usize {
-        self.eager_steps
-    }
-
     // Returns each block's cache, which a model may write outside a step, such as an encoder-decoder's cross-attention keys and values.
     #[must_use]
     pub fn caches(&self) -> &[L::Cache] {
@@ -668,11 +713,22 @@ impl<L: DecoderModel> Decoder for CachedDecoder<L> {
     }
 
     fn step(&mut self, tokens: &[&[i64]]) -> Result<Tensor> {
-        let total = tokens.iter().map(|tokens| tokens.len().max(1)).sum();
         // A failed step leaves the table where the cache's contents are.
         let mut pages = self.pages.clone();
-        let step = pages.step(self.device, tokens)?;
-        let logits = if let Some(executor) = self.compiled.get_mut(&total) {
+        let logits = if self.compiled.is_empty() {
+            let step = pages.step(self.device, tokens)?;
+            self.model
+                .layer()
+                .forward(&step, &self.tables, &self.caches, self.model.state())?
+        } else {
+            let total = PageTable::step_tokens(tokens);
+            let largest = self.compiled.keys().last().copied().unwrap_or(0);
+            let (&size, executor) = self.compiled.range_mut(total..).next().ok_or_else(|| {
+                Error::invalid_argument(format!(
+                    "a decode step of {total} tokens is larger than the largest compiled step, of {largest}"
+                ))
+            })?;
+            let step = pages.step_padded(self.device, tokens, size)?;
             let inputs = step
                 .named_tensors()
                 .into_iter()
@@ -682,15 +738,6 @@ impl<L: DecoderModel> Decoder for CachedDecoder<L> {
                 .run(&inputs)?
                 .pop()
                 .ok_or_else(|| Error::missing_output("compiled decode step"))?
-        } else {
-            let logits = self.model.layer().forward(
-                &step,
-                &self.tables,
-                &self.caches,
-                self.model.state(),
-            )?;
-            self.eager_steps += 1;
-            logits
         };
         self.pages = pages;
         Ok(logits)
@@ -704,13 +751,9 @@ impl<L: DecoderModel> Decoder for CachedDecoder<L> {
         self.pages.release(sequence)
     }
 
-    fn prompt_chunks(&self) -> Vec<usize> {
+    fn largest_chunk(&self) -> Option<usize> {
         let sequences = self.pages.sequences();
-        self.compiled
-            .keys()
-            .map(|tokens| tokens - sequences)
-            .filter(|&chunk| chunk > 0)
-            .collect()
+        self.compiled.keys().last().map(|tokens| tokens - sequences)
     }
 
     fn report(&self) -> Result<Option<String>> {
@@ -738,7 +781,7 @@ mod tests {
         steps: Vec<Vec<Vec<i64>>>,
         resets: usize,
         released: Vec<usize>,
-        chunks: Vec<usize>,
+        largest: Option<usize>,
     }
 
     impl Counting {
@@ -748,7 +791,7 @@ mod tests {
                 steps: Vec::new(),
                 resets: 0,
                 released: Vec::new(),
-                chunks: Vec::new(),
+                largest: None,
             }
         }
     }
@@ -773,8 +816,8 @@ mod tests {
             )
         }
 
-        fn prompt_chunks(&self) -> Vec<usize> {
-            self.chunks.clone()
+        fn largest_chunk(&self) -> Option<usize> {
+            self.largest
         }
 
         fn reset(&mut self) {
@@ -805,23 +848,43 @@ mod tests {
     }
 
     #[test]
-    fn test_a_step_reads_the_largest_chunk_that_fits() {
-        assert_eq!(step_portions(&[5, 1], &[]), [5, 1]);
-        assert_eq!(step_portions(&[5, 1], &[2, 3]), [4, 1]);
-        assert_eq!(step_portions(&[5, 1], &[2, 8]), [3, 1]);
-        assert_eq!(step_portions(&[2, 1], &[2, 8]), [1, 1]);
+    fn test_a_step_reads_up_to_the_largest_chunk() {
+        assert_eq!(step_portions(&[5, 1], None), [5, 1]);
+        assert_eq!(step_portions(&[5, 1], Some(3)), [4, 1]);
+        assert_eq!(step_portions(&[5, 1], Some(8)), [5, 1]);
+        assert_eq!(step_portions(&[2, 1], Some(0)), [1, 1]);
         // A chunk spreads over the rows that have tokens to spare, and an idle row reads nothing.
-        assert_eq!(step_portions(&[3, 0, 3], &[3]), [3, 0, 2]);
-        assert_eq!(step_portions(&[1, 1], &[1]), [1, 1]);
+        assert_eq!(step_portions(&[3, 0, 3], Some(3)), [3, 0, 2]);
+        assert_eq!(step_portions(&[1, 1], Some(1)), [1, 1]);
     }
 
-    // Whatever a prompt's length, every step is one the decoder compiled, and the next token follows the prompt's last.
     #[test]
-    fn test_a_prompt_of_any_length_reads_in_compiled_steps() {
+    fn test_prompt_chunks_grow_by_four_up_to_the_capacity() {
+        let chunks = PromptChunks::default();
+        assert_eq!(chunks.sizes(512), [16, 64, 256, 511]);
+        assert_eq!(chunks.sizes(5000), [16, 64, 256, 1024]);
+        assert_eq!(chunks.sizes(10), [9]);
+        assert!(chunks.sizes(1).is_empty());
+        assert!(PromptChunks::NONE.sizes(512).is_empty());
+        let exact = PromptChunks {
+            smallest: 16,
+            largest: 3,
+        };
+        assert_eq!(exact.sizes(448), [3]);
+        let small = PromptChunks {
+            smallest: 1,
+            largest: 3,
+        };
+        assert_eq!(small.sizes(32), [1, 3]);
+    }
+
+    // Whatever a prompt's length, no step reads more than the largest chunk past a token per row, and the next token follows the prompt's last.
+    #[test]
+    fn test_a_prompt_of_any_length_reads_in_steps_up_to_the_largest_chunk() {
         for length in 1..=20 {
             let prompt = (0..length).collect::<Vec<i64>>();
             let mut decoder = Counting::new(2);
-            decoder.chunks = vec![2, 5];
+            decoder.largest = Some(5);
             let options = GenerationOptions {
                 max_new_tokens: 2,
                 ..GenerationOptions::default()
@@ -837,10 +900,15 @@ mod tests {
             let mut read = Vec::new();
             for step in &decoder.steps {
                 let total = step.iter().map(|tokens| tokens.len().max(1)).sum::<usize>();
-                assert!([2, 4, 7].contains(&total), "{step:?}");
+                assert!(total <= 7, "{step:?}");
                 read.extend_from_slice(&step[0]);
             }
             assert_eq!(read[..prompt.len()], prompt);
+            // A prompt reads in as few steps as the largest chunk allows.
+            assert_eq!(
+                decoder.steps.len(),
+                usize::try_from(length).unwrap().div_ceil(6) + 1
+            );
         }
     }
 

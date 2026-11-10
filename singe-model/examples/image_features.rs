@@ -15,7 +15,7 @@ const MEAN: [f32; 3] = [0.485, 0.456, 0.406];
 const STD: [f32; 3] = [0.229, 0.224, 0.225];
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse()?;
+    let arguments = Arguments::parse(&[])?;
     let config: Dinov2Config = Snapshot::new(&arguments.snapshot).config()?;
     let size = u32::try_from(config.image_size)?;
     let mut pixels = read_image(arguments.required("image")?, size, size)?;

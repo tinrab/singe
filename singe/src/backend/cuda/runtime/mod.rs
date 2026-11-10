@@ -18,6 +18,7 @@ pub use self::autotune::AutotuneTensorBucket;
 use singe_cublas::{context::Context as CublasContext, lt::context::Context as CublasLtContext};
 use singe_cuda::{
     architecture::GpuArchitecture, context::Context as CudaContext, module::KernelFunction,
+    stream::StreamFlags,
 };
 use singe_cudnn::context::Context as CudnnContext;
 use singe_cutensor::context::Context as CutensorContext;
@@ -36,6 +37,7 @@ use crate::{
     backend::cuda::{
         cudnn_backend::{CudnnBackendGraphCacheEntry, CudnnBackendGraphKey},
         cutensor::{CachedCutensorContractionPlan, CutensorContractionPlanKey},
+        stream::CudaStream,
     },
     device::Device,
     error::{Error, Result},
@@ -63,6 +65,8 @@ pub struct CudaRuntime {
     autotune_cache: Mutex<ProviderCache<AutotuneCacheKey, AutotuneCacheEntry>>,
     fft_plans: Mutex<ProviderCache<FftPlanKey, Plan>>,
     generated_kernels: Mutex<ProviderCache<String, KernelFunction>>,
+    // The stream eager kernels launch on when their context names none, created once rather than for each launch.
+    eager_stream: OnceLock<CudaStream>,
 }
 
 // The transform, signal length, and batch a cuFFT plan runs.
@@ -113,7 +117,22 @@ impl CudaRuntime {
                 CudaRuntimeCacheLimits::default().generated_kernels,
                 weight::compiled_kernel,
             )),
+            eager_stream: OnceLock::new(),
         })
+    }
+
+    // Returns the stream eager kernels launch on when their context names none, a blocking stream, so it stays ordered with the legacy default stream the libraries use then.
+    pub(crate) fn eager_stream(&self) -> Result<&CudaStream> {
+        if let Some(stream) = self.eager_stream.get() {
+            return Ok(stream);
+        }
+
+        let stream = self
+            .context
+            .create_stream_with_flags(StreamFlags::DEFAULT)?;
+        Ok(self
+            .eager_stream
+            .get_or_init(|| CudaStream::new(Arc::new(stream))))
     }
 
     // Returns the bounded cache of cuFFT plans eager transforms reuse, since planning takes far longer than a transform.

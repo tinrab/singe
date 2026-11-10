@@ -12,7 +12,6 @@ use singe_cuda::{
 use crate::{
     backend::cuda::{
         context::CudaExecutionContext,
-        stream::CudaStream,
         tensor_region::{CudaTensorRegion, CudaTensorSource},
         utility::cuda_storage,
     },
@@ -186,17 +185,12 @@ pub fn tensor_output_view_with_len<'a, T: DeviceRepr>(
     Ok(unsafe { DeviceOutputView::from_raw_parts(region, length)? })
 }
 
-pub enum CudaKernelStream<'a> {
-    Borrowed(&'a Stream),
-    Owned(CudaStream),
-}
+// The stream an eager kernel launches on: the one its context names, or the runtime's eager stream, which a launch borrows rather than creating a stream of its own.
+pub struct CudaKernelStream<'a>(&'a Stream);
 
 impl CudaKernelStream<'_> {
-    pub(crate) fn raw(&self) -> &Stream {
-        match self {
-            Self::Borrowed(stream) => stream,
-            Self::Owned(stream) => stream.raw(),
-        }
+    pub(crate) const fn raw(&self) -> &Stream {
+        self.0
     }
 
     /// Completes borrowed eager work or records it into the backend's active graph.
@@ -260,7 +254,7 @@ pub fn kernel_stream_for_context(
         ));
     }
     match context.stream() {
-        Some(stream) => Ok(CudaKernelStream::Borrowed(stream.raw())),
-        None => Ok(CudaKernelStream::Owned(CudaStream::create(device)?)),
+        Some(stream) => Ok(CudaKernelStream(stream.raw())),
+        None => Ok(CudaKernelStream(context.runtime().eager_stream()?.raw())),
     }
 }

@@ -1,6 +1,6 @@
 //! Helpers that check generated kernels on the GPU against `singe-codegen`'s interpreter, shared by every target's tests.
 
-use std::ptr;
+use std::{cell::RefCell, ptr};
 
 use half::{bf16, f16};
 use singe_codegen::{
@@ -98,10 +98,35 @@ pub fn on_gpu(
         .collect()
 }
 
+// What the interpreter computed last: its kernel and bindings, the buffers it started from, and those it left.
+type Interpreted = (Kernel, Bindings, Vec<Vec<u8>>, Vec<Vec<u8>>);
+
+thread_local! {
+    // Tests check one kernel under schedule after schedule, and its result does not depend on the schedule.
+    static LAST: RefCell<Option<Interpreted>> = const { RefCell::new(None) };
+}
+
 pub fn on_cpu(kernel: &Kernel, bindings: &Bindings, buffers: &[Vec<u8>]) -> Vec<Vec<u8>> {
-    let mut buffers = buffers.to_vec();
-    interpret::run(kernel, bindings, &mut buffers).unwrap();
-    buffers
+    let last = LAST.with_borrow(|last| {
+        last.as_ref()
+            .filter(|(seen, bound, started, _)| {
+                seen == kernel && bound == bindings && started == buffers
+            })
+            .map(|(_, _, _, left)| left.clone())
+    });
+    if let Some(left) = last {
+        return left;
+    }
+
+    let mut left = buffers.to_vec();
+    interpret::run(kernel, bindings, &mut left).unwrap();
+    LAST.set(Some((
+        kernel.clone(),
+        bindings.clone(),
+        buffers.to_vec(),
+        left.clone(),
+    )));
+    left
 }
 
 /// Decodes `bytes` as elements of `element`, widened to `f64`.

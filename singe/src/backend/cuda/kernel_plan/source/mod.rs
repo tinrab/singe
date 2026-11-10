@@ -18,22 +18,30 @@ mod tcgen05_attention;
 mod tensor_core;
 mod writer;
 
-use std::{iter, slice};
+use std::{
+    iter, slice,
+    sync::{Arc, Mutex},
+};
+
+use singe_cuda::module::KernelFunction;
 
 use crate::{
     backend::{
         cuda::{
             codegen::{BufferDescription, KernelArtifact, KernelDescription, PlanningContext},
+            runtime::CudaRuntime,
             tensor_region::CudaTensorSource,
         },
         kernel_lowering::{self, ArgumentLabels, ElementGroup, Epilogue, Lhs, RowEpilogue, Weight},
         registry::{Operation, OperationAttributes, operation_schema_for_attributes},
     },
     data_type::DataType,
+    device::Device,
     error::{Error, Result},
+    graph::{ComputePrecision, NumericalPolicy},
     layout::Layout,
     shape::Shape,
-    utility::to_i64,
+    utility::{Locked, to_i64},
     value::ValueSpec,
 };
 
@@ -96,7 +104,16 @@ pub struct KernelPlan {
     // Kernels that run before `kernel`, in order, leaving what it reads in the plan's scratch buffers.
     pub(crate) before: Vec<KernelArtifact>,
     pub(crate) kernel: KernelArtifact,
+    // The plan's kernels as each device loaded them, under each precision, filled at their first launch.
+    pub(crate) loaded: LoadedKernels,
 }
+
+// A plan's loaded functions by the device and precision they were loaded under, which a launch finds without rendering or hashing the code again.
+#[derive(Debug, Default)]
+pub struct LoadedKernels(Mutex<Vec<(LoadKey, Arc<[KernelFunction]>)>>);
+
+// The device a plan's kernels were loaded on, and the precision they compiled under.
+type LoadKey = (Device, ComputePrecision);
 
 impl KernelPlan {
     // The plan's kernels in launch order.
@@ -137,6 +154,35 @@ impl KernelPlanner {
 }
 
 impl KernelPlan {
+    /// Returns the functions of the plan's kernels that are not empty, in launch order, as `runtime` loaded them for `device` under the current precision.
+    pub(crate) fn functions(
+        &self,
+        runtime: &CudaRuntime,
+        device: Device,
+    ) -> Result<Arc<[KernelFunction]>> {
+        let key = (device, NumericalPolicy::current().precision);
+        if let Some((_, functions)) = self
+            .loaded
+            .0
+            .locked("kernel plan functions")?
+            .iter()
+            .find(|(loaded, _)| *loaded == key)
+        {
+            return Ok(Arc::clone(functions));
+        }
+
+        let functions = self
+            .kernels()
+            .filter(|kernel| !kernel.is_empty())
+            .map(|kernel| runtime.kernel(kernel))
+            .collect::<Result<Arc<[_]>>>()?;
+        self.loaded
+            .0
+            .locked("kernel plan functions")?
+            .push((key, Arc::clone(&functions)));
+        Ok(functions)
+    }
+
     /// Returns the value the kernel's first output buffer holds.
     pub(crate) fn output(&self) -> &ValueSpec {
         &self.outputs[0]

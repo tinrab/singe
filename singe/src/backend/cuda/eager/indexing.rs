@@ -1,9 +1,9 @@
-use std::iter::once;
+use std::{iter::once, sync::Arc};
 
 use crate::{
     backend::{
         cuda::{
-            kernel_plan::{self, KernelInput, KernelPlanner},
+            kernel_plan::{self, KernelPlan, PlanKind},
             utility::ensure_same_device,
         },
         registry::{Operation, OperationAttributes},
@@ -34,13 +34,44 @@ pub fn indexing(
 
 /// Selects elements of the consecutive dimensions starting at `dim` with broadcast `I64` index tensors.
 pub fn index(input: &Tensor, indices: &[Tensor], dim: i64) -> Result<Tensor> {
-    let metadata = indices
-        .iter()
-        .map(KernelInput::from_source)
-        .collect::<Vec<_>>();
-    let plan = KernelPlanner::default().index(&KernelInput::from_source(input), &metadata, dim)?;
     let operands = once(input).chain(indices).collect::<Vec<_>>();
-    kernel_plan::run(&plan, &operands)
+    let plans = kernel_plan::cached_plans(
+        PlanKind::Index,
+        &OperationAttributes::None,
+        &[dim],
+        &operands,
+        |planner, inputs| Ok(vec![planner.index(&inputs[0], &inputs[1..], dim)?]),
+    )?;
+    kernel_plan::run(&plans[0], &operands)
+}
+
+// The plan that writes `values` into, or with `accumulate` adds them to, the elements of `destination` that `indices` select.
+fn index_put_plan(
+    destination: &Tensor,
+    values: &Tensor,
+    indices: &[Tensor],
+    dim: i64,
+    accumulate: bool,
+) -> Result<Arc<[KernelPlan]>> {
+    let planned = [destination, values]
+        .into_iter()
+        .chain(indices)
+        .collect::<Vec<_>>();
+    kernel_plan::cached_plans(
+        PlanKind::IndexPut,
+        &OperationAttributes::None,
+        &[dim, i64::from(accumulate)],
+        &planned,
+        |planner, inputs| {
+            Ok(vec![planner.index_put(
+                &inputs[0],
+                &inputs[1],
+                &inputs[2..],
+                dim,
+                accumulate,
+            )?])
+        },
+    )
 }
 
 /// Returns a copy of `input` with `values` written into, or with `accumulate` added to, the elements [`index`] selects.
@@ -51,20 +82,10 @@ pub fn index_put(
     dim: i64,
     accumulate: bool,
 ) -> Result<Tensor> {
-    let metadata = indices
-        .iter()
-        .map(KernelInput::from_source)
-        .collect::<Vec<_>>();
-    let plan = KernelPlanner::default().index_put(
-        &KernelInput::from_source(input),
-        &KernelInput::from_source(values),
-        &metadata,
-        dim,
-        accumulate,
-    )?;
+    let plans = index_put_plan(input, values, indices, dim, accumulate)?;
     let output = kernel_plan::execute(Operation::Copy, &OperationAttributes::None, &[input])?;
     let operands = once(values).chain(indices).collect::<Vec<_>>();
-    kernel_plan::run_into(&plan, &operands, &output)?;
+    kernel_plan::run_into(&plans[0], &operands, &output)?;
     Ok(output)
 }
 
@@ -81,17 +102,7 @@ pub fn index_write(
         return kernel_plan::assign(destination, &updated);
     }
 
-    let metadata = indices
-        .iter()
-        .map(KernelInput::from_source)
-        .collect::<Vec<_>>();
-    let plan = KernelPlanner::default().index_put(
-        &KernelInput::from_source(destination),
-        &KernelInput::from_source(values),
-        &metadata,
-        dim,
-        accumulate,
-    )?;
+    let plans = index_put_plan(destination, values, indices, dim, accumulate)?;
     let operands = once(values).chain(indices).collect::<Vec<_>>();
-    kernel_plan::run_into(&plan, &operands, destination)
+    kernel_plan::run_into(&plans[0], &operands, destination)
 }

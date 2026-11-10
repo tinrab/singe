@@ -5,10 +5,10 @@ use std::{
     ffi::{CStr, c_char, c_void},
     fs, io,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{self, Command, Output},
     ptr,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
     thread,
@@ -16,11 +16,13 @@ use std::{
 };
 
 use libloading::Library;
+use sha2::{Digest, Sha256};
 use singe_cuda::architecture::GpuArchitecture;
 use thiserror::Error as ThisError;
 
 use crate::{
     backend::cuda::{
+        codegen::disk_cache,
         export::{
             CudaProgram, CudaProgramSet,
             writer::{CONFIGURATION_REFUSED, CUBLAS_BASE, LIBRARY_VERSION, ProgramFiles},
@@ -155,6 +157,51 @@ fn run_compiler(arguments: &[String], directory: &Path) -> Result<(), ProgramErr
     compiler_result(&output, directory)
 }
 
+// What `nvcc --version` says, read once, which keys built programs so another toolkit builds them again.
+fn compiler_version() -> &'static str {
+    static VERSION: OnceLock<String> = OnceLock::new();
+    VERSION.get_or_init(|| {
+        Command::new("nvcc")
+            .arg("--version")
+            .output()
+            .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+            .unwrap_or_default()
+    })
+}
+
+// Builds `libmodel.so` from the `model.h` and `model.cu` written under `directory`, with `arguments`, or copies the library an earlier build of the same files, arguments, and compiler kept in the cache of programs.
+//
+// Tuning builds the same candidates in each tune, and test runs build the same programs each time, at seconds a build.
+fn build_library(arguments: &[String], directory: &Path) -> Result<(), ProgramError> {
+    let Some(cache) = disk_cache::program_directory()? else {
+        return run_compiler(arguments, directory);
+    };
+    let mut hasher = Sha256::new();
+    for part in [
+        compiler_version().as_bytes(),
+        arguments.join("\0").as_bytes(),
+        &fs::read(directory.join("model.h"))?,
+        &fs::read(directory.join("model.cu"))?,
+    ] {
+        hasher.update(part.len().to_le_bytes());
+        hasher.update(part);
+    }
+
+    let cached = cache.join(format!("{}.so", hex::encode(hasher.finalize())));
+    let library = directory.join("libmodel.so");
+    if fs::copy(&cached, &library).is_ok() {
+        return Ok(());
+    }
+
+    run_compiler(arguments, directory)?;
+    // Another process may keep the same build, so each writes its own file and renames it into place.
+    let partial = cached.with_extension(format!("{}.partial", process::id()));
+    if fs::copy(&library, &partial).is_ok() && fs::rename(&partial, &cached).is_err() {
+        let _ = fs::remove_file(&partial);
+    }
+    Ok(())
+}
+
 fn compiler_result(output: &Output, directory: &Path) -> Result<(), ProgramError> {
     if output.status.success() {
         return Ok(());
@@ -279,11 +326,7 @@ impl CompiledProgram {
                             };
 
                             if let Ok(arguments) = &commands[index] {
-                                let output = Command::new("nvcc")
-                                    .args(arguments)
-                                    .current_dir(directory)
-                                    .output();
-                                finished.push((index, output));
+                                finished.push((index, build_library(arguments, directory)));
                             }
                         }
                     })
@@ -306,9 +349,8 @@ impl CompiledProgram {
             .zip(outputs)
             .map(|(((program, files, directory), command), output)| {
                 command?;
-                let output = output
+                output
                     .ok_or_else(|| Error::invalid_argument("a compiler thread stopped early"))??;
-                compiler_result(&output, &directory)?;
                 let weights =
                     if let Some(same) = shared.iter().find(|weights| ***weights == files.weights) {
                         Arc::clone(same)
@@ -359,7 +401,7 @@ impl CompiledProgram {
         directory: PathBuf,
     ) -> Result<Self, ProgramError> {
         let arguments = program_arguments(&directory)?;
-        run_compiler(&arguments, &directory)?;
+        build_library(&arguments, &directory)?;
         // SAFETY: the library is the program just compiled, and its initializers only register kernels.
         let library = unsafe { Library::new(directory.join("libmodel.so")) }?;
         let weights = program.render("model")?.weights;

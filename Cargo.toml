@@ -173,5 +173,8 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
+[profile.dev.package.singe-codegen]
+opt-level = 3
+
 [workspace.metadata.no-slop.rules]
 no-dense-statement-runs = "off"

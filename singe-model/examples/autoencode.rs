@@ -9,7 +9,7 @@ use singe_model::vision::image_to_image::load_autoencoder;
 use crate::support::{Arguments, read_image, write_image};
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse()?;
+    let arguments = Arguments::parse(&[])?;
     let size = arguments.value("size").map_or(Ok(512), str::parse::<u32>)?;
     let pixels = read_image(arguments.required("image")?, size, size)?;
     let extent = i64::from(size);

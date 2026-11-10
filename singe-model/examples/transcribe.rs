@@ -15,7 +15,7 @@ use singe_model::{
 use crate::support::{Arguments, read_wav};
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse()?;
+    let arguments = Arguments::parse(&[])?;
     let samples = read_wav(arguments.required("audio")?)?;
     let count = i64::try_from(samples.len())?;
     let samples = Tensor::from_vec(arguments.device, Shape::create([count])?, samples)?;

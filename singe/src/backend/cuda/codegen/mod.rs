@@ -7,7 +7,7 @@
 mod compile;
 mod cuda_c;
 mod description;
-mod disk_cache;
+pub mod disk_cache;
 mod emission;
 mod kernel;
 mod planning;

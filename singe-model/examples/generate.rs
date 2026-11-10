@@ -1,92 +1,113 @@
-use std::{env, path::PathBuf, time::Instant};
+// Generates text after each `--prompt` in one batch, printing it as it is generated.
+//
+// Runs any model `singe_model::text::text_generation::load_decoder` knows on plain text prompts; chat templates are left to the caller, who can write one into `--prompt`.
+// `--max-new-tokens N`, `--type f16|f32` for other than BF16, `--eager`, `--sample`, and `--report` for what the compiled steps prepared.
 
-use anyhow::{Context as _, Result, anyhow, bail};
+mod support;
+
+use std::{
+    io::{self, Write as _},
+    time::{Duration, Instant},
+};
+
+use anyhow::{Result, bail};
 use singe::{
-    DataType, Device,
-    generation::{DecoderOptions, GenerationOptions, generate},
+    DataType,
+    generation::{DecoderOptions, GenerationOptions, generate_batch},
     random::Generator,
     tensor::SamplingOptions,
 };
-use singe_model::{config::Snapshot, text::text_generation::load_decoder};
-use tokenizers::Tokenizer;
+use singe_model::{
+    config::Snapshot,
+    text::text_generation::load_decoder,
+    tokenization::{TextStream, TextTokenizer},
+};
 
-struct Arguments {
-    snapshot: Option<PathBuf>,
-    prompt: String,
-    max_new_tokens: usize,
-    device: Device,
-    data_type: DataType,
-    compiled: bool,
-    sample: bool,
-    report: bool,
+use crate::support::Arguments;
+
+// Where each sequence's text goes as it arrives: straight to the terminal for one prompt, and a line at a time, tagged with its prompt's number, for several.
+struct Printer<'a> {
+    streams: Vec<TextStream<'a>>,
+    lines: Vec<String>,
+    tagged: bool,
 }
 
-fn parse() -> Result<Arguments> {
-    let mut parsed = Arguments {
-        snapshot: env::var_os("SNAPSHOT_PATH").map(PathBuf::from),
-        prompt: "What is the capital of France?".to_owned(),
-        max_new_tokens: 64,
-        device: Device::Cuda(0),
-        data_type: DataType::Bf16,
-        compiled: true,
-        sample: false,
-        report: false,
-    };
-    let mut arguments = env::args().skip(1);
-    while let Some(argument) = arguments.next() {
-        let mut value = || {
-            arguments
-                .next()
-                .ok_or_else(|| anyhow!("{argument} needs a value"))
+impl Printer<'_> {
+    fn push(&mut self, sequence: usize, token: i64) -> Result<()> {
+        let Some(text) = self.streams[sequence].push(token)? else {
+            return Ok(());
         };
-        match argument.as_str() {
-            "--snapshot" => parsed.snapshot = Some(value()?.into()),
-            "--prompt" => parsed.prompt = value()?,
-            "--max-new-tokens" => parsed.max_new_tokens = value()?.parse()?,
-            "--cpu" => parsed.device = Device::Cpu,
-            "--f16" => parsed.data_type = DataType::F16,
-            "--f32" => parsed.data_type = DataType::F32,
-            "--eager" => parsed.compiled = false,
-            "--sample" => parsed.sample = true,
-            "--report" => parsed.report = true,
-            _ => bail!("unknown argument {argument}"),
+        let mut out = io::stdout().lock();
+        if !self.tagged {
+            write!(out, "{text}")?;
+            out.flush()?;
+            return Ok(());
         }
+
+        let line = &mut self.lines[sequence];
+        line.push_str(&text);
+        while let Some(end) = line.find('\n') {
+            writeln!(out, "[{sequence}] {}", &line[..end])?;
+            line.drain(..=end);
+        }
+        Ok(())
     }
-    Ok(parsed)
+
+    fn finish(&mut self) -> Result<()> {
+        let mut out = io::stdout().lock();
+        if !self.tagged {
+            writeln!(out)?;
+            return Ok(());
+        }
+
+        for (sequence, line) in self.lines.iter_mut().enumerate() {
+            if !line.is_empty() {
+                writeln!(out, "[{sequence}] {line}")?;
+                line.clear();
+            }
+        }
+        Ok(())
+    }
 }
 
-// Runs any model `singe_model::text::text_generation::load_decoder` knows on a plain text prompt; chat templates are left to the caller, who can write one into `--prompt`.
 fn main() -> Result<()> {
-    let arguments = parse()?;
-    let snapshot = arguments
-        .snapshot
-        .as_deref()
-        .context("set SNAPSHOT_PATH or pass --snapshot")?;
-    let tokenizer = Tokenizer::from_file(snapshot.join("tokenizer.json"))
-        .map_err(|error| anyhow!("{error}"))?;
-    let prompt = tokenizer
-        .encode(arguments.prompt, false)
-        .map_err(|error| anyhow!("{error}"))?
-        .get_ids()
+    let arguments = Arguments::parse(&["eager", "sample", "report"])?;
+    let texts = match arguments.values("prompt") {
+        texts if texts.is_empty() => vec!["What is the capital of France?"],
+        texts => texts,
+    };
+    let max_new_tokens = arguments
+        .value("max-new-tokens")
+        .map_or(Ok(64), str::parse::<usize>)?;
+    let data_type = match arguments.value("type") {
+        None | Some("bf16") => DataType::Bf16,
+        Some("f16") => DataType::F16,
+        Some("f32") => DataType::F32,
+        Some(other) => bail!("unknown --type {other}"),
+    };
+
+    let tokenizer = TextTokenizer::load(&arguments.snapshot)?;
+    let prompts = texts
         .iter()
-        .map(|&id| i64::from(id))
-        .collect::<Vec<_>>();
+        .map(|text| tokenizer.encode(text, false))
+        .collect::<singe_model::Result<Vec<_>>>()?;
+    let longest = prompts.iter().map(Vec::len).max().unwrap_or(0);
 
     let started = Instant::now();
-    let capacity = i64::try_from(prompt.len() + arguments.max_new_tokens)?;
+    let capacity = i64::try_from(longest + max_new_tokens)?;
     let mut decoder = load_decoder(
-        snapshot,
+        &arguments.snapshot,
         arguments.device,
-        arguments.data_type,
-        DecoderOptions::new(1, capacity),
-        arguments.compiled,
+        data_type,
+        DecoderOptions::new(prompts.len(), capacity),
+        !arguments.flag("eager"),
     )?;
     eprintln!("load and prepare: {:?}", started.elapsed());
 
     let options = GenerationOptions {
-        max_new_tokens: arguments.max_new_tokens,
-        stop_tokens: Snapshot::new(snapshot).stop_tokens()?,
-        sampling: arguments.sample.then(|| {
+        max_new_tokens,
+        stop_tokens: Snapshot::new(&arguments.snapshot).stop_tokens()?,
+        sampling: arguments.flag("sample").then(|| {
             SamplingOptions::new()
                 .with_temperature(0.6)
                 .with_top_k(Some(20))
@@ -94,43 +115,58 @@ fn main() -> Result<()> {
         }),
         ..GenerationOptions::default()
     };
+    let mut printer = Printer {
+        streams: prompts.iter().map(|_| tokenizer.stream(true)).collect(),
+        lines: vec![String::new(); prompts.len()],
+        tagged: prompts.len() > 1,
+    };
     let generator = Generator::new(0);
+    let rows = prompts.iter().map(Vec::as_slice).collect::<Vec<_>>();
     let started = Instant::now();
     let mut first_token = None;
-    let tokens = generate(
+    // Generation takes Singe's errors alone, so a failure to print waits for it to finish.
+    let mut printing = Ok(());
+    let tokens = generate_batch(
         decoder.as_mut(),
-        &prompt,
+        &rows,
         &options,
         Some(&generator),
-        |_| {
+        |sequence, token| {
             first_token.get_or_insert_with(|| started.elapsed());
+            if printing.is_ok() {
+                printing = printer.push(sequence, token);
+            }
             Ok(())
         },
     )?;
     let total = started.elapsed();
-    let ids = tokens
-        .iter()
-        .map(|&token| u32::try_from(token))
-        .collect::<Result<Vec<_>, _>>()?;
-    println!(
-        "{}",
-        tokenizer
-            .decode(&ids, true)
-            .map_err(|error| anyhow!("{error}"))?
-    );
-    if arguments.report
+    printing?;
+    printer.finish()?;
+
+    if arguments.flag("report")
         && let Some(report) = decoder.report()?
     {
         eprintln!("{report}");
     }
 
+    let generated = tokens.iter().map(Vec::len).sum::<usize>();
     if let Some(first) = first_token {
-        let later = u32::try_from(tokens.len().saturating_sub(1).max(1))?;
+        let longest_run = tokens.iter().map(Vec::len).max().unwrap_or(1);
+        let later = u32::try_from(longest_run.saturating_sub(1).max(1))?;
         eprintln!(
-            "first token: {first:?}; per later token: {:?}; tokens: {}",
+            "first token: {first:?}; per later step: {:?}; tokens: {generated}, {:.1} per second",
             total.saturating_sub(first) / later,
-            tokens.len()
+            rate(generated, total)
         );
     }
     Ok(())
+}
+
+fn rate(tokens: usize, elapsed: Duration) -> f64 {
+    let seconds = elapsed.as_secs_f64();
+    if seconds == 0.0 {
+        return 0.0;
+    }
+
+    f64::from(u32::try_from(tokens).unwrap_or(u32::MAX)) / seconds
 }

@@ -1,3 +1,4 @@
+mod eager_plans;
 mod source;
 
 use std::ptr;
@@ -8,10 +9,13 @@ use singe_cuda::{
     stream::StreamCaptureStatus,
 };
 
-pub use self::source::{
-    KernelInput, KernelParameters, KernelPlan, KernelPlanner, QueryRotation, RotaryCacheInputs,
-    RotationNorm, cudnn_paging, parameter_key, plan_cudnn_paging_indices,
-    plan_cudnn_paging_results, plan_cudnn_query_lengths, value_type,
+pub use self::{
+    eager_plans::{PlanKind, plans as cached_plans},
+    source::{
+        KernelInput, KernelParameters, KernelPlan, KernelPlanner, QueryRotation, RotaryCacheInputs,
+        RotationNorm, cudnn_paging, parameter_key, plan_cudnn_paging_indices,
+        plan_cudnn_paging_results, plan_cudnn_query_lengths, value_type,
+    },
 };
 use crate::{
     backend::{
@@ -40,10 +44,12 @@ pub fn execute(
     attributes: &OperationAttributes,
     inputs: &[&Tensor],
 ) -> Result<Tensor> {
-    execute_with(&KernelPlanner::default(), operation, attributes, inputs)
+    let plans = eager_plans::plan(operation, attributes, inputs)?;
+    run(&plans[0], inputs)
 }
 
-/// Runs `operation` on `inputs` through a kernel `planner` plans.
+/// Runs `operation` on `inputs` through a kernel `planner` plans, uncached, as tests of other planners do.
+#[cfg(test)]
 pub fn execute_with(
     planner: &KernelPlanner,
     operation: Operation,
@@ -109,7 +115,7 @@ pub fn run_outputs(plan: &KernelPlan, inputs: &[&Tensor]) -> Result<Vec<Tensor>>
 ///
 /// Together the plans must write every element of the output, as the per-input plans of a concatenation do.
 pub fn run_steps(
-    steps: &[(KernelPlan, Vec<&Tensor>)],
+    steps: &[(&KernelPlan, Vec<&Tensor>)],
     device_source: &Tensor,
     data_type: DataType,
     shape: &Shape,
@@ -197,17 +203,18 @@ pub fn launch<S: CudaTensorSource + ?Sized>(
         Some(status) => status.tensor_region()?.region().as_ptr(),
         None => ptr::null_mut(),
     };
+    let functions = plan.functions(context.runtime(), context.device())?;
     let mut launches = Vec::new();
-    for kernel in plan.kernels().filter(|kernel| !kernel.is_empty()) {
+    for (kernel, function) in plan
+        .kernels()
+        .filter(|kernel| !kernel.is_empty())
+        .zip(functions.iter())
+    {
         let arguments =
             kernel
                 .abi
                 .arguments(&pointers, &destinations, &scratch_pointers, status_pointer)?;
-        launches.push((
-            context.runtime().kernel(kernel)?,
-            kernel.launch_config()?,
-            arguments,
-        ));
+        launches.push((function, kernel.launch_config()?, arguments));
     }
 
     // SAFETY: the plan's checked layouts cover every generated address.

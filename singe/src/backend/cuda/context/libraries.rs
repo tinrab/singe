@@ -37,12 +37,11 @@ impl CudaExecutionContext {
         &self,
         f: impl FnOnce(&CutensorContext, &CudaStream) -> Result<T>,
     ) -> Result<T> {
-        let owned_stream;
         let (stream, synchronize_after) = if let Some(stream) = self.stream.as_ref() {
             (stream, false)
         } else {
-            owned_stream = CudaStream::create(self.device)?;
-            (&owned_stream, true)
+            // The eager stream orders cuTENSOR after the kernels queued on it.
+            (self.runtime.eager_stream()?, true)
         };
         let cutensor = self.runtime.cutensor().locked("cuda runtime cache")?;
         let result = f(&cutensor, stream);

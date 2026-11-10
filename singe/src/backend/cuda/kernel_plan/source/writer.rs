@@ -7,7 +7,7 @@ use crate::{
                 CompileRequirements, KernelAbi, KernelArgument, KernelArtifact, KernelCode,
                 KernelLaunch,
             },
-            kernel_plan::source::{KernelInput, KernelPlan, describe, kernel_name},
+            kernel_plan::source::{KernelInput, KernelPlan, LoadedKernels, describe, kernel_name},
         },
         kernel_lowering::ArgumentLabels,
         registry::Operation,
@@ -184,6 +184,7 @@ const unsigned int lane = threadIdx.x;",
         let description = describe(inputs, &outputs, operations, &[], self.labels);
         KernelPlan {
             before: Vec::new(),
+            loaded: LoadedKernels::default(),
             outputs,
             kernel: KernelArtifact {
                 code: KernelCode::Source(

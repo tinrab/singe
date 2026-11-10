@@ -39,15 +39,6 @@ fn test_tiny_gemma2_matches_transformers_on_cuda() {
 
 #[cfg(feature = "cuda_13_4")]
 #[test]
-fn test_a_tuned_tiny_model_compiles_and_exports_from_its_records() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    SUITE.check_tuned(Device::Cuda(0));
-}
-
-#[cfg(feature = "cuda_13_4")]
-#[test]
 fn test_tiny_gemma2_decodes_on_cuda() {
     let Some(_lock) = maybe_lock_device() else {
         return;

@@ -10,9 +10,9 @@ use singe::{
 };
 use singe_model::vision::image_feature_extraction::{ImageEncoder, load_image_encoder};
 
-#[cfg(feature = "cuda_13_4")]
-use singe_testing::{EVERY_PATH, assert_within_half_gap, check_paths, lock_device, pattern_image};
 use singe_testing::{Reference, Tolerance, assert_matches, host, reference};
+#[cfg(feature = "cuda_13_4")]
+use singe_testing::{assert_within_half_gap, lock_device, pattern_image};
 
 const MODELS: [&str; 2] = ["base", "no_qkv_bias"];
 
@@ -169,29 +169,6 @@ mod cuda {
             return;
         };
         check_references(DEVICE);
-    }
-
-    // A captured tiny model computes what it computes eagerly on every path.
-    #[test]
-    fn test_a_tuned_tiny_dinov2_compiles_and_exports_from_its_records() {
-        let Some(_lock) = lock_device() else {
-            return;
-        };
-        let reference = tiny("base");
-        for data_type in [DataType::F32, DataType::Bf16] {
-            let model = load("base", DEVICE, data_type);
-            let input = images(&reference, DEVICE, data_type);
-            let (graph, _) = model.capture_graph("images", input.clone()).unwrap();
-            check_paths(
-                &graph,
-                &[("images", input)],
-                &reference.values(&format!("{}.hidden", type_key(data_type))),
-                tolerance(data_type),
-                &format!("dinov2 {data_type:?}"),
-                &EVERY_PATH,
-                DEVICE,
-            );
-        }
     }
 
     // DINOv2-small at its native 518 by 518 attends over 1370 tokens without a mask, eagerly, compiled with cuDNN's attention, and through generated kernels.

@@ -2,7 +2,7 @@ use crate::{
     backend::{
         cuda::{
             eager::shape::noop_contiguous,
-            kernel_plan::{self, KernelInput, KernelPlanner},
+            kernel_plan::{self, KernelInput, PlanKind},
             utility::ensure_same_data_type,
         },
         registry::{Operation, OperationAttributes},
@@ -29,13 +29,15 @@ pub fn concat(tensors: &[Tensor], dim: i64) -> Result<Tensor> {
     let shapes = tensors.iter().map(Tensor::shape).collect::<Vec<_>>();
     let problem = spec::concat_problem(&shapes, dim, "cuda concat")?;
     let output = KernelInput::new(first.data_type(), Layout::from_shape(&problem.output_shape));
-    let inputs = tensors
+    let plans = kernel_plan::cached_plans(
+        PlanKind::Concat,
+        &OperationAttributes::None,
+        &[i64::try_from(problem.axis).map_err(|_| Error::out_of_range("concat axis"))?],
+        &tensors.iter().collect::<Vec<_>>(),
+        |planner, inputs| planner.concat(&output, inputs, problem.axis),
+    )?;
+    let steps = plans
         .iter()
-        .map(KernelInput::from_source)
-        .collect::<Vec<_>>();
-    let steps = KernelPlanner::default()
-        .concat(&output, &inputs, problem.axis)?
-        .into_iter()
         .zip(
             tensors
                 .iter()
@@ -53,10 +55,15 @@ pub fn repeat_kv(input: &Tensor, repeats: i64) -> Result<Tensor> {
     }
 
     let output = KernelInput::new(input.data_type(), Layout::from_shape(&problem.output_shape));
-    let plan =
-        KernelPlanner::default().repeat_kv(&output, &KernelInput::from_source(input), repeats)?;
+    let plans = kernel_plan::cached_plans(
+        PlanKind::RepeatKv,
+        &OperationAttributes::None,
+        &[repeats],
+        &[input],
+        |planner, inputs| Ok(vec![planner.repeat_kv(&output, &inputs[0], repeats)?]),
+    )?;
     kernel_plan::run_steps(
-        &[(plan, vec![input])],
+        &[(&plans[0], vec![input])],
         input,
         input.data_type(),
         &problem.output_shape,

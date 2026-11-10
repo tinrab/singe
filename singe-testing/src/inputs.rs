@@ -23,6 +23,10 @@ pub fn pattern_image(size: i64, device: Device) -> Tensor {
 
 #[must_use]
 pub fn tone_and_chirp(samples: usize, device: Device) -> Tensor {
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the signal stays within one, so single precision keeps all but its last digits"
+    )]
     let values = (0..samples)
         .map(|index| {
             let time = index as f64 / 16_000.0;

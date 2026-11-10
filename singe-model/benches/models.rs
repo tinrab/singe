@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use singe::{
     DataType, Device, Tensor,
-    generation::{CachedDecoder, Decoder, DecoderOptions},
+    generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
     graph::GraphPrepareOptions,
     nn::TensorGroup,
 };
@@ -84,8 +84,17 @@ fn whisper(benches: &mut Benches) {
             encoded = model.encode(&features).unwrap();
             wait(&encoded);
         });
+        // The prefix is the only prompt, so it is the only prompt step compiled.
+        let extra = prefix.len() - 1;
         let mut decoder = model
-            .create_decoder(DecoderOptions::new(1, model.config().max_target_positions))
+            .create_decoder(
+                DecoderOptions::new(1, model.config().max_target_positions).with_prompt_chunks(
+                    PromptChunks {
+                        smallest: extra,
+                        largest: extra,
+                    },
+                ),
+            )
             .unwrap();
         let sources = encoded.squeeze(0).unwrap();
         model.write_sources(&decoder, 0, &sources).unwrap();

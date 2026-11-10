@@ -25,8 +25,8 @@ use crate::{
 /// cuDNN restores its previous stream afterward, including on errors and unwinding; cuBLAS resets its stream.
 /// cuTENSOR operations pass the context stream at launch time.
 ///
-/// A `None` stream means operations use CUDA's legacy/default stream semantics for cuBLAS and cuDNN.
-/// cuTENSOR requires an explicit stream at launch time, so `with_cutensor` creates a temporary backend-owned stream when this context has no current stream and synchronizes only that temporary stream before returning.
+/// A `None` stream means cuBLAS and cuDNN use CUDA's legacy default stream, and generated kernels and cuTENSOR use the runtime's eager stream, a blocking stream the legacy default stream orders with.
+/// `with_cutensor` synchronizes the eager stream before returning when this context has no current stream.
 #[derive(Debug)]
 pub struct CudaExecutionContext {
     device: Device,
@@ -60,7 +60,7 @@ impl CudaExecutionContext {
 
     /// Returns the explicit stream associated with this execution context, if any.
     ///
-    /// `None` means this context uses CUDA default-stream semantics except for cuTENSOR launches, where Singe creates and synchronizes a temporary backend-owned stream.
+    /// `None` means this context uses CUDA default-stream semantics, with generated kernels and cuTENSOR on the runtime's eager stream.
     #[must_use]
     pub fn stream(&self) -> Option<&CudaStream> {
         self.stream.as_ref()

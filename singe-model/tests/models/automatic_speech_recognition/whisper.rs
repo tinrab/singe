@@ -251,8 +251,9 @@ fn check_running_batch(device: Device, compile: bool) {
     let mut decoder = model
         .create_decoder(DecoderOptions::new(2, 32).with_page_size(8))
         .unwrap();
+    // The prefix pads into the smallest prompt step, as does a prefix joining a running row.
     if compile {
-        decoder.compile_chunks(&[prefix.len() - 1]).unwrap();
+        decoder.compile().unwrap();
     }
     let options = GenerationOptions {
         max_new_tokens: expected[0].len(),
@@ -284,7 +285,7 @@ fn check_running_batch(device: Device, compile: bool) {
     drop(batch);
     assert_eq!(tokens, expected, "on {device:?}, compiled {compile}");
     if compile {
-        assert_eq!(decoder.eager_steps(), 0, "on {device:?}");
+        assert_eq!(decoder.executors().count(), 3, "on {device:?}");
     }
 }
 

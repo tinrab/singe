@@ -6,7 +6,9 @@ use crate::{
     backend::{
         cuda::{
             codegen::plan_kernel,
-            kernel_plan::source::{KernelInput, KernelPlan, KernelPlanner, describe, kernel_name},
+            kernel_plan::source::{
+                KernelInput, KernelPlan, KernelPlanner, LoadedKernels, describe, kernel_name,
+            },
         },
         kernel_lowering::{ElementWiseKernel, FusedOperand, FusedStep, FusedStores, LoweredKernel},
         registry::{Operation, OperationAttributes, OperationRequest},
@@ -189,6 +191,7 @@ impl KernelPlanner {
                 &self.context,
             )?,
             outputs: lowered.outputs,
+            loaded: LoadedKernels::default(),
         })
     }
 
@@ -212,6 +215,7 @@ impl KernelPlanner {
                 &self.context,
             )?,
             outputs,
+            loaded: LoadedKernels::default(),
         })
     }
 }

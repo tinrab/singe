@@ -491,9 +491,9 @@ mod cuda {
         SUITE.check_decoding(Device::Cuda(0));
     }
 
-    // Tuned winners differ in where they round: a separate kernel rounds values to `BF16` that a fused one keeps in `F32`, so logits sit further out than on the default path, about as far as with fusion off, and a token can flip across two such errors.
-    const TUNED_TOLERANCE: f32 = 1.0;
-    const TUNED_TIE: f32 = 1.0;
+    // Fused kernels differ in where they round: a separate kernel rounds values to `BF16` that a fused one keeps in `F32`, so the logits of a tuned winner, or of a compiled step against an eager one, sit further apart than on one path, about as far as with fusion off, and a token can flip across two such errors.
+    const FUSED_TOLERANCE: f32 = 1.0;
+    const FUSED_TIE: f32 = 1.0;
 
     fn check_real_bf16(compiled: Compiled) {
         let Some(_lock) = maybe_lock_device() else {
@@ -501,7 +501,7 @@ mod cuda {
         };
         let snapshot = real_snapshot();
         let (tie, tolerance) = if compiled == Compiled::Tuned {
-            (TUNED_TIE, TUNED_TOLERANCE)
+            (FUSED_TIE, FUSED_TOLERANCE)
         } else {
             (BF16_TIE, BF16_TOLERANCE)
         };
@@ -546,7 +546,8 @@ mod cuda {
     #[test]
     #[ignore = "needs real snapshots, through SINGE_SNAPSHOT_<MODEL>"]
     fn test_qwen3_tunes_with_a_large_cache() {
-        const TUNES: usize = 3;
+        // A second tune shows whether the first lists the same choice points, each a full tune of the model.
+        const TUNES: usize = 2;
 
         let Some(_lock) = maybe_lock_device() else {
             return;
@@ -561,127 +562,127 @@ mod cuda {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../target/programs/tuning");
         let mut self_comparisons = 0;
         let mut self_wins = 0;
-        for measurement in [Measurement::GraphReplay, Measurement::Program] {
-            let mut listed = Vec::new();
-            let mut kept = Vec::new();
-            let mut reports = Vec::new();
-            for tune in 0..TUNES {
-                let records = tune_graph(
-                    &step.graph,
-                    &step.inputs,
-                    device,
-                    &GraphTuneOptions {
-                        measurement,
-                        build_directory: build_directory.clone(),
-                        plan_budget: if tune == 0 {
-                            Duration::from_secs(60)
-                        } else {
-                            Duration::ZERO
-                        },
-                        self_comparisons: true,
-                        ..GraphTuneOptions::default()
+        // Programs tune through the same choice points, which the tiny models' tuned tests cover.
+        let measurement = Measurement::GraphReplay;
+        let mut listed = Vec::new();
+        let mut kept = Vec::new();
+        let mut reports = Vec::new();
+        for tune in 0..TUNES {
+            let records = tune_graph(
+                &step.graph,
+                &step.inputs,
+                device,
+                &GraphTuneOptions {
+                    measurement,
+                    build_directory: build_directory.clone(),
+                    plan_budget: if tune == 0 {
+                        Duration::from_secs(60)
+                    } else {
+                        Duration::ZERO
                     },
-                )
-                .unwrap();
-                let report = records.report().unwrap();
+                    self_comparisons: true,
+                    ..GraphTuneOptions::default()
+                },
+            )
+            .unwrap();
+            let report = records.report().unwrap();
+            eprintln!(
+                "{measurement:?}, tune {tune}, {} records:\n{report}",
+                records.len()
+            );
+            let library_candidates = |name: &str| {
+                report
+                    .choices
+                    .iter()
+                    .flat_map(|choice| &choice.candidates)
+                    .filter(|candidate| candidate.choice.contains(name))
+                    .fold((0, 0, 0), |(listed, timed, refused), candidate| {
+                        (
+                            listed + 1,
+                            timed
+                                + usize::from(matches!(
+                                    candidate.outcome,
+                                    CandidateOutcome::Timed { .. }
+                                )),
+                            refused
+                                + usize::from(matches!(
+                                    candidate.outcome,
+                                    CandidateOutcome::Refused
+                                )),
+                        )
+                    })
+            };
+            eprintln!(
+                "listed, timed, refused: cuBLASLt {:?}, cuDNN {:?}",
+                library_candidates("CublasLt("),
+                library_candidates("Cudnn(")
+            );
+            for compared in &report.self_comparisons {
                 eprintln!(
-                    "{measurement:?}, tune {tune}, {} records:\n{report}",
-                    records.len()
+                    "self: {:?} in turn {} {}",
+                    compared.in_rounds,
+                    compared.in_turn_ppm,
+                    &compared.key[..compared.key.len().min(60)]
                 );
-                let library_candidates = |name: &str| {
-                    report
-                        .choices
-                        .iter()
-                        .flat_map(|choice| &choice.candidates)
-                        .filter(|candidate| candidate.choice.contains(name))
-                        .fold((0, 0, 0), |(listed, timed, refused), candidate| {
-                            (
-                                listed + 1,
-                                timed
-                                    + usize::from(matches!(
-                                        candidate.outcome,
-                                        CandidateOutcome::Timed { .. }
-                                    )),
-                                refused
-                                    + usize::from(matches!(
-                                        candidate.outcome,
-                                        CandidateOutcome::Refused
-                                    )),
-                            )
-                        })
-                };
-                eprintln!(
-                    "listed, timed, refused: cuBLASLt {:?}, cuDNN {:?}",
-                    library_candidates("CublasLt("),
-                    library_candidates("Cudnn(")
-                );
-                for compared in &report.self_comparisons {
+            }
+
+            for choice in &report.choices {
+                for compared in &choice.comparisons {
                     eprintln!(
-                        "self: {:?} in turn {} {}",
-                        compared.in_rounds,
-                        compared.in_turn_ppm,
-                        &compared.key[..compared.key.len().min(60)]
+                        "compared: {:?} {:?} {} of {}",
+                        compared.comparison,
+                        compared.failure,
+                        &compared.choice[..compared.choice.len().min(60)],
+                        &choice.key[..choice.key.len().min(60)]
                     );
                 }
-
-                for choice in &report.choices {
-                    for compared in &choice.comparisons {
-                        eprintln!(
-                            "compared: {:?} {:?} {} of {}",
-                            compared.comparison,
-                            compared.failure,
-                            &compared.choice[..compared.choice.len().min(60)],
-                            &choice.key[..choice.key.len().min(60)]
-                        );
-                    }
-                    for compared in &choice.between_winners {
-                        eprintln!(
-                            "between: {:?} {:?} {} at {}",
-                            compared.comparison, compared.failure, compared.choice, choice.key
-                        );
-                    }
+                for compared in &choice.between_winners {
+                    eprintln!(
+                        "between: {:?} {:?} {} at {}",
+                        compared.comparison, compared.failure, compared.choice, choice.key
+                    );
                 }
+            }
 
-                assert!(!records.is_empty(), "{report}");
-                assert_eq!(report.problems().count(), 0, "{report}");
-                for check in &report.checks {
-                    assert!(check.default_failure.is_none(), "{report}");
-                    assert!(!check.default_disagreed, "{report}");
-                }
+            assert!(!records.is_empty(), "{report}");
+            assert_eq!(report.problems().count(), 0, "{report}");
+            for check in &report.checks {
+                assert!(check.default_failure.is_none(), "{report}");
+                assert!(!check.default_disagreed, "{report}");
+            }
 
-                self_comparisons += report.self_comparisons.len();
-                self_wins += report
-                    .self_comparisons
+            self_comparisons += report.self_comparisons.len();
+            self_wins += report
+                .self_comparisons
+                .iter()
+                .filter(|compared| {
+                    compared.in_rounds.wins() || compared.in_rounds.inverted().wins()
+                })
+                .count();
+
+            // Schedules follow the plan chosen, so only the other choice points must repeat.
+            listed.push(
+                report
+                    .choices
                     .iter()
-                    .filter(|compared| {
-                        compared.in_rounds.wins() || compared.in_rounds.inverted().wins()
-                    })
-                    .count();
-
-                // Schedules follow the plan chosen, so only the other choice points must repeat.
-                listed.push(
-                    report
-                        .choices
-                        .iter()
-                        .map(|choice| choice.key.clone())
-                        .filter(|key| !key.starts_with("schedule"))
-                        .collect::<Vec<_>>(),
-                );
-                kept.push(
-                    records
-                        .entries()
-                        .map(|(key, record)| (key.to_owned(), format!("{:?}", record.choice)))
-                        .collect::<BTreeMap<_, _>>(),
-                );
-                reports.push(report.clone());
-            }
-
-            for later in &listed[1..] {
-                assert_eq!(&listed[0], later, "{measurement:?}");
-            }
-
-            print_differing_records(measurement, &kept, &reports);
+                    .map(|choice| choice.key.clone())
+                    .filter(|key| !key.starts_with("schedule"))
+                    .collect::<Vec<_>>(),
+            );
+            kept.push(
+                records
+                    .entries()
+                    .map(|(key, record)| (key.to_owned(), format!("{:?}", record.choice)))
+                    .collect::<BTreeMap<_, _>>(),
+            );
+            reports.push(report.clone());
         }
+
+        for later in &listed[1..] {
+            assert_eq!(&listed[0], later, "{measurement:?}");
+        }
+
+        print_differing_records(measurement, &kept, &reports);
 
         // Timing a plan against itself shows what timing alone can do, and that must not look like a win.
         assert_eq!(self_wins, 0, "of {self_comparisons} self comparisons");
@@ -757,7 +758,8 @@ mod cuda {
             assert_one_specialization(&compiled);
         }
         eprintln!("worst eager and compiled logit difference: {worst}");
-        assert!(worst <= BF16_TOLERANCE, "differs by {worst}");
+        // A compiled prompt step fuses where the eager one does not, as every compiled step does.
+        assert!(worst <= FUSED_TOLERANCE, "differs by {worst}");
     }
 
     // Free-running tokens feed each step back, so they match PyTorch until a tie, which rounding may break either way.

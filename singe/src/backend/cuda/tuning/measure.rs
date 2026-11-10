@@ -9,6 +9,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use half::{bf16, f16};
+
 use crate::{
     backend::{
         cuda::{
@@ -39,6 +41,7 @@ use crate::{
         Graph, GraphCompileOptions, GraphCudaOptions, GraphExecutor, GraphPrepareOptions,
         ir::{Graph as IrGraph, ValueId},
     },
+    shape::Shape,
     tensor::Tensor,
 };
 
@@ -146,42 +149,94 @@ impl Evaluated {
     }
 }
 
-// A tensor on the host, in its own type, as one row.
-fn host_row(tensor: &Tensor) -> Result<Tensor> {
-    let count = i64::try_from(tensor.element_count())
-        .map_err(|_| Error::out_of_range("tuning comparison elements"))?;
-    tensor
-        .to_device(Device::Cpu)?
-        .contiguous()?
-        .reshape([count])
+// Decodes `bytes`, native-endian values of `data_type`, into `out` as `f64`.
+fn decode(data_type: DataType, bytes: &[u8], out: &mut Vec<f64>) -> Result<()> {
+    out.clear();
+    match data_type {
+        DataType::F64 => out.extend(
+            bytes
+                .as_chunks::<8>()
+                .0
+                .iter()
+                .map(|value| f64::from_ne_bytes(*value)),
+        ),
+        DataType::F32 => out.extend(
+            bytes
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|value| f64::from(f32::from_ne_bytes(*value))),
+        ),
+        DataType::Bf16 => out.extend(
+            bytes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|value| f64::from(bf16::from_ne_bytes(*value))),
+        ),
+        DataType::F16 => out.extend(
+            bytes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|value| f64::from(f16::from_ne_bytes(*value))),
+        ),
+        DataType::I64 => out.extend(
+            bytes
+                .as_chunks::<8>()
+                .0
+                .iter()
+                .map(|value| i64::from_ne_bytes(*value) as f64),
+        ),
+        DataType::I32 => out.extend(
+            bytes
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|value| f64::from(i32::from_ne_bytes(*value))),
+        ),
+        DataType::Bool | DataType::U8 => out.extend(bytes.iter().map(|&value| f64::from(value))),
+        // What no comparison has needed yet goes through a host cast.
+        _ => {
+            let count = i64::try_from(bytes.len() / data_type.size_bytes())
+                .map_err(|_| Error::out_of_range("tuning comparison elements"))?;
+            out.extend(
+                Tensor::from_bytes(Device::Cpu, data_type, Shape::create([count])?, bytes)?
+                    .cast(DataType::F64)?
+                    .to_vec::<f64>()?,
+            );
+        }
+    }
+    Ok(())
 }
 
-// Calls `visit` with successive chunks of a row of `tensor` and of `other`, as `f64`, until it returns false.
+// Calls `visit` with successive chunks of `values`, and of `other` when given, decoded to `f64`, until it returns false.
 fn all_chunks(
-    tensor: &Tensor,
-    other: Option<&Tensor>,
+    values: (DataType, &[u8]),
+    other: Option<(DataType, &[u8])>,
     mut visit: impl FnMut(&[f64], &[f64]) -> bool,
 ) -> Result<bool> {
-    let count = tensor.element_count();
-    let numbers = |tensor: &Tensor, start: usize, length: usize| -> Result<Vec<f64>> {
-        tensor
-            .narrow(
-                0,
-                i64::try_from(start).map_err(|_| Error::out_of_range("tuning comparison start"))?,
-                i64::try_from(length)
-                    .map_err(|_| Error::out_of_range("tuning comparison length"))?,
-            )?
-            .cast(DataType::F64)?
-            .to_vec::<f64>()
-    };
+    let (mut chunk, mut other_chunk) = (Vec::new(), Vec::new());
+    let count = values.1.len() / values.0.size_bytes().max(1);
     let mut start = 0;
     while start < count {
         let length = COMPARED_ELEMENTS.min(count - start);
-        let chunk = numbers(tensor, start, length)?;
-        let other_chunk = other
-            .map(|other| numbers(other, start, length))
-            .transpose()?
-            .unwrap_or_default();
+        let size = values.0.size_bytes();
+        decode(
+            values.0,
+            &values.1[start * size..(start + length) * size],
+            &mut chunk,
+        )?;
+        other_chunk.clear();
+        if let Some((data_type, bytes)) = other {
+            let size = data_type.size_bytes();
+            decode(
+                data_type,
+                &bytes[start * size..(start + length) * size],
+                &mut other_chunk,
+            )?;
+        }
+
         if !visit(&chunk, &other_chunk) {
             return Ok(false);
         }
@@ -191,31 +246,49 @@ fn all_chunks(
     Ok(true)
 }
 
-// What a candidate's result should hold, on the host, in its own type, so a model's caches cost no device memory and no `f64`s while they wait.
+// What a candidate's result should hold, on the host, as its bytes in its own type, so a model's caches cost no device memory and no `f64`s while they wait.
 #[derive(Debug, Clone)]
 pub struct Expected {
-    values: Tensor,
+    data_type: DataType,
+    bytes: Vec<u8>,
     // The largest finite magnitude it holds, at least one, which its tolerance is relative to.
     magnitude: f64,
 }
 
 impl Expected {
     pub fn create(tensor: &Tensor) -> Result<Self> {
-        let values = host_row(tensor)?;
+        let bytes = tensor.to_bytes()?;
         let mut magnitude = 1.0_f64;
-        all_chunks(&values, None, |chunk, _| {
+        all_chunks((tensor.data_type(), &bytes), None, |chunk, _| {
             for entry in chunk.iter().filter(|entry| entry.is_finite()) {
                 magnitude = magnitude.max(entry.abs());
             }
             true
         })?;
-        Ok(Self { values, magnitude })
+        Ok(Self {
+            data_type: tensor.data_type(),
+            bytes,
+            magnitude,
+        })
+    }
+
+    // How many values it holds.
+    const fn element_count(&self) -> usize {
+        self.bytes.len() / self.data_type.size_bytes()
     }
 
     // These values with `amount` added, for a test to make a candidate wrong.
     #[cfg(test)]
     pub fn shifted(&self, amount: f64) -> Result<Self> {
-        Self::create(&self.values.add_scalar(amount)?)
+        let count = i64::try_from(self.element_count())
+            .map_err(|_| Error::out_of_range("tuning comparison elements"))?;
+        let values = Tensor::from_bytes(
+            Device::Cpu,
+            self.data_type,
+            Shape::create([count])?,
+            &self.bytes,
+        )?;
+        Self::create(&values.add_scalar(amount)?)
     }
 }
 
@@ -1294,13 +1367,14 @@ pub fn agrees(
             DataType::F32 => 1e-4,
             _ => 1e-9,
         };
-    if tensor.element_count() != expected.values.element_count() {
+    if tensor.element_count() != expected.element_count() {
         return Ok(false);
     }
 
+    let actual = tensor.to_bytes()?;
     all_chunks(
-        &host_row(tensor)?,
-        Some(&expected.values),
+        (tensor.data_type(), &actual),
+        Some((expected.data_type, &expected.bytes)),
         |value, reference| {
             value.iter().zip(reference).all(|(value, reference)| {
                 value == reference

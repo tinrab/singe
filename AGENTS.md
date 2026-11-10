@@ -74,6 +74,8 @@ Use `uv` for Python helpers.
 - Tensor semantics: `singe/src/tensor/`, `shape/`, `layout/`, `storage/`, `data_type/`, and `device.rs`.
 - Operations and dispatch: operation metadata and inference in `singe/src/backend/registry/`, dispatch keys, kernels, autocast, and custom operations in `singe/src/dispatch/`, and backend kernel registration in `singe/src/backend/kernels.rs`.
 - Backends: `singe/src/backend/`, with `cpu/` and `cuda/` implementations; graphs live in `singe/src/graph/` and ONNX import in `singe/src/onnx/`.
+  Eager CUDA operations plan each kernel once per operation and input layouts, in `backend/cuda/kernel_plan/eager_plans.rs`, and launch on one stream per device.
+- Generation: `singe/src/generation/` has the loop and `CachedDecoder`, whose compiled steps are the one-token step and the prompt chunks `DecoderOptions::prompt_chunks` names; a step pads to the smallest compiled step that holds it, and a larger one is an error.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
 - cuDNN: the frontend port in `singe-cudnn/src/frontend/`, backend descriptors, engines, and execution in `singe-cudnn/src/backend/`, and legacy descriptor APIs in `singe-cudnn/src/legacy/`.
 - PTX: parsing in `singe-ptx/src/parser/`; the emulator defines supported instruction forms in `emulator/lowering/`, one module per family, and executes them in `emulator/engine/`.
@@ -87,6 +89,7 @@ Use `uv` for Python helpers.
   It skips the work when `target/references` records a run with the same scripts and `uv.lock`; the real-snapshot references need `just prepare-tests --real` and the Hugging Face cache.
 - Baselines of Singe's own results, which tests compare with to catch a change either way, live under `tests/baselines` and are checked in; `SINGE_UPDATE_CONFORMANCE=1` and `SINGE_UPDATE_ONNX_CONFORMANCE=1` rewrite them.
 - Real-weight tests are ignored with one reason and read `SINGE_SNAPSHOT_<MODEL>`, a local Hugging Face snapshot directory.
+- Generated kernels and exported programs built with `nvcc` are cached across runs under `~/.cache/singe/kernels`, programs in its `programs` directory; deleting it rebuilds them.
 - Nothing in a test times anything; timing belongs in the `benches/` targets, through `singe_testing::Benches`.
 
 ## Generated data

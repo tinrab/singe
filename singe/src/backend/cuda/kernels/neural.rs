@@ -6,7 +6,7 @@ use crate::{
                 convolution::{conv2d, conv3d},
                 ensure_cuda_eager_same_device_inputs, unsupported_eager_tensor_inputs,
             },
-            kernel_plan::{self, KernelInput, KernelPlanner},
+            kernel_plan::{self, PlanKind},
         },
         decomposition,
         registry::{
@@ -166,19 +166,36 @@ pub fn scaled_dot_product_attention(
         .chain(key_lengths)
         .collect::<Vec<_>>();
     ensure_cuda_eager_same_device_inputs(query, &inputs[1..])?;
-    if let Some(plan) = KernelPlanner::default().fused_attention(
-        &KernelInput::from_source(query),
-        &KernelInput::from_source(key),
-        &KernelInput::from_source(value),
-        mask.map(KernelInput::from_source).as_ref(),
-        sinks.map(KernelInput::from_source).as_ref(),
-        key_lengths.map(KernelInput::from_source).as_ref(),
-        attention,
-    )? {
-        return kernel_plan::run(&plan, &inputs);
+    let attributes = OperationAttributes::ScaledDotProductAttention(attention);
+    // Which optional inputs are present places the rest in `inputs`.
+    let present = [mask.is_some(), sinks.is_some(), key_lengths.is_some()];
+    let plans = kernel_plan::cached_plans(
+        PlanKind::FusedAttention,
+        &attributes,
+        &present.map(i64::from),
+        &inputs,
+        |planner, metadata| {
+            let mut optional = metadata[3..].iter();
+            let mut next = |given: bool| if given { optional.next() } else { None };
+            let (mask, sinks, key_lengths) = (next(present[0]), next(present[1]), next(present[2]));
+            Ok(planner
+                .fused_attention(
+                    &metadata[0],
+                    &metadata[1],
+                    &metadata[2],
+                    mask,
+                    sinks,
+                    key_lengths,
+                    attention,
+                )?
+                .into_iter()
+                .collect())
+        },
+    )?;
+    if let Some(plan) = plans.first() {
+        return kernel_plan::run(plan, &inputs);
     }
 
-    let attributes = OperationAttributes::ScaledDotProductAttention(attention);
     decomposition::decompose(Operation::ScaledDotProductAttention, &attributes, &inputs)?
         .pop()
         .ok_or_else(|| Error::missing_output("scaled dot product attention"))
@@ -330,12 +347,14 @@ pub fn paged_attention(
         return Err(Error::missing_input("paged attention"));
     };
     ensure_cuda_eager_same_device_inputs(query, rest)?;
-    let metadata = inputs
-        .iter()
-        .map(|input| KernelInput::from_source(*input))
-        .collect::<Vec<_>>();
-    let plan = KernelPlanner::default().paged_attention(&metadata, attention)?;
-    kernel_plan::run_outputs(&plan, inputs)
+    let plans = kernel_plan::cached_plans(
+        PlanKind::PagedAttention,
+        &OperationAttributes::ScaledDotProductAttention(attention),
+        &[],
+        inputs,
+        |planner, metadata| Ok(vec![planner.paged_attention(metadata, attention)?]),
+    )?;
+    kernel_plan::run_outputs(&plans[0], inputs)
 }
 
 // Latent attention as one kernel.
@@ -347,10 +366,12 @@ pub fn paged_mla_attention(
         return Err(Error::missing_input("paged mla attention"));
     };
     ensure_cuda_eager_same_device_inputs(query, rest)?;
-    let metadata = inputs
-        .iter()
-        .map(|input| KernelInput::from_source(*input))
-        .collect::<Vec<_>>();
-    let plan = KernelPlanner::default().paged_mla_attention(&metadata, attention)?;
-    kernel_plan::run_outputs(&plan, inputs)
+    let plans = kernel_plan::cached_plans(
+        PlanKind::PagedMlaAttention,
+        &OperationAttributes::ScaledDotProductAttention(attention),
+        &[],
+        inputs,
+        |planner, metadata| Ok(vec![planner.paged_mla_attention(metadata, attention)?]),
+    )?;
+    kernel_plan::run_outputs(&plans[0], inputs)
 }

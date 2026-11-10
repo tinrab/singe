@@ -9,7 +9,7 @@ use singe_model::{text::sentence_similarity::load_sentence_embedder, tokenizatio
 use crate::support::Arguments;
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse()?;
+    let arguments = Arguments::parse(&[])?;
     let sentences = if arguments.positional.is_empty() {
         vec![
             "A man is eating food.".to_owned(),

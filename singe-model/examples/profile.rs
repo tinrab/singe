@@ -1,4 +1,4 @@
-// Profiles a text-generation snapshot's compiled decoding step on the GPU through CUPTI, and prints each kernel's share of the GPU's time, the largest first: `--snapshot DIR`, `--steps N`, and `--type f16|f32` in place of BF16.
+// Profiles a text-generation snapshot's decoding step on the GPU through CUPTI, and prints each kernel's share of the GPU's time, the largest first: `--snapshot DIR`, `--steps N`, `--type f16|f32` in place of BF16, and `--eager` for the step the model runs without compiling.
 
 mod support;
 
@@ -34,7 +34,7 @@ fn step(decoder: &mut dyn Decoder) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse()?;
+    let arguments = Arguments::parse(&["eager"])?;
     let steps = arguments
         .value("steps")
         .map_or(Ok(100), str::parse::<u32>)?;
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
         arguments.device,
         data_type,
         DecoderOptions::new(1, 512),
-        true,
+        !arguments.flag("eager"),
     )?;
     let prompt = (1..=16).collect::<Vec<i64>>();
     wait(&decoder.step(&[&prompt])?)?;

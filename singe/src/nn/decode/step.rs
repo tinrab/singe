@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     data_type::DataType,
     device::Device,
@@ -102,8 +104,10 @@ pub struct PageLayout {
 pub struct PageTable {
     page_size: i64,
     capacity: i64,
-    // The pages sequences can hold, and after them one scratch page, which held and idle rows write to and nothing reads as a sequence's key.
+    // The pages sequences can hold, and after them one scratch page, which held and idle rows and padding write to and nothing reads as a sequence's key.
     pool: i64,
+    // The most tokens a step may be padded by, which the step's page table makes room for.
+    padding: i64,
     free: Vec<i64>,
     sequences: Vec<SequencePages>,
 }
@@ -172,11 +176,18 @@ impl PageTable {
             page_size,
             capacity,
             pool,
+            padding: 0,
             free: Vec::new(),
             sequences: vec![SequencePages::default(); sequences],
         };
         plan.reset();
         plan
+    }
+
+    // Lets a step be padded by up to `padding` tokens, which lengthens every step's page table.
+    pub fn with_padding(mut self, padding: usize) -> Result<Self> {
+        self.padding = i64::try_from(padding).map_err(|_| Error::out_of_range("step padding"))?;
+        Ok(self)
     }
 
     // Forgets every sequence, so the next step starts at position zero.
@@ -222,10 +233,11 @@ impl PageTable {
         })
     }
 
-    // Returns the length of a step's page table, which has room for every held page and an idle row's scratch page.
+    // Returns the length of a step's page table, which has room for every held page, an idle row's scratch page, and the scratch pages padding reads.
     pub fn table_length(&self) -> Result<i64> {
+        let padding = (self.padding + self.page_size - 1) / self.page_size;
         i64::try_from(self.sequences.len())
-            .map(|sequences| self.pool + sequences)
+            .map(|sequences| self.pool + sequences + padding)
             .map_err(|_| Error::out_of_range("sequences"))
     }
 
@@ -262,16 +274,53 @@ impl PageTable {
         self.sequences.len()
     }
 
+    // Returns how many rows a step of `tokens` takes: one per token, and one for each empty slice.
+    #[must_use]
+    pub fn step_tokens(tokens: &[&[i64]]) -> usize {
+        tokens.iter().map(|tokens| tokens.len().max(1)).sum()
+    }
+
     // Takes pages for `tokens`, one slice per sequence, and writes the step that places them.
     //
     // An empty slice holds a sequence or leaves a row idle: it takes one row, as a compiled step's shape requires, written to the scratch page, so it takes no page or slot, and its logits mean nothing.
     // A step that fails leaves the table as it was.
     pub fn step(&mut self, device: Device, tokens: &[&[i64]]) -> Result<DecodeStep> {
+        self.step_padded(device, tokens, Self::step_tokens(tokens))
+    }
+
+    // Writes the step `step` would, padded to `total` rows, so it fits a step compiled for that many.
+    //
+    // The padding follows the last sequence with tokens, as further queries of that sequence whose keys count toward its length in this step alone.
+    // Causal attention keeps the sequence's own tokens from reading them, they write the scratch page, and the sequence's last row stays its last real token, so its logits are those of the unpadded step.
+    pub fn step_padded(
+        &mut self,
+        device: Device,
+        tokens: &[&[i64]],
+        total: usize,
+    ) -> Result<DecodeStep> {
         if tokens.len() != self.sequences.len() || tokens.iter().all(|tokens| tokens.is_empty()) {
             return Err(Error::invalid_argument(
                 "decode step needs a slice for every sequence, and tokens in one",
             ));
         }
+
+        let padding = total
+            .checked_sub(Self::step_tokens(tokens))
+            .ok_or_else(|| {
+                Error::invalid_argument("a decode step is padded to fewer rows than it has")
+            })?;
+        let padding = i64::try_from(padding).map_err(|_| Error::out_of_range("step padding"))?;
+        if padding > self.padding {
+            return Err(Error::invalid_argument(format!(
+                "a decode step is padded by {padding} tokens, past the {} its page table allows",
+                self.padding
+            )));
+        }
+
+        let padded = tokens
+            .iter()
+            .rposition(|tokens| !tokens.is_empty())
+            .ok_or_else(|| Error::invalid_argument("decode step has no tokens"))?;
 
         for (sequence, tokens) in self.sequences.iter().zip(tokens) {
             let added =
@@ -298,7 +347,6 @@ impl PageTable {
             return Err(Error::out_of_range("decoder cache pages"));
         }
 
-        let total = tokens.iter().map(|tokens| tokens.len().max(1)).sum();
         let mut flat = Vec::with_capacity(total);
         let mut positions = Vec::with_capacity(total);
         let mut write_pages = Vec::with_capacity(total);
@@ -310,7 +358,7 @@ impl PageTable {
             page_size: self.page_size,
             free: &mut self.free,
         };
-        for (sequence, tokens) in self.sequences.iter_mut().zip(tokens) {
+        for (row, (sequence, tokens)) in self.sequences.iter_mut().zip(tokens).enumerate() {
             for &token in *tokens {
                 let (page, slot) = sequence.place(sequence.length, &mut slots)?;
                 flat.push(token);
@@ -327,10 +375,24 @@ impl PageTable {
                 write_slots.push(0);
             }
 
-            visible.push(sequence.length);
+            let last =
+                i64::try_from(flat.len()).map_err(|_| Error::out_of_range("step tokens"))? - 1;
+            let mut keys = sequence.length;
+            if row == padded {
+                for position in sequence.length..sequence.length + padding {
+                    flat.push(0);
+                    positions.push(position.min(self.capacity - 1));
+                    write_pages.push(self.pool);
+                    write_slots.push(position % self.page_size);
+                }
+
+                keys += padding;
+            }
+
+            visible.push(keys);
             let end = i64::try_from(flat.len()).map_err(|_| Error::out_of_range("step tokens"))?;
             query_offsets.push(end);
-            last_rows.push(end - 1);
+            last_rows.push(last);
         }
 
         // Unused trailing entries keep the table's shape, so one compiled step serves every length.
@@ -345,7 +407,10 @@ impl PageTable {
             } else {
                 let used = usize::try_from((seen - 1) / self.page_size + 1)
                     .map_err(|_| Error::out_of_range("page table"))?;
-                pages.extend_from_slice(&sequence.pages[..used]);
+                // Padding's keys past the sequence's own pages read the scratch page.
+                let held = used.min(sequence.pages.len());
+                pages.extend_from_slice(&sequence.pages[..held]);
+                pages.extend(iter::repeat_n(self.pool, used - held));
                 last_page_lengths.push((seen - 1) % self.page_size + 1);
             }
 
@@ -407,6 +472,44 @@ mod tests {
             integers(&step.write_pages),
             [pages[0], pages[0], pages[1], pages[2]]
         );
+    }
+
+    #[test]
+    fn test_a_padded_step_adds_rows_that_only_padding_reads() {
+        let mut table = PageTable::create(2, 5, 2).unwrap().with_padding(6).unwrap();
+        let scratch = table.layout().unwrap().scratch_page;
+        // Three pages each, the idle rows' scratch page, and three for padding.
+        assert_eq!(table.table_length().unwrap(), 6 + 2 + 3);
+        let step = table
+            .step_padded(Device::Cpu, &[&[1, 2, 3], &[4]], 8)
+            .unwrap();
+        assert_eq!(integers(step.tokens()), [1, 2, 3, 4, 0, 0, 0, 0]);
+        // Padding's positions stop at the last the tables hold.
+        assert_eq!(integers(step.positions()), [0, 1, 2, 0, 1, 2, 3, 4]);
+        assert_eq!(integers(step.last_rows()), [2, 3]);
+        let paging = step.paging();
+        assert_eq!(integers(paging.query_offsets), [0, 3, 8]);
+        // The second sequence's five keys take its own page and two scratch pages.
+        assert_eq!(integers(paging.page_offsets), [0, 2, 5]);
+        let pages = integers(paging.pages);
+        assert_eq!(pages[3..5], [scratch, scratch]);
+        assert_eq!(integers(paging.last_page_lengths), [1, 1]);
+        assert_eq!(integers(&step.write_pages)[4..], [scratch; 4]);
+        assert_eq!(integers(&step.write_slots)[4..], [1, 0, 1, 0]);
+
+        // The padding took no capacity, so the next step continues each sequence.
+        let step = table.step(Device::Cpu, &[&[5], &[6]]).unwrap();
+        assert_eq!(integers(step.positions()), [3, 1]);
+    }
+
+    #[test]
+    fn test_padding_stays_within_what_the_table_allows() {
+        let mut table = PageTable::create(1, 8, 2).unwrap().with_padding(2).unwrap();
+        assert!(table.step_padded(Device::Cpu, &[&[1, 2]], 1).is_err());
+        assert!(table.step_padded(Device::Cpu, &[&[1, 2]], 5).is_err());
+        let step = table.step_padded(Device::Cpu, &[&[1, 2]], 4).unwrap();
+        assert_eq!(integers(step.last_rows()), [1]);
+        assert_eq!(integers(step.paging().query_offsets), [0, 4]);
     }
 
     #[test]

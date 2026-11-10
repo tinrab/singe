@@ -83,6 +83,16 @@ pub fn enable_kernel_cache(directory: impl Into<PathBuf>) -> Result<()> {
     Ok(())
 }
 
+// The directory exported programs' built libraries are kept in, `programs` under the kernel cache's, which the same setting turns off.
+pub fn program_directory() -> Result<Option<PathBuf>> {
+    let Some(directory) = directory()? else {
+        return Ok(None);
+    };
+    let programs = directory.join("programs");
+    fs::create_dir_all(&programs).map_err(CompileError::KernelCacheIo)?;
+    Ok(Some(programs))
+}
+
 /// Stops reading and writing the kernel cache directory; compiled kernels stay cached in memory.
 pub fn disable_kernel_cache() {
     if let Ok(mut directory) = DIRECTORY.write() {

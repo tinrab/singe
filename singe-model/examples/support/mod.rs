@@ -8,24 +8,29 @@ use anyhow::{Context as _, Result, anyhow, bail};
 use image::{ImageBuffer, Rgb, imageops::FilterType};
 use singe::Device;
 
-// The arguments every example takes: `--snapshot DIR`, or `SNAPSHOT_PATH`, and `--cpu`, and the rest by name.
+// The arguments every example takes: `--snapshot DIR`, or `SNAPSHOT_PATH`, and `--cpu`, and the rest by name, each with a value but the flags an example names.
 pub struct Arguments {
     pub snapshot: PathBuf,
     pub device: Device,
     pub named: Vec<(String, String)>,
+    pub flags: Vec<String>,
     pub positional: Vec<String>,
 }
 
 impl Arguments {
-    pub fn parse() -> Result<Self> {
+    // Reads the process's arguments, where each of `flags` takes no value.
+    pub fn parse(flags: &[&str]) -> Result<Self> {
         let mut snapshot = env::var_os("SNAPSHOT_PATH").map(PathBuf::from);
         let mut device = Device::Cuda(0);
-        let (mut named, mut positional) = (Vec::new(), Vec::new());
+        let (mut named, mut set, mut positional) = (Vec::new(), Vec::new(), Vec::new());
         let mut arguments = env::args().skip(1);
         while let Some(argument) = arguments.next() {
             match argument.as_str() {
                 "--cpu" => device = Device::Cpu,
                 "--snapshot" => snapshot = arguments.next().map(PathBuf::from),
+                name if flags.contains(&name.trim_start_matches("--")) => {
+                    set.push(name.trim_start_matches("--").to_owned());
+                }
                 name if name.starts_with("--") => {
                     let value = arguments
                         .next()
@@ -39,8 +44,23 @@ impl Arguments {
             snapshot: snapshot.context("set SNAPSHOT_PATH or pass --snapshot")?,
             device,
             named,
+            flags: set,
             positional,
         })
+    }
+
+    // Returns whether the flag `name` was passed.
+    pub fn flag(&self, name: &str) -> bool {
+        self.flags.iter().any(|flag| flag == name)
+    }
+
+    // Returns every value given for `name`, in order, for an argument that may repeat.
+    pub fn values(&self, name: &str) -> Vec<&str> {
+        self.named
+            .iter()
+            .filter(|(key, _)| key == name)
+            .map(|(_, value)| value.as_str())
+            .collect()
     }
 
     pub fn value(&self, name: &str) -> Option<&str> {

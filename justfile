@@ -18,7 +18,6 @@ format:
 
     # find . -regex '.*\.\(cpp\|hpp\|h\|cu\)' -not -regex '.*\(target\|tests\).*' -exec clang-format -style=file -i {} \;
 
-# Copies the KaTeX header into every crate whose docs.rs settings name it, so its published docs render math.
 prepare:
     #!/usr/bin/env bash
     set -euxo pipefail
@@ -159,6 +158,7 @@ lint fix="false" package="" features=LINT_FEATURES: prepare-tests
         missing_docs
         clippy::missing_errors_doc
         clippy::missing_panics_doc
+        clippy::missing_safety_doc
         trivial_casts
         trivial_numeric_casts
         clippy::cast_sign_loss
@@ -188,8 +188,6 @@ test: prepare-tests
     RUST_TEST_THREADS=1 cargo test --workspace --lib --bins --tests --features {{ TEST_FEATURES }} -- --nocapture
     RUST_TEST_THREADS=1 cargo test --workspace --doc --features {{ TEST_FEATURES }} -- --nocapture
 
-# Everything a change must pass before it lands, short of the real-weight tests.
-# Fails if a test binary of `singe` or `singe-model` links an NVIDIA library, which `singe-loader` loads at run time instead.
 check-linking: prepare-tests
     #!/usr/bin/env bash
     set -euo pipefail

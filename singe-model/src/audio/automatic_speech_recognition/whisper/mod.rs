@@ -3,7 +3,7 @@ use std::{collections::HashMap, iter, path::Path, slice};
 use serde::Deserialize;
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Tensor,
-    generation::{CachedDecoder, DecoderOptions, GenerationOptions, RunningBatch},
+    generation::{CachedDecoder, DecoderOptions, GenerationOptions, PromptChunks, RunningBatch},
     graph::Graph,
     nn::{
         Activation, AttentionInput, CacheSize, Conv1d, Conv1dConfig, CrossAttention, DecodeCache,
@@ -325,19 +325,17 @@ impl Whisper {
             .map(|clip| self.features(clip))
             .collect::<SingeResult<Vec<_>>>()?;
         let encoded = self.encode(&Tensor::concat(&features, 0)?)?;
-        let mut decoder = self.create_decoder(DecoderOptions::new(
-            options.rows,
-            self.config.max_target_positions,
-        ))?;
+        // Every sequence reads the same prefix, so one prompt step of its extra tokens is all a compiled decoder needs.
+        let chunks = PromptChunks {
+            smallest: prefix.len().saturating_sub(1),
+            largest: prefix.len().saturating_sub(1),
+        };
+        let mut decoder = self.create_decoder(
+            DecoderOptions::new(options.rows, self.config.max_target_positions)
+                .with_prompt_chunks(chunks),
+        )?;
         if options.compile {
-            // A prompt reads in one compiled step of its extra tokens, so no step runs eagerly.
-            let chunks: Vec<usize> = prefix
-                .len()
-                .checked_sub(1)
-                .filter(|&extra| extra > 0)
-                .into_iter()
-                .collect();
-            decoder.compile_chunks(&chunks)?;
+            decoder.compile()?;
         }
 
         let mut tokens = vec![Vec::new(); clips.len()];
