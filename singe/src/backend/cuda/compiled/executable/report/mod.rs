@@ -4,8 +4,6 @@ mod types;
 
 use std::collections::HashMap;
 
-#[cfg(test)]
-pub use self::types::GraphCompileInputLayoutRequirement;
 pub use self::types::{
     GraphCompileProviderCandidate, GraphCompileProviderDecision, GraphCompileProviderRejection,
     GraphCompileReport, GraphCompileValueMaterialization,

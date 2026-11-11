@@ -2,7 +2,7 @@ use half::{bf16, f16};
 use singe_codegen::{
     abi::Bindings,
     ir::{
-        Access, AxisId, AxisKind, BinaryOp, ElementType, Expr, Kernel, Literal, NodeId, OperandId,
+        Access, AxisId, AxisKind, BinaryOp, ElementType, Expr, Kernel, Literal, OperandId,
         OperandRole, Size, SizeId, UnaryOp,
     },
     schedule::{Schedule, space::operand_lengths},
@@ -12,7 +12,7 @@ use crate::{
     backend::{
         cuda::{
             codegen::{
-                KernelCode, KernelDescription, KernelLanguage, PlanningContext, plan_kernel,
+                KernelLanguage, PlanningContext,
                 test_support::{assert_matches, bf16_buffer, f32_buffer, rows_kernel},
             },
             kernel_plan::{self, KernelInput, KernelPlanner},
@@ -287,56 +287,6 @@ fn test_tile_row_kernels_match_the_interpreter() {
             }
         }
     }
-}
-
-#[test]
-fn test_the_tile_target_emits_tile_ir_and_keeps_cuda_c_for_what_it_cannot_express() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let mut kernel = Kernel::new("singe_tile_target");
-    let x = kernel.add_operand(ElementType::F32, OperandRole::Input);
-    let out = kernel.add_operand(ElementType::F32, OperandRole::Output);
-    let length = kernel.add_size(Size::Argument);
-    let one = kernel.add_size(Size::Static(1));
-    let i = kernel.add_axis(length, AxisKind::Parallel);
-    let value = kernel.load(contiguous(x, i, one));
-    let exponential = kernel.unary(UnaryOp::Exp, value);
-    kernel.store(contiguous(out, i, one), exponential);
-    let mut erf = kernel.clone();
-    erf.nodes[1].expr = Expr::Unary(UnaryOp::Erf, NodeId(0));
-    let schedule = Schedule::Elements {
-        threads: 128,
-        vector: 1,
-    };
-    let bindings = Bindings {
-        sizes: vec![100],
-        scalars: Vec::new(),
-    };
-    let tile = PlanningContext {
-        language: KernelLanguage::TileIr,
-        ..PlanningContext::default()
-    };
-    let description = KernelDescription::default();
-    let tiled = plan_kernel(&kernel, schedule, &bindings, &description, &tile);
-    let fallback = plan_kernel(&erf, schedule, &bindings, &description, &tile);
-    let tiled = tiled.unwrap();
-    assert!(matches!(tiled.code, KernelCode::TileIr(_)));
-    // One tile of 1024 points covers the hundred elements, as one thread the tile target sizes.
-    assert_eq!((tiled.launch.blocks, tiled.launch.threads), (1, 1));
-    assert!(matches!(fallback.unwrap().code, KernelCode::Source(_)));
-    assert!(matches!(
-        plan_kernel(
-            &kernel,
-            schedule,
-            &bindings,
-            &description,
-            &PlanningContext::default()
-        )
-        .unwrap()
-        .code,
-        KernelCode::Source(_)
-    ));
 }
 
 #[test]

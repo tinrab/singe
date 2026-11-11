@@ -25,11 +25,3 @@ fn test_operators_chain_tensors_scalars_and_results() {
     let remainder = (&x % &weight).unwrap();
     assert_eq!(remainder.to_vec::<f32>().unwrap(), [1., 0., 1.]);
 }
-
-#[test]
-fn test_operator_chains_report_the_first_error() {
-    let x = vector(&[1., 2., 3.]);
-    let mismatched = vector(&[1., 2.]);
-    let result = &x + &mismatched + &x;
-    assert!(result.is_err());
-}

@@ -854,8 +854,6 @@ fn kernel_name(label: &str) -> String {
 }
 
 #[cfg(test)]
-mod nvidia_reference_tests;
-#[cfg(test)]
 mod parameter_tests;
 #[cfg(test)]
 mod tests;

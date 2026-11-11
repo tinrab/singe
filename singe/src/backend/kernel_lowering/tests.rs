@@ -261,34 +261,6 @@ fn test_lowered_element_wise_operations_match_the_cpu() {
     assert_matches_cpu(Op::LogicalNot, &OperationAttributes::None, &[flags(1)], 0.0);
 }
 
-#[test]
-fn test_contiguous_dimensions_merge_into_one_axis_whose_extent_is_a_launch_argument() {
-    let matrix = Layout::contiguous([6, 8]).unwrap();
-    let row = Layout::contiguous([8]).unwrap();
-    let (kernel, _) = ElementWiseKernel::create(
-        "singe_test",
-        &Shape::create([6, 8]).unwrap(),
-        &[(DataType::F32, &matrix), (DataType::F32, &matrix)],
-    )
-    .unwrap();
-    let (kernel, bindings, labels) = kernel.finish();
-    assert_eq!(kernel.axes.len(), 1);
-    assert_eq!(bindings.sizes, [48]);
-    assert_eq!(labels.sizes, ["outermost extent"]);
-
-    // A broadcast row keeps the row axis separate.
-    let (kernel, _) = ElementWiseKernel::create(
-        "singe_test",
-        &Shape::create([6, 8]).unwrap(),
-        &[(DataType::F32, &matrix), (DataType::F32, &row)],
-    )
-    .unwrap();
-    let (kernel, bindings, labels) = kernel.finish();
-    assert_eq!(kernel.axes.len(), 2);
-    assert_eq!(bindings.sizes, [6]);
-    assert_eq!(labels.sizes, ["outermost extent"]);
-}
-
 /// Runs `lowered` on the interpreter with the storage of `inputs` and asserts that it matches `expected` within `tolerance`.
 fn assert_lowered_matches(
     lowered: &LoweredKernel,

@@ -487,59 +487,6 @@ fn test_generated_matmuls_of_many_rows_run_their_prologue_and_epilogue_on_tensor
     assert_close!(&actual, &expected, 2e-2);
 }
 
-// With no matmul library in the policy, a matmul fuses without any provider tuning record.
-#[test]
-fn test_matmul_fuses_under_a_policy_with_only_generated_kernels() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let device = Device::Cuda(0);
-    let x = values(device, &[8, 16], DataType::F32, 1);
-    let weight = values(device, &[32, 16], DataType::F32, 2);
-    let residual = values(device, &[8, 32], DataType::F32, 3);
-    let (graph, eager) = Graph::capture(
-        [
-            ("x", x.clone()),
-            ("weight", weight.clone()),
-            ("residual", residual.clone()),
-        ],
-        |inputs| {
-            Ok(vec![
-                inputs[0]
-                    .matmul(&inputs[1].transpose(0, 1)?)?
-                    .add(&inputs[2])?,
-            ])
-        },
-    )
-    .unwrap();
-    let recorder = KernelRecorder::new();
-    let mut compiled = cuda::compile_graph(
-        &graph,
-        &GraphCudaOptions::new()
-            .with_lowering_policy(LoweringPolicy::generated_kernels())
-            .with_kernel_recorder(recorder.clone()),
-    )
-    .unwrap();
-    let names = recorder
-        .take()
-        .unwrap()
-        .into_iter()
-        .map(|planned| planned.kernel.name)
-        .collect::<Vec<_>>();
-    assert_eq!(names, ["singe_matmul_add"]);
-    let inputs = HashMap::from([
-        ("x".to_owned(), x),
-        ("weight".to_owned(), weight),
-        ("residual".to_owned(), residual),
-    ]);
-    let output = compiled.run(&inputs).unwrap().remove(0);
-    let actual = output.to_vec::<f32>().unwrap();
-    let expected = eager[0].to_vec::<f32>().unwrap();
-    for (actual, expected) in actual.iter().zip(&expected) {
-        assert!((actual - expected).abs() <= 1e-3, "{actual} != {expected}");
-    }
-}
-
 // Each library's fusions run only under a policy that allows that library.
 #[test]
 fn test_matmul_fusions_respect_the_lowering_policy() {

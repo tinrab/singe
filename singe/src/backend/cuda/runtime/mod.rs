@@ -13,8 +13,6 @@ use std::{
 
 use singe_cufft::{plan::Plan, types::TransformType};
 
-#[cfg(test)]
-pub use self::autotune::AutotuneTensorBucket;
 use singe_cublas::{context::Context as CublasContext, lt::context::Context as CublasLtContext};
 use singe_cuda::{
     architecture::GpuArchitecture, context::Context as CudaContext, module::KernelFunction,

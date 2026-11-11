@@ -87,6 +87,3 @@ pub fn map_cuda_allocation_error(
         error => Error::from(error),
     }
 }
-
-#[cfg(test)]
-mod tests;

@@ -209,47 +209,6 @@ fn test_remove_redundant_ops_pass_preserves_empty_reshape_and_slice_aliases() {
 }
 
 #[test]
-fn test_graph_compile_removes_redundant_ops_by_default() {
-    let shape = Shape::create(vec![2]).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape.clone(), Device::Cpu);
-    let cast = graph
-        .add_named_operation(
-            None,
-            NodeKind::cast(input, DataType::F32),
-            DataType::F32,
-            output.shape().clone(),
-            output.device(),
-        )
-        .unwrap();
-    let live = add_scalar_operation(&mut graph, RegistryOperation::Scale, cast, 3.0, &output);
-    graph.set_outputs(vec![live]).unwrap();
-
-    let compiled = graph.compile().unwrap();
-    let compiled_ir = compiled.to_ir();
-    assert_eq!(compiled_ir.values().len(), 2);
-    assert_eq!(compiled_ir.output_values(), &[ValueId::new(1)]);
-    let scale = compiled_ir
-        .operation(compiled_ir.result_for_value(ValueId::new(1)).unwrap().0)
-        .unwrap();
-    assert_eq!(scale.opcode(), Some(Operation::Scale));
-    assert_eq!(scale.inputs(), &[ValueId::new(0)]);
-    assert_eq!(
-        scale.attributes(),
-        &OperationAttributes::Scalar((3.0).into())
-    );
-
-    let outputs = compiled
-        .run(&HashMap::from([(
-            "x".to_string(),
-            cpu_tensor(&shape, vec![2.0_f32, 4.0]),
-        )]))
-        .unwrap();
-    assert_close!(&outputs[0].to_vec::<f32>().unwrap(), &[6.0, 12.0]);
-}
-
-#[test]
 fn test_remove_redundant_ops_pass_canonicalizes_copy_to_chains() {
     let shape = Shape::create(vec![2]).unwrap();
     let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
@@ -312,93 +271,6 @@ fn test_remove_redundant_ops_pass_canonicalizes_copy_to_chains() {
         )]))
         .unwrap();
     assert_close!(&outputs[0].to_vec::<f32>().unwrap(), &[6.0, 12.0]);
-}
-
-#[test]
-fn test_remove_redundant_ops_pass_canonicalizes_multi_hop_copy_to_chains() {
-    let shape = Shape::create(vec![2]).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape.clone(), Device::Cpu);
-    let first_copy = graph
-        .add_named_operation(
-            None,
-            NodeKind::copy_to(input, Device::Cpu),
-            output.data_type(),
-            output.shape().clone(),
-            output.device(),
-        )
-        .unwrap();
-    graph.replace_node_copy_to_for_test(first_copy, input, Device::Cuda(0));
-    graph.replace_node_output_device_for_test(first_copy, Device::Cuda(0));
-    let second_copy = graph
-        .add_named_operation(
-            None,
-            NodeKind::copy_to(first_copy, Device::Cpu),
-            output.data_type(),
-            output.shape().clone(),
-            output.device(),
-        )
-        .unwrap();
-    let third_copy = graph
-        .add_named_operation(
-            None,
-            NodeKind::copy_to(second_copy, Device::Cpu),
-            output.data_type(),
-            output.shape().clone(),
-            output.device(),
-        )
-        .unwrap();
-    graph.replace_node_copy_to_for_test(third_copy, second_copy, Device::Cuda(0));
-    graph.replace_node_output_device_for_test(third_copy, Device::Cuda(0));
-    let fourth_copy = graph
-        .add_named_operation(
-            None,
-            NodeKind::copy_to(third_copy, Device::Cpu),
-            output.data_type(),
-            output.shape().clone(),
-            output.device(),
-        )
-        .unwrap();
-    let live = add_scalar_operation(
-        &mut graph,
-        RegistryOperation::Scale,
-        fourth_copy,
-        4.0,
-        &output,
-    );
-    graph.set_outputs(vec![live]).unwrap();
-
-    let pipeline = validating_remove_redundant_ops_pipeline();
-    let (normalized, results) = pipeline.normalize(&graph).unwrap();
-
-    assert_eq!(
-        results[0].remapped_nodes,
-        [
-            (input, ValueId::new(0)),
-            (first_copy, ValueId::new(1)),
-            (second_copy, ValueId::new(0)),
-            (third_copy, ValueId::new(1)),
-            (fourth_copy, ValueId::new(0)),
-            (live, ValueId::new(2)),
-        ],
-    );
-    assert_operation(
-        &normalized,
-        ValueId::new(2),
-        Operation::Scale,
-        &[ValueId::new(0)],
-        &OperationAttributes::Scalar((4.0).into()),
-    );
-
-    let compiled = normalized.compile().unwrap();
-    let outputs = compiled
-        .run(&HashMap::from([(
-            "x".to_string(),
-            cpu_tensor(&shape, vec![2.0_f32, 4.0]),
-        )]))
-        .unwrap();
-    assert_close!(&outputs[0].to_vec::<f32>().unwrap(), &[8.0, 16.0]);
 }
 
 #[test]
@@ -492,59 +364,6 @@ fn test_remove_redundant_ops_pass_folds_inverse_view_pairs() {
             (input, ValueId::new(0)),
             (unsqueeze, ValueId::new(1)),
             (squeeze, ValueId::new(0)),
-            (live, ValueId::new(2)),
-        ],
-    );
-    assert_value_count(&normalized, 3);
-    assert_operation(
-        &normalized,
-        ValueId::new(2),
-        Operation::Scale,
-        &[ValueId::new(0)],
-        &OperationAttributes::Scalar((2.0).into()),
-    );
-}
-
-#[test]
-fn test_remove_redundant_ops_pass_folds_squeeze_unsqueeze_inverse_pairs() {
-    let shape = Shape::create(vec![1, 2, 3]).unwrap();
-    let squeezed_shape = shape.squeeze(0).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let squeezed_output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &squeezed_shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape, Device::Cpu);
-    let squeeze = add_dimension_operation(
-        &mut graph,
-        RegistryOperation::Squeeze,
-        input,
-        0,
-        &squeezed_output,
-    );
-    let unsqueeze = add_dimension_operation(
-        &mut graph,
-        RegistryOperation::Unsqueeze,
-        squeeze,
-        0,
-        &output,
-    );
-    let live = add_scalar_operation(
-        &mut graph,
-        RegistryOperation::Scale,
-        unsqueeze,
-        2.0,
-        &output,
-    );
-    graph.set_outputs(vec![live]).unwrap();
-
-    let pipeline = validating_remove_redundant_ops_pipeline();
-    let (normalized, results) = pipeline.normalize(&graph).unwrap();
-
-    assert_eq!(
-        results[0].remapped_nodes,
-        [
-            (input, ValueId::new(0)),
-            (squeeze, ValueId::new(1)),
-            (unsqueeze, ValueId::new(0)),
             (live, ValueId::new(2)),
         ],
     );

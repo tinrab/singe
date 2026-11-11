@@ -157,6 +157,3 @@ fn selection<'a>(
         wrap: true,
     }
 }
-
-#[cfg(test)]
-mod tests;

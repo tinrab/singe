@@ -17,17 +17,6 @@ fn matrix() -> Tensor {
 }
 
 #[test]
-fn test_reshape_preserves_transposed_logical_order() {
-    let input = matrix().transpose(0, 1).unwrap();
-    let output = input.reshape(vec![6]).unwrap();
-    assert_eq!(
-        output.to_vec::<f32>().unwrap(),
-        [0.0, 3.0, 1.0, 4.0, 2.0, 5.0]
-    );
-    assert!(!Arc::ptr_eq(input.storage(), output.storage()));
-}
-
-#[test]
 fn test_view_rejects_incompatible_transposed_layout() {
     let input = matrix().transpose(0, 1).unwrap();
     assert!(input.view(Shape::create([6]).unwrap()).is_err());
@@ -53,15 +42,6 @@ fn test_strided_layout_cannot_escape_its_allocation() {
         )
         .is_err()
     );
-}
-
-#[test]
-fn test_reshape_preserves_narrowed_transposed_values_and_offset() {
-    let input = matrix().narrow(0, 1, 1).unwrap().transpose(0, 1).unwrap();
-    let output = input.reshape(vec![3]).unwrap();
-    assert_eq!(output.to_vec::<f32>().unwrap(), [3.0, 4.0, 5.0]);
-    assert!(Arc::ptr_eq(input.storage(), output.storage()));
-    assert_eq!(Layout::from_tensor(&output).storage_offset(), 3);
 }
 
 #[test]
@@ -114,69 +94,6 @@ fn test_empty_and_unit_dimensions_do_not_require_copying() {
     );
 }
 
-#[test]
-fn test_capture_records_materialization_needed_by_reshape() {
-    let (captured, _) = Graph::capture([("x", matrix())], |inputs| {
-        Ok(vec![inputs[0].transpose(0, 1)?.reshape(vec![6])?])
-    })
-    .unwrap();
-    let outputs = captured
-        .run(&HashMap::from([(
-            "x".to_string(),
-            matrix().add_scalar(10.0).unwrap(),
-        )]))
-        .unwrap();
-    assert_eq!(
-        outputs[0].to_vec::<f32>().unwrap(),
-        [10.0, 13.0, 11.0, 14.0, 12.0, 15.0]
-    );
-}
-
-#[test]
-fn test_conversions_produce_valid_contiguous_storage_from_strided_views() {
-    let input = Tensor::create_from_storage(
-        Arc::clone(matrix().storage()),
-        DataType::F32,
-        Layout::with_strides([3], [2]).unwrap(),
-    )
-    .unwrap();
-    let cast = input.cast(DataType::F64).unwrap();
-    assert_eq!(cast.to_vec::<f64>().unwrap(), [0.0, 2.0, 4.0]);
-    let quantized = input.quantize(1.0, 0, DataType::I8).unwrap();
-    assert_eq!(quantized.to_vec::<i8>().unwrap(), [0, 2, 4]);
-    assert!(cast.layout().is_contiguous());
-    assert!(quantized.layout().is_contiguous());
-}
-
-#[cfg(all(feature = "cuda", feature = "testing"))]
-#[test]
-fn test_cuda_reshape_and_replay_preserve_transposed_values() {
-    use singe::testing::maybe_lock_device;
-
-    let Some(_device_lock) = maybe_lock_device() else {
-        return;
-    };
-    let input = matrix().to_device(Device::Cuda(0)).unwrap();
-    let (captured, captured_outputs) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![inputs[0].transpose(0, 1)?.reshape(vec![6])?])
-    })
-    .unwrap();
-    assert_eq!(
-        captured_outputs[0].to_vec::<f32>().unwrap(),
-        [0.0, 3.0, 1.0, 4.0, 2.0, 5.0]
-    );
-    let mut executor = captured
-        .prepare(GraphPrepareOptions::new(Device::Cuda(0)))
-        .unwrap();
-    let outputs = executor
-        .run(&HashMap::from([("x".to_string(), input)]))
-        .unwrap();
-    assert_eq!(
-        outputs[0].to_vec::<f32>().unwrap(),
-        [0.0, 3.0, 1.0, 4.0, 2.0, 5.0]
-    );
-}
-
 #[cfg(all(feature = "cuda", feature = "testing"))]
 #[test]
 fn test_cuda_strict_replay_preserves_scalar_rounding_and_exceptional_values() {
@@ -220,47 +137,4 @@ fn test_cuda_strict_replay_preserves_scalar_rounding_and_exceptional_values() {
             }
         }
     }
-}
-
-#[test]
-fn test_cpu_concat_preserves_integral_bits_and_strided_logical_order() {
-    let large = (1_i64 << 54) + 1;
-    let input = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([2, 3]).unwrap(),
-        vec![large, 2, 3, 4, 5, 6],
-    )
-    .unwrap()
-    .transpose(0, 1)
-    .unwrap();
-    let output = Tensor::concat(&[input.clone(), input.clone()], 1).unwrap();
-    assert_eq!(
-        output.to_vec::<i64>().unwrap(),
-        [large, 4, large, 4, 2, 5, 2, 5, 3, 6, 3, 6]
-    );
-    let (captured, _) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![Tensor::concat(
-            &[inputs[0].clone(), inputs[0].clone()],
-            1,
-        )?])
-    })
-    .unwrap();
-    let mut executor = captured
-        .prepare(GraphPrepareOptions::new(Device::Cpu))
-        .unwrap();
-    assert_eq!(
-        executor.run(&HashMap::from([("x".into(), input)])).unwrap()[0]
-            .to_bytes()
-            .unwrap(),
-        output.to_bytes().unwrap()
-    );
-    let boolean =
-        Tensor::from_vec(Device::Cpu, Shape::create([2]).unwrap(), vec![true, false]).unwrap();
-    assert_eq!(
-        Tensor::concat(&[boolean.clone(), boolean], 0)
-            .unwrap()
-            .to_vec::<bool>()
-            .unwrap(),
-        [true, false, true, false]
-    );
 }

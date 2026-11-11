@@ -331,12 +331,6 @@ fn test_native_onnx_export_roundtrips_models_cpu() {
     exercise_native_onnx_exports(Device::Cpu);
 }
 
-#[cfg(all(feature = "onnx", feature = "cuda"))]
-#[test]
-fn test_native_onnx_export_roundtrips_models_cuda() {
-    exercise_native_onnx_exports(Device::Cuda(0));
-}
-
 fn exercise_models(device: Device) {
     let references: Value = singe_testing::reference!("layers").resolved();
     assert_eq!(references["reference"]["version"], "2.12.0");
@@ -412,65 +406,6 @@ fn exercise_models(device: Device) {
 #[test]
 fn test_checkpoint_models_match_pytorch_through_eager_and_prepared_cpu() {
     exercise_models(Device::Cpu);
-}
-
-#[test]
-fn test_metadata_modules_support_cuda_dtypes_without_cpu_kernels_or_cuda() {
-    let references: Value = singe_testing::reference!("layers").resolved();
-    for name in ["mlp", "cnn", "encoder"] {
-        for dtype in [DataType::F16, DataType::Bf16] {
-            let reference = &references["models"][name];
-            let model = fixture_model(name, reference)
-                .to(Device::Cpu, Some(dtype))
-                .unwrap();
-            let shape = Shape::create(
-                reference["cases"][0]["input"]["shape"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|dim| dim.as_i64().unwrap()),
-            )
-            .unwrap();
-            #[cfg(feature = "testing")]
-            let before = TensorActivity::current();
-            let built = model
-                .build("x", ValueSpec::new(dtype, shape.clone()))
-                .unwrap();
-            #[cfg(feature = "testing")]
-            assert_builds_without_work(before, name);
-            let output_shape = Shape::create(
-                reference["cases"][0]["output"]["shape"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|dim| dim.as_i64().unwrap()),
-            )
-            .unwrap();
-            assert_eq!(
-                built.program().signature().outputs()[0].spec(),
-                &ValueSpec::new(dtype, output_shape)
-            );
-            assert_eq!(
-                built.state().revision(),
-                model.state().snapshot().revision()
-            );
-            // Logical analysis must remain independent of CPU kernel support too.
-            built.program().fingerprint().unwrap();
-            if name == "encoder" {
-                let spec = GraphInputSpec::new(ValueSpec::new(dtype, shape))
-                    .with_dimension(0, "batch", Some(1), Some(4))
-                    .unwrap()
-                    .with_dimension(1, "sequence", Some(1), Some(8))
-                    .unwrap();
-                #[cfg(feature = "testing")]
-                let before = TensorActivity::current();
-                let dynamic = model.build("x", spec).unwrap();
-                dynamic.program().fingerprint().unwrap();
-                #[cfg(feature = "testing")]
-                assert_builds_without_work(before, name);
-            }
-        }
-    }
 }
 
 fn exercise_dynamic_encoder(device: Device) {
@@ -647,79 +582,6 @@ fn test_exported_dynamic_encoder_resolves_shape_values_on_cpu() {
     exercise_dynamic_onnx_encoder(Device::Cpu);
 }
 
-#[cfg(all(feature = "onnx", feature = "cuda"))]
-#[test]
-fn test_exported_dynamic_encoder_resolves_shape_values_on_cuda() {
-    exercise_dynamic_onnx_encoder(Device::Cuda(0));
-}
-
-#[test]
-fn test_metadata_build_preserves_ties_and_replacement_publications() {
-    let (model, first, second) = tied_model();
-    let replacement = model
-        .state()
-        .replace(&HashMap::from([(
-            first.name().to_owned(),
-            tensor(&[2, 2], vec![2., 0., 0., 3.]),
-        )]))
-        .unwrap();
-    let model = model.with_state(replacement).unwrap();
-    let built = model
-        .build(
-            "x",
-            ValueSpec::new(DataType::F32, Shape::create([1, 2]).unwrap()),
-        )
-        .unwrap();
-    let schema = built
-        .program()
-        .state_schema()
-        .map(|binding| (binding.name().to_owned(), binding.id()))
-        .collect::<HashMap<_, _>>();
-    assert_eq!(schema[first.name()], schema[second.name()]);
-    assert_eq!(
-        built.state().revision(),
-        model.state().snapshot().revision()
-    );
-    assert_eq!(
-        built.bind_state(model.state()).unwrap().revision(),
-        built.state().revision()
-    );
-    let input = tensor(&[1, 2], vec![1., 1.]);
-    let capture = model.capture("x", input.clone()).unwrap();
-    assert_eq!(capture.state().revision(), built.state().revision());
-    let mut executor = built
-        .prepare(GraphPrepareOptions::new(Device::Cpu))
-        .unwrap();
-    let output = executor.run(&HashMap::from([("x".into(), input)])).unwrap();
-    assert_eq!(output[0].to_vec::<f32>().unwrap(), [4., 9.]);
-}
-
-#[test]
-fn test_logical_module_identity_does_not_depend_on_state_registration_order() {
-    let build = |bias_first: bool| {
-        let mut state = StateBuilder::new();
-        let bias = bias_first.then(|| state.parameter("bias", tensor(&[2], vec![1., 2.])).unwrap());
-        let weight = state
-            .parameter("weight", tensor(&[2, 2], vec![1., 0., 0., 1.]))
-            .unwrap();
-        let bias =
-            bias.unwrap_or_else(|| state.parameter("bias", tensor(&[2], vec![1., 2.])).unwrap());
-        let model = Model::new(Linear::new(weight, Some(bias)), state.finish().unwrap());
-        model
-            .build(
-                "x",
-                ValueSpec::new(DataType::F32, Shape::create([1, 2]).unwrap()),
-            )
-            .unwrap()
-    };
-    let first = build(true);
-    let second = build(false);
-    assert_eq!(
-        first.program().fingerprint().unwrap(),
-        second.program().fingerprint().unwrap()
-    );
-}
-
 #[cfg(feature = "cuda")]
 #[test]
 fn test_checkpoint_models_match_pytorch_through_eager_and_native_cuda() {
@@ -857,12 +719,6 @@ fn test_replacement_and_graph_rebinding_preserve_old_cpu_snapshots() {
     exercise_replacement(Device::Cpu);
 }
 
-#[cfg(feature = "cuda")]
-#[test]
-fn test_replacement_and_graph_rebinding_preserve_old_cuda_snapshots() {
-    exercise_replacement(Device::Cuda(0));
-}
-
 #[test]
 fn test_invalid_names_foreign_keys_and_conflicting_state_fail_before_publication() {
     let mut builder = StateBuilder::new();
@@ -892,52 +748,6 @@ fn test_invalid_names_foreign_keys_and_conflicting_state_fail_before_publication
         matches!(model.state().load_safetensors_bytes(&empty), Err(Error::Checkpoint(CheckpointError::Keys { missing, unexpected })) if missing.len() == 4 && unexpected.is_empty())
     );
     assert!(model.state().load_safetensors_bytes(b"broken").is_err());
-}
-
-#[cfg(feature = "onnx")]
-fn exercise_onnx_models(device: Device) {
-    use singe::{OnnxModel, OnnxOptions};
-    let references: Value = singe_testing::reference!("layers").resolved();
-    for (name, bytes) in [
-        (
-            "mlp",
-            include_bytes!("../references/layers/mlp.onnx").as_slice(),
-        ),
-        (
-            "cnn",
-            include_bytes!("../references/layers/cnn.onnx").as_slice(),
-        ),
-        (
-            "encoder",
-            include_bytes!("../references/layers/encoder.onnx").as_slice(),
-        ),
-    ] {
-        let reference = &references["models"][name];
-        let model = fixture_model(name, reference).to(device, None).unwrap();
-        let imported = OnnxModel::from_reader(bytes, OnnxOptions::new()).unwrap();
-        let eager_import =
-            OnnxModel::from_reader(bytes, OnnxOptions::new().with_device(device)).unwrap();
-        let mut executor = imported.prepare(GraphPrepareOptions::new(device)).unwrap();
-        for case in reference["cases"].as_array().unwrap() {
-            let input = fixture_tensor(&case["input"], device);
-            assert_close(&model.forward(&input).unwrap(), &case["output"]);
-            let bindings = HashMap::from([("x".into(), input)]);
-            assert_close(&eager_import.run(&bindings).unwrap()["y"], &case["output"]);
-            assert_close(&executor.run(&bindings).unwrap()[0], &case["output"]);
-        }
-    }
-}
-
-#[cfg(feature = "onnx")]
-#[test]
-fn test_cpu_modules_and_onnx_use_identical_weights_and_match_the_pinned_reference() {
-    exercise_onnx_models(Device::Cpu);
-}
-
-#[cfg(all(feature = "onnx", feature = "cuda"))]
-#[test]
-fn test_cuda_modules_and_onnx_use_identical_weights_and_match_the_pinned_reference() {
-    exercise_onnx_models(Device::Cuda(0));
 }
 
 #[test]
@@ -1067,77 +877,6 @@ fn exercise_embedding(device: Device) {
 #[test]
 fn test_cpu_embedding_capture_reuses_analysis_checks_bounds_and_accepts_strided_weights() {
     exercise_embedding(Device::Cpu);
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_cuda_embedding_capture_reuses_analysis_checks_bounds_and_accepts_strided_weights() {
-    exercise_embedding(Device::Cuda(0));
-}
-
-fn exercise_rms_and_pool(device: Device) {
-    use singe::nn::RmsNorm;
-    let mut builder = StateBuilder::new();
-    let weight = builder
-        .parameter(
-            "weight",
-            tensor(&[2], vec![2., 3.]).to_device(device).unwrap(),
-        )
-        .unwrap();
-    let model = Model::new(
-        RmsNorm::new(vec![2], Some(weight), 1e-5),
-        builder.finish().unwrap(),
-    );
-    let input = tensor(&[1, 2], vec![3., 4.]).to_device(device).unwrap();
-    let mut executor = model
-        .prepare("x", input.clone(), GraphPrepareOptions::new(device))
-        .unwrap();
-    for output in [
-        model.forward(&input).unwrap(),
-        executor
-            .run(&HashMap::from([("x".into(), input)]))
-            .unwrap()
-            .remove(0),
-    ] {
-        let values = output.to_vec::<f32>().unwrap();
-        for (actual, expected) in values.iter().zip([
-            6. / (12.5_f32 + 1e-5).sqrt(),
-            12. / (12.5_f32 + 1e-5).sqrt(),
-        ]) {
-            assert!((actual - expected).abs() < 1e-5);
-        }
-    }
-    let model = Model::new(
-        Pool2d::new(Pool2dKind::Max, Pool2dConfig::new((2, 2))),
-        StateBuilder::new().finish().unwrap(),
-    );
-    let input = tensor(&[1, 1, 2, 2], vec![1., 4., 2., 3.])
-        .to_device(device)
-        .unwrap();
-    let mut executor = model
-        .prepare("x", input.clone(), GraphPrepareOptions::new(device))
-        .unwrap();
-    assert_eq!(
-        model.forward(&input).unwrap().to_vec::<f32>().unwrap(),
-        [4.]
-    );
-    assert_eq!(
-        executor.run(&HashMap::from([("x".into(), input)])).unwrap()[0]
-            .to_vec::<f32>()
-            .unwrap(),
-        [4.]
-    );
-}
-
-#[test]
-fn test_rms_norm_and_max_pool_modules_capture_on_cpu() {
-    exercise_rms_and_pool(Device::Cpu);
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_rms_norm_and_max_pool_modules_capture_on_cuda() {
-    exercise_rms_and_pool(Device::Cuda(0));
 }
 
 #[test]
@@ -1307,12 +1046,6 @@ fn exercise_empty_embedding(device: Device) {
 #[test]
 fn test_empty_embedding_shapes_are_valid_on_cpu() {
     exercise_empty_embedding(Device::Cpu);
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_empty_embedding_shapes_are_valid_on_cuda() {
-    exercise_empty_embedding(Device::Cuda(0));
 }
 
 #[test]

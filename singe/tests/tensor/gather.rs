@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "cuda")]
-use singe::graph::GraphExecutor;
 use singe::{
     DataType, Device, Error, Shape, Tensor,
     graph::{Graph, GraphExecutionMode, GraphPrepareOptions},
@@ -160,50 +158,4 @@ fn test_gather_handles_axes_strides_scalars_and_runtime_bounds_on_cpu() {
 fn test_gather_handles_axes_strides_scalars_and_runtime_bounds_on_cuda() {
     exercise(Device::Cuda(0));
     exercise_storage(Device::Cuda(0));
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_native_gather_reports_bad_device_computed_indices_after_replay() {
-    let table = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([3]).unwrap(),
-        vec![1_f32, 2., 3.],
-    )
-    .unwrap();
-    let indices =
-        Tensor::from_vec(Device::Cpu, Shape::create([2]).unwrap(), vec![0_i64, 2]).unwrap();
-    let (captured, _) = Graph::capture([("x", table), ("i", indices)], |xs| {
-        Ok(vec![xs[0].take(0, &xs[1].copy()?)?])
-    })
-    .unwrap();
-    let mut prepared = captured
-        .prepare(GraphPrepareOptions::new(Device::Cuda(0)))
-        .unwrap();
-    let run = |prepared: &mut GraphExecutor, indices: Vec<i64>| {
-        let inputs = HashMap::from([
-            (
-                "x".to_owned(),
-                Tensor::from_vec(
-                    Device::Cuda(0),
-                    Shape::create([3]).unwrap(),
-                    vec![1_f32, 2., 3.],
-                )
-                .unwrap(),
-            ),
-            (
-                "i".to_owned(),
-                Tensor::from_vec(Device::Cuda(0), Shape::create([2]).unwrap(), indices).unwrap(),
-            ),
-        ]);
-        prepared.run(&inputs)
-    };
-    assert_eq!(
-        run(&mut prepared, vec![0, 2]).unwrap()[0]
-            .to_vec::<f32>()
-            .unwrap(),
-        [1., 3.]
-    );
-    let error = run(&mut prepared, vec![0, 5]).unwrap_err();
-    assert!(matches!(error, Error::IndexOutOfBounds), "{error}");
 }

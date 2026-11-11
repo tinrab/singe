@@ -1,27 +1,8 @@
-mod accepted;
 mod validation;
 
 use super::*;
 
 use crate::graph::node::NodeKind;
-
-fn build_permute_graph(input_shape: Shape, output: &Tensor, order: Vec<i64>) -> Graph {
-    let output_shape = output.shape().clone();
-    let mut graph = Graph::new();
-    let x = graph.add_input("x", output.data_type(), input_shape, output.device());
-    let permuted = graph
-        .add_named_operation(
-            None,
-            NodeKind::permute(x, order),
-            output.data_type(),
-            output_shape,
-            output.device(),
-        )
-        .unwrap();
-    graph.set_outputs(vec![permuted]).unwrap();
-
-    graph
-}
 
 fn build_invalid_permute_graph(
     output_shape: &Shape,

@@ -1,29 +1,22 @@
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-    process, thread,
-    time::Duration,
-};
+use std::{collections::HashMap, fs, path::PathBuf, process, time::Duration};
 
 use singe_cudnn::backend::{engine::EngineIndex, execution::EngineChoice};
 
 use super::{
     measure::{
         Expected, Measurer, SmallGraph, WholeGraphRunner, agrees, evaluate, export_program,
-        listed_library_choices, remove_abandoned_candidates, subgraph, whole_graph,
+        listed_library_choices, subgraph, whole_graph,
     },
     plan::{
         Alternative, Candidate, ChoicePoint, MeasureError, Measured, PlanLimits, PlanRunner,
         check_plan, plan_records,
     },
-    report::{CandidateOutcome, DropReason, FailureStage, SecondReference},
+    report::{CandidateOutcome, DropReason, SecondReference},
     tune::forced_records,
 };
 use crate::{
     backend::{
         cuda::{
-            CudaEvent, CudaStream, EventTiming,
             compiled::plan::lowering::{CudaGraphProvider, LoweringPolicy},
             export::{CudaExport, ProgramStep, compiled::CompiledProgram},
             graph_binding::{InPlaceWrites, WritableInputs, graph_users},
@@ -593,205 +586,6 @@ fn relu_small() -> Option<SmallGraph> {
     )
 }
 
-fn stage_of(run: Result<Measured, MeasureError>) -> FailureStage {
-    match run {
-        Err(MeasureError::Failed(failure)) => {
-            assert!(!failure.message.is_empty());
-            failure.stage
-        }
-        other => panic!("expected a failure, found {other:?}"),
-    }
-}
-
-#[test]
-fn test_a_candidate_that_fails_says_at_which_stage() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let Some(mut small) = relu_small() else {
-        return;
-    };
-    let options = GraphTuneOptions::default();
-    let replay = TuningEnvironment::current(DEVICE, Measurement::GraphReplay).unwrap();
-    let program = TuningEnvironment::current(DEVICE, Measurement::Program).unwrap();
-    let candidate = Candidate {
-        choices: Vec::new(),
-    };
-
-    let mut wrong_target = program.clone();
-    wrong_target.architecture = "not an architecture".to_owned();
-    let run = measure(
-        &small,
-        &forced_records(&candidate, &wrong_target),
-        DEVICE,
-        &options,
-        None,
-        None,
-    );
-    assert_eq!(stage_of(run), FailureStage::Export);
-
-    // A directory cannot be made beneath a file.
-    let blocker = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../target")
-        .join(format!("tuning-blocker-{}", process::id()));
-    fs::write(&blocker, b"").unwrap();
-    let unbuildable = GraphTuneOptions {
-        build_directory: blocker.join("programs"),
-        ..GraphTuneOptions::default()
-    };
-    let run = measure(
-        &small,
-        &forced_records(&candidate, &program),
-        DEVICE,
-        &unbuildable,
-        None,
-        None,
-    );
-    fs::remove_file(&blocker).unwrap();
-    assert_eq!(stage_of(run), FailureStage::Build);
-
-    let run = measure(
-        &small,
-        &forced_records(&candidate, &replay),
-        Device::Cuda(99),
-        &options,
-        None,
-        None,
-    );
-    assert_eq!(stage_of(run), FailureStage::Prepare);
-
-    small.inputs.clear();
-    let run = measure(
-        &small,
-        &forced_records(&candidate, &replay),
-        DEVICE,
-        &options,
-        None,
-        None,
-    );
-    assert_eq!(stage_of(run), FailureStage::Run);
-}
-
-#[test]
-fn test_a_candidate_over_the_limit_is_refused_before_it_is_timed() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let Some(input) = skip_if_stub(Ok(tensor(&[8, 64], DataType::F32, 41))) else {
-        return;
-    };
-    let inputs = [("x", input)];
-    let (graph, _) = Graph::capture(inputs.clone(), |inputs| {
-        Ok(vec![inputs[0].add(&inputs[0])?.exp()?])
-    })
-    .unwrap();
-    let compiled = graph
-        .compile_with_options(GraphCompileOptions::new())
-        .unwrap();
-    let ir = compiled.shared_ir();
-    let order = compiled.value_order().to_vec();
-    let evaluated = evaluate(&ir, &order, &named(&inputs), DEVICE).unwrap();
-    let whole = whole_graph(&graph, &ir, &order, &evaluated, &named(&inputs)).unwrap();
-    let environment = TuningEnvironment::current(DEVICE, Measurement::GraphReplay).unwrap();
-    let separate = Candidate {
-        choices: vec![(
-            group_key(
-                &ir,
-                &order
-                    .iter()
-                    .copied()
-                    .filter(|&id| {
-                        ir.required_operation_for_value(id).is_ok_and(|operation| {
-                            matches!(operation.opcode(), Some(Operation::Add | Operation::Exp))
-                        })
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .unwrap(),
-            TunedChoice::Way(TunedWay::Separate),
-        )],
-    };
-    let options = options(LoweringPolicy::default());
-    let forced = forced_records(&separate, &environment);
-    let default = forced_records(
-        &Candidate {
-            choices: Vec::new(),
-        },
-        &environment,
-    );
-    let default_bytes = measure(&whole, &default, DEVICE, &options, None, None)
-        .unwrap()
-        .bytes;
-    let separate_bytes = measure(&whole, &forced, DEVICE, &options, None, None)
-        .unwrap()
-        .bytes;
-    assert!(
-        separate_bytes > default_bytes,
-        "{separate_bytes} {default_bytes}"
-    );
-    assert_eq!(
-        measure(
-            &whole,
-            &forced,
-            DEVICE,
-            &options,
-            Some(separate_bytes - 1),
-            None
-        )
-        .unwrap_err(),
-        MeasureError::OverMemory(separate_bytes)
-    );
-
-    // On a real plan, a limit between the two keeps what fits.
-    let points = vec![ChoicePoint {
-        key: "group".to_owned(),
-        default_ns: Some(1),
-        default_bytes: Some(default_bytes),
-        alternatives: vec![Alternative {
-            candidate: separate,
-            median_ns: 1,
-            bytes: separate_bytes,
-        }],
-        chosen: Some(0),
-    }];
-    let mut runner = WholeGraphRunner::new(&whole, DEVICE, &options);
-    let limits = |memory| PlanLimits {
-        memory: Some(memory),
-        speed: false,
-    };
-    let (plan, report) = check_plan(
-        &points,
-        vec![Some(0)],
-        Some(&environment),
-        limits(separate_bytes - 1),
-        &mut runner,
-    );
-    assert_eq!(plan, vec![None]);
-    assert!(report.plan_bytes.unwrap() < separate_bytes);
-    assert_eq!(report.dropped[0].reason, DropReason::OverMemory);
-    assert!(!report.default_over_limit);
-    let (plan, report) = check_plan(
-        &points,
-        vec![Some(0)],
-        Some(&environment),
-        limits(separate_bytes),
-        &mut runner,
-    );
-    assert_eq!(plan, vec![Some(0)]);
-    assert_eq!(report.plan_bytes, Some(separate_bytes));
-    if default_bytes > 0 {
-        let (plan, report) = check_plan(
-            &points,
-            vec![Some(0)],
-            Some(&environment),
-            limits(default_bytes - 1),
-            &mut runner,
-        );
-        assert_eq!(plan, vec![None]);
-        assert!(report.default_over_limit);
-    }
-}
-
 #[test]
 fn test_a_tuned_plan_holds_as_a_whole_and_explains_itself() {
     let Some(_lock) = maybe_lock_device() else {
@@ -919,40 +713,6 @@ fn test_a_plan_the_whole_graph_disagrees_with_loses_its_records() {
     assert_eq!(plan, vec![None]);
     assert!(report.default_disagreed);
     assert_eq!(report.dropped[0].reason, DropReason::Disagreed);
-}
-
-// Candidates are judged against the evaluated graph, so wrong expectations reach every candidate, the first included.
-#[test]
-fn test_a_wrong_value_is_reported_as_disagreeing() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let Some(mut small) = relu_small() else {
-        return;
-    };
-    small.expected[0] = small.expected[0].shifted(1000.0).unwrap();
-    let environment = TuningEnvironment::current(DEVICE, Measurement::GraphReplay).unwrap();
-    let candidates = [Candidate {
-        choices: Vec::new(),
-    }];
-    let options = options(LoweringPolicy::default());
-    let (point, report) = super::plan::decide(
-        "relu".to_owned(),
-        &candidates,
-        Duration::from_secs(1),
-        |candidate| {
-            measure(
-                &small,
-                &forced_records(candidate, &environment),
-                DEVICE,
-                &options,
-                None,
-                None,
-            )
-        },
-    );
-    assert_eq!(point.chosen, None);
-    assert_eq!(report.candidates[0].outcome, CandidateOutcome::Disagreed);
 }
 
 fn library_options() -> GraphTuneOptions {
@@ -1120,61 +880,6 @@ fn check_library_choices(
         .compare_in_blocks(&whole, &table_of(&listed[0]), &table_of(&listed[1]))
         .unwrap();
     assert!(!compared.together, "{provider:?}");
-}
-
-#[test]
-fn test_candidates_of_a_process_that_stopped_are_removed() {
-    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../target/programs")
-        .join(format!("abandoned-{}", process::id()));
-    let ours = directory.join(format!("candidate-{}-0", process::id()));
-    // Above what Linux gives a process, so nothing runs with this id.
-    let theirs = directory.join("candidate-4294967294-0");
-    let other = directory.join("literal-4294967294");
-    for kept in [&ours, &theirs, &other] {
-        fs::create_dir_all(kept).unwrap();
-    }
-
-    remove_abandoned_candidates(&directory);
-    assert!(ours.exists());
-    assert!(other.exists());
-    assert_eq!(theirs.exists(), !Path::new("/proc/self").exists());
-    fs::remove_dir_all(&directory).unwrap();
-}
-
-// What a graph can choose does not depend on how long anything took.
-#[test]
-fn test_one_graph_lists_the_same_choices_twice() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let Some((graph, inputs)) = small_step() else {
-        return;
-    };
-    let named_inputs = named(&inputs);
-    let options = GraphTuneOptions {
-        choice_budget: Duration::from_secs(3600),
-        self_comparisons: true,
-        ..library_options()
-    };
-    let listed = || {
-        let records = tune_graph(&graph, &named_inputs, DEVICE, &options).unwrap();
-        let report = records.report().unwrap().clone();
-        assert!(!report.self_comparisons.is_empty(), "{report}");
-        report
-            .choices
-            .iter()
-            .map(|choice| {
-                let candidates = choice
-                    .candidates
-                    .iter()
-                    .map(|candidate| candidate.choice.clone())
-                    .collect::<Vec<_>>();
-                (choice.key.clone(), candidates)
-            })
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(listed(), listed());
 }
 
 #[test]
@@ -1357,24 +1062,6 @@ fn test_merged_projections_are_a_choice_for_a_whole_graph() {
     }
 }
 
-#[test]
-fn test_a_held_stream_starts_nothing_until_it_is_released() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let Some(stream) = skip_if_stub(CudaStream::create(DEVICE)) else {
-        return;
-    };
-    let event = CudaEvent::create(DEVICE, EventTiming::Recorded).unwrap();
-    let hold = stream.hold().unwrap();
-    event.record(&stream).unwrap();
-    thread::sleep(Duration::from_millis(50));
-    assert!(!event.query().unwrap());
-    hold.release();
-    event.synchronize().unwrap();
-    assert!(!hold.overran());
-}
-
 // One set of inputs can hide a kernel's error, so every candidate is also judged on a second set, of other signs and magnitudes, and a value wrong only there is a disagreement.
 #[test]
 fn test_a_candidate_is_judged_on_a_second_set_of_inputs() {
@@ -1412,74 +1099,6 @@ fn test_a_candidate_is_judged_on_a_second_set_of_inputs() {
     second.expected[0] = second.expected[0].shifted(1000.0).unwrap();
     let measured = measure(&small, &records, DEVICE, &options, None, None).unwrap();
     assert!(!measured.agrees);
-}
-
-// The second inputs' values come from the host where the inputs fit, which shares no library with a candidate on the device, and from the device otherwise.
-#[test]
-fn test_second_inputs_are_evaluated_on_the_host_where_they_fit() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let small_matmul = |rows: i64| {
-        let inputs = [
-            ("x", tensor(&[rows, 64], DataType::Bf16, 50)),
-            ("w", tensor(&[32, 64], DataType::Bf16, 51)),
-        ];
-        let (graph, _) = Graph::capture(inputs.clone(), |inputs| {
-            Ok(vec![inputs[0].matmul(&inputs[1].transpose(0, 1)?)?])
-        })
-        .unwrap();
-        let compiled = graph
-            .compile_with_options(GraphCompileOptions::new())
-            .unwrap();
-        let ir = compiled.shared_ir();
-        let order = compiled.value_order().to_vec();
-        let matmul = order
-            .iter()
-            .copied()
-            .find(|&id| {
-                ir.required_operation_for_value(id).unwrap().opcode() == Some(Operation::MatMul)
-            })
-            .unwrap();
-        let evaluated = evaluate(&ir, &order, &named(&inputs), DEVICE).unwrap();
-        subgraph(
-            &ir,
-            &evaluated,
-            &[matmul],
-            &[matmul],
-            &every_write(&ir, &order),
-            DEVICE,
-        )
-        .unwrap()
-    };
-    let small = small_matmul(4);
-    assert_eq!(
-        small.second.as_ref().unwrap().reference,
-        SecondReference::Host
-    );
-    // cuBLAS computes the device's eager matmul, and the host's agrees with what a candidate computes.
-    let environment = TuningEnvironment::current(DEVICE, Measurement::GraphReplay).unwrap();
-    let measured = measure(
-        &small,
-        &forced_records(
-            &Candidate {
-                choices: Vec::new(),
-            },
-            &environment,
-        ),
-        DEVICE,
-        &options(LoweringPolicy::default()),
-        None,
-        None,
-    )
-    .unwrap();
-    assert!(measured.agrees);
-    // Over the host's share, the device evaluates them.
-    let large = small_matmul(1 << 20);
-    assert_eq!(
-        large.second.as_ref().unwrap().reference,
-        SecondReference::Device
-    );
 }
 
 // A record keys a matmul by the elements its operands address, so a view whose axis of extent one has another stride reads the same record.

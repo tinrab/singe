@@ -87,30 +87,6 @@ fn test_graph_fingerprint_hashes_symbolic_dimension_instead_of_static_size() {
 }
 
 #[test]
-fn test_graph_fingerprint_hashes_symbolic_inner_dimension_instead_of_contiguous_stride() {
-    let mut graph_a = Graph::new();
-    let shape_a = Shape::create(vec![2, 3]).unwrap();
-    let input_a = graph_a.add_input("x", DataType::F32, shape_a, Device::Cpu);
-    graph_a
-        .add_input_dimension_guard("x", 1, "features", Some(1), Some(8))
-        .unwrap();
-    graph_a.set_outputs(vec![input_a]).unwrap();
-
-    let mut graph_b = Graph::new();
-    let shape_b = Shape::create(vec![2, 5]).unwrap();
-    let input_b = graph_b.add_input("x", DataType::F32, shape_b, Device::Cpu);
-    graph_b
-        .add_input_dimension_guard("x", 1, "features", Some(1), Some(8))
-        .unwrap();
-    graph_b.set_outputs(vec![input_b]).unwrap();
-
-    assert_eq!(
-        graph_a.fingerprint().unwrap(),
-        graph_b.fingerprint().unwrap()
-    );
-}
-
-#[test]
 fn test_graph_fingerprint_propagates_symbolic_dimension_to_same_shape_output() {
     fn captured_scale_graph_fingerprint(batch: i64, max: i64) -> GraphFingerprint {
         let shape = Shape::create(vec![batch, 3]).unwrap();

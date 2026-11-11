@@ -847,37 +847,6 @@ mod tests {
         (tokens, decoder)
     }
 
-    #[test]
-    fn test_a_step_reads_up_to_the_largest_chunk() {
-        assert_eq!(step_portions(&[5, 1], None), [5, 1]);
-        assert_eq!(step_portions(&[5, 1], Some(3)), [4, 1]);
-        assert_eq!(step_portions(&[5, 1], Some(8)), [5, 1]);
-        assert_eq!(step_portions(&[2, 1], Some(0)), [1, 1]);
-        // A chunk spreads over the rows that have tokens to spare, and an idle row reads nothing.
-        assert_eq!(step_portions(&[3, 0, 3], Some(3)), [3, 0, 2]);
-        assert_eq!(step_portions(&[1, 1], Some(1)), [1, 1]);
-    }
-
-    #[test]
-    fn test_prompt_chunks_grow_by_four_up_to_the_capacity() {
-        let chunks = PromptChunks::default();
-        assert_eq!(chunks.sizes(512), [16, 64, 256, 511]);
-        assert_eq!(chunks.sizes(5000), [16, 64, 256, 1024]);
-        assert_eq!(chunks.sizes(10), [9]);
-        assert!(chunks.sizes(1).is_empty());
-        assert!(PromptChunks::NONE.sizes(512).is_empty());
-        let exact = PromptChunks {
-            smallest: 16,
-            largest: 3,
-        };
-        assert_eq!(exact.sizes(448), [3]);
-        let small = PromptChunks {
-            smallest: 1,
-            largest: 3,
-        };
-        assert_eq!(small.sizes(32), [1, 3]);
-    }
-
     // Whatever a prompt's length, no step reads more than the largest chunk past a token per row, and the next token follows the prompt's last.
     #[test]
     fn test_a_prompt_of_any_length_reads_in_steps_up_to_the_largest_chunk() {

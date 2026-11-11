@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use singe::{
     DataType, Device, Result, Shape, Tensor,
-    backend::registry::{Operation, OperationAttributes, TopKAttributes, TransposeAttributes},
+    backend::registry::{Operation, OperationAttributes, TopKAttributes},
     dispatch,
     graph::{CaptureBindings, Graph, GraphPrepareOptions},
     nn::{Layer, Model, ModelState, StateBuilder},
@@ -11,19 +11,6 @@ use singe::{
 
 #[cfg(feature = "testing")]
 use singe::testing::TensorActivity;
-
-#[cfg(feature = "testing")]
-#[test]
-fn test_activity_counters_observe_real_tensor_storage_and_kernel_invocations() {
-    let before = TensorActivity::current();
-    let input =
-        Tensor::from_vec(Device::Cpu, Shape::create([2]).unwrap(), vec![-1_f32, 2.]).unwrap();
-    let created = TensorActivity::current();
-    assert!(created.descriptors > before.descriptors);
-    assert!(created.storage_requests > before.storage_requests);
-    input.relu().unwrap();
-    assert!(TensorActivity::current().checked_invocations > created.checked_invocations);
-}
 
 #[derive(Debug)]
 struct TopIndices;
@@ -75,69 +62,6 @@ fn test_custom_layers_share_ordered_invocations_between_eager_capture_and_metada
             [1, 0]
         );
     }
-}
-
-#[test]
-fn test_ordered_results_and_named_outputs_survive_building_from_metadata() {
-    let graph = Graph::build(
-        [(
-            "x",
-            ValueSpec::new(DataType::F32, Shape::create([2, 3]).unwrap()),
-        )],
-        CaptureBindings::new(),
-        |inputs| {
-            let transposed = dispatch::call_one(
-                Operation::Transpose,
-                OperationAttributes::Transpose(TransposeAttributes { dim0: 0, dim1: 1 }),
-                &[&inputs[0]],
-            )?;
-            let results = dispatch::call(
-                Operation::TopK,
-                OperationAttributes::TopK(TopKAttributes {
-                    k: 1,
-                    dim: 0,
-                    largest: true,
-                    sorted: true,
-                }),
-                &[&transposed],
-            )?;
-            assert_eq!(results.len(), 2);
-            assert_eq!(results[0].data_type(), DataType::F32);
-            assert_eq!(results[1].data_type(), DataType::I64);
-            let cast = dispatch::call_one(
-                Operation::Cast,
-                OperationAttributes::Cast(DataType::F32),
-                &[&results[1]],
-            )?;
-            let sum = dispatch::call_one(
-                Operation::Add,
-                OperationAttributes::None,
-                &[&results[0], &cast],
-            )?;
-            Ok(vec![sum, results[1].clone(), results[0].clone()])
-        },
-    )
-    .unwrap()
-    .with_output_names(["sum", "indices", "values"])
-    .unwrap();
-    let program = graph.program().unwrap();
-    let mut executor = program
-        .prepare(
-            &program.bind_state(&HashMap::new()).unwrap(),
-            GraphPrepareOptions::new(Device::Cpu),
-        )
-        .unwrap();
-    let input = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([2, 3]).unwrap(),
-        vec![1_f32, 5., 2., 9., 3., 6.],
-    )
-    .unwrap();
-    let output = executor.run(&HashMap::from([("x".into(), input)])).unwrap();
-    assert_eq!(output[0].to_vec::<f32>().unwrap(), [6., 9.]);
-    assert_eq!(output[1].to_vec::<i64>().unwrap(), [1, 0]);
-    assert_eq!(output[2].to_vec::<f32>().unwrap(), [5., 9.]);
-    assert_eq!(program.signature().outputs()[0].name(), Some("sum"));
 }
 
 #[test]

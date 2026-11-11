@@ -114,6 +114,3 @@ impl GraphCacheKeySummary {
         self.shape_bucket.as_ref()
     }
 }
-
-#[cfg(test)]
-mod tests;

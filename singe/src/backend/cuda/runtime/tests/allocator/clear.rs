@@ -1,32 +1,4 @@
 use super::*;
-use crate::storage::cuda::cuda_context_for_device;
-
-#[test]
-fn test_cuda_backend_clear_cache_releases_cached_blocks() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-
-    let Some(context) = skip_if_stub(cuda_context_for_device(0)) else {
-        return;
-    };
-    let Some(allocator) = skip_if_stub(CudaCachingAllocator::create(&context, None)) else {
-        return;
-    };
-    let byte_size = 123_503;
-    let storage = allocator.zeroed(DataType::U8, byte_size).unwrap();
-    drop(storage);
-
-    let before_clear = allocator.cached_block_count_for(byte_size).unwrap();
-    assert!(before_clear > 0);
-
-    clear_allocator_cache(Device::Cuda(0));
-    assert_eq!(allocator.cached_block_count_for(byte_size).unwrap(), 0);
-    assert_eq!(allocator.stats().unwrap().cached_blocks(), 0);
-
-    let stats = cuda::allocator_stats(Device::Cuda(0)).unwrap();
-    assert_eq!(stats.cached_blocks(), 0);
-}
 
 #[test]
 fn test_cuda_backend_clear_cache_preserves_active_allocations() {

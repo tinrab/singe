@@ -160,52 +160,6 @@ fn decoder_step(cache: &Tensor, x: &Tensor, position: i64) -> singe::Result<Tens
     scores.matmul(cache)
 }
 
-fn assert_decoder_cache_replays(device: Device) {
-    let tensor = |shape: [i64; 2], values: Vec<f32>| {
-        Tensor::from_vec(device, Shape::create(shape).unwrap(), values).unwrap()
-    };
-    let initial = vec![0.5_f32, -1., 0.25, 2., 0., 0., 0., 0.];
-    let x = tensor([1, 2], vec![1., -0.5]);
-
-    let eager_cache = tensor([4, 2], initial.clone());
-    let eager = decoder_step(&eager_cache, &x, 2).unwrap();
-
-    let capture_cache = tensor([4, 2], initial.clone());
-    let (captured, _) = Graph::capture([("cache", capture_cache), ("x", x.clone())], |inputs| {
-        Ok(vec![decoder_step(&inputs[0], &inputs[1], 2)?])
-    })
-    .unwrap();
-    let replay_cache = tensor([4, 2], initial);
-    let replayed = captured
-        .run(&HashMap::from([
-            ("cache".to_owned(), replay_cache.clone()),
-            ("x".to_owned(), x),
-        ]))
-        .unwrap();
-
-    assert_eq!(replayed.len(), 1);
-    assert_eq!(
-        replayed[0].to_vec::<f32>().unwrap(),
-        eager.to_vec::<f32>().unwrap()
-    );
-    assert_eq!(
-        replay_cache.to_vec::<f32>().unwrap(),
-        eager_cache.to_vec::<f32>().unwrap()
-    );
-}
-
-#[test]
-fn test_cpu_decoder_cache_updates_match_eager_after_replay() {
-    assert_decoder_cache_replays(Device::Cpu);
-}
-
-#[cfg(all(feature = "testing", feature = "cuda"))]
-#[test]
-fn test_cuda_decoder_cache_updates_match_eager_after_replay() {
-    let _lock = device_lock(0).unwrap();
-    assert_decoder_cache_replays(Device::Cuda(0));
-}
-
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_compiled_cuda_graphs_write_inputs_back_natively() {

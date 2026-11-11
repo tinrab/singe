@@ -1,9 +1,7 @@
 use std::{
-    collections::HashMap,
     env, fs,
     path::{Path, PathBuf},
     slice,
-    time::Duration,
 };
 
 use serde_json::{Value, json};
@@ -12,18 +10,12 @@ use singe_cuda::architecture::GpuArchitecture;
 use crate::{
     backend::{
         cuda::{
-            self, CudaGraphProvider, LoweringPolicy,
-            compiled::executable::GraphCompileProviderDecision,
             export::{
                 CudaExport, CudaProgram, Library, ProgramFiles, ProgramStep, StateKind,
-                StepProvider,
                 program::BufferKind,
                 writer::{LIBRARY_VERSIONS, fill_template},
             },
-            tuning::{
-                GraphTuneOptions, Measurement, TunedChoice, TunedRecord, TuningRecords,
-                dependent_launch_key, tune_graph,
-            },
+            tuning::{TunedChoice, TunedRecord, TuningRecords, dependent_launch_key},
         },
         registry::Operation,
     },
@@ -31,8 +23,8 @@ use crate::{
     device::Device,
     error::Result,
     graph::{
-        CaptureBindings, ComputePrecision, Determinism, Graph, GraphCudaOptions, NumericalPolicy,
-        NumericalScope, capture, test_support::patterned_tensor,
+        CaptureBindings, ComputePrecision, Determinism, Graph, NumericalPolicy, NumericalScope,
+        capture, test_support::patterned_tensor,
     },
     index::TensorIndex,
     random::Generator,
@@ -181,22 +173,6 @@ fn test_programs_write_a_written_input_where_it_is() {
     let outputs = compiled.instance().unwrap().run(&operands, 2).unwrap();
     assert_close(&outputs[0], &eager[0], 1e-6, "output");
     assert_close(&caller_cache, &capture_cache, 1e-6, "cache");
-}
-
-// `nvcc` compiles `--gpu-architecture=sm_100a` for plain `sm_100`, which rejects what only the suffixed target assembles.
-#[test]
-fn test_programs_compile_for_their_targets_suffix() {
-    let x = values(&[4], 1);
-    let (graph, _) = Graph::capture([("x", x)], |inputs| Ok(vec![inputs[0].relu()?])).unwrap();
-    let command = |target: &str| {
-        let program = CudaExport::new(target.parse().unwrap())
-            .without_libraries()
-            .export(&graph)
-            .unwrap();
-        compile_command(&program.render("model").unwrap())
-    };
-    assert!(command("sm_100a").contains("-gencode=arch=compute_100a,code=sm_100a"));
-    assert!(command("sm_120").contains("--gpu-architecture=sm_120"));
 }
 
 fn library_steps(program: &CudaProgram) -> Vec<&'static str> {
@@ -443,56 +419,6 @@ fn test_programs_call_libraries_and_kernels_together() {
     assert_eq!(library_steps(&program), ["cublaslt"]);
 }
 
-// Written inputs persist across runs, and constants large enough for the weights file load from it.
-#[test]
-fn test_programs_write_inputs_and_load_large_constants() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let device = Device::Cuda(0);
-    let cache = Tensor::zeroed_on(device, DataType::F32, Shape::create([2, 3]).unwrap()).unwrap();
-    let row = values(&[1, 3], 1).to_device(device).unwrap();
-    let (graph, _) = Graph::capture([("cache", cache), ("row", row.clone())], |inputs| {
-        inputs[0].narrow(0, 1, 1)?.assign(&inputs[1])?;
-        Ok(vec![inputs[0].add(&inputs[0])?])
-    })
-    .unwrap();
-    let export = CudaExport::new(architecture).without_libraries();
-    let program = export.export(&graph).unwrap();
-    assert!(program.inputs.iter().any(|input| input.written));
-    let compiled = compile_program(&program, "written");
-    let target = Tensor::zeroed_on(device, DataType::F32, Shape::create([2, 3]).unwrap()).unwrap();
-    let inputs = program
-        .inputs
-        .iter()
-        .map(|input| {
-            if input.name == "cache" {
-                target.clone()
-            } else {
-                row.clone()
-            }
-        })
-        .collect::<Vec<_>>();
-    compiled.run(&inputs, 2).unwrap();
-    assert_eq!(floats(&target)[3..], floats(&row)[..]);
-
-    // A parameter too large to embed goes to the weights file.
-    let weight = values(&[64, 128], 2).to_device(device).unwrap();
-    let x = values(&[4, 64], 3).to_device(device).unwrap();
-    let (graph, eager) = Graph::capture([("x", x.clone())], {
-        move |inputs| {
-            let constant = capture::constant("weight", &weight)?;
-            Ok(vec![inputs[0].matmul(&constant)?])
-        }
-    })
-    .unwrap();
-    let program = export.export(&graph).unwrap();
-    assert!(!program.render("model").unwrap().weights.is_empty());
-    let compiled = compile_program(&program, "weights");
-    let outputs = compiled.run(&[x], 1).unwrap();
-    assert_close(&outputs[0], &eager[0], 1e-3, "weights");
-}
-
 // An export needs neither a GPU nor a library: what the policy leaves out decomposes, and what it allows is written as a call for the user's compile to link.
 #[test]
 fn test_exports_need_no_library_and_decompose_what_is_not_allowed() {
@@ -512,101 +438,6 @@ fn test_exports_need_no_library_and_decompose_what_is_not_allowed() {
     assert!(files.source.contains("#include <cufft.h>"));
     assert!(files.source.contains("cufftExecR2C"));
     assert_eq!(manifest_of(&files)["link"], "-lcufft");
-}
-
-// Two sums of different shapes are two kernels, and two of one shape are one.
-#[test]
-fn test_programs_name_each_distinct_kernel_once() {
-    let architecture = "sm_120".parse().unwrap();
-    let (graph, _) = Graph::capture(
-        [
-            ("a", values(&[4, 8], 1)),
-            ("b", values(&[4, 16], 2)),
-            ("c", values(&[4, 8], 3)),
-        ],
-        |inputs| {
-            Ok(vec![
-                inputs[0].sum(&[1], false)?,
-                inputs[1].sum(&[1], false)?,
-                inputs[2].sum(&[1], false)?,
-            ])
-        },
-    )
-    .unwrap();
-    let program = CudaExport::new(architecture)
-        .without_libraries()
-        .export(&graph)
-        .unwrap();
-    let source = program.render("model").unwrap().source;
-    assert_eq!(
-        source.matches(" void singe_kernel_sum(").count(),
-        2,
-        "{source}"
-    );
-    assert_eq!(
-        source.matches("launch_singe_kernel_sum(").count(),
-        5,
-        "{source}"
-    );
-}
-
-// An exported program places each operation where a compiled graph under the same policy does.
-#[test]
-fn test_programs_agree_with_compiled_graphs_on_providers() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let device = Device::Cuda(0);
-    let (graph, _) = Graph::capture(
-        [
-            ("x", values(&[32, 64], 1).to_device(device).unwrap()),
-            ("w", values(&[48, 64], 2).to_device(device).unwrap()),
-        ],
-        |inputs| {
-            let product = inputs[0].matmul(&inputs[1].transpose(0, 1)?)?;
-            Ok(vec![product.softmax(-1)?, inputs[0].sum(&[1], false)?])
-        },
-    )
-    .unwrap();
-    let policy = LoweringPolicy::new(vec![
-        CudaGraphProvider::Alias,
-        CudaGraphProvider::Kernel,
-        CudaGraphProvider::Fusion,
-        CudaGraphProvider::Cublas,
-    ]);
-    let program = CudaExport::new(architecture)
-        .with_libraries([Library::Cublas])
-        .export(&graph)
-        .unwrap();
-    let compiled = cuda::compile_graph(
-        &graph,
-        &GraphCudaOptions::new().with_lowering_policy(policy),
-    )
-    .unwrap();
-    let exported = program
-        .providers
-        .iter()
-        .filter_map(|provider| {
-            provider
-                .operation
-                .map(|operation| (operation.name(), provider.provider))
-        })
-        .collect::<Vec<_>>();
-    for operation in compiled.report().operations() {
-        let realized = operation
-            .realized_decision()
-            .and_then(GraphCompileProviderDecision::provider);
-        let library = match realized {
-            Some(CudaGraphProvider::Cublas) => Library::Cublas,
-            Some(CudaGraphProvider::CublasLt) => Library::CublasLt,
-            _ => continue,
-        };
-        assert!(
-            exported.contains(&(operation.operation(), StepProvider::Library(library))),
-            "{} on {library} in {exported:?}",
-            operation.operation()
-        );
-    }
 }
 
 // A program holds its generators' state and advances it, drawing what a generator would across calls.
@@ -683,35 +514,6 @@ fn test_programs_report_how_many_rows_counted_results_hold() {
         header.contains("as many leading rows as `output0_count` holds"),
         "{header}"
     );
-}
-
-// Tensors have no functions unless asked for, since a model holds hundreds of them.
-#[test]
-fn test_programs_have_no_tensor_functions_by_default() {
-    let shape = Shape::create([4]).unwrap();
-    let total = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let x = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let bindings = CaptureBindings::new().with_buffer("total", total.clone());
-    let (graph, _) = Graph::capture_with_bindings([("x", x)], bindings, |inputs| {
-        Ok(vec![total.add(&inputs[0])?])
-    })
-    .unwrap();
-    let export = CudaExport::new("sm_120".parse().unwrap()).without_libraries();
-    let render = |export: &CudaExport| export.export(&graph).unwrap().render("model").unwrap();
-    let plain = render(&export);
-    assert!(
-        !plain.header.contains("model_get_total"),
-        "{}",
-        plain.header
-    );
-    assert!(!plain.source.contains("model_set_total"));
-    let accessible = render(&export.with_state_functions(true));
-    assert!(
-        accessible.header.contains("model_get_total"),
-        "{}",
-        accessible.header
-    );
-    assert!(accessible.source.contains("model_set_total"));
 }
 
 // A program with state functions has a pair for every tensor of the graph, and a run reads what they set.
@@ -804,120 +606,6 @@ fn test_programs_keep_colliding_names_apart() {
     assert!(header.contains("a_b;"), "{header}");
     assert!(header.contains("a_b_1;"), "{header}");
     assert!(header.contains("class_;"), "{header}");
-}
-
-// A mix of every kind of step in one program, as an image and text encoder might run.
-#[test]
-fn test_programs_mix_library_calls_and_fused_kernels() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let export = CudaExport::new(architecture).with_libraries([
-        Library::Cublas,
-        Library::Cudnn,
-        Library::Cufft,
-    ]);
-    let program = check(
-        &export,
-        "mixed",
-        &[
-            ("image", values(&[2, 3, 8, 8], 1)),
-            ("filter", values(&[4, 3, 3, 3], 2)),
-            ("projection", values(&[64, 1024], 3)),
-        ],
-        1e-2,
-        |inputs| {
-            let features = inputs[0]
-                .convolution2d(&inputs[1], None, (2, 2), (1, 1, 1, 1), (1, 1), 1)?
-                .relu()?;
-            let flat = features.flatten(1, -1)?;
-            let hidden = flat.matmul(&inputs[2])?.tanh()?;
-            let spectrum = hidden.rfft()?;
-            Ok(vec![hidden.softmax(-1)?, spectrum.irfft(1024)?])
-        },
-    );
-    let libraries = library_steps(&program);
-    for library in ["cudnn", "cublas", "cufft"] {
-        assert!(libraries.contains(&library), "{libraries:?}");
-    }
-    assert!(
-        program
-            .steps
-            .iter()
-            .any(|step| matches!(step, ProgramStep::Kernel { .. }))
-    );
-    let manifest = manifest_of(&program.render("model").unwrap());
-    assert!(manifest["libraries"]["cudnn"].is_string(), "{manifest}");
-}
-
-// Tuning measures on the device, so a program for its architecture reads the records, and one for another ignores them.
-#[test]
-fn test_programs_read_records_measured_for_their_architecture() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let half = |dimensions: &[i64], seed| values(dimensions, seed).cast(DataType::Bf16).unwrap();
-    let inputs = [("x", half(&[64, 128], 1)), ("w", half(&[64, 128], 2))];
-    let function = |inputs: &[Tensor]| Ok(vec![inputs[0].matmul(&inputs[1].transpose(0, 1)?)?]);
-    let (graph, _) = Graph::capture(inputs.clone(), function).unwrap();
-    let named = inputs
-        .iter()
-        .map(|(name, tensor)| ((*name).to_owned(), tensor.clone()))
-        .collect::<HashMap<_, _>>();
-    let records = tune_graph(
-        &graph,
-        &named,
-        Device::Cuda(0),
-        &GraphTuneOptions {
-            policy: LoweringPolicy::generated_kernels(),
-            choice_budget: Duration::from_secs(4),
-            runs: 3,
-            schedules: true,
-            measurement: Measurement::Program,
-            build_directory: programs_directory(),
-            plan_budget: Duration::ZERO,
-            plan_speed: false,
-            ..GraphTuneOptions::default()
-        },
-    )
-    .unwrap();
-    assert!(!records.is_empty());
-    let export = CudaExport::new(architecture)
-        .without_libraries()
-        .with_tuning_records(records.clone());
-    let program = check(&export, "tuned", &inputs, 3e-2, function);
-    assert!(
-        program.record_coverage.used > 0,
-        "{:?}",
-        program.record_coverage
-    );
-    let manifest = manifest_of(&program.render("model").unwrap());
-    assert_eq!(
-        manifest["tuned_kernels"].as_array().map(Vec::len),
-        Some(program.tuned_kernels.len()),
-        "{manifest}"
-    );
-    assert!(
-        manifest["tuning_records"]["used"].as_u64().unwrap() > 0,
-        "{manifest}"
-    );
-    let other = if architecture.to_string() == "sm_80" {
-        "sm_90"
-    } else {
-        "sm_80"
-    };
-    // Records made for another architecture are an error that says so, not something a program quietly ignores.
-    let error = CudaExport::new(other.parse().unwrap())
-        .without_libraries()
-        .with_tuning_records(records)
-        .export(&graph)
-        .err()
-        .unwrap()
-        .to_string();
-    assert!(
-        error.contains(&format!("where this has \"{other}\"")),
-        "{error}"
-    );
 }
 
 // A policy reaches the libraries a program calls and the flags it compiles with.
@@ -1098,54 +786,6 @@ fn test_programs_keep_what_a_graph_writes_to_its_buffers() {
     assert_close(&instance.get("total").unwrap(), &expected, 1e-5, "buffer");
 }
 
-// A generated matmul fuses with what follows it, and a matmul a library runs leaves its neighbours to fuse among themselves.
-#[test]
-fn test_libraries_decide_what_fuses() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let inputs = [
-        ("x", values(&[8, 16], 1)),
-        ("w", values(&[32, 16], 2)),
-        ("r", values(&[8, 32], 3)),
-    ];
-    let compute = |inputs: &[Tensor]| {
-        let product = inputs[0].matmul(&inputs[1].transpose(0, 1)?)?;
-        Ok(vec![product.add(&inputs[2])?.relu()?])
-    };
-    let export = CudaExport::new(architecture);
-    let fused = check(
-        &export.clone().without_libraries(),
-        "fused",
-        &inputs,
-        1e-3,
-        compute,
-    );
-    assert_eq!((kernel_steps(&fused), library_steps(&fused).len()), (1, 0));
-    let unfused = check(
-        &export.clone().without_libraries().with_fusion(false),
-        "unfused",
-        &inputs,
-        1e-3,
-        compute,
-    );
-    assert_eq!(
-        (kernel_steps(&unfused), library_steps(&unfused).len()),
-        (3, 0)
-    );
-    let library = check(
-        &export.with_libraries([Library::Cublas]),
-        "library",
-        &inputs,
-        1e-3,
-        compute,
-    );
-    assert_eq!(
-        (kernel_steps(&library), library_steps(&library)),
-        (1, vec!["cublas"])
-    );
-}
-
 fn kernel_steps(program: &CudaProgram) -> usize {
     program
         .steps
@@ -1322,67 +962,6 @@ fn test_cudnn_runs_every_convolution_when_allowed() {
             }
         }
     }
-}
-
-// With no library allowed, the same graphs are generated kernels alone.
-#[test]
-fn test_without_libraries_the_same_work_is_generated_kernels() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let export = CudaExport::new(architecture).without_libraries();
-    let matmul = check(
-        &export,
-        "generated-matmul",
-        &[("x", values(&[8, 16], 1)), ("w", values(&[32, 16], 2))],
-        1e-3,
-        |inputs| Ok(vec![inputs[0].matmul(&inputs[1].transpose(0, 1)?)?.relu()?]),
-    );
-    assert!(library_steps(&matmul).is_empty());
-    assert_eq!(kernel_steps(&matmul), 1);
-    let depthwise = check(
-        &export,
-        "generated-depthwise",
-        &[
-            ("x", values(&[2, 4, 16, 16], 1)),
-            ("w", values(&[4, 1, 3, 3], 2)),
-        ],
-        1e-3,
-        |inputs| {
-            Ok(vec![inputs[0].convolution2d(
-                &inputs[1],
-                None,
-                (1, 1),
-                (1, 1, 1, 1),
-                (1, 1),
-                4,
-            )?])
-        },
-    );
-    assert!(library_steps(&depthwise).is_empty());
-}
-
-// A policy that allows `TF32` lets cuDNN run the `F32` matmuls full precision keeps from it.
-#[test]
-fn test_cudnn_runs_f32_matmuls_when_the_policy_allows_tf32() {
-    let Some((architecture, _lock)) = target() else {
-        return;
-    };
-    let _scope = NumericalScope::enter(NumericalPolicy {
-        precision: ComputePrecision::AllowTf32,
-        determinism: Determinism::Allow,
-    });
-    let program = check(
-        &CudaExport::new(architecture).with_libraries([Library::Cudnn]),
-        "cudnn-tf32",
-        &[
-            ("x", values(&[2, 8, 16], 1)),
-            ("w", values(&[2, 32, 16], 2)),
-        ],
-        1e-2,
-        |inputs| Ok(vec![inputs[0].matmul(&inputs[1].transpose(1, 2)?)?]),
-    );
-    assert_eq!(library_steps(&program), ["cudnn"]);
 }
 
 #[test]

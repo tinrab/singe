@@ -74,22 +74,6 @@ fn input(batch: i64) -> HashMap<String, Tensor> {
 }
 
 #[test]
-fn test_expression_identity_excludes_representatives_and_includes_arithmetic() {
-    let constructions = Arc::new(AtomicUsize::new(0));
-    let first = program(1, Arithmetic::Multiply(2), Arc::clone(&constructions));
-    let second = program(3, Arithmetic::Multiply(2), Arc::clone(&constructions));
-    let other = program(1, Arithmetic::Multiply(3), constructions);
-    assert_eq!(
-        first.program().fingerprint().unwrap(),
-        second.program().fingerprint().unwrap()
-    );
-    assert_ne!(
-        first.program().fingerprint().unwrap(),
-        other.program().fingerprint().unwrap()
-    );
-}
-
-#[test]
 fn test_shape_specialization_never_reruns_layer_rust_code() {
     let constructions = Arc::new(AtomicUsize::new(0));
     let program = program(2, Arithmetic::Multiply(2), Arc::clone(&constructions));

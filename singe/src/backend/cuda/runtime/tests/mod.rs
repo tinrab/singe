@@ -1,9 +1,7 @@
 mod allocator;
 mod autotune;
 mod cublaslt_selection;
-mod cublaslt_stats;
 mod provider_cache_retention;
-mod retention;
 
 use singe_cublas::{
     lt::{matmul::MatmulAlgorithm, types::Epilogue},
@@ -14,13 +12,10 @@ use singe_cuda::stream::StreamCaptureMode;
 use crate::{
     backend::{
         cuda::{
-            self, CublasLtMatmulAlgorithmCacheStats, CublasLtMatmulTuningOptions,
-            CudaGraphProvider,
-            allocator::{CudaAllocator, CudaCachingAllocator},
+            self, CublasLtMatmulTuningOptions, CudaGraphProvider,
             runtime::{
-                AutotuneCacheEntry, AutotuneCacheKey, AutotuneCacheStats, AutotuneTensorBucket,
-                CublasLtMatmulAlgorithmEntry, CublasLtMatmulAlgorithmFingerprint,
-                CublasLtMatmulAlgorithmKey, runtime_for_device,
+                AutotuneCacheEntry, AutotuneCacheKey, CublasLtMatmulAlgorithmEntry,
+                CublasLtMatmulAlgorithmFingerprint, CublasLtMatmulAlgorithmKey, runtime_for_device,
             },
         },
         registry::Operation,

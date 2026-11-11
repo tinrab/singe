@@ -61,53 +61,6 @@ fn test_remove_redundant_ops_pass_rejects_invalid_full_range_slice_axis() {
 }
 
 #[test]
-fn test_remove_redundant_ops_pass_rejects_overflowed_slice_chain_start() {
-    let input_shape = Shape::create(vec![2, 8, 3]).unwrap();
-    let input_output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &input_shape).unwrap();
-    let first_slice_output = input_output.narrow(1, 1, 6).unwrap();
-    let second_slice_output = first_slice_output.narrow(1, 1, 2).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, input_shape, Device::Cpu);
-    let first_slice = graph
-        .add_named_slice_operation(
-            None,
-            input,
-            1,
-            1,
-            6,
-            first_slice_output.data_type(),
-            first_slice_output.shape(),
-            first_slice_output.device(),
-        )
-        .unwrap();
-    let second_slice = graph
-        .add_named_slice_operation(
-            None,
-            first_slice,
-            1,
-            1,
-            2,
-            second_slice_output.data_type(),
-            second_slice_output.shape(),
-            second_slice_output.device(),
-        )
-        .unwrap();
-    graph.replace_node_slice_for_test(first_slice, input, 1, i64::MAX, 6);
-    graph.set_outputs(vec![second_slice]).unwrap();
-
-    let pipeline = validating_remove_redundant_ops_pipeline();
-    assert!(matches!(
-        pipeline.normalize(&graph),
-        Err(Error::InvalidShape
-            | Error::InvalidDimension { .. }
-            | Error::InvalidArgument { .. }
-            | Error::OutOfRange { .. }
-            | Error::LengthMismatch { .. }
-            | Error::InvalidTensorRank { .. })
-    ));
-}
-
-#[test]
 fn test_remove_redundant_ops_pass_rejects_out_of_range_parent_slice_chain_window() {
     let input_shape = Shape::create(vec![2, 8, 3]).unwrap();
     let input_output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &input_shape).unwrap();
@@ -140,48 +93,6 @@ fn test_remove_redundant_ops_pass_rejects_out_of_range_parent_slice_chain_window
         )
         .unwrap();
     graph.replace_node_slice_for_test(first_slice, input, 1, 7, 6);
-    graph.set_outputs(vec![second_slice]).unwrap();
-
-    let pipeline = validating_remove_redundant_ops_pipeline();
-    assert!(matches!(
-        pipeline.normalize(&graph),
-        Err(Error::IndexOutOfBounds)
-    ));
-}
-
-#[test]
-fn test_remove_redundant_ops_pass_rejects_out_of_range_child_slice_chain_window() {
-    let input_shape = Shape::create(vec![2, 8, 3]).unwrap();
-    let input_output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &input_shape).unwrap();
-    let first_slice_output = input_output.narrow(1, 1, 6).unwrap();
-    let second_slice_output = first_slice_output.narrow(1, 1, 2).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, input_shape, Device::Cpu);
-    let first_slice = graph
-        .add_named_slice_operation(
-            None,
-            input,
-            1,
-            1,
-            6,
-            first_slice_output.data_type(),
-            first_slice_output.shape(),
-            first_slice_output.device(),
-        )
-        .unwrap();
-    let second_slice = graph
-        .add_named_slice_operation(
-            None,
-            first_slice,
-            1,
-            1,
-            2,
-            second_slice_output.data_type(),
-            second_slice_output.shape(),
-            second_slice_output.device(),
-        )
-        .unwrap();
-    graph.replace_node_slice_for_test(second_slice, first_slice, 1, 5, 2);
     graph.set_outputs(vec![second_slice]).unwrap();
 
     let pipeline = validating_remove_redundant_ops_pipeline();

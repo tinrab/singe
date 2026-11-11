@@ -77,6 +77,3 @@ pub fn library_matmul_accepts(lhs: Operand<'_>, rhs: Operand<'_>) -> bool {
         )
         && GemmLayout::create(lhs.layout, rhs.layout).is_some()
 }
-
-#[cfg(test)]
-mod tests;

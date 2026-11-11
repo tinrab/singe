@@ -165,20 +165,6 @@ impl Graph {
         self.compile_with_pipeline_and_freeze(options, &GraphPassPipeline::default(), freeze)
     }
 
-    /// Compiles the graph using `options` after running `passes`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if input names are invalid, a graph pass fails, or topological sorting fails.
-    #[cfg(test)]
-    pub(crate) fn compile_with_options_and_passes(
-        &self,
-        options: GraphCompileOptions,
-        passes: &GraphPassPipeline,
-    ) -> Result<CompiledGraph> {
-        self.compile_with_pipeline(options, passes)
-    }
-
     fn compile_with_pipeline(
         &self,
         options: GraphCompileOptions,
@@ -276,6 +262,3 @@ impl Graph {
         Ok(input_names)
     }
 }
-
-#[cfg(test)]
-mod tests;

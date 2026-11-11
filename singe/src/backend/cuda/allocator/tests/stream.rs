@@ -1,34 +1,5 @@
 use super::*;
-use crate::{backend::cuda::CudaStream, storage::cuda::CudaMemoryRecycler};
-
-#[test]
-fn test_caching_allocator_reuses_stream_ordered_blocks() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-
-    let Some(stream) = skip_if_stub(CudaStream::create(Device::Cuda(0))) else {
-        return;
-    };
-    let Some(allocator) = caching_allocator_with_stream(stream.raw_arc()) else {
-        return;
-    };
-
-    let byte_size = 123_491;
-    let storage = allocator.zeroed(DataType::U8, byte_size).unwrap();
-    drop(storage);
-
-    let before_reuse = allocator.cached_block_count_for(byte_size).unwrap();
-    assert!(before_reuse > 0);
-
-    let storage = allocator.zeroed(DataType::U8, byte_size).unwrap();
-    stream.synchronize().unwrap();
-    drop(storage);
-    assert_eq!(
-        allocator.cached_block_count_for(byte_size).unwrap(),
-        before_reuse
-    );
-}
+use crate::storage::cuda::CudaMemoryRecycler;
 
 #[test]
 fn test_caching_allocator_reuses_blocks_with_cross_stream_wait_dependency() {

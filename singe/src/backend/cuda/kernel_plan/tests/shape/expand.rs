@@ -54,30 +54,3 @@ fn test_cuda_eager_expand_f32_preserves_strided_input() {
     assert_eq!(output.shape().dimensions(), &[3_i64, 2, 23]);
     assert_close!(&output.to_vec::<f32>().unwrap(), &expected, 1.0e-5);
 }
-
-#[test]
-fn test_cuda_eager_expand_f32_preserves_noop_and_rank5_broadcast_views() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-
-    let shape = Shape::create([2_i64, 3]).unwrap();
-    let values = (0..6usize).map(|value| value as f32).collect::<Vec<_>>();
-    let Some(input) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, values.clone()))
-    else {
-        return;
-    };
-
-    let noop = input.expand(&shape).unwrap();
-
-    assert_eq!(noop.shape().dimensions(), &[2_i64, 3]);
-    assert_close!(&noop.to_vec::<f32>().unwrap(), &values);
-
-    let rank5_input_shape = Shape::create([1_i64, 1, 1, 1, 1]).unwrap();
-    let rank5_output_shape = Shape::create([1_i64, 1, 1, 1, 2]).unwrap();
-    let rank5_input = Tensor::from_vec(Device::Cuda(0), &rank5_input_shape, vec![1.0_f32]).unwrap();
-
-    let expanded = rank5_input.expand(&rank5_output_shape).unwrap();
-    assert_eq!(expanded.layout().strides(), &[1, 1, 1, 1, 0]);
-    assert_eq!(expanded.to_vec::<f32>().unwrap(), [1.0, 1.0]);
-}

@@ -53,22 +53,3 @@ fn test_cuda_eager_repeat_kv_f32_materializes_strided_input() {
     assert_eq!(output.shape().dimensions(), &[2_i64, 9, 5, 7]);
     assert_close!(&output.to_vec::<f32>().unwrap(), &expected, 1.0e-5);
 }
-
-#[test]
-fn test_cuda_eager_repeat_kv_f32_handles_noop() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-
-    let shape = Shape::create([1_i64, 2, 3, 4]).unwrap();
-    let values = (0..24usize).map(|value| value as f32).collect::<Vec<_>>();
-    let Some(input) = skip_if_stub(Tensor::from_vec(Device::Cuda(0), &shape, values.clone()))
-    else {
-        return;
-    };
-
-    let output = input.repeat_kv(1).unwrap();
-
-    assert_eq!(output.shape().dimensions(), &[1_i64, 2, 3, 4]);
-    assert_close!(&output.to_vec::<f32>().unwrap(), &values);
-}

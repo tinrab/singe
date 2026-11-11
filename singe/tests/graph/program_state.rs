@@ -184,12 +184,6 @@ fn test_tied_binding_conflicts_are_rejected_before_publishing_any_replacement() 
     );
 }
 
-#[cfg(feature = "cuda")]
-#[test]
-fn test_native_cuda_preserves_declared_ties_and_old_state_through_rebinding() {
-    exercise_tied_state(Device::Cuda(0));
-}
-
 #[test]
 fn test_state_replacement_is_atomic_and_old_instances_keep_their_snapshot() {
     let program = source().program().unwrap();

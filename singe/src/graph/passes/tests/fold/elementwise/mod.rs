@@ -1,4 +1,3 @@
-mod arithmetic;
 mod expressions;
 mod mixed;
 

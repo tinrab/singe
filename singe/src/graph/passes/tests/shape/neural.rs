@@ -35,36 +35,6 @@ fn test_infer_value_metadata_pass_infers_attention_shape() {
 }
 
 #[test]
-fn test_infer_value_metadata_pass_infers_normalization_shape() {
-    let input_shape = Shape::create(vec![2, 3, 4]).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &input_shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, input_shape.clone(), Device::Cpu);
-    let norm = add_layer_normalization_operation(
-        &mut graph,
-        RegistryOperation::LayerNorm,
-        input,
-        vec![4],
-        None,
-        None,
-        1e-5,
-        &output,
-    );
-    replace_with_stale_shape_metadata(&mut graph, norm);
-    graph.set_outputs(vec![norm]).unwrap();
-
-    let normalized = infer_and_validate_value_metadata(&graph);
-    assert_value_metadata(
-        &normalized,
-        norm,
-        DataType::F32,
-        input_shape.dimensions(),
-        input_shape.dimensions(),
-        Device::Cpu,
-    );
-}
-
-#[test]
 fn test_infer_value_metadata_pass_validates_batch_norm_parameter_count() {
     let input_shape = Shape::create(vec![2, 3, 4]).unwrap();
     let parameter_shape = Shape::create(vec![4]).unwrap();

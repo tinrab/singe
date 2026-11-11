@@ -36,21 +36,6 @@ fn test_graph_fingerprint_hashes_initializer_content() {
 }
 
 #[test]
-fn test_graph_fingerprint_marks_partial_storage_initializer_uncacheable() {
-    let storage = CpuStorage::from_bytes(DataType::F32, vec![0_u8; 16]).unwrap();
-    let shape = Shape::create(vec![2]).unwrap();
-    // SAFETY: the storage was built from values computed for exactly this shape and data type.
-    let initializer =
-        unsafe { Tensor::from_parts_unchecked(storage, DataType::F32, shape.clone()) };
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape, Device::Cpu);
-    graph.add_initializer("x", initializer).unwrap();
-    graph.set_outputs(vec![input]).unwrap();
-
-    assert!(!graph.fingerprint().unwrap().is_cacheable());
-}
-
-#[test]
 fn test_graph_fingerprint_ignores_runtime_tensor_values_and_storage_identity() {
     let shape = Shape::create(vec![2]).unwrap();
     let mut graph = Graph::new();

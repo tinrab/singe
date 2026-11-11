@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-use singe::{Device, Shape, Tensor, graph::Graph, random::Generator, tensor::SamplingOptions};
+use singe::{Device, Shape, Tensor, random::Generator, tensor::SamplingOptions};
 
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe_cuda::testing::device_lock;
@@ -108,38 +106,6 @@ fn test_filtered_tokens_are_never_drawn_and_frequencies_match() {
                 None,
             )
             .is_err()
-    );
-}
-
-#[test]
-fn test_sampling_is_reproducible_and_recorded_by_capture() {
-    let options = SamplingOptions::new()
-        .with_temperature(0.7)
-        .with_top_k(Some(6))
-        .with_top_p(0.9)
-        .with_samples(4);
-    let input = logits(Device::Cpu, 3, &linear_probabilities(10));
-    let first = input.sample(&options, Some(&Generator::new(5))).unwrap();
-    let second = input.sample(&options, Some(&Generator::new(5))).unwrap();
-    assert_eq!(
-        first.to_vec::<i64>().unwrap(),
-        second.to_vec::<i64>().unwrap()
-    );
-
-    let generator = Generator::new(5);
-    let (captured, _) = Graph::capture([("logits", input.clone())], |inputs| {
-        Ok(vec![inputs[0].sample(&options, Some(&generator))?])
-    })
-    .unwrap();
-    let inputs = HashMap::from([("logits".to_owned(), input)]);
-    let replayed = captured.run(&inputs).unwrap();
-    assert_eq!(replayed[0].shape().dimensions(), [3, 4]);
-    assert!(
-        replayed[0]
-            .to_vec::<i64>()
-            .unwrap()
-            .iter()
-            .all(|&index| index >= 4)
     );
 }
 

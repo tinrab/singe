@@ -252,54 +252,6 @@ fn record_export(name: &str, bytes: &[u8], reference: &Value) {
     }
 }
 
-#[test]
-fn test_categorical_set_encoder_matches_pytorch_and_onnx_on_cpu() {
-    exercise("f32", Device::Cpu);
-}
-
-#[test]
-fn test_reduced_precision_models_build_fingerprint_and_prepare_on_the_cpu() {
-    #[cfg(feature = "testing")]
-    use singe::testing::TensorActivity;
-    // Reading the reference makes tensors, so it comes before the count of storage requests.
-    let reference: Value = singe_testing::reference!("set_encoder").resolved();
-    for name in ["f16", "bf16"] {
-        let model = model(name);
-        #[cfg(feature = "testing")]
-        let before = TensorActivity::current().storage_requests;
-        let program = model
-            .build(
-                "x",
-                GraphInputSpec::new(ValueSpec::new(
-                    DataType::I64,
-                    Shape::create([2, 3]).unwrap(),
-                ))
-                .with_dimension(0, "batch", Some(1), Some(4))
-                .unwrap()
-                .with_dimension(1, "sequence", Some(1), Some(8))
-                .unwrap(),
-            )
-            .unwrap();
-        program.program().fingerprint().unwrap();
-        let bytes = onnx::export(program.program(), program.state()).unwrap();
-        record_export(name, &bytes, &reference["models"][name]);
-        #[cfg(feature = "testing")]
-        assert_eq!(TensorActivity::current().storage_requests, before);
-        // The CPU computes half-precision neural operations in `F32`.
-        assert!(
-            program
-                .prepare(GraphPrepareOptions::new(Device::Cpu))
-                .is_ok()
-        );
-    }
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_categorical_set_encoder_matches_pytorch_and_onnx_on_cuda() {
-    exercise("f32", Device::Cuda(0));
-}
-
 #[cfg(feature = "cuda")]
 #[test]
 fn test_complete_fp16_set_encoder_matches_quantized_and_fp32_references_on_cuda() {

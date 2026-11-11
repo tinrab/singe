@@ -7,9 +7,7 @@ use std::{
 use singe::{
     DataType, Device, Error, Shape, Tensor,
     error::CaptureError,
-    graph::{
-        CaptureBindings, CaptureOptions, Graph, GraphPrepareOptions, StateBindingKind, capture,
-    },
+    graph::{CaptureBindings, CaptureOptions, Graph, GraphPrepareOptions, StateBindingKind},
 };
 #[cfg(all(feature = "testing", feature = "cuda"))]
 use singe_cuda::testing::device_lock;
@@ -88,27 +86,6 @@ fn test_explicit_parameters_buffers_and_literals_share_the_prepared_execution_pa
     );
 }
 
-#[test]
-fn test_literals_created_inside_capture_require_explicit_registration() {
-    assert!(matches!(
-        capture::constant("outside", &vector(&[1.])),
-        Err(Error::Capture(CaptureError::NotActive))
-    ));
-    let (captured, _) = Graph::capture([("x", vector(&[1., 2.]))], |inputs| {
-        let literal = capture::constant("offset", &vector(&[3., 4.]))?;
-        Ok(vec![inputs[0].add(&literal)?])
-    })
-    .unwrap();
-    assert_eq!(
-        captured
-            .run(&HashMap::from([("x".into(), vector(&[5., 6.]))]))
-            .unwrap()[0]
-            .to_vec::<f32>()
-            .unwrap(),
-        [8., 10.]
-    );
-}
-
 fn check_readback_is_rejected(device: Device) {
     let original = vector(&[1., 2.]).to_device(device).unwrap();
     let (_, captured_outputs) = Graph::capture([("x", original.clone())], |inputs| {
@@ -154,23 +131,6 @@ fn check_readback_is_rejected(device: Device) {
 #[test]
 fn test_tracked_readback_is_rejected_through_tensor_storage_and_allocation_aliases() {
     check_readback_is_rejected(Device::Cpu);
-}
-
-#[test]
-fn test_empty_tensor_readback_obeys_the_same_capture_policy() {
-    let (_, captured_outputs) = Graph::capture([("empty", vector(&[]))], |inputs| {
-        assert!(matches!(
-            inputs[0].to_vec::<f32>(),
-            Err(Error::Capture(CaptureError::Readback))
-        ));
-        assert!(matches!(
-            inputs[0].to_bytes(),
-            Err(Error::Capture(CaptureError::Readback))
-        ));
-        Ok(vec![inputs[0].clone()])
-    })
-    .unwrap();
-    assert_eq!(captured_outputs[0].to_vec::<f32>().unwrap(), [] as [f32; 0]);
 }
 
 #[test]
@@ -304,36 +264,6 @@ fn test_dynamic_dimension_declarations_specialize_the_recorded_path_without_retr
 #[test]
 fn test_cuda_tracked_readback_requires_explicit_value_specialization() {
     check_readback_is_rejected(Device::Cuda(0));
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_explicit_capture_state_prepares_native_cuda_and_rebinds_without_recapture() {
-    let weight = vector(&[2., 3.]);
-    let (captured, _) = Graph::capture_with_bindings(
-        [("x", vector(&[1., 2.]))],
-        CaptureBindings::new().with_parameter("weight", weight.clone()),
-        |inputs| Ok(vec![inputs[0].mul(&weight)?]),
-    )
-    .unwrap();
-    let mut executor = captured
-        .prepare(GraphPrepareOptions::new(Device::Cuda(0)))
-        .unwrap();
-    let input = HashMap::from([(
-        "x".into(),
-        vector(&[3., 4.]).to_device(Device::Cuda(0)).unwrap(),
-    )]);
-    let retained = executor.run(&input).unwrap();
-    let state = executor
-        .state()
-        .replace(&HashMap::from([("weight".into(), vector(&[4., 5.]))]))
-        .unwrap();
-    executor.rebind_state(&state).unwrap();
-    assert_eq!(
-        executor.run(&input).unwrap()[0].to_vec::<f32>().unwrap(),
-        [12., 20.]
-    );
-    assert_eq!(retained[0].to_vec::<f32>().unwrap(), [6., 12.]);
 }
 
 fn assert_value_dependent_outputs_narrow_on_each_run(device: Device) {

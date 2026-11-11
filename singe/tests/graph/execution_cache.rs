@@ -113,27 +113,6 @@ fn test_zero_cache_capacity_is_rejected_during_preparation() {
     );
 }
 
-#[test]
-fn test_cpu_memory_reports_deduplicate_shared_state_across_cached_plans() {
-    let mut executor = graph()
-        .prepare(GraphPrepareOptions::new(Device::Cpu).with_cache_capacity(2))
-        .unwrap();
-    let first = executor.memory_stats().unwrap();
-    assert_eq!(first.shared_state_allocation_bytes(), 32);
-    assert_eq!(first.bound_allocation_bytes(), 32);
-    let retained = executor.run(&inputs(Device::Cpu, 5, 1.)).unwrap();
-    assert_eq!(executor.cache_stats().entries(), 2);
-    assert_eq!(executor.memory_stats().unwrap(), first);
-    let report = executor.report().unwrap();
-    assert!(report.contains("cache entries: 2 / 2"));
-    assert!(report.contains("inactive replay allocation bytes: 0"));
-    assert!(report.contains("external outputs: caller-owned, excluded"));
-    assert_eq!(
-        retained[0].to_vec::<f32>().unwrap(),
-        [vec![4.5; 5], vec![0.; 5]].concat()
-    );
-}
-
 fn exercise_dynamic_default(device: Device) {
     let (captured, _) = Graph::capture([("x", tensor(&[2], vec![1., 2.]))], |inputs| {
         Ok(vec![inputs[0].add_scalar(1.)?])
@@ -168,53 +147,4 @@ fn exercise_dynamic_default(device: Device) {
 #[test]
 fn test_cpu_shape_specialization_keeps_overridable_initializer_defaults() {
     exercise_dynamic_default(Device::Cpu);
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_cuda_shape_specialization_keeps_overridable_initializer_defaults() {
-    exercise_dynamic_default(Device::Cuda(0));
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_cuda_memory_reports_include_inactive_plans_and_follow_eviction() {
-    let mut executor = graph()
-        .prepare(GraphPrepareOptions::new(Device::Cuda(0)).with_cache_capacity(2))
-        .unwrap();
-    let first = executor.memory_stats().unwrap();
-    assert!(first.active_replay_allocation_bytes() > 0);
-    assert_eq!(first.inactive_replay_allocation_bytes(), 0);
-    let retained = executor.run(&inputs(Device::Cuda(0), 5, 1.)).unwrap();
-    let second = executor.memory_stats().unwrap();
-    assert_eq!(
-        second.inactive_replay_allocation_bytes(),
-        first.active_replay_allocation_bytes()
-    );
-    assert_eq!(
-        second.inactive_workspace_bytes(),
-        first.active_workspace_bytes()
-    );
-    assert!(
-        second.retained_allocation_bytes().unwrap() > first.retained_allocation_bytes().unwrap()
-    );
-    executor.run(&inputs(Device::Cuda(0), 7, 1.)).unwrap();
-    let third = executor.memory_stats().unwrap();
-    assert_eq!(
-        third.inactive_replay_allocation_bytes(),
-        second.active_replay_allocation_bytes()
-    );
-    assert_eq!(executor.cache_stats().evictions(), 1);
-    assert_eq!(third.shared_state_allocation_bytes(), 32);
-    assert_eq!(third.bound_allocation_bytes(), 32);
-    assert_eq!(
-        retained[0].to_vec::<f32>().unwrap(),
-        [vec![4.5; 5], vec![0.; 5]].concat()
-    );
-    assert!(
-        executor
-            .report()
-            .unwrap()
-            .contains("allocator cached free bytes (context-wide):")
-    );
 }

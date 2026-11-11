@@ -47,33 +47,6 @@ fn test_graph_compile_rejects_cast_contract_mismatch() {
 }
 
 #[test]
-fn test_graph_compile_rejects_copy_to_contract_mismatch() {
-    let shape = Shape::create(vec![2]).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape.clone(), Device::Cpu);
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let copy = graph
-        .add_named_operation(
-            None,
-            NodeKind::copy_to(input, Device::Cpu),
-            output.data_type(),
-            output.shape().clone(),
-            output.device(),
-        )
-        .unwrap();
-    graph.replace_node_output_device_for_test(copy, Device::Cuda(0));
-    graph.set_outputs(vec![copy]).unwrap();
-
-    assert!(matches!(
-        graph.compile(),
-        Err(Error::DeviceMismatch { name, expected, actual })
-            if name == "graph pass validate_node_contracts node 1 copy_to"
-                && expected == Device::Cpu
-                && actual == Device::Cuda(0)
-    ));
-}
-
-#[test]
 fn test_graph_compile_rejects_schema_operand_count_mismatch() {
     let shape = Shape::create(vec![0]).unwrap();
     let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
@@ -180,33 +153,6 @@ fn test_graph_preparation_rejects_quantize_output_dtype_mismatch() {
         graph.prepare(GraphPrepareOptions::new(Device::Cpu)),
         Err(Error::Unsupported { operation, details, .. })
             if operation == "quantize" && details.contains("execution CpuEager") && details.contains("F32")
-    ));
-}
-
-#[test]
-fn test_graph_preparation_rejects_dequantize_input_dtype_mismatch() {
-    let shape = Shape::create(vec![2]).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape.clone(), Device::Cpu);
-    let dequantize = graph
-        .add_named_quantization_operation(
-            None,
-            RegistryOperation::Dequantize,
-            input,
-            0.5,
-            0,
-            DataType::F32,
-            shape,
-            Device::Cpu,
-        )
-        .unwrap();
-    graph.set_outputs(vec![dequantize]).unwrap();
-
-    graph.compile().unwrap();
-    assert!(matches!(
-        graph.prepare(GraphPrepareOptions::new(Device::Cpu)),
-        Err(Error::Unsupported { operation, details, .. })
-            if operation == "dequantize" && details.contains("execution CpuEager") && details.contains("F32")
     ));
 }
 

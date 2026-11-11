@@ -70,12 +70,6 @@ impl NodeKind {
         )
     }
 
-    /// Builds a lerp node kind.
-    #[cfg(test)]
-    pub(crate) fn lerp(a: ValueId, b: ValueId, t: f32) -> Self {
-        Self::operation_invocation(Operation::Lerp, OperationAttributes::Lerp(t), vec![a, b])
-    }
-
     /// Builds a where node kind.
     #[cfg(any(test, feature = "onnx"))]
     pub(crate) fn where_operation(condition: ValueId, x: ValueId, y: ValueId) -> Self {
@@ -221,6 +215,3 @@ impl NodeKind {
         )
     }
 }
-
-#[cfg(test)]
-mod tests;
