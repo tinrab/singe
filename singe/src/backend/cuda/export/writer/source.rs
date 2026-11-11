@@ -267,8 +267,10 @@ impl Renderer<'_> {
                 "count": value.count.map(|count| program.outputs[count].name.as_str()),
             })
         };
-        let decoding = program.decoding.map(|layout| {
+        let decoding = program.decoding.as_ref().map(|decoding| {
+            let layout = decoding.layout;
             json!({
+                "stop_tokens": decoding.stop_tokens,
                 "sequences": layout.sequences,
                 "capacity": layout.capacity,
                 "page_size": layout.page_size,
