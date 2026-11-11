@@ -16,17 +16,18 @@ mod resampling;
 pub use self::{
     activation::Activation,
     attention::{
-        AttentionInput, CrossAttention, CrossAttentionInput, DenseAttentionInput,
-        GroupedQueryAttention, GroupedQueryLayers, HeadProjection, LatentQuery,
-        MultiHeadLatentAttention, MultiHeadLatentLayers, SelfAttention, SourcePages, pages_for,
+        AttentionInput, CrossAttention, CrossAttentionInput, DenseAttentionInput, GatedDeltaNet,
+        GatedDeltaNetLayers, GatedDeltaNetSpec, GroupedQueryAttention, GroupedQueryLayers,
+        HeadNorm, HeadProjection, LatentQuery, MultiHeadLatentAttention, MultiHeadLatentLayers,
+        SelfAttention, SourcePages, pages_for,
     },
-    blocks::{EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, PreNormBlock},
+    blocks::{EncoderBlock, EncoderDecoderBlock, EncoderDecoderParts, HybridLayer, PreNormBlock},
     convolution::{Conv1d, Conv1dConfig, Conv2d, Conv2dConfig, PatchEmbedding},
     embedding::{Embedding, PatchTokens, TokenEmbeddings},
     feed_forward::{DecoderFeedForward, GatedMlp, MixtureOfExperts, Mlp, MoeLayers, MoeRouting},
     heads::{MeanPooling, PoolingInput},
     linear::{Flatten, Linear},
-    networks::{CausalLm, CausalLmParts, Decoder},
+    networks::{CausalLm, CausalLmParts, Decoder, SourcedCausalLm},
     normalization::{BatchNorm2d, LayerNorm, LayerScale, OffsetRmsNorm, RmsNorm},
     positional::{
         RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable, YarnFrequencies,

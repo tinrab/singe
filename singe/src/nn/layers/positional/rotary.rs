@@ -239,6 +239,8 @@ impl TensorGroup for RotaryTable {
 
 impl RotaryAngles {
     // Rotates `input`, `[..., T, H, D]`: each feature of a pair turns against the other.
+    //
+    // A head wider than the table turns its first features and passes the rest through, as partial rotary does.
     pub fn rotate(&self, input: &Tensor) -> Result<Tensor> {
         let half = *self
             .cos
@@ -246,6 +248,30 @@ impl RotaryAngles {
             .dimensions()
             .last()
             .ok_or(Error::DimensionOutOfBounds)?;
+        let features = *input
+            .shape()
+            .dimensions()
+            .last()
+            .ok_or(Error::DimensionOutOfBounds)?;
+        if features == 2 * half {
+            return self.rotate_pairs(input, half);
+        }
+
+        if features < 2 * half {
+            return Err(Error::invalid_argument(
+                "a rotated head is narrower than its rotary table",
+            ));
+        }
+
+        let rotated = self.rotate_pairs(&input.narrow(-1, 0, 2 * half)?, half)?;
+        Tensor::concat(
+            &[rotated, input.narrow(-1, 2 * half, features - 2 * half)?],
+            -1,
+        )
+    }
+
+    // Rotates `input`, whose last dimension is `2 · half`, the table's whole width.
+    fn rotate_pairs(&self, input: &Tensor, half: i64) -> Result<Tensor> {
         let ordered = match self.layout {
             RotaryLayout::HalfSplit => input.clone(),
             // Bringing each pair's features half a head apart reuses the same rotation, and only scores read the result, whose order they do not depend on.

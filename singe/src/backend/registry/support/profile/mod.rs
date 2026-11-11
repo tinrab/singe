@@ -55,6 +55,7 @@ pub fn operation_support(
         | OperationSupportProfile::PagedAttention
         | OperationSupportProfile::PagedMlaAttention
         | OperationSupportProfile::GroupedMatMul
+        | OperationSupportProfile::StateRecurrence
         | OperationSupportProfile::Fourier => neural::operation_support(operation, profile),
         OperationSupportProfile::Custom => custom::operation_support(operation),
     }
@@ -93,6 +94,7 @@ pub enum OperationSupportProfile {
     PagedAttention,
     PagedMlaAttention,
     GroupedMatMul,
+    StateRecurrence,
     Fourier,
     Custom,
 }

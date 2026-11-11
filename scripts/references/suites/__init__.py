@@ -17,6 +17,8 @@ from . import (
     onnx_conformance,
     onnx_schemas,
     qwen3,
+    qwen3_5,
+    qwen3_asr,
     set_encoder,
     shapes,
     taesd,
@@ -37,6 +39,7 @@ SUITES = {
         blocks,
         tokenization,
         qwen3,
+        qwen3_5,
         llama,
         gemma2,
         gpt2,
@@ -45,5 +48,6 @@ SUITES = {
         taesd,
         dinov2,
         whisper,
+        qwen3_asr,
     ]
 }

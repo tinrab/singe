@@ -166,9 +166,13 @@ impl OffsetRmsNorm {
 }
 
 impl Layer for OffsetRmsNorm {
+    // Computes half-precision inputs in `F32` and rounds once, as Gemma and Qwen3.5 scale the normed values by one plus the weight in `F32`.
     fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
-        let normed = self.norm.forward(input, state)?;
-        normed.add(&normed.mul(state.tensor(&self.weight)?)?)
+        let weight = state.tensor(&self.weight)?;
+        input.rounding_once(|wide| {
+            let normed = self.norm.forward(wide, state)?;
+            normed.add(&normed.mul(&weight.cast(wide.data_type())?)?)
+        })
     }
 }
 

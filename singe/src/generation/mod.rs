@@ -568,9 +568,9 @@ impl<L: DecoderModel> CachedDecoder<L> {
             .chain(named_cache_inputs(&caches));
         let (graph, _) =
             Graph::capture_with_bindings(inputs, state.capture_bindings()?, |inputs| {
-                let (step, caches) = inputs.split_at(DecodeStep::COUNT);
+                let (step, captured) = inputs.split_at(DecodeStep::COUNT);
                 let step = DecodeStep::from_tensors(step)?;
-                let caches = caches_from_inputs(caches)?;
+                let caches = caches_from_inputs(&caches, captured)?;
                 Ok(vec![layer.forward(&step, &tables, &caches, &state)?])
             })?;
         let bound = real.with_buffers(self.tables.named_tensors())?;
@@ -610,9 +610,9 @@ impl<L: DecoderModel> CachedDecoder<L> {
             .with_buffers(self.tables.named_tensors())?;
         let (graph, outputs) =
             Graph::capture_with_bindings(inputs, state.capture_bindings()?, |inputs| {
-                let (step, caches) = inputs.split_at(DecodeStep::COUNT);
+                let (step, captured) = inputs.split_at(DecodeStep::COUNT);
                 let step = DecodeStep::from_tensors(step)?;
-                let caches = caches_from_inputs(caches)?;
+                let caches = caches_from_inputs(&caches, captured)?;
                 Ok(vec![layer.forward(&step, &self.tables, &caches, &state)?])
             })?;
         let logits = outputs

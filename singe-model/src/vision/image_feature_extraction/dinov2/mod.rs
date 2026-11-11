@@ -174,13 +174,29 @@ fn schema(config: &Dinov2Config, data_type: DataType) -> Result<Dinov2> {
     Ok(Model::new(layers, builder.finish()?))
 }
 
+// `transformers` 5.22 and later save attention under these names, which published checkpoints give as the earlier modules'.
+const RENAMED_ATTENTION: [(&str, &str); 4] = [
+    (".attention.q_proj.", ".attention.attention.query."),
+    (".attention.k_proj.", ".attention.attention.key."),
+    (".attention.v_proj.", ".attention.attention.value."),
+    (".attention.o_proj.", ".attention.output.dense."),
+];
+
 // Checkpoints of a classifier store the encoder under `dinov2.`, and the mask token serves only masked pretraining.
 fn state_name(name: &str) -> Option<String> {
     let name = name.strip_prefix("dinov2.").unwrap_or(name);
     if name.starts_with("classifier.") || name == "embeddings.mask_token" {
         return None;
     }
-    Some(name.to_owned())
+    Some(
+        RENAMED_ATTENTION
+            .iter()
+            .find(|(saved, _)| name.contains(saved))
+            .map_or_else(
+                || name.to_owned(),
+                |(saved, published)| name.replacen(saved, published, 1),
+            ),
+    )
 }
 
 // Loads a Hugging Face snapshot directory, converting the weights to `data_type`.
@@ -207,5 +223,9 @@ mod tests {
         );
         assert_eq!(state_name("classifier.weight"), None);
         assert_eq!(state_name("embeddings.mask_token"), None);
+        assert_eq!(
+            state_name("encoder.layer.1.attention.o_proj.bias").unwrap(),
+            "encoder.layer.1.attention.output.dense.bias"
+        );
     }
 }

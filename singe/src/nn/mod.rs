@@ -12,9 +12,10 @@ pub use self::{
     checkpoint::{CheckpointOptions, StateNameMap, StatePiece, StatePieceMap},
     decode::{
         CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer, EncoderDecoderCache,
-        EncoderDecoderCacheSpec, InputGroup, KvCache, KvCacheSpec, LatentKvCache,
-        LatentKvCacheSpec, PageLayout, PageTable, TensorGroup, caches_from_inputs,
-        named_cache_inputs,
+        EncoderDecoderCacheSpec, HybridCache, HybridCacheSpec, InputGroup, KvCache, KvCacheSpec,
+        LatentKvCache, LatentKvCacheSpec, PageLayout, PageTable, SourceCache, SourceCacheSpec,
+        SourcedCache, SourcedCacheSpec, StateCache, StateCacheSpec, TensorGroup,
+        caches_from_inputs, named_cache_inputs,
     },
     encode::TokenBatch,
     layers::*,

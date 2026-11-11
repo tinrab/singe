@@ -10,6 +10,7 @@ mod paged_attention;
 mod paged_general;
 mod parameters;
 mod random;
+mod recurrence;
 mod reduce;
 mod rotary_cache;
 mod scan;
@@ -319,6 +320,16 @@ impl KernelPlanner {
             Operation::Embedding | Operation::Take | Operation::IndexSelect
         ) {
             return indexing::plan(self, operation, attributes, inputs);
+        }
+
+        if matches!(
+            operation,
+            Operation::CausalConv1d
+                | Operation::CausalConv1dState
+                | Operation::GatedDeltaRule
+                | Operation::GatedDeltaRuleState
+        ) {
+            return KernelPlan::state_recurrence(operation, inputs);
         }
 
         if let (Operation::GroupedMatMul, [input, weights, offsets]) = (operation, inputs) {

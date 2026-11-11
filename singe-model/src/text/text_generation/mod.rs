@@ -5,6 +5,7 @@ pub mod gemma2;
 pub mod gpt2;
 pub mod llama;
 pub mod qwen3;
+pub mod qwen3_5;
 
 use std::path::Path;
 
@@ -39,6 +40,11 @@ pub fn load_decoder(
         "gpt2" => assembly::decoder(&gpt2::load(snapshot, device, data_type)?, options, compile),
         "llama" => assembly::decoder(&llama::load(snapshot, device, data_type)?, options, compile),
         "qwen3" => assembly::decoder(&qwen3::load(snapshot, device, data_type)?, options, compile),
+        "qwen3_5" | "qwen3_5_text" => assembly::decoder(
+            &qwen3_5::load(snapshot, device, data_type)?,
+            options,
+            compile,
+        ),
         other => Err(Error::UnsupportedConfig(format!("model type {other}"))),
     }
 }

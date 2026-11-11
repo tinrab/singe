@@ -148,21 +148,27 @@ fn schema(config: &DeepseekV3Config, data_type: DataType) -> Result<DeepseekV3> 
         latent_dim: config.kv_lora_rank,
         positional_dim: config.qk_rope_head_dim,
     };
-    let (layers, state) = causal_lm(&spec, rotary, cache, None, |schema, index| {
-        let moe = i64::try_from(index).is_ok_and(|index| index >= config.first_k_dense_replace);
-        pre_norm_block_with(
-            schema,
-            &spec,
-            |schema| attention(schema, config, score_correction),
-            |schema| {
-                if moe {
-                    mixture_of_experts(schema, config, &spec).map(DecoderFeedForward::Moe)
-                } else {
-                    gated_mlp(schema, &spec).map(DecoderFeedForward::Dense)
-                }
-            },
-        )
-    })?;
+    let (layers, state) = causal_lm(
+        &spec,
+        rotary,
+        |_| cache,
+        None,
+        |schema, index| {
+            let moe = i64::try_from(index).is_ok_and(|index| index >= config.first_k_dense_replace);
+            pre_norm_block_with(
+                schema,
+                &spec,
+                |schema| attention(schema, config, score_correction),
+                |schema| {
+                    if moe {
+                        mixture_of_experts(schema, config, &spec).map(DecoderFeedForward::Moe)
+                    } else {
+                        gated_mlp(schema, &spec).map(DecoderFeedForward::Dense)
+                    }
+                },
+            )
+        },
+    )?;
     Ok(Model::new(layers, state))
 }
 

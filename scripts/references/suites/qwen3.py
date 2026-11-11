@@ -10,13 +10,12 @@ import torch
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    DynamicCache,
     Qwen3Config,
     Qwen3ForCausalLM,
 )
 
 from ..format import write
-from ..models import OUTPUT as OUTPUT_ROOT, step, write_tiny
+from ..models import OUTPUT as OUTPUT_ROOT, new_cache, step, write_tiny
 
 REAL_MODEL = "Qwen/Qwen3-0.6B"
 REAL_TOP_LOGITS = 10
@@ -49,7 +48,7 @@ TINY_CONFIG = {
 
 def greedy(model, prompt, new_tokens):
     """Yields the logits behind each greedy token and the token."""
-    cache = DynamicCache()
+    cache = new_cache(model)
     logits = step(model, prompt, cache)
     for _ in range(new_tokens):
         token = int(logits.argmax())
@@ -73,11 +72,12 @@ def generate_tiny(output):
     write_tiny(output, "tiny", Qwen3ForCausalLM, config, "sdpa", ["lm_head.weight"])
 
 
-def generate_real(output):
-    tokenizer = AutoTokenizer.from_pretrained(REAL_MODEL)
+def generate_real(output, name=REAL_MODEL):
+    """Writes a chat model's greedy tokens for each prompt, with the BF16 and F32 logits of each step's top tokens."""
+    tokenizer = AutoTokenizer.from_pretrained(name)
     load = lambda dtype: (
         AutoModelForCausalLM.from_pretrained(
-            REAL_MODEL, dtype=dtype, attn_implementation="sdpa"
+            name, dtype=dtype, attn_implementation="sdpa"
         )
         .to("cuda")
         .eval()
@@ -107,7 +107,7 @@ def generate_real(output):
     # BF16 rounding moves logits by up to half a unit, which would hide a real difference, so F32 logits on the same tokens give a stricter reference.
     model = load(torch.float32)
     for index, case in enumerate(cases):
-        cache = DynamicCache()
+        cache = new_cache(model)
         tokens = case["input_ids"]
         wide = []
         for reference in case["steps"]:
@@ -115,7 +115,7 @@ def generate_real(output):
             wide.append(logits[reference["top_tokens"]])
             tokens = [reference["token"]]
         tensors[f"case{index}.top_logits_f32"] = torch.stack(wide)
-    write(output / "real", tensors, {"model": REAL_MODEL, "cases": cases})
+    write(output / "real", tensors, {"model": name, "cases": cases})
 
 
 OUTPUT = OUTPUT_ROOT / "text_generation/qwen3"

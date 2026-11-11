@@ -73,6 +73,15 @@ pub fn operation_support(
                 cuda_graph_providers: KERNEL_GRAPH_PROVIDER,
             }
         }
+        // Both backends run one kernel per sequence and head, token by token; the operands must be contiguous.
+        OperationSupportProfile::StateRecurrence => OperationSupport {
+            operation,
+            cpu_eager: Some(OperationDataTypes::new(FLOAT_TYPES, FLOAT_TYPES)),
+            cuda_eager: Some(OperationDataTypes::new(FLOAT_TYPES, FLOAT_TYPES)),
+            compiled: Some(OperationDataTypes::new(FLOAT_TYPES, FLOAT_TYPES)),
+            layout: LayoutSupport::RequiresContiguous,
+            cuda_graph_providers: KERNEL_GRAPH_PROVIDER,
+        },
         // Compiled graphs run long `F32` and `F64` transforms as captured cuFFT plans, and decompose the rest into a matmul with the basis.
         OperationSupportProfile::Fourier => OperationSupport {
             operation,

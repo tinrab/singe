@@ -375,3 +375,17 @@ pub fn paged_mla_attention(
     )?;
     kernel_plan::run_outputs(&plans[0], inputs)
 }
+
+// The causal convolution, the gated delta rule, and the states they leave, each one generated kernel over contiguous inputs.
+pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Tensor> {
+    let [first, rest @ ..] = inputs else {
+        return Err(Error::missing_input("cuda state recurrence"));
+    };
+    ensure_cuda_eager_same_device_inputs(first, &rest.iter().collect::<Vec<_>>())?;
+    let contiguous = inputs
+        .iter()
+        .map(Tensor::contiguous)
+        .collect::<Result<Vec<_>>>()?;
+    let inputs = contiguous.iter().collect::<Vec<_>>();
+    kernel_plan::execute(operation, &OperationAttributes::None, &inputs)
+}

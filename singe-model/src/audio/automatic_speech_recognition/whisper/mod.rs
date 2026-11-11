@@ -287,8 +287,8 @@ impl Whisper {
             .capture_bindings()?
             .merged(self.decoder.state().capture_bindings()?);
         let (graph, _) = Graph::capture_with_bindings(inputs.clone(), bindings, |tensors| {
-            let (features, caches) = tensors.split_at(1);
-            let caches = caches_from_inputs::<EncoderDecoderCache>(caches)?;
+            let (features, captured) = tensors.split_at(1);
+            let caches = caches_from_inputs(decoder.caches(), captured)?;
             let sources = encoder.forward(&features[0])?.squeeze(0)?;
             layers.write_sources(&sources, 0, &caches, self.decoder.state())?;
             Ok(vec![sources])
@@ -426,7 +426,7 @@ fn decoder_block(
     let heads = config.decoder_attention_heads;
     let head_dim = width / heads;
     let [query, key, value, output] = projections(&mut schema.scope("self_attn"), width)?;
-    let head = |linear| HeadProjection::new(linear, None, heads, head_dim);
+    let head = |linear| HeadProjection::new(linear, heads, head_dim);
     let self_attention = GroupedQueryAttention::create(
         GroupedQueryLayers {
             query: head(query),

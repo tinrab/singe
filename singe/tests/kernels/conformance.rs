@@ -814,6 +814,9 @@ fn tolerance(data_type: DataType, operation: &str) -> (f64, f64) {
             | "irfft"
             | "grouped_matmul"
             | "paged_mla_attention"
+            | "causal_conv1d"
+            | "gated_delta_rule"
+            | "gated_delta_rule_state"
     );
     match data_type {
         DataType::F32 if reassociates => (1e-5, 1e-4),

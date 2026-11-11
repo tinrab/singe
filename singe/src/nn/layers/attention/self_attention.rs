@@ -35,7 +35,7 @@ impl SelfAttention {
         }
 
         let head_dim = width / heads;
-        let head = |linear| HeadProjection::new(linear, None, heads, head_dim);
+        let head = |linear| HeadProjection::new(linear, heads, head_dim);
         Ok(Self {
             attention: GroupedQueryAttention::create(
                 GroupedQueryLayers {

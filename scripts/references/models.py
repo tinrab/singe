@@ -36,12 +36,20 @@ def write_json(path, value):
     path.write_text(json.dumps(value, indent=1) + "\n")
 
 
+def new_cache(model):
+    """An empty cache for `model`, which needs its config to hold the states of linear-attention layers."""
+    layers = getattr(model.config.get_text_config(), "layer_types", None) or []
+    if "linear_attention" in layers:
+        return DynamicCache(config=model.config)
+    return DynamicCache()
+
+
 def references(model):
     """Logits for a whole prompt, a split prompt, each greedy step, and a second prompt's, in F32, and the greedy tokens."""
-    split = DynamicCache()
+    split = new_cache(model)
     step(model, PROMPT[:SPLIT], split)
     split_logits = step(model, PROMPT[SPLIT:], split)
-    cache = DynamicCache()
+    cache = new_cache(model)
     logits = step(model, PROMPT, cache)
     prompt_logits = logits
     steps, tokens = [], []
@@ -50,7 +58,7 @@ def references(model):
         steps.append(logits)
         tokens.append(token)
         logits = step(model, [token], cache)
-    other = step(model, OTHER_PROMPT, DynamicCache())
+    other = step(model, OTHER_PROMPT, new_cache(model))
     tensors = {
         "prompt_logits": prompt_logits,
         "split_logits": split_logits,

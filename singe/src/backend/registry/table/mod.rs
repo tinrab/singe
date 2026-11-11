@@ -1,8 +1,9 @@
 use crate::{
     backend::registry::{
         ASSIGN_OPERANDS, ATTENTION_LSE_OUTPUTS, AliasBehavior, BATCH_NORM_OPERANDS,
-        BINARY_OPERANDS, CONTRACTION_OPERANDS, CONV2D_OPERANDS, ClampAttributes,
-        EMBEDDING_OPERANDS, GROUPED_MATMUL_OPERANDS, INDEX_LEADING_OPERANDS, INDEX_OUTPUT,
+        BINARY_OPERANDS, CAUSAL_CONV1D_OPERANDS, CAUSAL_CONV1D_STATE_OPERANDS,
+        CONTRACTION_OPERANDS, CONV2D_OPERANDS, ClampAttributes, EMBEDDING_OPERANDS,
+        GATED_DELTA_RULE_OPERANDS, GROUPED_MATMUL_OPERANDS, INDEX_LEADING_OPERANDS, INDEX_OUTPUT,
         INDEX_PUT_LEADING_OPERANDS, INDEX_SELECT_OPERANDS, INDEX_WRITE_LEADING_OPERANDS,
         LAYER_NORM_OPERANDS, LERP_OPERANDS, LSE_OUTPUT, MASK_OUTPUT, MATMUL_OPERANDS, NO_OUTPUTS,
         OperandRole, OperandSchema, OperationAttributeKind, OperationAttributes,
@@ -22,9 +23,9 @@ use crate::{
 
 /// Generates the tensor method an operation table row declares.
 macro_rules! tensor_method {
-    (none; $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {};
-    (unary($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (none; $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {};
+    (unary($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// # Errors
         ///
@@ -33,8 +34,8 @@ macro_rules! tensor_method {
             call_one(Operation::$variant, OperationAttributes::None, &[self])
         }
     };
-    (binary($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (binary($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// Operands of different data types are promoted to a common type first.
         ///
@@ -46,8 +47,8 @@ macro_rules! tensor_method {
             call_one(Operation::$variant, OperationAttributes::None, &[&lhs, &rhs])
         }
     };
-    (reduction($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (reduction($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// An empty `dimensions` slice selects all axes, and negative dimensions count backward from the last axis.
         /// `keepdim` retains reduced axes with size one; otherwise those axes are removed.
@@ -66,8 +67,8 @@ macro_rules! tensor_method {
             )
         }
     };
-    (value($method:ident, $parameter:ident: $parameter_type:ty); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (value($method:ident, $parameter:ident: $parameter_type:ty); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// # Errors
         ///
@@ -76,8 +77,8 @@ macro_rules! tensor_method {
             call_one(Operation::$variant, OperationAttributes::$attribute_kind($parameter), &[self])
         }
     };
-    (fields($method:ident, $attributes:ident { $($field:ident: $field_type:ty),+ }); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (fields($method:ident, $attributes:ident { $($field:ident: $field_type:ty),+ }); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// # Errors
         ///
@@ -90,8 +91,8 @@ macro_rules! tensor_method {
             )
         }
     };
-    (indexed($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (indexed($method:ident); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// Negative `dim` values count backward from the last axis.
         ///
@@ -102,8 +103,8 @@ macro_rules! tensor_method {
             call_one(Operation::$variant, OperationAttributes::$attribute_kind(dim), &[self, indices])
         }
     };
-    (paired($method:ident, $parameter:ident: $parameter_type:ty); $variant:ident; $attribute_kind:ident; $($doc:literal),+) => {
-        $(#[doc = $doc])+
+    (paired($method:ident, $parameter:ident: $parameter_type:ty); $variant:ident; $attribute_kind:ident; $($doc:literal),*) => {
+        $(#[doc = $doc])*
         ///
         /// # Errors
         ///
@@ -116,7 +117,7 @@ macro_rules! tensor_method {
 
 macro_rules! operation_table {
     ($(
-        $(#[doc = $doc:literal])+
+        $(#[doc = $doc:literal])*
         $variant:ident {
             name: $name:literal,
             support: $profile:ident,
@@ -135,7 +136,7 @@ macro_rules! operation_table {
         /// Backend availability, operand roles, attributes, and output rules come from the registry schema.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum Operation {
-            $( $(#[doc = $doc])+ $variant,)+
+            $( $(#[doc = $doc])* $variant,)+
             /// An operation registered at run time with [`CustomOperation::register`].
             Custom(CustomOperation),
         }
@@ -234,7 +235,7 @@ macro_rules! operation_table {
         }
 
         impl Tensor {
-            $(tensor_method!($method_kind $(($($method)+))?; $variant; $attribute_kind; $($doc),+);)+
+            $(tensor_method!($method_kind $(($($method)+))?; $variant; $attribute_kind; $($doc),*);)+
         }
     };
 }
@@ -1720,6 +1721,62 @@ operation_table! {
         operands: OperandSchema::Fixed(PAGED_ATTENTION_OPERANDS),
         infer: paged_attention_lse,
         outputs: LSE_OUTPUT,
+        alias: None,
+        method: none,
+        onnx: None,
+    },
+    // Convolves each sequence's real rows, `[T, C]`, with per-channel taps, `[C, K]`, after the `K − 1` inputs its state holds, `[S, C, K − 1]`, or zeros for a sequence starting at position zero; other rows are zero.
+    CausalConv1d {
+        name: "causal_conv1d",
+        support: StateRecurrence,
+        family: Neural,
+        elementwise: None,
+        attributes: None,
+        operands: OperandSchema::Fixed(CAUSAL_CONV1D_OPERANDS),
+        infer: causal_conv1d,
+        outputs: VALUE_OUTPUT,
+        alias: None,
+        method: none,
+        onnx: None,
+    },
+    // Returns a causal convolution's state after the step: each sequence's last `K − 1` inputs, or its state as it was when the step has no real rows of it.
+    CausalConv1dState {
+        name: "causal_conv1d_state",
+        support: StateRecurrence,
+        family: Neural,
+        elementwise: None,
+        attributes: None,
+        operands: OperandSchema::Fixed(CAUSAL_CONV1D_STATE_OPERANDS),
+        infer: causal_conv1d_state,
+        outputs: VALUE_OUTPUT,
+        alias: None,
+        method: none,
+        onnx: None,
+    },
+    // Runs the gated delta rule over each sequence's real rows, token by token from its state, `[S, H, Dk, Dv]` in `F32`, or zeros for a sequence starting at position zero: decay the state by `exp(g)`, write `beta · (v − read)` at the key, and read it at the query; other rows are zero.
+    GatedDeltaRule {
+        name: "gated_delta_rule",
+        support: StateRecurrence,
+        family: Neural,
+        elementwise: None,
+        attributes: None,
+        operands: OperandSchema::Fixed(GATED_DELTA_RULE_OPERANDS),
+        infer: gated_delta_rule,
+        outputs: VALUE_OUTPUT,
+        alias: None,
+        method: none,
+        onnx: None,
+    },
+    // Returns the gated delta rule's state after the step, or a sequence's state as it was when the step has no real rows of it.
+    GatedDeltaRuleState {
+        name: "gated_delta_rule_state",
+        support: StateRecurrence,
+        family: Neural,
+        elementwise: None,
+        attributes: None,
+        operands: OperandSchema::Fixed(GATED_DELTA_RULE_OPERANDS),
+        infer: gated_delta_rule_state,
+        outputs: VALUE_OUTPUT,
         alias: None,
         method: none,
         onnx: None,

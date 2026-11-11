@@ -155,6 +155,8 @@ pub struct Suite<L> {
     pub load: fn(&Path, Device, DataType) -> Model<L>,
     pub f32_tolerance: Tolerance,
     pub bf16_tolerance: Tolerance,
+    // Why exported programs cannot run the model yet, which skips their checks, or `None` to run them.
+    pub programs_skipped: Option<&'static str>,
 }
 
 impl<L: DecoderModel> Suite<L> {
@@ -497,7 +499,7 @@ impl<L: DecoderModel> Suite<L> {
             check_failed_step(&model);
         }
         #[cfg(feature = "cuda_13_4")]
-        if matches!(device, Device::Cuda(_)) {
+        if matches!(device, Device::Cuda(_)) && self.programs_skipped.is_none() {
             self.check_generation_loop(device);
         }
     }

@@ -64,6 +64,16 @@ struct RopeFields {
 const DEFAULT_ROTARY_THETA: f64 = 10_000.0;
 
 impl RotaryConfig {
+    // The fraction of each head the rotation turns, its leading features; the rest pass through.
+    #[must_use]
+    pub fn rotated_fraction(&self) -> f64 {
+        self.rope_parameters
+            .as_ref()
+            .or(self.rope_scaling.as_ref())
+            .and_then(|fields| fields.partial_rotary_factor)
+            .unwrap_or(1.0)
+    }
+
     pub fn frequencies(&self) -> Result<RotaryFrequencies> {
         let fields = self.rope_parameters.as_ref().or(self.rope_scaling.as_ref());
         let theta = fields
@@ -74,12 +84,6 @@ impl RotaryConfig {
         let Some(fields) = fields else {
             return Ok(frequencies);
         };
-        if fields
-            .partial_rotary_factor
-            .is_some_and(|factor| factor != 1.0)
-        {
-            return Err(unsupported("a partial rotary factor"));
-        }
         match fields.kind.as_deref().or(fields.rope_type.as_deref()) {
             None | Some("default") => Ok(frequencies),
             Some("yarn") => Ok(frequencies.with_yarn(YarnFrequencies {
@@ -148,6 +152,7 @@ impl DecoderConfig {
     // Returns the sizes of a decoder in `data_type`, whose head is tied unless the config says otherwise when `tied` is set.
     pub fn spec(&self, data_type: DataType, tied: bool) -> Result<DecoderSpec> {
         let heads = self.num_attention_heads;
+        let head_dim = self.head_dim.unwrap_or(self.hidden_size / heads);
         Ok(DecoderSpec {
             data_type,
             vocab_size: self.vocab_size,
@@ -156,7 +161,8 @@ impl DecoderConfig {
             layers: self.num_hidden_layers,
             heads,
             kv_heads: self.num_key_value_heads.unwrap_or(heads),
-            head_dim: self.head_dim.unwrap_or(self.hidden_size / heads),
+            head_dim,
+            rotary_dim: rotated_features(head_dim, self.rotary.rotated_fraction())?,
             eps: self.rms_norm_eps,
             activation: self.hidden_act,
             attention_bias: self.attention_bias,
@@ -222,7 +228,7 @@ impl Snapshot {
         Ok(self.config::<Fields>()?.class_name)
     }
 
-    // Returns the tokens that end generation: `generation_config.json`'s `eos_token_id`, or `config.json`'s.
+    // Returns the tokens that end generation: `generation_config.json`'s `eos_token_id`, or `config.json`'s or its `text_config`'s, and the tokenizer's end token, which chat models such as Qwen3.5 name only there.
     pub fn stop_tokens(&self) -> Result<Vec<i64>> {
         let generation = fs::read_to_string(self.directory.join("generation_config.json"))
             .ok()
@@ -231,15 +237,62 @@ impl Snapshot {
         let config = self.config::<Value>()?;
         let tokens = generation
             .iter()
-            .chain([&config])
+            .chain([&config, &config["text_config"]])
             .map(|fields| &fields["eos_token_id"])
             .find(|tokens| !tokens.is_null());
-        Ok(match tokens {
+        let mut tokens = match tokens {
             Some(Value::Number(token)) => token.as_i64().into_iter().collect(),
             Some(Value::Array(tokens)) => tokens.iter().filter_map(Value::as_i64).collect(),
             _ => Vec::new(),
-        })
+        };
+        if let Some(token) = self.tokenizer_end_token()?
+            && !tokens.contains(&token)
+        {
+            tokens.push(token);
+        }
+        Ok(tokens)
     }
+
+    // The id of `tokenizer_config.json`'s `eos_token`, among `tokenizer.json`'s added tokens, if both files name it.
+    fn tokenizer_end_token(&self) -> Result<Option<i64>> {
+        let read = |path: &str| {
+            fs::read_to_string(self.directory.join(path))
+                .ok()
+                .map(|text| serde_json::from_str::<Value>(&text).map_err(Error::ConfigFormat))
+                .transpose()
+        };
+        let (Some(config), Some(tokenizer)) =
+            (read("tokenizer_config.json")?, read("tokenizer.json")?)
+        else {
+            return Ok(None);
+        };
+        let end = &config["eos_token"];
+        let Some(name) = end.as_str().or_else(|| end["content"].as_str()) else {
+            return Ok(None);
+        };
+        Ok(tokenizer["added_tokens"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|token| token["content"].as_str() == Some(name))
+            .and_then(|token| token["id"].as_i64()))
+    }
+}
+
+// The features of a head of `head_dim` that a rotation of `fraction` of it turns, as `transformers` rounds them down.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_precision_loss,
+    reason = "head dimensions are far below where `F64` rounds them, and `transformers` truncates"
+)]
+pub fn rotated_features(head_dim: i64, fraction: f64) -> Result<i64> {
+    let features = (head_dim as f64 * fraction) as i64;
+    if features <= 0 || features > head_dim || features % 2 != 0 {
+        return Err(Error::UnsupportedConfig(format!(
+            "a rotation of {features} of {head_dim} features"
+        )));
+    }
+    Ok(features)
 }
 
 #[cfg(test)]
@@ -283,7 +336,6 @@ mod tests {
             r#"{"rope_parameters": {"rope_type": "linear", "factor": 2.0}}"#,
             r#"{"rope_scaling": {"type": "llama3"}}"#,
             r#"{"rope_parameters": {"rope_type": "yarn"}}"#,
-            r#"{"rope_parameters": {"rope_type": "default", "partial_rotary_factor": 0.5}}"#,
         ] {
             assert!(
                 matches!(parse(text).frequencies(), Err(Error::UnsupportedConfig(_))),

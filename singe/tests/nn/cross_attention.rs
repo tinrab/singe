@@ -129,6 +129,7 @@ fn check(device: Device, data_type: DataType, tolerance: Tolerance) {
                 pages: 4,
                 page_size: 4,
                 sequences: 3,
+                capacity: 16,
             },
             EncoderDecoderCacheSpec {
                 heads: HEADS,

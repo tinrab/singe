@@ -1,19 +1,19 @@
 // Times the real models a step, a batch, or an image at a time, each where its `SINGE_SNAPSHOT_<MODEL>` is set: `just bench`, `just bench whisper --compare main`.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path};
 
 use singe::{
     DataType, Device, Tensor,
     generation::{CachedDecoder, Decoder, DecoderOptions, PromptChunks},
     graph::GraphPrepareOptions,
-    nn::TensorGroup,
+    nn::{DecoderModel, Model, TensorGroup},
 };
 use singe_model::{
-    audio::automatic_speech_recognition::{
-        load_transcriber,
-        whisper::{WhisperTask, prompt},
+    audio::automatic_speech_recognition::whisper::{self, WhisperTask, prompt},
+    text::{
+        sentence_similarity::load_sentence_embedder,
+        text_generation::{qwen3, qwen3_5},
     },
-    text::{sentence_similarity::load_sentence_embedder, text_generation::qwen3},
     tokenization::TextTokenizer,
     vision::{image_feature_extraction::load_image_encoder, image_to_image::load_autoencoder},
 };
@@ -77,7 +77,7 @@ fn whisper(benches: &mut Benches) {
             continue;
         }
 
-        let model = load_transcriber(&snapshot, DEVICE, data_type).unwrap();
+        let model = whisper::load(&snapshot, DEVICE, data_type).unwrap();
         let features = model.features(&tone_and_chirp(160_000, DEVICE)).unwrap();
         let mut encoded = model.encode(&features).unwrap();
         benches.run(&encode, || {
@@ -116,21 +116,27 @@ fn whisper(benches: &mut Benches) {
     }
 }
 
-fn qwen3(benches: &mut Benches) {
-    let Some(snapshot) = snapshot_if_set("QWEN3") else {
+// Times one decode step and a 128-token prompt of the decoder `load` makes from the snapshot `SINGE_SNAPSHOT_<name>` names, eagerly and compiled, under `label`.
+fn text_decoder<L: DecoderModel>(
+    benches: &mut Benches,
+    name: &str,
+    label: &str,
+    load: impl Fn(&Path) -> Model<L>,
+) {
+    let Some(snapshot) = snapshot_if_set(name) else {
         return;
     };
     let capacity = 512;
     let chunk = (0..128).collect::<Vec<i64>>();
     for compiled in [false, true] {
         let how = if compiled { "compiled" } else { "eager" };
-        let step_name = format!("qwen3-0.6b/step/Bf16/{how}");
-        let chunk_name = format!("qwen3-0.6b/prompt-128/Bf16/{how}");
+        let step_name = format!("{label}/step/Bf16/{how}");
+        let chunk_name = format!("{label}/prompt-128/Bf16/{how}");
         if !benches.wants(&step_name) && !benches.wants(&chunk_name) {
             continue;
         }
 
-        let model = qwen3::load(&snapshot, DEVICE, DataType::Bf16).unwrap();
+        let model = load(&snapshot);
         let mut decoder = CachedDecoder::create(&model, DecoderOptions::new(1, capacity)).unwrap();
         if compiled {
             decoder.compile().unwrap();
@@ -204,7 +210,12 @@ fn main() {
     let mut benches = Benches::from_args();
     minilm(&mut benches);
     whisper(&mut benches);
-    qwen3(&mut benches);
+    text_decoder(&mut benches, "QWEN3", "qwen3-0.6b", |snapshot| {
+        qwen3::load(snapshot, DEVICE, DataType::Bf16).unwrap()
+    });
+    text_decoder(&mut benches, "QWEN35", "qwen3.5-0.8b", |snapshot| {
+        qwen3_5::load(snapshot, DEVICE, DataType::Bf16).unwrap()
+    });
     dinov2(&mut benches);
     taesd(&mut benches);
     benches.finish();

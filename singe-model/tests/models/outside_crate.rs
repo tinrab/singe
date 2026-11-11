@@ -32,6 +32,7 @@ const SUITE: Suite<GroupedDecoder> = Suite {
     load,
     f32_tolerance: Tolerance::absolute(0.001, "F32 leaves room for arithmetic alone"),
     bf16_tolerance: Tolerance::absolute(0.05, "BF16 keeps eight mantissa bits"),
+    programs_skipped: None,
 };
 
 #[test]

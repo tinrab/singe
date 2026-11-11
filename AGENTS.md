@@ -76,6 +76,9 @@ Use `uv` for Python helpers.
 - Backends: `singe/src/backend/`, with `cpu/` and `cuda/` implementations; graphs live in `singe/src/graph/` and ONNX import in `singe/src/onnx/`.
   Eager CUDA operations plan each kernel once per operation and input layouts, in `backend/cuda/kernel_plan/eager_plans.rs`, and launch on one stream per device.
 - Generation: `singe/src/generation/` has the loop and `CachedDecoder`, whose compiled steps are the one-token step and the prompt chunks `DecoderOptions::prompt_chunks` names; a step pads to the smallest compiled step that holds it, and a larger one is an error.
+- Decoder caches: `singe/src/nn/decode/` has `DecodeStep` and the caches, one per block from its own spec: paged `KvCache`s, a per-sequence `StateCache` for linear attention, and `HybridCache` for models that mix them.
+  A layer carrying a state reads only each sequence's real tokens, `DecodeStep::real_tokens`, so padding and held rows leave it as it was.
+  `SourcedCausalLm` adds a `SourceCache` whose rows a prompt's placeholder tokens read in place of their embeddings, as Qwen3-ASR's audio tokens do.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
 - cuDNN: the frontend port in `singe-cudnn/src/frontend/`, backend descriptors, engines, and execution in `singe-cudnn/src/backend/`, and legacy descriptor APIs in `singe-cudnn/src/legacy/`.
 - PTX: parsing in `singe-ptx/src/parser/`; the emulator defines supported instruction forms in `emulator/lowering/`, one module per family, and executes them in `emulator/engine/`.
@@ -174,7 +177,8 @@ Keep these out of commits:
     - Rust tests are named `test_*`.
     - Use `pub(crate)`, never `pub(super)`.
     - Use typed errors (thiserror) with lowercase messages, not `String` errors.
-- **No doc comments:** don't write new doc comments (`///`, `//!`) for now; they come at the end, before the crates are released.
+- **No doc comments unless asked:** don't write new doc comments (`///`, `//!`) unless a task asks for them; they come at the end, before the crates are released.
+  This holds even where surrounding code has them, such as the operation table's entries: write a `//` comment there instead.
   Existing doc comments stay as they are; update one only when the code it describes changes, and move it with its code.
   Write an inline `//` comment only where the code cannot say something itself, such as why a non-obvious rule holds.
 - **One sentence per line:** write Markdown prose and comments with each sentence on its own line, as the style guide describes.

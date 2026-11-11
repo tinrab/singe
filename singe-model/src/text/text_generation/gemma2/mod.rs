@@ -119,7 +119,7 @@ fn schema(config: &Gemma2Config, data_type: DataType) -> Result<Gemma2> {
     let (decoder, state) = causal_lm(
         &spec,
         spec.rotary(),
-        spec.kv_cache(),
+        |_| spec.kv_cache(),
         Some((width as f64).sqrt() as f32),
         |schema, index| {
             let attention_norm = schema.offset_rms_norm("input_layernorm", width, eps)?;

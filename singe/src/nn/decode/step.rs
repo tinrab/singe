@@ -7,7 +7,7 @@ use crate::{
     index::TensorIndex,
     nn::{CacheSize, decode::input_group},
     shape::Shape,
-    tensor::{Paging, Tensor},
+    tensor::{Paging, SequenceSpans, Tensor},
 };
 
 input_group! {
@@ -24,6 +24,8 @@ input_group! {
         pages,
         last_page_lengths,
         last_rows,
+        real_tokens,
+        sequence_ids,
     }
 }
 
@@ -42,6 +44,8 @@ impl DecodeStep {
             pages: vector(table)?,
             last_page_lengths: vector(sequences)?,
             last_rows: vector(sequences)?,
+            real_tokens: vector(sequences)?,
+            sequence_ids: vector(tokens)?,
         })
     }
 
@@ -63,6 +67,19 @@ impl DecodeStep {
         &self.last_rows
     }
 
+    // Returns how many of each sequence's rows are its own tokens, `[S]`: zero for a held or idle row, and without a step's padding.
+    // A layer that carries a state from step to step reads only those rows, so padding and held rows leave its state as it was.
+    #[must_use]
+    pub const fn real_tokens(&self) -> &Tensor {
+        &self.real_tokens
+    }
+
+    // Returns the sequence each row belongs to, `[T]`, so a row can read what its sequence holds, such as the sources its prompt's placeholders take.
+    #[must_use]
+    pub const fn sequence_ids(&self) -> &Tensor {
+        &self.sequence_ids
+    }
+
     // Returns where this step's queries and their keys sit, as attention reads them.
     #[must_use]
     pub const fn paging(&self) -> Paging<'_> {
@@ -71,6 +88,16 @@ impl DecodeStep {
             page_offsets: &self.page_offsets,
             pages: &self.pages,
             last_page_lengths: &self.last_page_lengths,
+        }
+    }
+
+    // Returns where each sequence's rows sit, as layers that carry a state per sequence read them.
+    #[must_use]
+    pub const fn spans(&self) -> SequenceSpans<'_> {
+        SequenceSpans {
+            query_offsets: &self.query_offsets,
+            real_tokens: &self.real_tokens,
+            positions: &self.positions,
         }
     }
 
@@ -230,6 +257,7 @@ impl PageTable {
             page_size: self.page_size(),
             sequences: i64::try_from(self.sequences.len())
                 .map_err(|_| Error::out_of_range("sequences"))?,
+            capacity: self.capacity,
         })
     }
 
@@ -353,6 +381,8 @@ impl PageTable {
         let mut write_slots = Vec::with_capacity(total);
         let mut query_offsets = vec![0_i64];
         let mut last_rows = Vec::with_capacity(tokens.len());
+        let mut real_tokens = Vec::with_capacity(tokens.len());
+        let mut sequence_ids = Vec::with_capacity(total);
         let mut visible = Vec::with_capacity(tokens.len());
         let mut slots = PageSlots {
             page_size: self.page_size,
@@ -391,8 +421,14 @@ impl PageTable {
 
             visible.push(keys);
             let end = i64::try_from(flat.len()).map_err(|_| Error::out_of_range("step tokens"))?;
+            sequence_ids.resize(
+                flat.len(),
+                i64::try_from(row).map_err(|_| Error::out_of_range("sequences"))?,
+            );
             query_offsets.push(end);
             last_rows.push(last);
+            real_tokens
+                .push(i64::try_from(tokens.len()).map_err(|_| Error::out_of_range("step tokens"))?);
         }
 
         // Unused trailing entries keep the table's shape, so one compiled step serves every length.
@@ -437,6 +473,8 @@ impl PageTable {
             pages: vector(pages)?,
             last_page_lengths: vector(last_page_lengths)?,
             last_rows: vector(last_rows)?,
+            real_tokens: vector(real_tokens)?,
+            sequence_ids: vector(sequence_ids)?,
         })
     }
 }
@@ -487,6 +525,8 @@ mod tests {
         // Padding's positions stop at the last the tables hold.
         assert_eq!(integers(step.positions()), [0, 1, 2, 0, 1, 2, 3, 4]);
         assert_eq!(integers(step.last_rows()), [2, 3]);
+        assert_eq!(integers(step.real_tokens()), [3, 1]);
+        assert_eq!(integers(step.sequence_ids()), [0, 0, 0, 1, 1, 1, 1, 1]);
         let paging = step.paging();
         assert_eq!(integers(paging.query_offsets), [0, 3, 8]);
         // The second sequence's five keys take its own page and two scratch pages.
@@ -548,6 +588,7 @@ mod tests {
             // The second sequence runs out, and the held one never does.
             if let Ok(step) = step {
                 assert_eq!(integers(step.last_rows()), [0, 1]);
+                assert_eq!(integers(step.real_tokens()), [0, 1]);
                 assert_eq!(integers(step.positions())[0], 2);
                 assert_eq!(integers(step.paging().last_page_lengths)[0], 2);
                 // It writes to the scratch page, and takes nothing.

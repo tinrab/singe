@@ -9,6 +9,8 @@ MODELS = {
     "TAESD": "madebyollin/taesd",
     "DINOV2": "facebook/dinov2-small",
     "WHISPER": "openai/whisper-tiny",
+    "QWEN35": "Qwen/Qwen3.5-0.8B",
+    "QWEN3_ASR": "Qwen/Qwen3-ASR-0.6B-hf",
 }
 
 

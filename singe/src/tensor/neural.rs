@@ -499,6 +499,109 @@ impl Tensor {
     }
 }
 
+// Where each sequence's rows of a step sit, for operations that carry a state per sequence: sequence `b` holds rows `query_offsets[b]..query_offsets[b + 1]`, of which the first `real_tokens[b]` are its own, and `positions` gives each row's position, so a sequence whose first row is at position zero starts from a zero state.
+// The tensors are `I64` vectors.
+#[derive(Debug, Clone, Copy)]
+pub struct SequenceSpans<'a> {
+    pub query_offsets: &'a Tensor,
+    pub real_tokens: &'a Tensor,
+    pub positions: &'a Tensor,
+}
+
+impl Tensor {
+    // Convolves each sequence's real rows of `self`, `[T, C]`, with per-channel taps `weight`, `[C, K]`, after the `K − 1` inputs `state` holds for it, `[S, C, K − 1]`, or zeros for a sequence starting at position zero; rows that are not a sequence's own are zero.
+    pub fn causal_conv1d(
+        &self,
+        weight: &Self,
+        state: &Self,
+        spans: SequenceSpans<'_>,
+    ) -> Result<Self> {
+        call_one(
+            Operation::CausalConv1d,
+            OperationAttributes::None,
+            &[
+                self,
+                weight,
+                state,
+                spans.query_offsets,
+                spans.real_tokens,
+                spans.positions,
+            ],
+        )
+    }
+
+    // Returns `state` as `causal_conv1d` leaves it: each sequence's last `K − 1` inputs, after its real rows of `self`.
+    pub fn causal_conv1d_state(&self, state: &Self, spans: SequenceSpans<'_>) -> Result<Self> {
+        call_one(
+            Operation::CausalConv1dState,
+            OperationAttributes::None,
+            &[
+                self,
+                state,
+                spans.query_offsets,
+                spans.real_tokens,
+                spans.positions,
+            ],
+        )
+    }
+
+    // Runs the gated delta rule over each sequence's real rows, from `state`, `[S, H, Dk, Dv]` in `F32`, or zeros for a sequence starting at position zero.
+    // For each row in order, with `self` the queries `[T, H, Dk]`, the state decays by `exp(decay)`, takes `strength · (value − read)` at the key, where `read` is what it held there, and is read at the query; the result is `[T, H, Dv]`, and rows that are not a sequence's own are zero.
+    // Queries and keys arrive as the caller wants them read, so any normalization and scale come first.
+    pub fn gated_delta_rule(
+        &self,
+        key: &Self,
+        value: &Self,
+        decay: &Self,
+        strength: &Self,
+        state: &Self,
+        spans: SequenceSpans<'_>,
+    ) -> Result<Self> {
+        call_one(
+            Operation::GatedDeltaRule,
+            OperationAttributes::None,
+            &[
+                self,
+                key,
+                value,
+                decay,
+                strength,
+                state,
+                spans.query_offsets,
+                spans.real_tokens,
+                spans.positions,
+            ],
+        )
+    }
+
+    // Returns `state` as `gated_delta_rule` leaves it.
+    pub fn gated_delta_rule_state(
+        &self,
+        key: &Self,
+        value: &Self,
+        decay: &Self,
+        strength: &Self,
+        state: &Self,
+        spans: SequenceSpans<'_>,
+    ) -> Result<Self> {
+        call_one(
+            Operation::GatedDeltaRuleState,
+            OperationAttributes::None,
+            &[
+                self,
+                key,
+                value,
+                decay,
+                strength,
+                state,
+                spans.query_offsets,
+                spans.real_tokens,
+                spans.positions,
+            ],
+        )
+    }
+}
+
 impl Tensor {
     // Multiplies rows `[M, K]` sorted by group by their group's weight of `weights` `[G, K, N]`, into `[M, N]`: group `g` is rows `offsets[g]..offsets[g + 1]` of the `G + 1` `I32` or `I64` offsets, and rows outside every group are zero.
     pub fn grouped_matmul(&self, weights: &Self, offsets: &Self) -> Result<Self> {

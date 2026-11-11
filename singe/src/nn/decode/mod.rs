@@ -7,8 +7,10 @@ use std::fmt::Debug;
 
 pub use self::{
     cache::{
-        CacheSize, DecodeCache, EncoderDecoderCache, EncoderDecoderCacheSpec, KvCache, KvCacheSpec,
-        LatentKvCache, LatentKvCacheSpec, caches_from_inputs, named_cache_inputs,
+        CacheSize, DecodeCache, EncoderDecoderCache, EncoderDecoderCacheSpec, HybridCache,
+        HybridCacheSpec, KvCache, KvCacheSpec, LatentKvCache, LatentKvCacheSpec, SourceCache,
+        SourceCacheSpec, SourcedCache, SourcedCacheSpec, StateCache, StateCacheSpec,
+        caches_from_inputs, named_cache_inputs,
     },
     step::{DecodeStep, PageLayout, PageTable},
 };

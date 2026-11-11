@@ -14,6 +14,7 @@ pub use crate::backend::cpu::{
         scaled_dot_product_attention,
     },
     pooling::{avg_pool2d, max_pool2d},
+    recurrence::state_recurrence,
     reduction::{
         argmax, argmin, argsort, cumprod, cumsum, logsumexp, max, mean, min, product, sum,
     },

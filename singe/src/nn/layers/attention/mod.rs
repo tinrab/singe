@@ -1,4 +1,5 @@
 mod cross;
+mod delta_net;
 mod grouped;
 mod latent;
 mod projection;
@@ -6,9 +7,10 @@ mod self_attention;
 
 pub use self::{
     cross::{CrossAttention, CrossAttentionInput, SourcePages, pages_for},
+    delta_net::{GatedDeltaNet, GatedDeltaNetLayers, GatedDeltaNetSpec},
     grouped::{GroupedQueryAttention, GroupedQueryLayers},
     latent::{LatentQuery, MultiHeadLatentAttention, MultiHeadLatentLayers},
-    projection::HeadProjection,
+    projection::{HeadNorm, HeadProjection},
     self_attention::SelfAttention,
 };
 use crate::{

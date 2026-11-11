@@ -32,7 +32,7 @@ pub use self::{
     algebra::BlockScaledFormat,
     elementwise::GeluApproximation,
     loss::LossReduction,
-    neural::{AttentionOptions, Paging},
+    neural::{AttentionOptions, Paging, SequenceSpans},
     reduction::NormOrder,
     resample::InterpolateMode,
     sampling::SamplingOptions,

@@ -252,6 +252,38 @@ pub const PAGED_ATTENTION_OPERANDS: &[OperandRole] = &[
     OperandRole::Indices,
 ];
 
+// A causal convolution's inputs and per-channel taps, its state, and the step's query offsets, real token counts, and positions.
+pub const CAUSAL_CONV1D_OPERANDS: &[OperandRole] = &[
+    OperandRole::Input,
+    OperandRole::Weight,
+    OperandRole::Input,
+    OperandRole::Indices,
+    OperandRole::Indices,
+    OperandRole::Indices,
+];
+
+// A causal convolution's inputs and state, and the step's query offsets, real token counts, and positions.
+pub const CAUSAL_CONV1D_STATE_OPERANDS: &[OperandRole] = &[
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Indices,
+    OperandRole::Indices,
+    OperandRole::Indices,
+];
+
+// The gated delta rule's queries, keys, values, decays, write strengths, state, and the step's query offsets, real token counts, and positions.
+pub const GATED_DELTA_RULE_OPERANDS: &[OperandRole] = &[
+    OperandRole::Input,
+    OperandRole::Key,
+    OperandRole::Value,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Input,
+    OperandRole::Indices,
+    OperandRole::Indices,
+    OperandRole::Indices,
+];
+
 // A grouped matmul's rows, its groups' weights, and the group offsets.
 pub const GROUPED_MATMUL_OPERANDS: &[OperandRole] = &[
     OperandRole::Input,

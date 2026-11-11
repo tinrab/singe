@@ -33,6 +33,8 @@ pub struct DecoderSpec {
     pub heads: i64,
     pub kv_heads: i64,
     pub head_dim: i64,
+    // The leading features of each head the rotation turns.
+    pub rotary_dim: i64,
     pub eps: f32,
     pub activation: Activation,
     pub attention_bias: bool,
@@ -44,11 +46,11 @@ pub struct DecoderSpec {
 }
 
 impl DecoderSpec {
-    // The rotary table of grouped-query attention, which turns whole heads.
+    // The rotary table of grouped-query attention, which turns each head's first `rotary_dim` features.
     #[must_use]
     pub const fn rotary(&self) -> RotarySpec {
         RotarySpec {
-            head_dim: self.head_dim,
+            head_dim: self.rotary_dim,
             frequencies: self.frequencies,
             layout: RotaryLayout::HalfSplit,
         }
@@ -71,11 +73,17 @@ pub fn grouped_decoder(
     spec: &DecoderSpec,
     options: AttentionOptions,
 ) -> SingeResult<Model<GroupedDecoder>> {
-    let lm = causal_lm(spec, spec.rotary(), spec.kv_cache(), None, |schema, _| {
-        pre_norm_block(schema, spec, |schema| {
-            grouped_attention(schema, spec, options)
-        })
-    })?;
+    let lm = causal_lm(
+        spec,
+        spec.rotary(),
+        |_| spec.kv_cache(),
+        None,
+        |schema, _| {
+            pre_norm_block(schema, spec, |schema| {
+                grouped_attention(schema, spec, options)
+            })
+        },
+    )?;
     Ok(Model::new(lm.0, lm.1))
 }
 
@@ -128,11 +136,11 @@ pub fn grouped_attention(
     let (width, head_dim, bias) = (spec.width, spec.head_dim, spec.attention_bias);
     let mut head = |name: &str, norm: Option<&str>, heads: i64| -> SingeResult<HeadProjection> {
         let linear = schema.linear(name, width, heads * head_dim, bias)?;
-        let norm = norm
-            .filter(|_| spec.head_norms)
-            .map(|norm| schema.rms_norm(norm, head_dim, spec.eps))
-            .transpose()?;
-        Ok(HeadProjection::new(linear, norm, heads, head_dim))
+        let projection = HeadProjection::new(linear, heads, head_dim);
+        Ok(match norm.filter(|_| spec.head_norms) {
+            Some(norm) => projection.with_norm(schema.rms_norm(norm, head_dim, spec.eps)?),
+            None => projection,
+        })
     };
     let query = head("q_proj", Some("q_norm"), spec.heads)?;
     let key = head("k_proj", Some("k_norm"), spec.kv_heads)?;
@@ -158,11 +166,27 @@ pub fn causal() -> AttentionOptions {
     }
 }
 
-// Builds a causal model on `Device::Meta` under Llama-family names: `model.embed_tokens`, `model.layers.N`, `model.norm`, and `lm_head`.
+// Builds a causal model on `Device::Meta` under Llama-family names: `model.embed_tokens`, `model.layers.N`, `model.norm`, and `lm_head`, with `cache` giving each layer's cache by its index.
 pub fn causal_lm<B, N>(
     spec: &DecoderSpec,
     rotary: RotarySpec,
-    cache: <B::Cache as DecodeCache>::Spec,
+    cache: impl Fn(usize) -> <B::Cache as DecodeCache>::Spec,
+    embedding_scale: Option<f32>,
+    block: impl Fn(&mut Schema<'_>, usize) -> SingeResult<B>,
+) -> SingeResult<(CausalLm<B, N>, ModelState)>
+where
+    B: DecodingLayer,
+    N: SchemaNorm + Layer,
+{
+    causal_lm_in("model", spec, rotary, cache, embedding_scale, block)
+}
+
+// Builds a causal model as `causal_lm` does, with its embedding, layers, and norm under `scope` rather than `model`.
+pub fn causal_lm_in<B, N>(
+    scope: &str,
+    spec: &DecoderSpec,
+    rotary: RotarySpec,
+    cache: impl Fn(usize) -> <B::Cache as DecodeCache>::Spec,
     embedding_scale: Option<f32>,
     block: impl Fn(&mut Schema<'_>, usize) -> SingeResult<B>,
 ) -> SingeResult<(CausalLm<B, N>, ModelState)>
@@ -173,7 +197,7 @@ where
     let table = [spec.vocab_size, spec.width];
     let mut builder = StateBuilder::new();
     let (embedding, blocks, norm) = {
-        let mut model = Schema::new(builder.scope("model"), spec.data_type);
+        let mut model = Schema::new(builder.scope(scope), spec.data_type);
         let embedding = model.parameter("embed_tokens.weight", table)?;
         let blocks = (0..spec.layers)
             .zip(0_usize..)
@@ -182,6 +206,7 @@ where
         let norm = N::register(&mut model, "norm", spec.width, spec.eps)?;
         (embedding, blocks, norm)
     };
+    let caches = (0..blocks.len()).map(cache).collect();
     let head = if spec.tied {
         builder.tie("lm_head.weight", &embedding)?
     } else {
@@ -195,7 +220,7 @@ where
             blocks,
             norm,
             head: Linear::new(head, None),
-            cache,
+            caches,
         }),
         builder.finish()?,
     ))

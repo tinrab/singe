@@ -2,4 +2,4 @@
 
 mod causal_lm;
 
-pub use self::causal_lm::{CausalLm, CausalLmParts, Decoder};
+pub use self::causal_lm::{CausalLm, CausalLmParts, Decoder, SourcedCausalLm};

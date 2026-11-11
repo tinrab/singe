@@ -1,5 +1,6 @@
 use crate::{
     error::{Error, Result},
+    graph::DimensionExpr,
     nn::{
         AttentionInput, DecodingLayer, DenseAttentionInput, HeadProjection, KvCache, Layer, Linear,
         ModelState,
@@ -47,18 +48,18 @@ impl Layer<DenseAttentionInput<'_>> for GroupedQueryAttention {
     fn forward(&self, input: &DenseAttentionInput<'_>, state: &ModelState) -> Result<Tensor> {
         let layers = &self.layers;
         let hidden = input.hidden;
-        let project = |layer: &HeadProjection, rotate: bool| -> Result<Tensor> {
-            let heads = layer.forward(hidden, state)?;
+        let rotate_heads = |heads: Tensor, rotate: bool| -> Result<Tensor> {
             match input.angles {
                 Some(angles) if rotate => angles.rotate(&heads),
                 _ => Ok(heads),
             }?
             .permute(&[0, 2, 1, 3])
         };
+        let (query, gate) = layers.query.project(hidden, state)?;
         let (query, key, value) = (
-            project(&layers.query, true)?,
-            project(&layers.key, true)?,
-            project(&layers.value, false)?,
+            rotate_heads(query, true)?,
+            rotate_heads(hidden.apply(&layers.key, state)?, true)?,
+            rotate_heads(hidden.apply(&layers.value, state)?, false)?,
         );
         // Each sequence's count of keys hides its padded keys from every query and head.
         let attended = input
@@ -67,13 +68,21 @@ impl Layer<DenseAttentionInput<'_>> for GroupedQueryAttention {
                 || query.attend(&key, &value, None, None, self.options),
                 |lengths| query.attend_padded(&key, &value, lengths, self.options),
             )?
-            .permute(&[0, 2, 1, 3])?
-            .reshape_with(&[
-                hidden.dimension(0)?,
-                hidden.dimension(1)?,
-                (layers.query.heads() * layers.query.head_dim()).into(),
-            ])?;
-        attended.apply(&layers.output, state)
+            .permute(&[0, 2, 1, 3])?;
+        let shape = [
+            hidden.dimension(0)?,
+            hidden.dimension(1)?,
+            (layers.query.heads() * layers.query.head_dim()).into(),
+        ];
+        gated(attended.reshape_with(&shape)?, gate, &shape)?.apply(&layers.output, state)
+    }
+}
+
+// Multiplies `attended` by the sigmoid of `gate`, each reshaped to `shape`, when the query projection reads a gate.
+fn gated(attended: Tensor, gate: Option<Tensor>, shape: &[DimensionExpr]) -> Result<Tensor> {
+    match gate {
+        Some(gate) => attended.mul(&gate.reshape_with(shape)?.sigmoid()?),
+        None => Ok(attended),
     }
 }
 
@@ -87,7 +96,8 @@ impl DecodingLayer for GroupedQueryAttention {
             Some(angles) => angles.rotate(&heads),
             None => Ok(heads),
         };
-        let query = rotate(hidden.apply(&layers.query, state)?)?;
+        let (query, gate) = layers.query.project(hidden, state)?;
+        let query = rotate(query)?;
         let key = rotate(hidden.apply(&layers.key, state)?)?;
         let value = hidden.apply(&layers.value, state)?;
         input.cache.write(input.step, &key, &value)?;
@@ -97,11 +107,10 @@ impl DecodingLayer for GroupedQueryAttention {
             input.step.paging(),
             self.options,
         )?;
-        attended
-            .reshape_with(&[
-                hidden.dimension(0)?,
-                (layers.query.heads() * layers.query.head_dim()).into(),
-            ])?
-            .apply(&layers.output, state)
+        let shape = [
+            hidden.dimension(0)?,
+            (layers.query.heads() * layers.query.head_dim()).into(),
+        ];
+        gated(attended.reshape_with(&shape)?, gate, &shape)?.apply(&layers.output, state)
     }
 }

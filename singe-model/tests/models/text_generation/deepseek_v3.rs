@@ -30,6 +30,7 @@ const SUITE: Suite<DeepseekV3Layers> = Suite {
         0.02,
         "half precision rounds at different points in each form, and these logits are small",
     ),
+    programs_skipped: None,
 };
 
 // Every layer after the first routes each token to experts, a choice that half-precision rounding can tip when two groups' scores nearly tie, which moves logits by more than rounding does.

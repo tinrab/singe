@@ -132,7 +132,6 @@ fn block(schema: &mut Schema<'_>, config: &Gpt2Config) -> SingeResult<Block> {
         let head = |index: i64| {
             HeadProjection::new(
                 projections.clone().with_outputs(index * width, width),
-                None,
                 heads,
                 head_dim,
             )

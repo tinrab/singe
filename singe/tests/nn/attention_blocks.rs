@@ -85,11 +85,21 @@ fn grouped(
     let (heads, kv_heads, dim) = (4, 2, 16);
     let query_norm = norms.then(|| fixture.norm(state, "gqa.q_norm", dim));
     let key_norm = norms.then(|| fixture.norm(state, "gqa.k_norm", dim));
+    let normed = |projection: HeadProjection, norm: Option<_>| match norm {
+        Some(norm) => projection.with_norm(norm),
+        None => projection,
+    };
     GroupedQueryAttention::create(
         GroupedQueryLayers {
-            query: HeadProjection::new(fixture.linear(state, "gqa.q"), query_norm, heads, dim),
-            key: HeadProjection::new(fixture.linear(state, "gqa.k"), key_norm, kv_heads, dim),
-            value: HeadProjection::new(fixture.linear(state, "gqa.v"), None, kv_heads, dim),
+            query: normed(
+                HeadProjection::new(fixture.linear(state, "gqa.q"), heads, dim),
+                query_norm,
+            ),
+            key: normed(
+                HeadProjection::new(fixture.linear(state, "gqa.k"), kv_heads, dim),
+                key_norm,
+            ),
+            value: HeadProjection::new(fixture.linear(state, "gqa.v"), kv_heads, dim),
             output: fixture.linear(state, "gqa.o"),
         },
         AttentionOptions {

@@ -29,6 +29,7 @@ const COVERAGE: &[(&str, Coverage)] = &[
         "aten._scaled_dot_product_flash_attention_for_cpu",
         Operation("scaled_dot_product_attention"),
     ),
+    ("aten._softmax", Operation("softmax")),
     ("aten._to_copy", Operation("cast")),
     ("aten._unsafe_view", Operation("reshape")),
     ("aten.add", Operation("add")),
@@ -78,6 +79,7 @@ const COVERAGE: &[(&str, Coverage)] = &[
     ("aten.unsqueeze", Operation("unsqueeze")),
     ("aten.view", Operation("reshape")),
     ("aten.where", Operation("where")),
+    ("aten.zeros", Creation("Tensor::zeroed_on")),
 ];
 
 fn fixtures() -> &'static Path {

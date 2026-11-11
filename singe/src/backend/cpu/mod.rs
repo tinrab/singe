@@ -11,6 +11,7 @@ pub mod kernels;
 mod normalization;
 mod pooling;
 pub mod random;
+mod recurrence;
 mod reduction;
 mod shape;
 pub mod storage;

@@ -6,13 +6,13 @@ use crate::{
     error::{Error, Result},
     graph::capture,
     index::TensorIndex,
-    nn::{DecodeStep, InputGroup, SourcePages, decode::input_group, pages_for},
+    nn::{DecodeStep, InputGroup, SourcePages, TensorGroup, decode::input_group, pages_for},
     shape::Shape,
     tensor::Tensor,
 };
 
-// A paged cache a decoder's blocks read and extend, whose tensors a compiled step takes as inputs.
-pub trait DecodeCache: InputGroup {
+// A cache a decoder's blocks read and extend, whose tensors a compiled step takes as inputs.
+pub trait DecodeCache: TensorGroup {
     // What sizes the cache besides its pages.
     type Spec: Copy + Debug + Send + Sync;
 
@@ -23,14 +23,18 @@ pub trait DecodeCache: InputGroup {
         size: CacheSize,
         spec: Self::Spec,
     ) -> Result<Self>;
+
+    // Returns a cache of this one's kind over `tensors`, as many as this one names, in its order.
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self>;
 }
 
-// How much a decoder's caches hold: `pages` pages of `page_size` slots, shared by `sequences` sequences.
+// How much a decoder's caches hold: `pages` pages of `page_size` slots, shared by `sequences` sequences of up to `capacity` tokens each.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CacheSize {
     pub pages: i64,
     pub page_size: i64,
     pub sequences: i64,
+    pub capacity: i64,
 }
 
 // Names `caches`' tensors as the inputs of a compiled step.
@@ -48,15 +52,30 @@ pub fn named_cache_inputs<C: DecodeCache>(caches: &[C]) -> Vec<(String, Tensor)>
         .collect()
 }
 
-// Rebuilds caches from `tensors`, in the order [`named_cache_inputs`] gives them, as a capture closure receives them.
-pub fn caches_from_inputs<C: DecodeCache>(tensors: &[Tensor]) -> Result<Vec<C>> {
-    if !tensors.len().is_multiple_of(C::COUNT) {
-        return Err(Error::missing_input("decoder cache inputs"));
+// Rebuilds caches like `template` from `tensors`, in the order [`named_cache_inputs`] gives them, as a capture closure receives them.
+// The template says each layer's kind, since a hybrid model's layers hold caches of different kinds.
+pub fn caches_from_inputs<C: DecodeCache>(template: &[C], tensors: &[Tensor]) -> Result<Vec<C>> {
+    let mut rest = tensors;
+    let caches = template
+        .iter()
+        .map(|cache| {
+            let count = cache.named_tensors().len();
+            if rest.len() < count {
+                return Err(Error::missing_input("decoder cache inputs"));
+            }
+
+            let (own, others) = rest.split_at(count);
+            rest = others;
+            cache.rebuilt(own)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    if !rest.is_empty() {
+        return Err(Error::invalid_argument(
+            "more decoder cache inputs than caches",
+        ));
     }
-    tensors
-        .chunks_exact(C::COUNT)
-        .map(C::from_tensors)
-        .collect()
+
+    Ok(caches)
 }
 
 // What sizes a [`KvCache`] besides its pages.
@@ -96,6 +115,10 @@ impl KvCache {
 
 impl DecodeCache for KvCache {
     type Spec = KvCacheSpec;
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Self::from_tensors(tensors)
+    }
 
     fn create(
         device: Device,
@@ -148,6 +171,10 @@ impl LatentKvCache {
 
 impl DecodeCache for LatentKvCache {
     type Spec = LatentKvCacheSpec;
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Self::from_tensors(tensors)
+    }
 
     fn create(
         device: Device,
@@ -243,6 +270,10 @@ impl EncoderDecoderCache {
 impl DecodeCache for EncoderDecoderCache {
     type Spec = EncoderDecoderCacheSpec;
 
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Self::from_tensors(tensors)
+    }
+
     fn create(
         device: Device,
         data_type: DataType,
@@ -273,6 +304,261 @@ impl DecodeCache for EncoderDecoderCache {
     }
 }
 
+// What sizes a [`StateCache`]: a causal convolution over `channels` of `width` taps, and a recurrent state of `heads` heads of `key_dim` by `value_dim`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StateCacheSpec {
+    pub channels: i64,
+    pub width: i64,
+    pub heads: i64,
+    pub key_dim: i64,
+    pub value_dim: i64,
+}
+
+input_group! {
+    // One linear-attention layer's state for each sequence row: the convolution's last inputs, `[S, channels, width − 1]`, and the recurrent state, `[S, heads, key_dim, value_dim]`, in F32.
+    //
+    // A row's state is not paged: a step reads and writes it by the row's index, and starts from zero for a row whose first token is at position zero.
+    pub struct StateCache {
+        convolution,
+        recurrent,
+    }
+}
+
+impl StateCache {
+    // Replaces the state with what a step leaves: the convolution's last inputs and the recurrent state, each of the cache's shape.
+    pub fn write(&self, convolution: &Tensor, recurrent: &Tensor) -> Result<()> {
+        self.convolution.assign(convolution)?;
+        self.recurrent.assign(recurrent)
+    }
+
+    // Returns the convolution's last inputs.
+    #[must_use]
+    pub const fn convolution(&self) -> &Tensor {
+        &self.convolution
+    }
+
+    // Returns the recurrent state.
+    #[must_use]
+    pub const fn recurrent(&self) -> &Tensor {
+        &self.recurrent
+    }
+}
+
+impl DecodeCache for StateCache {
+    type Spec = StateCacheSpec;
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Self::from_tensors(tensors)
+    }
+
+    fn create(
+        device: Device,
+        data_type: DataType,
+        size: CacheSize,
+        spec: StateCacheSpec,
+    ) -> Result<Self> {
+        if spec.width < 2 {
+            return Err(Error::invalid_argument(
+                "a state cache's convolution has two taps or more",
+            ));
+        }
+
+        Ok(Self {
+            convolution: Tensor::zeroed_on(
+                device,
+                data_type,
+                Shape::create([size.sequences, spec.channels, spec.width - 1])?,
+            )?,
+            recurrent: Tensor::zeroed_on(
+                device,
+                DataType::F32,
+                Shape::create([size.sequences, spec.heads, spec.key_dim, spec.value_dim])?,
+            )?,
+        })
+    }
+}
+
+// What sizes a [`HybridCache`]: which kind of cache its layer holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HybridCacheSpec {
+    Attention(KvCacheSpec),
+    State(StateCacheSpec),
+}
+
+// The cache of a layer of a hybrid model, whose attention layers hold paged keys and values and whose linear-attention layers hold a state.
+#[derive(Debug, Clone)]
+pub enum HybridCache {
+    Attention(KvCache),
+    State(StateCache),
+}
+
+impl TensorGroup for HybridCache {
+    fn named_tensors(&self) -> Vec<(String, Tensor)> {
+        match self {
+            Self::Attention(cache) => cache.named_tensors(),
+            Self::State(cache) => cache.named_tensors(),
+        }
+    }
+}
+
+impl DecodeCache for HybridCache {
+    type Spec = HybridCacheSpec;
+
+    fn create(
+        device: Device,
+        data_type: DataType,
+        size: CacheSize,
+        spec: HybridCacheSpec,
+    ) -> Result<Self> {
+        Ok(match spec {
+            HybridCacheSpec::Attention(spec) => {
+                Self::Attention(KvCache::create(device, data_type, size, spec)?)
+            }
+            HybridCacheSpec::State(spec) => {
+                Self::State(StateCache::create(device, data_type, size, spec)?)
+            }
+        })
+    }
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Ok(match self {
+            Self::Attention(cache) => Self::Attention(cache.rebuilt(tensors)?),
+            Self::State(cache) => Self::State(cache.rebuilt(tensors)?),
+        })
+    }
+}
+
+// What sizes a [`SourceCache`] besides its sequences and capacity: the width of each row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SourceCacheSpec {
+    pub width: i64,
+}
+
+input_group! {
+    // The rows a decoder's prompts read in place of a placeholder token's embedding, `[S, capacity, W]`: each sequence row holds, at each placeholder's position, what the decoder reads there, as Qwen3-ASR's prompts read audio features.
+    //
+    // A sequence's sources are written before its first step, at the positions its prompt places them.
+    pub struct SourceCache {
+        rows,
+    }
+}
+
+impl SourceCache {
+    // Writes `rows`, `[N, W]`, as sequence `sequence`'s sources at positions `position` onward.
+    pub fn write(&self, sequence: usize, position: i64, rows: &Tensor) -> Result<()> {
+        let sequence = i64::try_from(sequence).map_err(|_| Error::out_of_range("sequence"))?;
+        let &[count, _] = rows.shape().dimensions() else {
+            return Err(Error::invalid_argument(
+                "a sequence's sources are [rows, width]",
+            ));
+        };
+        self.rows.index_put_(
+            &[
+                TensorIndex::Single(sequence),
+                TensorIndex::Slice {
+                    start: Some(position),
+                    end: Some(position + count),
+                    step: 1,
+                },
+            ],
+            rows,
+        )
+    }
+
+    // Replaces the rows of `embedded`, `[T, W]`, whose token is `placeholder` with their sequence's source at their position.
+    pub fn embed(&self, step: &DecodeStep, embedded: &Tensor, placeholder: i64) -> Result<Tensor> {
+        let tokens = step.tokens();
+        let placeholder = capture::literal(tokens.device(), |device| {
+            Tensor::from_vec(device, Shape::create([1])?, vec![placeholder])
+        })?;
+        let sources = self.rows.index(&[
+            TensorIndex::Indices(step.sequence_ids().clone()),
+            TensorIndex::Indices(step.positions().clone()),
+        ])?;
+        Tensor::where_select(
+            &tokens.equal(&placeholder)?.unsqueeze(-1)?,
+            &sources.cast(embedded.data_type())?,
+            embedded,
+        )
+    }
+
+    #[must_use]
+    pub const fn rows(&self) -> &Tensor {
+        &self.rows
+    }
+}
+
+impl DecodeCache for SourceCache {
+    type Spec = SourceCacheSpec;
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Self::from_tensors(tensors)
+    }
+
+    fn create(
+        device: Device,
+        data_type: DataType,
+        size: CacheSize,
+        spec: SourceCacheSpec,
+    ) -> Result<Self> {
+        Ok(Self {
+            rows: Tensor::zeroed_on(
+                device,
+                data_type,
+                Shape::create([size.sequences, size.capacity, spec.width])?,
+            )?,
+        })
+    }
+}
+
+// What sizes a [`SourcedCache`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourcedCacheSpec<S> {
+    Layer(S),
+    Sources(SourceCacheSpec),
+}
+
+// The caches of a decoder whose prompts read sources: each block's cache of kind `C`, then one of sources.
+#[derive(Debug, Clone)]
+pub enum SourcedCache<C> {
+    Layer(C),
+    Sources(SourceCache),
+}
+
+impl<C: DecodeCache> TensorGroup for SourcedCache<C> {
+    fn named_tensors(&self) -> Vec<(String, Tensor)> {
+        match self {
+            Self::Layer(cache) => cache.named_tensors(),
+            Self::Sources(cache) => cache.named_tensors(),
+        }
+    }
+}
+
+impl<C: DecodeCache> DecodeCache for SourcedCache<C> {
+    type Spec = SourcedCacheSpec<C::Spec>;
+
+    fn create(
+        device: Device,
+        data_type: DataType,
+        size: CacheSize,
+        spec: Self::Spec,
+    ) -> Result<Self> {
+        Ok(match spec {
+            SourcedCacheSpec::Layer(spec) => Self::Layer(C::create(device, data_type, size, spec)?),
+            SourcedCacheSpec::Sources(spec) => {
+                Self::Sources(SourceCache::create(device, data_type, size, spec)?)
+            }
+        })
+    }
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Ok(match self {
+            Self::Layer(cache) => Self::Layer(cache.rebuilt(tensors)?),
+            Self::Sources(cache) => Self::Sources(cache.rebuilt(tensors)?),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -283,6 +569,7 @@ mod tests {
             pages,
             page_size,
             sequences: 1,
+            capacity: pages * page_size,
         }
     }
 
@@ -329,7 +616,7 @@ mod tests {
             .into_iter()
             .map(|(_, tensor)| tensor)
             .collect::<Vec<_>>();
-        let rebuilt = caches_from_inputs::<LatentKvCache>(&tensors).unwrap();
+        let rebuilt = caches_from_inputs(&caches, &tensors).unwrap();
         assert_eq!(rebuilt.len(), 2);
         assert_eq!(rebuilt[1].positional().shape().dimensions(), [1, 2, 3]);
     }

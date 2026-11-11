@@ -1,9 +1,9 @@
 use crate::{
-    error::Result,
+    error::{Error, Result},
     nn::{
         Activation, AttentionInput, CrossAttention, CrossAttentionInput, DecodingLayer,
-        DenseAttentionInput, EncoderDecoderCache, GroupedQueryAttention, Layer, LayerNorm,
-        LayerScale, Linear, Mlp, ModelState, RmsNorm, SelfAttention,
+        DenseAttentionInput, EncoderDecoderCache, GroupedQueryAttention, HybridCache, KvCache,
+        Layer, LayerNorm, LayerScale, Linear, Mlp, ModelState, RmsNorm, SelfAttention, StateCache,
     },
     tensor::Tensor,
 };
@@ -269,5 +269,56 @@ impl DecodingLayer for EncoderDecoderBlock {
             .apply(&self.feed_forward_norm, state)?
             .apply(&self.feed_forward, state)?;
         hidden.add(&fed)
+    }
+}
+
+// A layer of a hybrid decoder, which holds the cache its kind needs: attention over paged keys and values, or a layer that carries a state per sequence.
+#[derive(Debug, Clone)]
+pub enum HybridLayer<A, S> {
+    Attention(A),
+    State(S),
+}
+
+impl<A, S> DecodingLayer for HybridLayer<A, S>
+where
+    A: DecodingLayer<Cache = KvCache>,
+    S: DecodingLayer<Cache = StateCache>,
+{
+    type Cache = HybridCache;
+
+    fn decode(
+        &self,
+        input: &AttentionInput<'_, HybridCache>,
+        state: &ModelState,
+    ) -> Result<Tensor> {
+        let AttentionInput {
+            hidden,
+            step,
+            angles,
+            cache,
+        } = *input;
+        match (self, cache) {
+            (Self::Attention(layer), HybridCache::Attention(cache)) => layer.decode(
+                &AttentionInput {
+                    hidden,
+                    step,
+                    angles,
+                    cache,
+                },
+                state,
+            ),
+            (Self::State(layer), HybridCache::State(cache)) => layer.decode(
+                &AttentionInput {
+                    hidden,
+                    step,
+                    angles,
+                    cache,
+                },
+                state,
+            ),
+            _ => Err(Error::invalid_argument(
+                "a hybrid layer's cache is of the other kind",
+            )),
+        }
     }
 }

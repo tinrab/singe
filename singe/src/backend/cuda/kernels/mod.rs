@@ -15,7 +15,7 @@ pub use self::{
     neural::{
         avg_pool2d, batch_norm, convolution2d, convolution3d, embedding, layer_norm, max_pool2d,
         paged_attention, paged_mla_attention, rms_norm, rotary_embedding,
-        scaled_dot_product_attention,
+        scaled_dot_product_attention, state_recurrence,
     },
     reduction::{
         argmax, argmin, argsort, cumprod, cumsum, logsumexp, max, mean, min, product, sum, topk,

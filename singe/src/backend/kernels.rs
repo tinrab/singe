@@ -339,6 +339,20 @@ macro_rules! backend_kernels {
         single!(builder, key, GroupedMatMul, |call: &KernelCall<'_>| {
             $kernels::grouped_matmul(call.input(0)?, call.input(1)?, call.input(2)?)
         });
+        for operation in [
+            Operation::CausalConv1d,
+            Operation::CausalConv1dState,
+            Operation::GatedDeltaRule,
+            Operation::GatedDeltaRuleState,
+        ] {
+            builder.kernel(
+                operation,
+                key,
+                Kernel::single(move |call: &KernelCall<'_>| {
+                    $kernels::state_recurrence(operation, call.inputs())
+                }),
+            );
+        }
         builder.kernel(
             Operation::PagedMlaAttention,
             key,

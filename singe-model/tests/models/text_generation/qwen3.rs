@@ -50,6 +50,7 @@ const SUITE: Suite<Qwen3Layers> = Suite {
         0.05,
         "BF16 keeps eight mantissa bits, and Singe accumulates attention in F32 where PyTorch rounds each step",
     ),
+    programs_skipped: None,
 };
 
 #[test]

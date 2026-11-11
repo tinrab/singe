@@ -22,9 +22,8 @@ use singe::{
     nn::caches_from_inputs,
     testing::{CompiledProgram, build_set_generation_loop, program_target},
 };
-use singe_model::audio::automatic_speech_recognition::{
-    load_transcriber,
-    whisper::{Whisper, WhisperDecoderLayers},
+use singe_model::audio::automatic_speech_recognition::whisper::{
+    self, Whisper, WhisperDecoderLayers,
 };
 #[cfg(feature = "cuda_13_4")]
 use singe_model::{
@@ -99,7 +98,7 @@ fn tolerance(data_type: DataType) -> Tolerance {
 const FRONT_END: Tolerance = Tolerance::absolute(2e-3, "the feature extractor computes in F64");
 
 fn load(device: Device, data_type: DataType) -> Whisper {
-    load_transcriber(
+    whisper::load(
         Path::new(singe_testing::references!()).join("automatic_speech_recognition/whisper/tiny"),
         device,
         data_type,
@@ -332,7 +331,7 @@ fn clip(device: Device) -> Tensor {
 fn check_real(device: Device, data_type: DataType, compiled: bool) {
     let reference = real_reference();
     let snapshot = real_snapshot();
-    let model = load_transcriber(&snapshot, device, data_type).unwrap();
+    let model = whisper::load(&snapshot, device, data_type).unwrap();
     let tokenizer = TextTokenizer::load(&snapshot).unwrap();
     let prefix = prompt(&tokenizer, "en", WhisperTask::Transcribe).unwrap();
     assert_eq!(prefix, integers(&reference["prefix"]));
@@ -354,7 +353,7 @@ fn check_real(device: Device, data_type: DataType, compiled: bool) {
 fn check_real_batch(device: Device, data_type: DataType) {
     let reference = real_reference();
     let snapshot = real_snapshot();
-    let model = load_transcriber(&snapshot, device, data_type).unwrap();
+    let model = whisper::load(&snapshot, device, data_type).unwrap();
     let expected = integers(&reference["tokens"]);
     let options = TranscribeOptions::new(generation_options(&snapshot, expected.len()).unwrap())
         .with_rows(2)
@@ -472,7 +471,10 @@ mod cuda {
                 .iter()
                 .map(|name| step.inputs[name].clone())
                 .collect::<Vec<_>>();
-            let caches = caches_from_inputs::<EncoderDecoderCache>(&tensors).unwrap();
+            let template = model
+                .create_decoder(DecoderOptions::new(2, 32).with_page_size(8))
+                .unwrap();
+            let caches = caches_from_inputs(template.caches(), &tensors).unwrap();
             write_sources(&model, &encoded, &caches);
             let mut generating = ProgramDecoder::create(
                 &compiled,
@@ -564,7 +566,7 @@ mod cuda {
             return;
         }
         let reference = real_reference();
-        let model = load_transcriber(real_snapshot(), DEVICE, DataType::F32).unwrap();
+        let model = whisper::load(real_snapshot(), DEVICE, DataType::F32).unwrap();
         let features = model.features(&clip(DEVICE)).unwrap();
         let expected = integers(&reference["tokens"]);
         let generated = transcribe_through_loop(

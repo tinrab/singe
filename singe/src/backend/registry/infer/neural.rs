@@ -329,6 +329,168 @@ fn paged_attention_shapes(context: &InferenceContext<'_>) -> Result<(Shape, Shap
     Ok((problem.output_shape, lse_shape))
 }
 
+// Checks a step's query offsets `[S + 1]`, real token counts `[S]`, and positions `[T]` against `sequences` sequences of `tokens` rows, from operand `first` on.
+fn check_sequence_spans(
+    context: &InferenceContext<'_>,
+    first: usize,
+    sequences: i64,
+    tokens: i64,
+    label: &'static str,
+) -> Result<()> {
+    for (index, length) in [
+        (first, sequences + 1),
+        (first + 1, sequences),
+        (first + 2, tokens),
+    ] {
+        let spans = context.input(index)?;
+        if spans.shape().dimensions() != [length] {
+            return Err(Error::shape_mismatch(
+                label,
+                vec![length],
+                spans.shape().dimensions().to_vec(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+// A causal convolution's inputs `[T, C]`, taps `[C, K]`, and state `[S, C, K − 1]`, all of one type, giving `[T, C]`.
+fn causal_conv1d_shapes(context: &InferenceContext<'_>, state: usize) -> Result<(i64, i64, i64)> {
+    let (input, state) = (context.input(0)?, context.input(state)?);
+    let (&[tokens, channels], &[sequences, state_channels, history]) =
+        (input.shape().dimensions(), state.shape().dimensions())
+    else {
+        return Err(Error::invalid_argument(
+            "causal convolution inputs are [tokens, channels] and its state [sequences, channels, taps − 1]",
+        ));
+    };
+    if state_channels != channels || history < 1 {
+        return Err(Error::shape_mismatch(
+            "causal convolution state",
+            vec![sequences, channels, history],
+            state.shape().dimensions().to_vec(),
+        ));
+    }
+
+    if state.data_type() != input.data_type() {
+        return Err(Error::data_type_mismatch(
+            "causal convolution state",
+            input.data_type(),
+            state.data_type(),
+        ));
+    }
+
+    Ok((tokens, sequences, history))
+}
+
+// Convolves each sequence's rows after its state, giving the inputs' shape and type.
+pub fn causal_conv1d(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    let (tokens, sequences, history) = causal_conv1d_shapes(context, 2)?;
+    let (input, weight) = (context.input(0)?, context.input(1)?);
+    let channels = input.shape().dimensions()[1];
+    if weight.shape().dimensions() != [channels, history + 1] {
+        return Err(Error::shape_mismatch(
+            "causal convolution taps",
+            vec![channels, history + 1],
+            weight.shape().dimensions().to_vec(),
+        ));
+    }
+
+    if weight.data_type() != input.data_type() {
+        return Err(Error::data_type_mismatch(
+            "causal convolution taps",
+            input.data_type(),
+            weight.data_type(),
+        ));
+    }
+
+    check_sequence_spans(context, 3, sequences, tokens, "causal convolution spans")?;
+    Ok(context.same_type(input.shape()))
+}
+
+// A causal convolution's state after the step, of the state's shape and type.
+pub fn causal_conv1d_state(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    let (tokens, sequences, _) = causal_conv1d_shapes(context, 1)?;
+    check_sequence_spans(context, 2, sequences, tokens, "causal convolution spans")?;
+    let state = context.input(1)?;
+    let mut inference = context.same_type(state.shape());
+    inference.outputs[0] = ValueSpec::new(state.data_type(), state.shape().clone());
+    Ok(inference)
+}
+
+// The gated delta rule's queries and keys `[T, H, Dk]`, values `[T, H, Dv]`, decays and strengths `[T, H]`, and `F32` state `[S, H, Dk, Dv]`, returning `(T, S, H, Dk, Dv)`.
+fn gated_delta_rule_shapes(context: &InferenceContext<'_>) -> Result<[i64; 5]> {
+    let (query, key, value) = (context.input(0)?, context.input(1)?, context.input(2)?);
+    let (&[tokens, heads, key_dim], &[_, _, value_dim]) =
+        (query.shape().dimensions(), value.shape().dimensions())
+    else {
+        return Err(Error::invalid_argument(
+            "the gated delta rule's queries and values are [tokens, heads, dim]",
+        ));
+    };
+    let state = context.input(5)?;
+    let &[sequences, ..] = state.shape().dimensions() else {
+        return Err(Error::invalid_argument(
+            "the gated delta rule's state has a rank",
+        ));
+    };
+    let expected = [
+        (key, vec![tokens, heads, key_dim]),
+        (value, vec![tokens, heads, value_dim]),
+        (context.input(3)?, vec![tokens, heads]),
+        (context.input(4)?, vec![tokens, heads]),
+        (state, vec![sequences, heads, key_dim, value_dim]),
+    ];
+    for (operand, shape) in expected {
+        if operand.shape().dimensions() != shape.as_slice() {
+            return Err(Error::shape_mismatch(
+                "gated delta rule operand",
+                shape,
+                operand.shape().dimensions().to_vec(),
+            ));
+        }
+    }
+
+    for operand in [key, value] {
+        if operand.data_type() != query.data_type() {
+            return Err(Error::data_type_mismatch(
+                "gated delta rule operand",
+                query.data_type(),
+                operand.data_type(),
+            ));
+        }
+    }
+
+    if state.data_type() != DataType::F32 {
+        return Err(Error::data_type_mismatch(
+            "gated delta rule state",
+            DataType::F32,
+            state.data_type(),
+        ));
+    }
+
+    check_sequence_spans(context, 6, sequences, tokens, "gated delta rule spans")?;
+    Ok([tokens, sequences, heads, key_dim, value_dim])
+}
+
+// The gated delta rule's output, of the values' shape and type.
+pub fn gated_delta_rule(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    gated_delta_rule_shapes(context)?;
+    let value = context.input(2)?;
+    let mut inference = context.same_type(value.shape());
+    inference.outputs[0] = ValueSpec::new(value.data_type(), value.shape().clone());
+    Ok(inference)
+}
+
+// The gated delta rule's state after the step, `F32` of the state's shape.
+pub fn gated_delta_rule_state(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    gated_delta_rule_shapes(context)?;
+    let state = context.input(5)?;
+    let mut inference = context.same_type(state.shape());
+    inference.outputs[0] = ValueSpec::new(DataType::F32, state.shape().clone());
+    Ok(inference)
+}
+
 // Multiplies rows sorted by group by their groups' weights, keeping the rows' type.
 pub fn grouped_matmul(context: &InferenceContext<'_>) -> Result<OperationInference> {
     let (input, weights, offsets) = (context.input(0)?, context.input(1)?, context.input(2)?);
