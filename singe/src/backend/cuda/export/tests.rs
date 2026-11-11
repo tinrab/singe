@@ -538,8 +538,16 @@ fn test_programs_name_each_distinct_kernel_once() {
         .export(&graph)
         .unwrap();
     let source = program.render("model").unwrap().source;
-    assert_eq!(source.matches(" void singe_kernel_sum(").count(), 2, "{source}");
-    assert_eq!(source.matches("launch_singe_kernel_sum(").count(), 5, "{source}");
+    assert_eq!(
+        source.matches(" void singe_kernel_sum(").count(),
+        2,
+        "{source}"
+    );
+    assert_eq!(
+        source.matches("launch_singe_kernel_sum(").count(),
+        5,
+        "{source}"
+    );
 }
 
 // An exported program places each operation where a compiled graph under the same policy does.

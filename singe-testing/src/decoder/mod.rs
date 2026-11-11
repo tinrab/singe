@@ -25,7 +25,7 @@ use singe::{
 use singe::{
     Shape,
     backend::cuda::{
-        LoweringPolicy,
+        self, LoweringPolicy,
         export::{CudaExport, CudaProgram},
         tuning::{
             GraphTuneOptions, Measurement, TunedChoice, TunedRecord, TuningRecords,
@@ -526,6 +526,9 @@ impl<L: DecoderModel> Suite<L> {
         let _ = fs::remove_dir_all(&directory);
         let executable = build_set_generation_loop(&program, &directory).unwrap();
         let tokens = reference.tokens();
+        // The loop loads the weights again, so this process's copies and the memory it caches go first.
+        drop((program, step, prompt, decoder, model));
+        cuda::clear_cache(device).unwrap();
         let output = Command::new(&executable)
             .arg(tokens.len().to_string())
             .args(reference.prompt.iter().map(i64::to_string))

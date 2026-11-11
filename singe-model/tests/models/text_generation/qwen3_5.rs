@@ -57,7 +57,7 @@ mod real {
 
     use singe::{
         DataType, Device,
-        backend::cuda::export::CudaExport,
+        backend::cuda::{self, export::CudaExport},
         generation::{CachedDecoder, Decoder, DecoderOptions},
         testing::{build_set_generation_loop, maybe_lock_device, program_target},
     };
@@ -181,6 +181,9 @@ mod real {
         ));
         let _ = fs::remove_dir_all(&directory);
         let executable = build_set_generation_loop(&program, &directory).unwrap();
+        // The loop loads the weights again, so this process's copies and the memory it caches go first.
+        drop((program, step, prompt, decoder, model));
+        cuda::clear_cache(Device::Cuda(0)).unwrap();
         for (number, case) in cases.iter().enumerate() {
             let steps = case["steps"].as_array().unwrap();
             let output = Command::new(&executable)

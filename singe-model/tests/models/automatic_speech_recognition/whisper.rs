@@ -17,7 +17,7 @@ use singe::{
 #[cfg(feature = "cuda_13_4")]
 use singe::{
     Shape,
-    backend::cuda::{export::CudaExport, tuning::Measurement},
+    backend::cuda::{clear_cache, export::CudaExport, tuning::Measurement},
     graph::GraphCudaOptions,
     nn::caches_from_inputs,
     testing::{CompiledProgram, build_set_generation_loop, program_target},
@@ -513,6 +513,9 @@ mod cuda {
             .join(format!("{label}-generate-{}", process::id()));
         let _ = fs::remove_dir_all(&directory);
         let executable = build_set_generation_loop(&set, &directory).unwrap();
+        // The loop loads the weights again, so the memory this process caches goes first.
+        drop((set, encode, step, decoder, example));
+        clear_cache(DEVICE).unwrap();
         fs::write(
             directory.join("samples.f32"),
             samples
