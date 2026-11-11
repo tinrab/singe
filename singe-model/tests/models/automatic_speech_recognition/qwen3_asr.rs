@@ -111,6 +111,7 @@ fn check_tiny(device: Device) {
             &samples,
             &prompt,
             expected.len(),
+            2,
             "qwen3_asr_tiny",
         );
         assert_eq!(generated, expected);
@@ -149,18 +150,20 @@ mod program {
     use singe_model::audio::automatic_speech_recognition::qwen3_asr::Qwen3Asr;
 
     // Transcribes `samples` through the exported loop after `prompt`, whose run of audio tokens the loop writes as one starred token, returning the tokens it prints.
+    // The encode step reads `spare` chunks more than the clip takes, as an export of a fixed length does for a shorter clip.
     // It drops `model` and frees the device's cached memory before the loop runs, since the loop holds a copy of the weights of its own.
     pub fn transcribe_through_loop(
         model: Qwen3Asr,
         samples: &[f32],
         prompt: &[i64],
         new_tokens: usize,
+        spare: i64,
         name: &str,
     ) -> Vec<i64> {
         let architecture = program_target(Device::Cuda(0)).unwrap();
         let audio = model.config().audio_token_id;
         let first = prompt.iter().position(|&token| token == audio).unwrap();
-        let chunks = model.chunks_of(i64::try_from(samples.len()).unwrap());
+        let chunks = model.chunks_of(i64::try_from(samples.len()).unwrap()) + spare;
         // The encode step writes a row for every position of its chunks, so the cache holds them all after the prompt's start.
         let rows =
             usize::try_from(chunks * model.config().audio_config.max_position_embeddings).unwrap();
@@ -302,6 +305,7 @@ mod real {
                 &clip,
                 &prompt,
                 expected.len(),
+                0,
                 "qwen3_asr_real",
             );
             assert_eq!(generated, expected);

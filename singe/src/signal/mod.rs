@@ -232,7 +232,9 @@ impl LogMelSpectrogram {
         })?
         .abs()?;
         let mirrored = length.mul_scalar(2.0)?.sub_scalar(2.0)?.sub(&offsets)?;
+        // Far past the clip a mirrored index falls below zero; those samples feed only frames after the clip's own, which come out zero, so any sample of the buffer serves.
         let sources = Tensor::where_select(&offsets.greater_equal(&length)?, &mirrored, &offsets)?
+            .clamp(0.0, (options.samples - 1) as f32)?
             .cast(DataType::I64)?;
         let log = self.log_power(
             &samples
