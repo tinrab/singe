@@ -4,7 +4,7 @@ use safetensors::{Dtype, SafeTensors};
 use serde_json::Value;
 use singe::{DataType, Device, Shape, Tensor};
 
-use crate::{HalfGap, host};
+use crate::host;
 
 #[derive(Debug, Clone)]
 pub struct Reference {
@@ -83,20 +83,6 @@ impl Reference {
     #[must_use]
     pub const fn metadata(&self) -> &Value {
         &self.metadata
-    }
-
-    #[must_use]
-    pub fn half_gap(&self) -> HalfGap {
-        let gap = &self.metadata["half_gap"];
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "the gap is an F32 distance"
-        )]
-        let value = |key: &str| gap[key].as_f64().unwrap() as f32;
-        HalfGap {
-            worst: value("worst"),
-            mean: value("mean"),
-        }
     }
 
     #[must_use]

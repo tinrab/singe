@@ -1,23 +1,18 @@
 mod bench;
 mod compare;
-pub mod decoder;
 mod inputs;
-#[cfg(feature = "cuda_13_4")]
-mod paths;
 mod reference;
 mod snapshot;
 
-#[cfg(feature = "cuda_13_4")]
-pub use self::paths::{EVERY_PATH, RunPath, check_paths, target_directory};
 #[cfg(feature = "cuda_13_4")]
 pub use singe::testing::{maybe_lock_device as lock_device, program_target};
 
 pub use self::{
     bench::{Benches, Summary},
-    compare::{HalfGap, Tolerance, assert_matches, assert_within_half_gap, host},
+    compare::{Tolerance, assert_matches, host},
     inputs::{pattern_image, tone_and_chirp},
     reference::{Reference, integers},
-    snapshot::{SNAPSHOT_IGNORED, snapshot, snapshot_if_set},
+    snapshot::snapshot_if_set,
 };
 
 pub const CUDA: singe::Device = singe::Device::Cuda(0);

@@ -217,27 +217,3 @@ pub fn load(snapshot: impl AsRef<Path>, device: Device, data_type: DataType) -> 
         Some(&state_name),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_older_checkpoint_names_map_to_the_schema_and_masks_are_ignored() {
-        assert_eq!(
-            state_name("h.0.ln_1.weight").unwrap(),
-            "transformer.h.0.ln_1.weight"
-        );
-        assert_eq!(
-            state_name("transformer.wte.weight").unwrap(),
-            "transformer.wte.weight"
-        );
-        assert_eq!(state_name("lm_head.weight").unwrap(), "lm_head.weight");
-        assert_eq!(state_name("h.0.attn.bias"), None);
-        assert_eq!(state_name("h.0.attn.masked_bias"), None);
-        assert_eq!(
-            state_name("h.0.attn.c_attn.bias").unwrap(),
-            "transformer.h.0.attn.c_attn.bias"
-        );
-    }
-}

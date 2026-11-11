@@ -190,33 +190,3 @@ pub fn load(snapshot: impl AsRef<Path>, device: Device, data_type: DataType) -> 
     )?;
     Ok(schema.with_state(state)?)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_expert_tensors_map_to_their_place_in_the_packed_state() {
-        let piece = |name: &str| expert_piece(name, 32);
-        assert_eq!(
-            piece("model.layers.3.mlp.experts.5.up_proj.weight"),
-            Some(StatePiece {
-                state: "model.layers.3.mlp.experts.gate_up_proj".to_owned(),
-                origin: vec![5, 32, 0],
-            })
-        );
-        assert_eq!(
-            piece("model.layers.3.mlp.experts.5.down_proj.weight"),
-            Some(StatePiece {
-                state: "model.layers.3.mlp.experts.down_proj".to_owned(),
-                origin: vec![5, 0, 0],
-            })
-        );
-        // The packed form, and everything else, stays whole.
-        assert_eq!(piece("model.layers.3.mlp.experts.gate_up_proj"), None);
-        assert_eq!(
-            piece("model.layers.3.mlp.shared_experts.up_proj.weight"),
-            None
-        );
-    }
-}

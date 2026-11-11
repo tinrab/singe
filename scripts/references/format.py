@@ -34,12 +34,6 @@ def read(directory):
     return tensors, json.loads((directory / METADATA).read_text())
 
 
-def half_gap(half, wide):
-    """How far a half-precision result is from the same weights' `F32` one, worst and on average, which tolerances can be stated against."""
-    difference = (half.float() - wide.float()).abs()
-    return {"worst": float(difference.max()), "mean": float(difference.mean())}
-
-
 def unaligned(text):
     """Markdown with each table cell's padding removed, since the repository's formatter re-pads tables."""
     rows = []
