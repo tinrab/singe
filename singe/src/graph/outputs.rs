@@ -144,12 +144,6 @@ impl Graph {
         Ok(())
     }
 
-    /// Replaces graph output projections without validation.
-    #[cfg(test)]
-    pub(crate) fn set_output_projection_unchecked_for_test(&mut self, node: ValueId) {
-        self.set_output_values_with_names(vec![node], vec![None]);
-    }
-
     /// Returns graph output value projections in declared output order.
     pub(crate) fn output_projections(&self) -> Vec<GraphOutput> {
         self.output_values()

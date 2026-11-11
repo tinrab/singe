@@ -1,7 +1,6 @@
-"""Writes or checks references: `uv run --locked python -m references [SUITE...] [--check] [--real] [--prepare]`, from `scripts/`.
+"""Writes or checks references: `uv run --locked python -m references [SUITE...] [--check] [--prepare]`, from `scripts/`.
 
-Without `--real`, each suite writes what it computes from tiny random models and fixed inputs, and `--check` compares a fresh run with what is on disk.
-With `--real`, each suite writes what it computes from real snapshots in the Hugging Face cache, which a check cannot reproduce without them.
+Each suite writes what it computes from tiny random models and fixed inputs, and `--check` compares a fresh run with what is on disk.
 With `--prepare`, every suite whose output the tests read is written, unless the last prepare wrote it with the same scripts and `uv.lock`.
 """
 
@@ -22,9 +21,9 @@ STAMPS = ROOT / "target/references"
 CHECKED_IN = {"onnx_schemas"}
 
 
-def digest(real):
+def digest():
     """A digest of everything that decides what a prepare writes."""
-    hasher = hashlib.sha256(b"real" if real else b"tiny")
+    hasher = hashlib.sha256()
     for path in sorted(PACKAGE.rglob("*.py")) + [ROOT / "uv.lock"]:
         hasher.update(str(path.relative_to(ROOT)).encode())
         hasher.update(path.read_bytes())
@@ -54,23 +53,19 @@ def run_each(names, flags):
     ]
 
 
-def prepare(real):
-    stamp = STAMPS / ("real.json" if real else "tests.json")
-    expected = digest(real)
+def prepare():
+    stamp = STAMPS / "tests.json"
+    expected = digest()
     if current(stamp, expected):
         print("references: current")
         return
 
     from .suites import SUITES
 
-    names = [
-        name
-        for name, suite in SUITES.items()
-        if name not in CHECKED_IN and hasattr(suite, "real" if real else "tiny")
-    ]
+    names = [name for name, suite in SUITES.items() if name not in CHECKED_IN]
     # Some file systems store modification times in whole seconds.
     started = time.time() - 1
-    failed = run_each(names, ["--real"] if real else [])
+    failed = run_each(names, [])
     if failed:
         sys.exit(f"failed suites: {failed}")
 
@@ -97,9 +92,6 @@ def main():
         help="compare with the references on disk instead of writing them",
     )
     parser.add_argument(
-        "--real", action="store_true", help="write the references real snapshots give"
-    )
-    parser.add_argument(
         "--prepare",
         action="store_true",
         help="write what the tests read, unless it is current",
@@ -108,7 +100,7 @@ def main():
     if arguments.prepare:
         if arguments.suites or arguments.check:
             parser.error("--prepare takes no suites and no --check")
-        prepare(arguments.real)
+        prepare()
         return
 
     from .format import differences
@@ -119,12 +111,7 @@ def main():
         parser.error(f"unknown suites {unknown}, of {', '.join(SUITES)}")
     names = arguments.suites or list(SUITES)
     if len(names) > 1:
-        flags = [
-            flag
-            for flag, set_ in [("--check", arguments.check), ("--real", arguments.real)]
-            if set_
-        ]
-        failed = run_each(names, flags)
+        failed = run_each(names, ["--check"] if arguments.check else [])
         if failed:
             sys.exit(f"failed suites: {failed}")
         return
@@ -132,9 +119,7 @@ def main():
     failed = []
     for name in names:
         suite = SUITES[name]
-        run = getattr(suite, "real" if arguments.real else "tiny", None)
-        if run is None:
-            continue
+        run = suite.tiny
         if not arguments.check:
             run(suite.OUTPUT)
             print(f"{name}: written")
@@ -142,7 +127,7 @@ def main():
         with tempfile.TemporaryDirectory() as directory:
             fresh = Path(directory) / name
             run(fresh)
-            # Only what this run writes is compared, so real references and recorded baselines may sit beside what it writes.
+            # Only what this run writes is compared, so recorded baselines may sit beside what it writes.
             found = [
                 difference
                 for written in sorted(

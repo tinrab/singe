@@ -13,7 +13,6 @@ use singe_cuda::{
 use crate::{
     backend::cuda::allocator::{CudaAllocator, CudaCachingAllocator},
     data_type::DataType,
-    device::Device,
     error::Error,
     storage::cuda::cuda_context_for_device,
     testing::{maybe_lock_device, skip_if_stub},

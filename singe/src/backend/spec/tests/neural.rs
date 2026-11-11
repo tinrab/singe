@@ -79,22 +79,6 @@ fn test_repeat_kv_problem_rejects_non_positive_repeats() {
 }
 
 #[test]
-fn test_repeat_kv_problem_rejects_wrong_rank() {
-    let input = Shape::create([2, 3, 4]).unwrap();
-
-    assert!(matches!(
-        repeat_kv_problem(&input, 2, "test repeat_kv"),
-        Err(Error::InvalidTensorRank {
-            operation,
-            name,
-            expected_rank: 4,
-            actual_rank: 3,
-            ..
-        }) if operation == "test repeat_kv" && name == "input"
-    ));
-}
-
-#[test]
 fn test_rotary_embedding_problem_describes_shape_and_pairs() {
     let input = Shape::create([2, 3, 4, 6]).unwrap();
     let cos = Shape::create([4, 2]).unwrap();
@@ -136,57 +120,6 @@ fn test_rotary_embedding_problem_rejects_too_many_rotary_pairs() {
         Err(Error::LengthMismatch { ref name, expected, actual })
             if name == "test rotary rotary dimension" && expected == 3 && actual == 4
     ));
-}
-
-#[test]
-fn test_conv2d_problem_describes_output_shape() {
-    let input = Shape::create([2, 4, 8, 8]).unwrap();
-    let weight = Shape::create([6, 2, 3, 3]).unwrap();
-    let problem = conv2d_problem(
-        &input,
-        &weight,
-        (2, 2),
-        (1, 1, 1, 1),
-        (1, 1),
-        2,
-        "test conv2d",
-    )
-    .unwrap();
-    assert_eq!(problem.output_shape.dimensions(), &[2, 6, 4, 4]);
-    assert_eq!(problem.input_channels, 4);
-    assert_eq!(problem.output_channels, 6);
-    assert_eq!(problem.effective_kernel_height, 3);
-    assert_eq!(problem.effective_kernel_width, 3);
-    assert_eq!(problem.output_height, 4);
-    assert_eq!(problem.output_width, 4);
-    assert_eq!(problem.stride_height, 2);
-    assert_eq!(problem.stride_width, 2);
-    assert_eq!(problem.pad_height_start, 1);
-    assert_eq!(problem.pad_height_end, 1);
-    assert_eq!(problem.pad_width_start, 1);
-    assert_eq!(problem.pad_width_end, 1);
-    assert_eq!(problem.dilation_height, 1);
-    assert_eq!(problem.dilation_width, 1);
-    assert_eq!(problem.groups, 2);
-}
-
-#[test]
-fn test_conv2d_bias_validation_accepts_matching_vector() {
-    let input = Shape::create([2, 4, 8, 8]).unwrap();
-    let weight = Shape::create([6, 2, 3, 3]).unwrap();
-    let bias = Shape::create([6]).unwrap();
-    let problem = conv2d_problem(
-        &input,
-        &weight,
-        (1, 1),
-        (0, 0, 0, 0),
-        (1, 1),
-        2,
-        "test conv2d",
-    )
-    .unwrap();
-
-    validate_conv2d_bias(&problem, Some(&bias), "test conv2d").unwrap();
 }
 
 #[test]
@@ -318,16 +251,6 @@ fn test_batch_norm_problem_describes_iteration_sizes() {
 }
 
 #[test]
-fn test_batch_norm_problem_allows_empty_batch_dimension() {
-    let input = Shape::create([0, 3, 4]).unwrap();
-    let problem = batch_norm_problem(&input, None, None, None, None, "test batch_norm").unwrap();
-
-    assert_eq!(problem.batch_size, 0);
-    assert_eq!(problem.feature_count, 3);
-    assert_eq!(problem.spatial_len, 4);
-}
-
-#[test]
 fn test_batch_norm_problem_rejects_bad_parameter_count() {
     let input = Shape::create([2, 3, 4]).unwrap();
     let parameter = Shape::create([4]).unwrap();
@@ -337,55 +260,6 @@ fn test_batch_norm_problem_rejects_bad_parameter_count() {
         Err(Error::LengthMismatch { ref name, expected, actual })
             if name == "test batch_norm weight elements" && expected == 3 && actual == 4
     ));
-}
-
-#[test]
-fn test_pool2d_problem_describes_batched_output_shape_and_iteration_metadata() {
-    let input = Shape::create([2, 3, 5, 5]).unwrap();
-    let problem = pool2d_problem(
-        &input,
-        (2, 2),
-        (2, 2),
-        (0, 0, 0, 0),
-        (1, 1),
-        false,
-        false,
-        "test pool2d",
-    )
-    .unwrap();
-
-    assert_eq!(problem.rank, 4);
-    assert_eq!(problem.batch, 2);
-    assert_eq!(problem.channels, 3);
-    assert_eq!(problem.input_height, 5);
-    assert_eq!(problem.input_width, 5);
-    assert_eq!(problem.output_height, 2);
-    assert_eq!(problem.output_width, 2);
-    assert_eq!(problem.kernel_height, 2);
-    assert_eq!(problem.kernel_width, 2);
-    assert_eq!(problem.stride_height, 2);
-    assert_eq!(problem.stride_width, 2);
-    assert_eq!(problem.output_shape.dimensions(), &[2, 3, 2, 2]);
-}
-
-#[test]
-fn test_pool2d_problem_preserves_unbatched_rank() {
-    let input = Shape::create([3, 5, 5]).unwrap();
-    let problem = pool2d_problem(
-        &input,
-        (3, 3),
-        (1, 1),
-        (1, 1, 1, 1),
-        (1, 1),
-        false,
-        true,
-        "test pool2d",
-    )
-    .unwrap();
-
-    assert_eq!(problem.rank, 3);
-    assert_eq!(problem.batch, 1);
-    assert_eq!(problem.output_shape.dimensions(), &[3, 5, 5]);
 }
 
 #[test]

@@ -183,6 +183,19 @@ impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
             _ => Err(Error::missing_input("a sourced decoder's source cache")),
         }
     }
+
+    // Writes `rows`, `[N, W]`, as sequence `sequence`'s sources at `positions`, `[N]` of `I64`, in the source cache of `caches`, as a captured encode step that reads where its sources go writes them.
+    pub fn write_sources_at(
+        caches: &[SourcedCache<B::Cache>],
+        sequence: usize,
+        positions: &Tensor,
+        rows: &Tensor,
+    ) -> Result<()> {
+        match caches.last() {
+            Some(SourcedCache::Sources(sources)) => sources.write_at(sequence, positions, rows),
+            _ => Err(Error::missing_input("a sourced decoder's source cache")),
+        }
+    }
 }
 
 impl<B: DecodingLayer, N: Debug> Debug for SourcedCausalLm<B, N> {

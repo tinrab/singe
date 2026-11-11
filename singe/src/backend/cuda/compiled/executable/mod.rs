@@ -14,8 +14,6 @@ use std::{
 use singe_cuda::graph::{ExecutableGraph as NativeExecutableGraph, Graph as NativeCudaGraph};
 use singe_cufft::plan::Plan;
 
-#[cfg(test)]
-pub use self::report::GraphCompileInputLayoutRequirement;
 pub use self::{
     buffers::{
         GraphOutputBufferAllocation, GraphOutputBufferSummary, GraphReusableBufferAllocation,

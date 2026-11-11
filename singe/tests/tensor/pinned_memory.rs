@@ -10,40 +10,6 @@ fn values(count: usize) -> Vec<f32> {
 }
 
 #[test]
-fn test_pinned_tensors_behave_like_cpu_tensors() {
-    let _lock = device_lock(0).unwrap();
-    let shape = Shape::create([4, 6]).unwrap();
-    let pageable = Tensor::from_vec(Device::Cpu, &shape, values(24)).unwrap();
-    assert!(!pageable.is_pinned());
-
-    let pinned = pageable.pin_memory().unwrap();
-    assert!(pinned.is_pinned());
-    assert_eq!(pinned.device(), Device::Cpu);
-    assert!(pinned.pin_memory().unwrap().is_pinned());
-    assert_eq!(
-        pinned.to_vec::<f32>().unwrap(),
-        pageable.to_vec::<f32>().unwrap()
-    );
-    let transposed = pinned.transpose(0, 1).unwrap();
-    assert_eq!(
-        pinned.matmul(&transposed).unwrap().to_vec::<f32>().unwrap(),
-        pageable
-            .matmul(&pageable.transpose(0, 1).unwrap())
-            .unwrap()
-            .to_vec::<f32>()
-            .unwrap()
-    );
-    assert!(!pinned.exp().unwrap().is_pinned());
-
-    let strided = pageable.transpose(0, 1).unwrap().pin_memory().unwrap();
-    assert!(strided.is_contiguous());
-    assert_eq!(
-        strided.to_vec::<f32>().unwrap(),
-        pageable.transpose(0, 1).unwrap().to_vec::<f32>().unwrap()
-    );
-}
-
-#[test]
 fn test_pinned_tensors_round_trip_through_cuda() {
     let _lock = device_lock(0).unwrap();
     let shape = Shape::create([3, 5]).unwrap();

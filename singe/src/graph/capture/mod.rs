@@ -68,10 +68,7 @@ pub(crate) fn generator_input(
 /// Introduces the known literal of a framework operation decomposition, created on `device` by `create`.
 ///
 /// On the meta device the literal is created on the CPU and kept as the host value of a meta tensor, so a graph traced on meta tensors can be placed on a device with values.
-pub(crate) fn literal(
-    device: Device,
-    create: impl FnOnce(Device) -> Result<Tensor>,
-) -> Result<Tensor> {
+pub fn literal(device: Device, create: impl FnOnce(Device) -> Result<Tensor>) -> Result<Tensor> {
     let tensor = if device.is_meta() {
         let host = create(Device::Cpu)?;
         let value = CpuStorage::from_bytes(host.data_type(), host.to_bytes()?)?;

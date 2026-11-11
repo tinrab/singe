@@ -2,6 +2,8 @@ pub mod assembly;
 pub mod audio;
 pub mod config;
 mod error;
+#[cfg(feature = "cuda_13_4")]
+pub mod export;
 pub mod schema;
 pub mod text;
 pub mod tokenization;

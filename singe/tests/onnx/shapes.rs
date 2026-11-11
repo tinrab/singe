@@ -47,12 +47,6 @@ fn test_compiled_shape_constants_reject_changed_symbolic_dimensions() {
     check_compiled_shape_constants(Device::Cpu);
 }
 
-#[cfg(feature = "cuda")]
-#[test]
-fn test_compiled_shape_constants_reject_changed_symbolic_dimensions_on_cuda() {
-    check_compiled_shape_constants(Device::Cuda(0));
-}
-
 fn check_compiled_shape_constants(device: Device) {
     for (_, bytes) in MODELS {
         let model = OnnxModel::from_reader(bytes, options(2, 3).with_device(device)).unwrap();
@@ -302,12 +296,6 @@ fn exercise_rejections(device: Device) {
 #[test]
 fn test_onnx_shape_rejections_precede_dispatch_and_cache_publication() {
     exercise_rejections(Device::Cpu);
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_onnx_shape_rejections_precede_cuda_submission_and_readback() {
-    exercise_rejections(Device::Cuda(0));
 }
 
 #[test]

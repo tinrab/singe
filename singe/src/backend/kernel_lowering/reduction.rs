@@ -731,7 +731,7 @@ impl EpilogueColumns {
 
 /// Returns `singe_` followed by the operation's name, after `fused_` and the names of the group's steps when it has any.
 fn kernel_name(operation: Operation, group: &ElementGroup<'_>) -> String {
-    let mut name = String::from("singe_");
+    let mut name = String::from("singe_kernel_");
     if !group.steps.is_empty() {
         name.push_str("fused_");
         for step in group.steps {

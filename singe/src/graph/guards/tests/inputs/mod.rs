@@ -1,5 +1,4 @@
 mod initializers;
-mod metadata;
 mod reachable;
 mod storage;
 

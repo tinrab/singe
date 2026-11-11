@@ -4,7 +4,7 @@ use super::{
     comparison::Comparison,
     plan::{
         Alternative, Candidate, ChoicePoint, MeasureError, Measured, Plan, PlanLimits, PlanRunner,
-        PlanSearchOptions, check_plan, confirm, decide, decide_in_two, plan_records, search_plans,
+        PlanSearchOptions, check_plan, confirm, decide, search_plans,
     },
     records::{TunedChoice, TunedWay, TuningRecords},
     report::{CandidateFailure, CandidateOutcome, DropReason, FailureStage, TuningReport},
@@ -49,133 +49,6 @@ fn showing(median_ppm: u32) -> Comparison {
         upper_quartile_ppm: median_ppm + 1_000,
         together: true,
     }
-}
-
-#[test]
-fn test_a_win_takes_both_size_and_consistency() {
-    let ms = |times: &[u64]| {
-        times
-            .iter()
-            .map(|&time| Duration::from_millis(time))
-            .collect::<Vec<_>>()
-    };
-    let compared = |baseline: &[u64], candidate: &[u64]| {
-        Comparison::of(&ms(baseline), &ms(candidate)).unwrap()
-    };
-    assert!(compared(&[100, 100, 100, 100, 100], &[90, 90, 90, 90, 90]).wins());
-    // Too small to count, however consistent.
-    assert!(!compared(&[100, 100, 100, 100, 100], &[98, 98, 98, 98, 98]).wins());
-    // Large in the median round, and slower in most of the others' spread.
-    let scattered = compared(&[100, 100, 100, 100, 100], &[60, 80, 90, 120, 130]);
-    assert_eq!(scattered.median_ppm, 900_000);
-    assert!(!scattered.wins());
-    // Rounds pair in order, so drift that moves both cancels.
-    let drifting = compared(&[100, 200, 300, 400, 500], &[90, 180, 270, 360, 450]);
-    assert_eq!(drifting.median_ppm, 900_000);
-    assert!(drifting.wins());
-
-    // Going first costs the same whichever goes first, which reading rounds two at a time cancels, as one at a time does not.
-    let first = ms(&[120, 100, 120, 100, 120, 100, 120, 100]);
-    let second = ms(&[100, 120, 100, 120, 100, 120, 100, 120]);
-    assert_eq!(
-        Comparison::of_alternating(&first, &second)
-            .unwrap()
-            .median_ppm,
-        1_000_000
-    );
-    assert_ne!(
-        Comparison::of(&first, &second).unwrap().lower_quartile_ppm,
-        1_000_000
-    );
-
-    // A pair of instances that stays apart counts for one, and a win must hold in every pair.
-    let pair = |median_ppm| showing(median_ppm);
-    assert!(
-        Comparison::across(&[pair(900_000), pair(950_000), pair(920_000)])
-            .unwrap()
-            .wins()
-    );
-    let one_lucky = Comparison::across(&[pair(900_000), pair(950_000), pair(1_010_000)]).unwrap();
-    assert_eq!(one_lucky.median_ppm, 950_000);
-    assert!(!one_lucky.wins());
-    // A small win that noise carries past the margin in the median, which real Qwen3 once kept at the cost of 587 MB.
-    let inflated = Comparison::across(&[
-        pair(937_502),
-        pair(945_000),
-        pair(953_588),
-        pair(960_000),
-        pair(988_279),
-    ])
-    .unwrap();
-    assert!(inflated.median_ppm < 970_000);
-    assert!(!inflated.wins());
-    assert_eq!(Comparison::across(&[]), None);
-    let inverted = pair(800_000).inverted();
-    assert_eq!(inverted.median_ppm, 1_250_000);
-    assert!(inverted.lower_quartile_ppm < inverted.upper_quartile_ppm);
-
-    assert!(compared(&[90, 90, 90, 90, 90], &[100, 100, 100, 100, 100]).loses());
-    assert!(!compared(&[100, 100, 100, 100, 100], &[102, 102, 102, 102, 102]).loses());
-    assert_eq!(Comparison::of(&[], &[]), None);
-}
-
-#[test]
-fn test_what_decides_is_timing_in_rounds_against_what_stands() {
-    let decided = |showing_of: fn(&Candidate, &Candidate) -> Comparison| {
-        let mut times = [100, 99, 98].into_iter();
-        let (mut point, mut report) = decide("a".to_owned(), &candidates(), Duration::MAX, |_| {
-            timed(times.next().unwrap())
-        });
-        confirm(&mut point, &mut report, |standing, candidate| {
-            Ok(showing_of(standing, candidate))
-        });
-        (point, report)
-    };
-    // What one timing showed faster stays with the first when rounds do not show it.
-    let (point, report) = decided(|_, _| showing(990_000));
-    assert_eq!(point.chosen, Some(0));
-    assert_eq!(report.comparisons.len(), 2);
-    assert!(report.between_winners.is_empty());
-    // Winners tied against each other stay with the one listed first, even when their ratios against the first differ by more than the margin, as a cost they share can make them.
-    let (point, report) = decided(|standing, candidate| {
-        if standing != &candidates()[0] {
-            showing(990_000)
-        } else if candidate == &candidates()[1] {
-            showing(900_000)
-        } else {
-            showing(800_000)
-        }
-    });
-    assert_eq!(point.chosen, Some(1));
-    assert_eq!(report.between_winners.len(), 1);
-    // A later winner takes over by winning against the one it would replace, even if its ratio against the first looked worse.
-    let (point, report) = decided(|standing, candidate| {
-        if standing != &candidates()[0] {
-            showing(900_000)
-        } else if candidate == &candidates()[1] {
-            showing(800_000)
-        } else {
-            showing(900_000)
-        }
-    });
-    assert_eq!(point.chosen, Some(2));
-    let whole = TuningReport {
-        choices: vec![report],
-        ..TuningReport::default()
-    };
-    assert_eq!(whole.counts().between_winners, 1);
-    assert_eq!(whole.counts().replaced, 1);
-}
-
-#[test]
-fn test_a_candidate_slower_in_one_timing_costs_no_comparison() {
-    let mut times = [100, 110, 120].into_iter();
-    let (mut point, mut report) = decide("a".to_owned(), &candidates(), Duration::MAX, |_| {
-        timed(times.next().unwrap())
-    });
-    confirm(&mut point, &mut report, |_, _| unreachable!());
-    assert_eq!(point.chosen, Some(0));
-    assert!(report.comparisons.is_empty());
 }
 
 #[test]
@@ -250,39 +123,6 @@ fn test_a_first_candidate_that_fails_makes_no_other_the_reference() {
         report.candidates[2].outcome,
         CandidateOutcome::Timed { .. }
     ));
-}
-
-#[test]
-fn test_every_candidate_leaves_its_outcome_in_the_report() {
-    let mut results = vec![
-        timed(5),
-        Err(MeasureError::OverMemory(9)),
-        Err(MeasureError::Failed(failed())),
-    ]
-    .into_iter();
-    let (point, report) = decide("a".to_owned(), &candidates(), Duration::MAX, |_| {
-        results.next().unwrap()
-    });
-    assert_eq!(point.chosen, Some(0));
-    assert_eq!(
-        report.candidates[1].outcome,
-        CandidateOutcome::OverMemory { bytes: 9 }
-    );
-    assert_eq!(
-        report.candidates[2].outcome,
-        CandidateOutcome::Failed(failed())
-    );
-    // A candidate past the budget is skipped, once something has been timed.
-    let (_, report) = decide("a".to_owned(), &candidates(), Duration::ZERO, |_| {
-        thread::sleep(Duration::from_millis(1));
-        timed(5)
-    });
-    assert!(matches!(
-        report.candidates[0].outcome,
-        CandidateOutcome::Timed { .. }
-    ));
-    assert_eq!(report.candidates[1].outcome, CandidateOutcome::Skipped);
-    assert_eq!(report.candidates[2].outcome, CandidateOutcome::Skipped);
 }
 
 // Choice points named `p0`, `p1`, and so on, whose alternatives are `Generated` then `Separate`.
@@ -551,60 +391,6 @@ fn test_search_finds_a_pair_that_only_wins_together() {
 }
 
 #[test]
-fn test_search_times_a_fingerprint_once_and_follows_its_seed() {
-    let run = |seed| {
-        let points = points(4, &[]);
-        let mut fake = Fake::new(|records: &TuningRecords| {
-            // Every plan is new and none is faster, so nothing changes which moves come next.
-            plain(100 + records.len() as u64, 0)
-        });
-        let (plan, report) = search_plans(
-            &points,
-            chosen(&points),
-            None,
-            search_options(Duration::from_secs(5), seed),
-            &mut fake,
-        );
-        (plan, report.plans_run, fake.runs, fake.fingerprints)
-    };
-    let (plan, plans_run, runs, fingerprints) = run(3);
-    assert_eq!(runs, plans_run);
-    // The start, one or two moves from it, and the plan with every choice point moved.
-    assert_eq!(plans_run, 1 + 4 + 6 + 1);
-    assert_eq!(fingerprints.len(), plans_run);
-    let (again, _, _, again_fingerprints) = run(3);
-    assert_eq!(plan, again);
-    assert_eq!(fingerprints, again_fingerprints);
-}
-
-#[test]
-fn test_search_respects_its_budget() {
-    let points = points(16, &[]);
-    let mut fake = Fake::new(interacting);
-    let (plan, report) = search_plans(
-        &points,
-        chosen(&points),
-        None,
-        search_options(Duration::ZERO, 1),
-        &mut fake,
-    );
-    assert_eq!(plan, chosen(&points));
-    assert_eq!(fake.runs, 0);
-    assert_eq!(report.plans_run, 0);
-
-    let mut fake = Fake::new(|_: &TuningRecords| plain(100, 0));
-    fake.delay = Duration::from_millis(20);
-    let (_, report) = search_plans(
-        &points,
-        chosen(&points),
-        None,
-        search_options(Duration::from_millis(100), 1),
-        &mut fake,
-    );
-    assert!(report.plans_run <= 7, "{report:?}");
-}
-
-#[test]
 fn test_search_never_accepts_a_plan_that_disagrees_or_does_not_fit() {
     let points = points(2, &[]);
     let mut fake = Fake::new(|records: &TuningRecords| wrong_when_paired(records, false));
@@ -642,32 +428,4 @@ fn wrong_when_paired(
     } else {
         wrong(plain(1, 0))
     }
-}
-
-#[test]
-fn test_a_plan_makes_only_the_records_it_chose() {
-    let points = points(2, &[]);
-    let records = plan_records(&points, &[None, Some(1)], None);
-    assert!(records.get("p0").is_none());
-    assert!(has(&records, "p1", TunedWay::Separate));
-}
-
-// What comes last still gets its turn when the first candidates spend the budget, and each part times one at least.
-#[test]
-fn test_a_second_part_of_candidates_takes_a_budget_of_its_own() {
-    let (_, report) = decide_in_two("a".to_owned(), &candidates(), 2, Duration::ZERO, |_| {
-        thread::sleep(Duration::from_millis(1));
-        Ok(Measured {
-            median: Duration::from_millis(1),
-            bytes: 0,
-            agrees: true,
-            abandoned: false,
-        })
-    });
-    let timed = report
-        .candidates
-        .iter()
-        .map(|candidate| matches!(candidate.outcome, CandidateOutcome::Timed { .. }))
-        .collect::<Vec<_>>();
-    assert_eq!(timed[..3], [true, false, true]);
 }

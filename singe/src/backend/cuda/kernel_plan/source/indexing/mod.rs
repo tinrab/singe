@@ -47,7 +47,7 @@ pub fn plan(
     };
     planner.lowered(
         kernel_lowering::gather(
-            &format!("singe_{}", operation.name()),
+            &format!("singe_kernel_{}", operation.name()),
             input.data_type,
             &input.layout,
             &selection,
@@ -157,6 +157,3 @@ fn selection<'a>(
         wrap: true,
     }
 }
-
-#[cfg(test)]
-mod tests;

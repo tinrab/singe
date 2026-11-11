@@ -3,6 +3,7 @@
 mod cudnn;
 mod generate;
 mod libraries;
+mod run;
 pub mod set;
 mod source;
 mod state;
@@ -52,6 +53,8 @@ pub struct ProgramFiles {
     pub manifest: String,
     // A loop that generates through the program, for one exported with a page layout.
     pub generate: Option<String>,
+    // A command that runs the program once from input files to output files, for one exported without a page layout.
+    pub run: Option<String>,
     // How many configurations its records force on its libraries.
     pub forced_configurations: usize,
     // What those configurations hold, in a program written to read them from a table.
@@ -244,6 +247,10 @@ impl CudaProgram {
         fs::write(directory.join(format!("{prefix}.json")), files.manifest)?;
         if let Some(generate) = files.generate {
             fs::write(directory.join(format!("{prefix}_generate.cu")), generate)?;
+        }
+
+        if let Some(run) = files.run {
+            fs::write(directory.join(format!("{prefix}_run.cu")), run)?;
         }
 
         if !files.weights.is_empty() {

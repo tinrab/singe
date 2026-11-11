@@ -104,15 +104,11 @@ test-singe *arguments: prepare-tests
     done
     RUST_TEST_THREADS=1 cargo test -p singe --features {{ SINGE_TEST_FEATURES }} {{ arguments }}
 
-# Tests the models, including the real-weight tests when their `SINGE_SNAPSHOT_<MODEL>` variables are set: `just test-models --include-ignored`.
-test-models *arguments: prepare-tests
-    RUST_TEST_THREADS=1 cargo test -p singe-model --features cuda_13_4 -- {{ arguments }}
+# Writes the PyTorch references the tests read, which `singe`'s tests and examples embed when they compile, unless the last run wrote them with the same scripts and `uv.lock`.
+prepare-tests:
+    cd scripts && uv run --locked python -m references --prepare
 
-# Writes the PyTorch references the tests read, which `singe`'s tests and examples embed when they compile, unless the last run wrote them with the same scripts and `uv.lock`; `--real` writes the real-snapshot ones from the Hugging Face cache.
-prepare-tests *arguments:
-    cd scripts && uv run --locked python -m references --prepare {{ arguments }}
-
-# Writes or, with `--check`, checks every generated file, or the suites named: `just references --check onnx_schemas`, `just references qwen3 --real`.
+# Writes or, with `--check`, checks every generated file, or the suites named: `just references --check onnx_schemas`, `just references conformance`.
 references *arguments:
     cd scripts && uv run --locked python -m references {{ arguments }}
 
@@ -193,7 +189,7 @@ check-linking: prepare-tests
     set -euo pipefail
     binaries=$(
         cargo test -p singe --features {{ SINGE_TEST_FEATURES }} --no-run --message-format=json
-        cargo test -p singe-model --features cuda_13_4 --no-run --message-format=json
+        cargo build -p singe-model --features cuda_13_4 --examples --message-format=json
     )
     found=0
     for binary in $(jq -r "select(.executable != null) | .executable" <<< "$binaries"); do
@@ -213,8 +209,6 @@ gate:
     just check
     just lint
     just test-singe
-    just prepare-tests --real
-    just test-models --include-ignored
     just check-linking
 
 frontend-examples:

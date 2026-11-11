@@ -48,11 +48,6 @@ impl Graph {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn lowering_count_for_test() -> usize {
-        LOWERINGS.with(Cell::get)
-    }
-
     /// Returns the execution form of this graph: operations in dependency order, with `TopK` result projections reunited.
     ///
     /// # Errors

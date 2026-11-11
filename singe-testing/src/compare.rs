@@ -93,34 +93,3 @@ pub fn assert_matches(actual: &[f32], expected: &[f32], tolerance: Tolerance, wh
         );
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HalfGap {
-    pub worst: f32,
-    pub mean: f32,
-}
-
-fn distance(actual: &[f32], expected: &[f32]) -> HalfGap {
-    assert_eq!(actual.len(), expected.len(), "element counts");
-    let differences = actual
-        .iter()
-        .zip(expected)
-        .map(|(actual, expected)| (actual - expected).abs());
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "references hold few enough values"
-    )]
-    let count = actual.len().max(1) as f32;
-    HalfGap {
-        worst: differences.clone().fold(0.0, f32::max),
-        mean: differences.sum::<f32>() / count,
-    }
-}
-
-pub fn assert_within_half_gap(actual: &[f32], wide: &[f32], gap: HalfGap, factor: f32, what: &str) {
-    let singe = distance(actual, wide);
-    assert!(
-        singe.worst <= factor * gap.worst && singe.mean <= factor * gap.mean,
-        "{what}: {singe:?} from F32, where PyTorch's half precision is {gap:?}, and the bound is {factor} times it"
-    );
-}

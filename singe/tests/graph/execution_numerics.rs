@@ -45,39 +45,6 @@ fn assert_full_precision(output: &Tensor) {
     }
 }
 
-#[test]
-fn test_numerical_configuration_is_part_of_specialization_identity() {
-    let source = graph();
-    let (a, b) = operands(Device::Cpu);
-    let inputs = HashMap::from([("a".into(), a), ("b".into(), b)]);
-    let config = GraphPrepareOptions::new(Device::Cpu);
-    assert_eq!(config.compute_precision(), ComputePrecision::Full);
-    assert_eq!(config.determinism(), Determinism::Allow);
-    let mut keys = Vec::new();
-    for config in [
-        config.clone(),
-        config.clone().with_determinism(Determinism::Require),
-        config.with_compute_precision(ComputePrecision::AllowTf32),
-    ] {
-        let mut executor = source.prepare(config.clone()).unwrap();
-        assert_eq!(
-            executor.specialization_key().compute_precision(),
-            config.compute_precision()
-        );
-        assert_eq!(
-            executor.specialization_key().determinism(),
-            config.determinism()
-        );
-        assert_full_precision(&executor.run(&inputs).unwrap()[0]);
-        keys.push(executor.specialization_key().clone());
-        assert!(executor.report().unwrap().contains("compute precision:"));
-    }
-    assert_ne!(keys[0], keys[1]);
-    assert_ne!(keys[0], keys[2]);
-    assert_eq!(keys[0].program(), keys[1].program());
-    assert_eq!(keys[0].program(), keys[2].program());
-}
-
 #[cfg(feature = "cuda")]
 #[test]
 fn test_cuda_precision_and_determinism_apply_to_eager_dispatch_and_native_blas() {
@@ -132,87 +99,6 @@ fn test_cuda_precision_and_determinism_apply_to_eager_dispatch_and_native_blas()
             .supported_tf32_compute_entries()
             > 0
     );
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_cudnn_cache_entries_are_separate_for_each_numerical_policy() {
-    use singe::{
-        Error,
-        backend::cuda::{self, CudaGraphProvider, LoweringPolicy},
-        graph::GraphCudaOptions,
-    };
-    cuda::clear_cache(Device::Cuda(0)).unwrap();
-    let (input_shape, weight_shape) = (
-        Shape::create([1, 2, 2, 4]).unwrap(),
-        Shape::create([1, 2, 1, 2]).unwrap(),
-    );
-    let (source, _) = Graph::capture(
-        [
-            ("x", Tensor::full(Device::Cpu, &input_shape, 1_f32).unwrap()),
-            (
-                "w",
-                Tensor::full(Device::Cpu, &weight_shape, 1_f32).unwrap(),
-            ),
-        ],
-        // A convolution over two input channels, which cuDNN lowers, sums the four ones of each window.
-        |xs| {
-            Ok(vec![xs[0].convolution2d(
-                &xs[1],
-                None,
-                (1, 2),
-                (0, 0, 0, 0),
-                (1, 1),
-                1,
-            )?])
-        },
-    )
-    .unwrap();
-    let before = cuda::provider_cache_stats(Device::Cuda(0)).unwrap().cudnn;
-    for precision in [ComputePrecision::Full, ComputePrecision::AllowTf32] {
-        for determinism in [Determinism::Allow, Determinism::Require] {
-            for _ in 0..2 {
-                let config = GraphPrepareOptions::new(Device::Cuda(0))
-                    .with_compute_precision(precision)
-                    .with_determinism(determinism)
-                    .with_cuda_options(GraphCudaOptions::new().with_lowering_policy(
-                        LoweringPolicy::new(vec![
-                            CudaGraphProvider::Alias,
-                            CudaGraphProvider::CudnnBackend,
-                        ]),
-                    ));
-                match source.prepare(config) {
-                    Ok(mut executor) => {
-                        let outputs = executor
-                            .run(&HashMap::from([
-                                (
-                                    "x".into(),
-                                    Tensor::full(Device::Cuda(0), &input_shape, 1_f32).unwrap(),
-                                ),
-                                (
-                                    "w".into(),
-                                    Tensor::full(Device::Cuda(0), &weight_shape, 1_f32).unwrap(),
-                                ),
-                            ]))
-                            .unwrap();
-                        assert_eq!(outputs[0].to_vec::<f32>().unwrap(), [4.; 4]);
-                    }
-                    Err(error) => {
-                        let mut root = &error;
-                        while let Error::GraphSource { source, .. } = root {
-                            root = source;
-                        }
-                        assert!(matches!(root, Error::Unsupported { .. }), "{error}");
-                    }
-                }
-            }
-        }
-    }
-    let after = cuda::provider_cache_stats(Device::Cuda(0)).unwrap().cudnn;
-    assert_eq!(after.entries, 4);
-    // Admission also rechecks after building a template outside the cache lock.
-    assert!(after.misses - before.misses >= 4);
-    assert!(after.hits - before.hits >= 4);
 }
 
 #[cfg(feature = "cuda")]

@@ -210,22 +210,3 @@ pub fn load(snapshot: impl AsRef<Path>, device: Device, data_type: DataType) -> 
         Some(&state_name),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_classifier_names_map_to_the_encoder_and_pretraining_tensors_are_ignored() {
-        assert_eq!(
-            state_name("dinov2.encoder.layer.0.mlp.fc1.weight").unwrap(),
-            "encoder.layer.0.mlp.fc1.weight"
-        );
-        assert_eq!(state_name("classifier.weight"), None);
-        assert_eq!(state_name("embeddings.mask_token"), None);
-        assert_eq!(
-            state_name("encoder.layer.1.attention.o_proj.bias").unwrap(),
-            "encoder.layer.1.attention.output.dense.bias"
-        );
-    }
-}

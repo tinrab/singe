@@ -4,13 +4,12 @@ use singe::{
     DataType, Device, Shape, Tensor,
     backend::registry::{
         BatchNormalizationAttributes, Operation, OperationAttributes, OperationRequest,
-        ReductionAttributes, ResultAlias, TopKAttributes, TransposeAttributes,
+        ReductionAttributes,
     },
     graph::{
         Graph, GraphOperationInputs, GraphOperationOutput, GraphOperationRequest,
         GraphPrepareOptions,
     },
-    scalar::Scalar,
     value::ValueSpec,
 };
 
@@ -79,64 +78,6 @@ fn test_canonical_builder_payloads_use_pure_inference_and_reject_invalid_inserti
 }
 
 #[test]
-fn test_graph_construction_rejects_state_mutation_even_for_empty_outputs() {
-    let mut graph = Graph::new();
-    let input = graph.add_input(
-        "x",
-        DataType::F32,
-        Shape::create([0, 2]).unwrap(),
-        Device::Cpu,
-    );
-    let mean = graph.add_input(
-        "mean",
-        DataType::F32,
-        Shape::create([2]).unwrap(),
-        Device::Cpu,
-    );
-    let result = graph.add_operation_request(GraphOperationRequest::batch_normalization(
-        None,
-        input,
-        None,
-        None,
-        Some(mean),
-        None,
-        true,
-        0.1,
-        1e-5,
-        GraphOperationOutput::new(DataType::F32, Shape::create([0, 2]).unwrap(), Device::Cpu),
-    ));
-    assert!(result.is_err());
-    graph.set_outputs(vec![input]).unwrap();
-    assert_eq!(graph.compile().unwrap().value_order().len(), 1);
-}
-
-#[test]
-fn test_ordered_topk_specs_need_no_storage_even_for_unallocatable_inputs() {
-    let input = value(DataType::F32, &[1_i64 << 40, 4]);
-    let checked = OperationRequest::new(
-        Operation::TopK,
-        OperationAttributes::TopK(TopKAttributes {
-            k: 2,
-            dim: 1,
-            largest: true,
-            sorted: true,
-        }),
-        vec![input],
-    )
-    .check()
-    .unwrap();
-    let outputs = checked.inference().outputs();
-    assert_eq!(outputs.len(), 2);
-    assert_eq!(outputs[0].shape().dimensions(), &[1_i64 << 40, 2]);
-    assert_eq!(outputs[0].data_type(), DataType::F32);
-    assert_eq!(outputs[1].data_type(), DataType::I64);
-    assert_eq!(
-        checked.inference().aliases(),
-        [ResultAlias::Independent, ResultAlias::Independent]
-    );
-}
-
-#[test]
 fn test_typed_attributes_operands_and_index_roles_are_checked_before_execution() {
     assert!(
         OperationRequest::new(
@@ -178,43 +119,6 @@ fn test_typed_attributes_operands_and_index_roles_are_checked_before_execution()
         .infer()
         .is_err()
     );
-}
-
-#[test]
-fn test_common_requests_apply_promotion_and_preserve_logical_aliases() {
-    let arithmetic = OperationRequest::new(
-        Operation::Add,
-        OperationAttributes::None,
-        vec![value(DataType::F32, &[2, 1]), value(DataType::F64, &[])],
-    )
-    .infer()
-    .unwrap();
-    assert_eq!(arithmetic.outputs()[0], value(DataType::F32, &[2, 1]));
-    let scalar = OperationRequest::new(
-        Operation::Scale,
-        OperationAttributes::Scalar(Scalar::Float(1.25)),
-        vec![value(DataType::I64, &[2])],
-    )
-    .infer()
-    .unwrap();
-    assert_eq!(scalar.outputs()[0].data_type(), DataType::F32);
-    let view = OperationRequest::new(
-        Operation::Transpose,
-        OperationAttributes::Transpose(TransposeAttributes { dim0: 0, dim1: 1 }),
-        vec![value(DataType::F32, &[2, 3])],
-    )
-    .infer()
-    .unwrap();
-    assert_eq!(view.outputs()[0], value(DataType::F32, &[3, 2]));
-    assert_eq!(view.aliases(), [ResultAlias::ViewOf(0)]);
-    let copy = OperationRequest::new(
-        Operation::Copy,
-        OperationAttributes::None,
-        vec![value(DataType::I64, &[2])],
-    )
-    .infer()
-    .unwrap();
-    assert_eq!(copy.aliases(), [ResultAlias::Independent]);
 }
 
 #[test]

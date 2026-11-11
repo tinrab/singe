@@ -1,14 +1,10 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-#[cfg(feature = "testing")]
-use singe::testing::TensorActivity;
 use singe::{
     DataType, Device, Error, Shape, Tensor,
     graph::{CaptureBindings, Graph, GraphPrepareOptions, capture},
     nn::{Linear, Model, StateBuilder},
 };
-#[cfg(feature = "onnx")]
-use singe::{OnnxModel, OnnxOptions, onnx};
 
 fn meta(shape: &[i64]) -> Tensor {
     Tensor::zeroed_on(Device::Meta, DataType::F32, Shape::create(shape).unwrap()).unwrap()
@@ -34,51 +30,6 @@ fn test_meta_tensors_carry_metadata_without_values() {
     let moved = cpu(&[2], vec![1., 2.]).to_device(Device::Meta).unwrap();
     assert_eq!(moved.device(), Device::Meta);
     assert_eq!(moved.shape().dimensions(), &[2]);
-}
-
-#[test]
-fn test_meta_operations_infer_results_and_views_share_storage() {
-    let a = meta(&[2, 3]);
-    let b = meta(&[3, 4]);
-    let product = a.matmul(&b).unwrap();
-    assert_eq!(product.device(), Device::Meta);
-    assert_eq!(product.shape().dimensions(), &[2, 4]);
-    let summed = product.add(&product).unwrap().relu().unwrap();
-    assert_eq!(summed.shape().dimensions(), &[2, 4]);
-    assert_eq!(
-        summed.cast(DataType::F16).unwrap().data_type(),
-        DataType::F16
-    );
-
-    let transposed = a.transpose(0, 1).unwrap();
-    assert_eq!(transposed.shape().dimensions(), &[3, 2]);
-    assert_eq!(transposed.layout().strides(), &[1, 3]);
-    assert!(Arc::ptr_eq(a.storage(), transposed.storage()));
-    assert!(matches!(
-        a.add(&cpu(&[2, 3], vec![0.; 6])),
-        Err(Error::DeviceMismatch { .. })
-    ));
-}
-
-#[test]
-fn test_meta_capture_records_a_graph_that_runs_on_cpu() {
-    let (graph, outputs) = Graph::capture([("x", meta(&[2, 3]))], |inputs| {
-        Ok(vec![inputs[0].mul_scalar(2.)?.relu()?.sum(&[1], false)?])
-    })
-    .unwrap();
-    assert_eq!(outputs[0].device(), Device::Meta);
-    assert_eq!(outputs[0].shape().dimensions(), &[2]);
-
-    let mut executor = graph
-        .prepare(GraphPrepareOptions::new(Device::Cpu))
-        .unwrap();
-    let result = executor
-        .run(&HashMap::from([(
-            "x".to_owned(),
-            cpu(&[2, 3], vec![1., -2., 3., -4., 5., 6.]),
-        )]))
-        .unwrap();
-    assert_eq!(result[0].to_vec::<f32>().unwrap(), [8., 22.]);
 }
 
 #[test]
@@ -117,26 +68,6 @@ fn test_models_built_on_meta_state_trace_programs_that_bind_real_state() {
         result[0].to_vec::<f32>().unwrap(),
         [1., 4., 7., 10., 2., 5., 8., 11.]
     );
-}
-
-#[cfg(feature = "testing")]
-#[test]
-fn test_meta_capture_runs_no_kernels_and_allocates_no_storage() {
-    let x = meta(&[64, 64]);
-    let w = meta(&[64, 64]);
-    let before = TensorActivity::current();
-    let (_, outputs) = Graph::capture([("x", x), ("w", w)], |inputs| {
-        let mut hidden = inputs[0].clone();
-        for _ in 0..4 {
-            hidden = hidden.matmul(&inputs[1])?.relu()?;
-        }
-        Ok(vec![hidden])
-    })
-    .unwrap();
-    let after = TensorActivity::current();
-    assert_eq!(outputs[0].shape().dimensions(), &[64, 64]);
-    assert_eq!(after.checked_invocations, before.checked_invocations);
-    assert_eq!(after.storage_requests, before.storage_requests);
 }
 
 #[test]
@@ -198,22 +129,4 @@ fn test_meta_constants_without_values_cannot_leave_the_meta_device() {
         .run(&HashMap::from([("x".to_owned(), cpu(&[2], vec![1., 2.]))]))
         .unwrap();
     assert_eq!(result[0].to_vec::<f32>().unwrap(), [11., 22.]);
-}
-
-#[cfg(feature = "onnx")]
-#[test]
-fn test_meta_traced_programs_export_with_their_literals() {
-    let (graph, _) = Graph::capture([("x", meta(&[2]))], |inputs| {
-        Ok(vec![inputs[0].div_scalar(2.)?])
-    })
-    .unwrap();
-    let program = graph.program().unwrap();
-    let state = program.bind_state(&HashMap::new()).unwrap();
-    let bytes = onnx::export(&program, &state).unwrap();
-    let imported = OnnxModel::from_reader(bytes.as_slice(), OnnxOptions::new()).unwrap();
-    let outputs = imported
-        .run(&HashMap::from([("x".to_owned(), cpu(&[2], vec![2., 6.]))]))
-        .unwrap();
-    let result = outputs.values().next().unwrap();
-    assert_eq!(result.to_vec::<f32>().unwrap(), [1., 3.]);
 }

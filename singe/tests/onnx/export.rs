@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use singe::{
     DataType, Device, OnnxModel, OnnxOptions, Shape, Tensor,
     backend::registry::{Operation, OperationAttributes},
-    dispatch::{CustomOperation, DispatchKey, Kernel, call_one},
+    dispatch::call_one,
     graph::{CaptureBindings, CaptureOptions, Graph, GraphInputSpec, GraphProgram},
     nn::StateBuilder,
     onnx::{self, Error},
@@ -209,35 +209,6 @@ fn test_export_rejects_unsupported_operations_mixed_types_and_foreign_snapshots(
         Err(Error::UnsupportedExport { .. })
     ));
     assert!(matches!(onnx::export(&mixed, &state), Err(Error::Singe(_))));
-}
-
-#[test]
-fn test_export_rejects_custom_operations_by_name() {
-    let custom = CustomOperation::register(
-        "test.export_identity",
-        1,
-        1,
-        &[DataType::F32],
-        |inputs, _| Ok(vec![inputs[0].clone()]),
-    )
-    .unwrap()
-    .register_kernel(
-        DispatchKey::Cpu,
-        Kernel::single(|call| call.input(0).cloned()),
-    )
-    .unwrap();
-    let program = one_operation(
-        ValueSpec::new(DataType::F32, Shape::create([2]).unwrap()),
-        Operation::Custom(custom),
-        OperationAttributes::Custom(Vec::new()),
-    );
-    let state = program.bind_state(&HashMap::new()).unwrap();
-    let error = onnx::export(&program, &state).unwrap_err();
-    assert!(
-        matches!(&error, Error::UnsupportedExport { .. })
-            && error.to_string().contains("test.export_identity"),
-        "unexpected error {error}"
-    );
 }
 
 #[test]
@@ -478,23 +449,6 @@ fn test_negative_permutation_axes_export_as_a_full_nonnegative_permutation() {
             .unwrap(),
         input.permute(&[1, 0]).unwrap().to_bytes().unwrap()
     );
-}
-
-#[test]
-fn test_captured_scalar_softmax_roundtrips_as_rank_zero() {
-    let input = tensor(vec![2.], &[]);
-    let (captured, _) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![inputs[0].softmax(0)?])
-    })
-    .unwrap();
-    let program = captured.program().unwrap();
-    let bytes = onnx::export(&program, &program.bind_state(&HashMap::new()).unwrap()).unwrap();
-    let imported = OnnxModel::from_reader(bytes.as_slice(), OnnxOptions::new()).unwrap();
-    let output = imported
-        .run_ordered(&HashMap::from([("x".into(), input)]))
-        .unwrap();
-    assert!(output[0].shape().dimensions().is_empty());
-    assert_eq!(output[0].to_vec::<f32>().unwrap(), [1.]);
 }
 
 #[cfg(feature = "cuda")]

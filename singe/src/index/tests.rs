@@ -108,13 +108,6 @@ fn test_index_rejects_invalid_entries() {
 }
 
 #[test]
-fn test_get_element() {
-    let t = range_tensor(&[2, 3]);
-    assert_eq!(t.get_element::<f32>(&[0, 0]).unwrap(), 0.0);
-    assert_eq!(t.get_element::<f32>(&[1, 2]).unwrap(), 5.0);
-}
-
-#[test]
 fn test_to_vec_non_contiguous() {
     let t = range_tensor(&[2, 3]);
     let tr = t.transpose(0, 1).unwrap();

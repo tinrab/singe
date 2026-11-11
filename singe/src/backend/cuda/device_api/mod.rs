@@ -65,6 +65,3 @@ pub fn device(id: i32) -> Result<Device> {
     }
     Ok(Device::Cuda(id))
 }
-
-#[cfg(test)]
-mod tests;

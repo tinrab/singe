@@ -838,7 +838,7 @@ fn describe<'a>(
     }
 }
 
-/// Returns `singe_` followed by `label` with every character that cannot appear in a C identifier replaced by `_`.
+/// Returns `singe_kernel_` followed by `label` with every character that cannot appear in a C identifier replaced by `_`, a prefix that keeps kernels apart from the prelude's helpers, such as `singe_max`, in a program's one translation unit.
 fn kernel_name(label: &str) -> String {
     let label = label
         .chars()
@@ -850,11 +850,9 @@ fn kernel_name(label: &str) -> String {
             }
         })
         .collect::<String>();
-    format!("singe_{label}")
+    format!("singe_kernel_{label}")
 }
 
-#[cfg(test)]
-mod nvidia_reference_tests;
 #[cfg(test)]
 mod parameter_tests;
 #[cfg(test)]

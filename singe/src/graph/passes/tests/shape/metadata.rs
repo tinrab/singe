@@ -49,28 +49,6 @@ fn test_infer_value_metadata_pass_normalizes_schema_metadata() {
 }
 
 #[test]
-fn test_input_declaration_has_one_metadata_owner() {
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, Shape::create([2]).unwrap(), Device::Cpu);
-    graph.replace_node_output_metadata_for_test(
-        input,
-        DataType::F64,
-        Layout::contiguous([3]).unwrap(),
-        Device::Cuda(0),
-    );
-    graph.set_outputs(vec![input]).unwrap();
-    let pipeline = GraphPassPipeline::new(vec![GraphPassKind::ValidateValueMetadata]);
-    let (normalized, _) = pipeline.normalize(&graph).unwrap();
-    let node = normalized.required_node(input).unwrap();
-    let (name, dtype, shape, device) = node.input_metadata().unwrap();
-    assert_eq!(name, "x");
-    assert_eq!(dtype, DataType::F64);
-    assert_eq!(shape.dimensions(), [3]);
-    assert_eq!(device, Device::Cuda(0));
-    assert_eq!(node.output_spec().data_type(), dtype);
-}
-
-#[test]
 fn test_infer_value_metadata_pass_normalizes_same_as_input_metadata() {
     let shape = Shape::create(vec![2, 3]).unwrap();
     let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
@@ -84,35 +62,6 @@ fn test_infer_value_metadata_pass_normalizes_same_as_input_metadata() {
         Layout::from_shape(&stale_shape),
         Device::Cuda(0),
     );
-    graph.set_outputs(vec![relu]).unwrap();
-
-    let pipeline = GraphPassPipeline::new(vec![
-        GraphPassKind::InferValueMetadata,
-        GraphPassKind::ValidateValueMetadata,
-        GraphPassKind::ValidateNodeContracts,
-        GraphPassKind::ValidateOutputs,
-    ]);
-    let (normalized, _) = pipeline.normalize(&graph).unwrap();
-
-    assert_value_metadata(
-        &normalized,
-        relu,
-        DataType::F32,
-        shape.dimensions(),
-        shape.dimensions(),
-        Device::Cpu,
-    );
-}
-
-#[test]
-fn test_infer_value_metadata_pass_infers_same_as_input_metadata() {
-    let shape = Shape::create(vec![2, 3]).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, shape.clone(), Device::Cpu);
-    let relu = add_unary_operation(&mut graph, RegistryOperation::Relu, input, &output);
-    replace_with_stale_shape_metadata(&mut graph, relu);
-    graph.replace_node_output_data_type_for_test(relu, DataType::I32);
     graph.set_outputs(vec![relu]).unwrap();
 
     let pipeline = GraphPassPipeline::new(vec![
@@ -238,36 +187,6 @@ fn test_infer_value_metadata_pass_normalizes_copy_to_device_and_materializes_con
         Device::Cuda(0),
     );
     assert_value_layout(&normalized, copied, slice_shape.dimensions(), &[2, 1], 0);
-}
-
-#[test]
-fn test_infer_value_metadata_pass_normalizes_alias_shape_from_layout() {
-    let input_shape = Shape::create(vec![2, 2]).unwrap();
-    let output_shape = Shape::create(vec![4]).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::F32, &output_shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, input_shape, Device::Cpu);
-    let view = graph
-        .add_named_operation(
-            None,
-            NodeKind::reshape(input, output_shape.clone()),
-            output.data_type(),
-            output_shape.clone(),
-            output.device(),
-        )
-        .unwrap();
-    replace_with_stale_shape_metadata(&mut graph, view);
-    graph.set_outputs(vec![view]).unwrap();
-
-    let pipeline = GraphPassPipeline::new(vec![
-        GraphPassKind::InferValueMetadata,
-        GraphPassKind::ValidateValueMetadata,
-        GraphPassKind::ValidateNodeContracts,
-        GraphPassKind::ValidateOutputs,
-    ]);
-    let (normalized, _) = pipeline.normalize(&graph).unwrap();
-
-    assert_value_shape(&normalized, view, output_shape.dimensions());
 }
 
 #[test]

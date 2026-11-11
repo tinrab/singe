@@ -43,6 +43,9 @@ struct Support {
     importable: bool,
     eager: bool,
     compiled: bool,
+    // Whether the case runs as an exported CUDA program, which only the CUDA baseline records.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    program: Option<bool>,
 }
 
 fn decode(hex: &str) -> Vec<u8> {
@@ -158,6 +161,7 @@ fn check_case(case: &Case, device: Device) -> Support {
         importable: false,
         eager: false,
         compiled: false,
+        program: None,
     };
     let model = match OnnxModel::from_reader(decode(&case.model).as_slice(), OnnxOptions::new()) {
         Ok(model) => model,
@@ -221,11 +225,18 @@ fn check_case(case: &Case, device: Device) -> Support {
 }
 
 fn check_conformance(device: Device, baseline: &str) {
-    let results: Vec<_> = include_str!("../references/onnx/conformance.jsonl")
+    let cases = include_str!("../references/onnx/conformance.jsonl")
         .lines()
-        .map(|line| {
-            let case: Case = serde_json::from_str(line).unwrap();
-            let result = check_case(&case, device);
+        .map(|line| serde_json::from_str::<Case>(line).unwrap())
+        .collect::<Vec<_>>();
+    #[cfg_attr(
+        not(all(feature = "cuda", feature = "testing")),
+        expect(unused_mut, reason = "only CUDA builds run cases as programs")
+    )]
+    let mut results: Vec<_> = cases
+        .iter()
+        .map(|case| {
+            let result = check_case(case, device);
             if case.required || (case.required_cuda && device.is_cuda()) {
                 assert!(
                     result.importable && result.eager && result.compiled,
@@ -236,6 +247,10 @@ fn check_conformance(device: Device, baseline: &str) {
             result
         })
         .collect();
+    #[cfg(all(feature = "cuda", feature = "testing"))]
+    if device.is_cuda() {
+        programs::check(&cases, &mut results, device);
+    }
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/baselines/onnx")
         .join(baseline);
@@ -248,6 +263,130 @@ fn check_conformance(device: Device, baseline: &str) {
             results, expected,
             "ONNX support changed; inspect failures before updating the conformance baseline"
         );
+    }
+}
+
+// Every case that runs compiled, as a step of an exported CUDA program: steps build in sets, one compiler run per set, and each step runs on its case's inputs.
+#[cfg(all(feature = "cuda", feature = "testing"))]
+mod programs {
+    use std::{
+        collections::HashSet,
+        panic::{AssertUnwindSafe, catch_unwind},
+    };
+
+    use singe::{
+        Device, OnnxModel, OnnxOptions,
+        backend::cuda::export::CudaExport,
+        graph::Graph,
+        testing::{CompiledProgram, program_target},
+    };
+
+    use super::{Case, Support, decode, record_rejection};
+
+    // The steps one compiler run builds, which keeps each build's source and memory bounded.
+    const SET_STEPS: usize = 64;
+
+    fn step_name(case: &Case) -> String {
+        case.name
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character
+                } else {
+                    '_'
+                }
+            })
+            .collect()
+    }
+
+    pub fn check(cases: &[Case], results: &mut [Support], device: Device) {
+        let Some(architecture) = program_target(device) else {
+            return;
+        };
+        let export = CudaExport::new(architecture);
+        // Each case exports alone first, which needs no compiler, so a set holds only steps that export; steps of one set share state by name, so cases whose state names meet go to different sets.
+        let mut sets = Vec::<(Vec<(usize, String, Graph)>, HashSet<String>)>::new();
+        for (index, case) in cases.iter().enumerate() {
+            if !results[index].compiled {
+                continue;
+            }
+
+            let graph = OnnxModel::from_reader(decode(&case.model).as_slice(), OnnxOptions::new())
+                .unwrap()
+                .graph()
+                .unwrap();
+            match export.export(&graph) {
+                Ok(program) => {
+                    let names = program
+                        .state
+                        .iter()
+                        .map(|state| state.name.clone())
+                        .collect::<HashSet<_>>();
+                    let step = (index, step_name(case), graph);
+                    match sets
+                        .iter_mut()
+                        .find(|(steps, held)| steps.len() < SET_STEPS && held.is_disjoint(&names))
+                    {
+                        Some((steps, held)) => {
+                            steps.push(step);
+                            held.extend(names);
+                        }
+                        None => sets.push((vec![step], names)),
+                    }
+                }
+                Err(error) => {
+                    record_rejection(case, device, "Program", "export", &error);
+                    results[index].program = Some(false);
+                }
+            }
+        }
+
+        for (number, (set, _)) in sets.iter().enumerate() {
+            let named = set
+                .iter()
+                .map(|(_, name, graph)| (name.as_str(), graph))
+                .collect::<Vec<_>>();
+            let program = export.export_steps(&named).unwrap();
+            let compiled =
+                CompiledProgram::create_set(&program, &format!("onnx_conformance_{number}"))
+                    .unwrap();
+            for (index, name, _) in set {
+                let case = &cases[*index];
+                let (_, step) = compiled
+                    .steps()
+                    .iter()
+                    .find(|(step, _)| step == name)
+                    .unwrap();
+                let inputs = step
+                    .inputs
+                    .iter()
+                    .map(|input| case.inputs[&input.graph_name].tensor(device))
+                    .collect::<Vec<_>>();
+                let label = format!("{} {device} Program", case.name);
+                let passed = match compiled
+                    .instance()
+                    .and_then(|instance| instance.run_step(name, &inputs, 1))
+                {
+                    Ok(outputs) => catch_unwind(AssertUnwindSafe(|| {
+                        assert_eq!(outputs.len(), case.outputs.len(), "{label}");
+                        for (actual, expected) in outputs.iter().zip(&case.outputs) {
+                            expected.assert_matches(
+                                actual,
+                                &label,
+                                case.check_zero_sign,
+                                case.exact_storage,
+                            );
+                        }
+                    }))
+                    .is_ok(),
+                    Err(error) => {
+                        record_rejection(case, device, "Program", "run", &error);
+                        false
+                    }
+                };
+                results[*index].program = Some(passed);
+            }
+        }
     }
 }
 

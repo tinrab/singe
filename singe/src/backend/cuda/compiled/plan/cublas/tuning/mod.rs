@@ -11,8 +11,6 @@ use self::{
     measure::measure_cached_cublaslt_matmul_algorithms_with_workspace_limit,
 };
 
-#[cfg(test)]
-pub use self::validation::cublaslt_workspace;
 pub use self::validation::validate_cublaslt_matmul_tensors;
 use crate::{
     backend::cuda::{

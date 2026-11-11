@@ -30,8 +30,7 @@ Use `uv` for Python helpers.
 | Clippy for one crate                            | `just lint --package <crate> --features <features>`            |
 | Full verification, including doctests           | `just test`                                                    |
 | Framework tests, CPU feature sets then CUDA     | `just test-singe` (`just test-singe --test nn attention`)      |
-| Model tests (`--include-ignored` for real ones) | `just test-models`                                             |
-| Write the PyTorch references the tests read     | `just prepare-tests` (`--real` for the real-snapshot ones)     |
+| Write the PyTorch references the tests read     | `just prepare-tests`                                           |
 | Write or check other generated files            | `just references` (`--check`, suite names)                     |
 | Benchmarks, saved and compared by name          | `just bench` (`--save NAME`, `--compare NAME`, filters)        |
 | No NVIDIA library linked at build time          | `just check-linking`                                           |
@@ -79,19 +78,24 @@ Use `uv` for Python helpers.
 - Decoder caches: `singe/src/nn/decode/` has `DecodeStep` and the caches, one per block from its own spec: paged `KvCache`s, a per-sequence `StateCache` for linear attention, and `HybridCache` for models that mix them.
   A layer carrying a state reads only each sequence's real tokens, `DecodeStep::real_tokens`, so padding and held rows leave it as it was.
   `SourcedCausalLm` adds a `SourceCache` whose rows a prompt's placeholder tokens read in place of their embeddings, as Qwen3-ASR's audio tokens do.
+- Programs: `singe/src/backend/cuda/export/` turns graphs into CUDA C++ programs, and several graphs into a set sharing weights.
+  A set exported with `with_decoding` writes a generation loop that fills every `DecodeStep` input, reads prompts through a `prompt` step, and runs an `encode` step on a source file; any other program writes a runner from input files to output files.
+  Inputs whose length varies pad to a fixed size with their length as a tensor input, so one graph serves the eager, compiled, and program paths.
+  `singe_model::export::export_snapshot`, run by `singe-model`'s `export` example, exports any snapshot its loaders know.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
 - cuDNN: the frontend port in `singe-cudnn/src/frontend/`, backend descriptors, engines, and execution in `singe-cudnn/src/backend/`, and legacy descriptor APIs in `singe-cudnn/src/legacy/`.
 - PTX: parsing in `singe-ptx/src/parser/`; the emulator defines supported instruction forms in `emulator/lowering/`, one module per family, and executes them in `emulator/engine/`.
 
 ## Tests and references
 
-- `singe/tests` has five targets, `tensor`, `graph`, `kernels`, `nn`, and `onnx`, each a `main.rs` with a module per subject; `singe-model/tests/models` has one, by task.
-- A test that compares with PyTorch reads a reference with `singe_testing::reference!`, compares with `assert_matches` under a named `Tolerance`, and runs captured graphs on every path with `check_paths`.
-- References live under each crate's `tests/references`, as `tensors.safetensors` and `reference.json`, and are generated, never edited by hand.
+- Tests cover `singe`'s core components, its operations, blocks, and modules, for correctness, as few as that takes; models have no tests, and `singe-model`'s examples show them working.
+- `singe/tests` has five targets, `tensor`, `graph`, `kernels`, `nn`, and `onnx`, each a `main.rs` with a module per subject.
+- A test that compares with PyTorch reads a reference with `singe_testing::reference!` and compares with `assert_matches` under a named `Tolerance`.
+- References live under `singe/tests/references`, as `tensors.safetensors` and `reference.json`, and are generated, never edited by hand.
   `scripts/references` writes them with PyTorch, one module per suite, through `just prepare-tests`, which `check`, `lint`, and the test recipes run first, since `singe`'s tests and examples embed some of them when they compile.
-  It skips the work when `target/references` records a run with the same scripts and `uv.lock`; the real-snapshot references need `just prepare-tests --real` and the Hugging Face cache.
+  It skips the work when `target/references` records a run with the same scripts and `uv.lock`.
 - Baselines of Singe's own results, which tests compare with to catch a change either way, live under `tests/baselines` and are checked in; `SINGE_UPDATE_CONFORMANCE=1` and `SINGE_UPDATE_ONNX_CONFORMANCE=1` rewrite them.
-- Real-weight tests are ignored with one reason and read `SINGE_SNAPSHOT_<MODEL>`, a local Hugging Face snapshot directory.
+- Benchmarks and examples of real models read `SINGE_SNAPSHOT_<MODEL>`, a local Hugging Face snapshot directory.
 - Generated kernels and exported programs built with `nvcc` are cached across runs under `~/.cache/singe/kernels`, programs in its `programs` directory; deleting it rebuilds them.
 - Nothing in a test times anything; timing belongs in the `benches/` targets, through `singe_testing::Benches`.
 
@@ -164,7 +168,7 @@ Keep these out of commits:
 - anything from the development machine's filesystem: real paths, mount points, user and group names, machine names, and hostnames.
   Write repo-relative paths, and use made-up names in tests and fixtures;
 - anything that identifies a real GPU or machine: device UUIDs, serial numbers, PCI bus IDs, and the output of NVML, `nvidia-smi`, or profilers that carries them;
-- local model snapshot paths; tests read them from `SINGE_SNAPSHOT_<MODEL>`, and references must not record them;
+- local model snapshot paths; benchmarks and examples read them from `SINGE_SNAPSHOT_<MODEL>`, and nothing checked in records them;
 - session IDs, chat or issue-tracker links, and quotes from private sessions, chats, or calls;
 - people's names attached to their plans, opinions, or private discussions, and private repos or branches;
 - agent handoff notes, plans, research notes, raw evidence, logs, benchmark results, profiler reports, and other temporary files.

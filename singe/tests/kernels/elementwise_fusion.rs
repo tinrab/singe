@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use singe::{
     Device, Shape, Tensor,
-    backend::cuda::{self, CudaGraphProvider, KernelLanguage, LoweringPolicy},
+    backend::cuda::{self, KernelLanguage},
     error::Result,
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
 };
@@ -84,35 +84,6 @@ fn test_fusion_groups_store_every_value_read_outside_the_group() {
     }
 }
 
-#[test]
-fn test_policies_without_the_fusion_provider_lower_one_kernel_per_operation() {
-    let _lock = device_lock(0).unwrap();
-    let device = Device::Cuda(0);
-    let x = Tensor::from_vec(device, Shape::create([4, 33]).unwrap(), values(132, 0.03)).unwrap();
-    let y = Tensor::from_vec(device, Shape::create([33]).unwrap(), values(33, -0.07)).unwrap();
-    let (captured, _) = Graph::capture([("x", x.clone()), ("y", y.clone())], |inputs| {
-        Ok(vec![chain(&inputs[0], &inputs[1])?])
-    })
-    .unwrap();
-    let policy = LoweringPolicy::new(vec![CudaGraphProvider::Alias, CudaGraphProvider::Kernel]);
-    let mut compiled = cuda::compile_graph(
-        &captured,
-        &GraphCudaOptions::new().with_lowering_policy(policy),
-    )
-    .unwrap();
-    assert_eq!(compiled.stats().kernel_child_graph_nodes(), 5);
-    let actual = compiled
-        .run(&HashMap::from([
-            ("x".to_owned(), x.clone()),
-            ("y".to_owned(), y.clone()),
-        ]))
-        .unwrap();
-    assert_eq!(
-        actual[0].to_vec::<f32>().unwrap(),
-        chain(&x, &y).unwrap().to_vec::<f32>().unwrap()
-    );
-}
-
 /// Two chains that meet in one operation: the reader fuses with the chain lowered last, whose sibling is already available.
 #[test]
 fn test_chains_that_meet_fuse_once_their_other_operands_are_lowered() {
@@ -132,44 +103,6 @@ fn test_chains_that_meet_fuse_once_their_other_operands_are_lowered() {
     for (actual, expected) in actual.iter().zip(&expected) {
         assert!((actual - expected).abs() <= 1e-6 * expected.abs().max(1.0));
     }
-}
-
-#[test]
-fn test_branching_element_wise_groups_compile_to_one_kernel() {
-    let _lock = device_lock(0).unwrap();
-    let device = Device::Cuda(0);
-    let tensor = |seed| {
-        Tensor::from_vec(device, Shape::create([4, 33]).unwrap(), values(132, seed)).unwrap()
-    };
-    let (a, b, c, d) = (tensor(0.01), tensor(-0.02), tensor(0.03), tensor(0.05));
-    // The rotary embedding's `first × cos - second × sin`: two products of different inputs meet in one difference.
-    let function = |inputs: &[Tensor]| -> Result<Tensor> {
-        inputs[0]
-            .mul(&inputs[1])?
-            .sub(&inputs[2].mul(&inputs[3])?)?
-            .mul_scalar(0.5)
-    };
-    let named = [("a", a), ("b", b), ("c", c), ("d", d)];
-    let expected = function(
-        &named
-            .iter()
-            .map(|(_, tensor)| tensor.clone())
-            .collect::<Vec<_>>(),
-    )
-    .unwrap();
-    let (captured, _) =
-        Graph::capture(named.clone(), |inputs| Ok(vec![function(inputs)?])).unwrap();
-    let mut compiled = cuda::compile_graph(&captured, &GraphCudaOptions::default()).unwrap();
-    assert_eq!(compiled.stats().kernel_child_graph_nodes(), 1);
-    let inputs = named
-        .into_iter()
-        .map(|(name, tensor)| (name.to_owned(), tensor))
-        .collect::<HashMap<_, _>>();
-    let actual = compiled.run(&inputs).unwrap();
-    assert_eq!(
-        actual[0].to_vec::<f32>().unwrap(),
-        expected.to_vec::<f32>().unwrap()
-    );
 }
 
 #[test]

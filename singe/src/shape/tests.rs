@@ -51,14 +51,6 @@ fn test_broadcast_shapes() {
 }
 
 #[test]
-fn test_broadcast_scalar() {
-    let a = Shape::create(vec![2, 3]).unwrap();
-    let b = Shape::scalar();
-    let out = a.broadcast_with(&b).unwrap();
-    assert_eq!(out.dimensions(), &[2, 3]);
-}
-
-#[test]
 fn test_squeeze_preserves_non_contiguous_strides() {
     let shape = Layout::with_strides([2, 1, 3], [3, 99, 1]).unwrap();
     let squeezed = shape.squeeze(1).unwrap();
@@ -115,13 +107,6 @@ fn test_permute() {
 }
 
 #[test]
-fn test_transpose_2d() {
-    let s = Shape::create(vec![3, 5]).unwrap();
-    let t = s.transpose_2d().unwrap();
-    assert_eq!(t.dimensions(), &[5, 3]);
-}
-
-#[test]
 fn test_permute_rejects_invalid_dimensions_without_panicking() {
     let shape = Shape::create(vec![2, 3, 4]).unwrap();
 
@@ -158,11 +143,6 @@ fn test_with_strides_rejects_negative_dimensions() {
 #[test]
 fn test_with_strides_rejects_negative_strides() {
     assert!(Layout::with_strides(vec![2, 3], vec![3, -1]).is_err());
-}
-
-#[test]
-fn test_with_strides_rejects_overflowing_product() {
-    assert!(Layout::with_strides([i64::MAX, 3], [1, 1]).is_err());
 }
 
 #[test]

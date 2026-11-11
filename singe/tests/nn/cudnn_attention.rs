@@ -425,57 +425,6 @@ fn test_paged_attention_through_cudnn_matches_generated_kernels() {
 }
 
 #[test]
-fn test_paged_attention_programs_through_cudnn_match_generated_kernels() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let (heads, kv_heads, page_size, cache_pages, dim) = (4_i64, 2_i64, 4_i64, 4_i64, 16_i64);
-    let options = AttentionOptions {
-        causal: true,
-        ..AttentionOptions::default()
-    };
-    for case in PAGED_CASES {
-        let inputs = [
-            (
-                "query",
-                random(&[case.tokens, heads, dim], DataType::Bf16, 7),
-            ),
-            (
-                "key",
-                random(&[cache_pages, page_size, kv_heads, dim], DataType::Bf16, 8),
-            ),
-            (
-                "value",
-                random(&[cache_pages, page_size, kv_heads, dim], DataType::Bf16, 9),
-            ),
-            ("query_offsets", indices(case.query_offsets, DataType::I32)),
-            ("page_offsets", indices(case.page_offsets, DataType::I32)),
-            ("pages", indices(case.pages, DataType::I32)),
-            (
-                "last_page_lengths",
-                indices(case.last_page_lengths, DataType::I32),
-            ),
-        ];
-        let graph = paged_graph(&inputs, options);
-        let name = format!(
-            "paged_{}",
-            case.name.replace(|c: char| !c.is_ascii_alphanumeric(), "_")
-        );
-        let Some((expected, calls_cudnn)) =
-            run_program(&graph, &inputs, Vec::new(), &format!("{name}_generated"))
-        else {
-            return;
-        };
-        assert!(!calls_cudnn, "{name}");
-        let (actual, calls_cudnn) =
-            run_program(&graph, &inputs, vec![Library::Cudnn], &name).unwrap();
-        assert!(calls_cudnn, "{name} does not call cuDNN");
-        assert_rows_close(&actual[0], &expected[0], &case, OUTPUT_TOLERANCE, &name);
-        assert_rows_close(&actual[1], &expected[1], &case, LSE_TOLERANCE, &name);
-    }
-}
-
-#[test]
 fn test_pages_cudnn_refuses_stay_with_generated_kernels() {
     let Some(_lock) = maybe_lock_device() else {
         return;

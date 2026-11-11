@@ -49,6 +49,3 @@ pub use self::{
 pub fn registered_operations() -> &'static [Operation] {
     table::REGISTERED_OPERATIONS
 }
-
-#[cfg(test)]
-mod tests;

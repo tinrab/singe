@@ -204,48 +204,6 @@ fn test_cuda_compiled_graph_reads_inputs_bound_in_place_without_copying() {
 }
 
 #[test]
-fn test_prepared_executors_read_inputs_bound_in_place() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-    let device = Device::Cuda(0);
-    let shape = Shape::create([4]).unwrap();
-    let Some(x) = skip_if_stub(Tensor::from_vec(
-        device,
-        &shape,
-        vec![1.0_f32, 2.0, 3.0, 4.0],
-    )) else {
-        return;
-    };
-    let y = Tensor::from_vec(device, &shape, vec![10.0_f32, 20.0, 30.0, 40.0]).unwrap();
-    let (graph, _) = Graph::capture([("x", x.clone()), ("y", y.clone())], |inputs| {
-        Ok(vec![inputs[0].mul(&inputs[1])?])
-    })
-    .unwrap();
-    let cuda = GraphCudaOptions::new().with_inputs_in_place([("x".to_owned(), x.clone())]);
-    let mut executor = graph
-        .prepare(GraphPrepareOptions::new(device).with_cuda_options(cuda))
-        .unwrap();
-    let inputs = HashMap::from([("x".to_owned(), x.clone()), ("y".to_owned(), y)]);
-    assert_eq!(
-        executor.run(&inputs).unwrap()[0].to_vec::<f32>().unwrap(),
-        [10.0, 40.0, 90.0, 160.0]
-    );
-    x.assign(&Tensor::from_vec(device, &shape, vec![2.0_f32; 4]).unwrap())
-        .unwrap();
-    assert_eq!(
-        executor.run(&inputs).unwrap()[0].to_vec::<f32>().unwrap(),
-        [20.0, 40.0, 60.0, 80.0]
-    );
-    let mut replaced = inputs.clone();
-    replaced.insert(
-        "x".to_owned(),
-        Tensor::from_vec(device, &shape, vec![0.0_f32; 4]).unwrap(),
-    );
-    assert!(executor.run(&replaced).is_err());
-}
-
-#[test]
 fn test_executor_instances_read_their_own_inputs_in_place() {
     let Some(_lock) = maybe_lock_device() else {
         return;

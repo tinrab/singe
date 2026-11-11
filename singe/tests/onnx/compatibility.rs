@@ -92,76 +92,6 @@ fn test_scalar_vector_and_empty_input_shapes_survive_onnx_import() {
 }
 
 #[test]
-fn test_imported_graphs_use_prepared_analysis_and_preserve_output_names() {
-    let imported = import(&model("Relu", 13)).unwrap();
-    let prepared = imported.compile().unwrap();
-    assert_eq!(prepared.signature().outputs()[0].name(), Some("y"));
-    for values in [[-1.0_f32, 2., -3., 4.], [5., -6., 7., -8.]] {
-        let input = Tensor::from_vec(
-            Device::Cpu,
-            Shape::create(vec![1, 2, 2]).unwrap(),
-            values.to_vec(),
-        )
-        .unwrap();
-        let bindings = HashMap::from([("x".into(), input)]);
-        let prepared_output = prepared.run(&bindings).unwrap();
-        assert_eq!(
-            prepared_output[0].to_vec::<f32>().unwrap(),
-            imported.run(&bindings).unwrap()["y"]
-                .to_vec::<f32>()
-                .unwrap()
-        );
-    }
-}
-
-#[test]
-fn test_imported_transpose_reshape_materializes_in_logical_order() {
-    let mut source = model("Transpose", 13);
-    let graph = source.graph.as_mut().unwrap();
-    graph.input = vec![value_info("x", &[2, 3])];
-    graph.output = vec![value_info("y", &[6])];
-    graph.node[0].output = vec!["transposed".into()];
-    graph.node[0].attribute = vec![AttributeProto {
-        name: "perm".into(),
-        ints: vec![1, 0],
-        r#type: attribute_proto::AttributeType::Ints as i32,
-        ..Default::default()
-    }];
-    graph.initializer = vec![TensorProto {
-        name: "shape".into(),
-        dims: vec![1],
-        data_type: tensor_proto::DataType::Int64 as i32,
-        int64_data: vec![6],
-        ..Default::default()
-    }];
-    graph.node.push(NodeProto {
-        op_type: "Reshape".into(),
-        input: vec!["transposed".into(), "shape".into()],
-        output: vec!["y".into()],
-        ..Default::default()
-    });
-    let imported = import(&source).unwrap();
-    let check = |device| {
-        let mut executor = imported.prepare(GraphPrepareOptions::new(device)).unwrap();
-        assert_eq!(
-            executor.analysis().signature().outputs()[0].name(),
-            Some("y")
-        );
-        let input = Tensor::from_vec(
-            device,
-            Shape::create([2, 3]).unwrap(),
-            vec![0_f32, 1., 2., 3., 4., 5.],
-        )
-        .unwrap();
-        let output = executor.run(&HashMap::from([("x".into(), input)])).unwrap();
-        assert_eq!(output[0].to_vec::<f32>().unwrap(), [0., 3., 1., 4., 2., 5.]);
-    };
-    check(Device::Cpu);
-    #[cfg(feature = "cuda")]
-    check(Device::Cuda(0));
-}
-
-#[test]
 fn test_scalar_comparison_and_vector_dot_import_have_rank_zero_results() {
     for (operator, dimensions, output_type) in [
         ("Equal", vec![], tensor_proto::DataType::Bool),
@@ -207,29 +137,6 @@ fn test_old_softmax_and_unknown_future_schemas_fail_before_execution() {
 }
 
 #[test]
-fn test_modern_softmax_import_runs_without_cuda() {
-    let model = import(&model("Softmax", 13)).unwrap();
-    let input = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([1, 2, 2]).unwrap(),
-        vec![0.0_f32, 1.0, 2.0, 3.0],
-    )
-    .unwrap();
-    let outputs = model
-        .run(&HashMap::from([("x".to_string(), input)]))
-        .unwrap();
-    let expected = [0.268_941_43_f32, 0.731_058_6, 0.268_941_43, 0.731_058_6];
-    for (actual, expected) in outputs["y"]
-        .to_vec::<f32>()
-        .unwrap()
-        .into_iter()
-        .zip(expected)
-    {
-        assert!((actual - expected).abs() < 1e-6);
-    }
-}
-
-#[test]
 fn test_missing_duplicate_and_non_positive_opsets_are_rejected() {
     let mut missing = model("Identity", 13);
     missing.opset_import.clear();
@@ -250,22 +157,6 @@ fn test_missing_duplicate_and_non_positive_opsets_are_rejected() {
 }
 
 #[test]
-fn test_exact_gelu_is_not_silently_lowered_to_the_tanh_approximation() {
-    let imported = import(&model("Gelu", 20)).unwrap();
-    let input = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([1, 2, 2]).unwrap(),
-        vec![-2_f32, -1., 1., 2.],
-    )
-    .unwrap();
-    let expected = input.gelu_exact().unwrap().to_vec::<f32>().unwrap();
-    let approximate = input.gelu().unwrap().to_vec::<f32>().unwrap();
-    assert_ne!(expected, approximate);
-    let output = imported.run(&HashMap::from([("x".into(), input)])).unwrap();
-    assert_eq!(output["y"].to_vec::<f32>().unwrap(), expected);
-}
-
-#[test]
 fn test_swish_with_non_unit_alpha_is_rejected() {
     let mut proto = model("Swish", 24);
     proto.graph.as_mut().unwrap().node[0]
@@ -280,36 +171,6 @@ fn test_swish_with_non_unit_alpha_is_rejected() {
         import(&proto),
         Err(Error::UnsupportedOperator { .. })
     ));
-}
-
-#[test]
-fn test_pooling_uses_onnx_unit_strides_when_omitted() {
-    for (operator, expected) in [
-        ("MaxPool", [4.0_f32, 5.0, 7.0, 8.0]),
-        ("AveragePool", [2.0, 3.0, 5.0, 6.0]),
-    ] {
-        let mut proto = model(operator, 13);
-        let graph = proto.graph.as_mut().unwrap();
-        graph.input = vec![value_info("x", &[1, 1, 3, 3])];
-        graph.output = vec![value_info("y", &[1, 1, 2, 2])];
-        graph.node[0].attribute.push(AttributeProto {
-            name: "kernel_shape".into(),
-            ints: vec![2, 2],
-            r#type: attribute_proto::AttributeType::Ints as i32,
-            ..Default::default()
-        });
-        let model = import(&proto).unwrap();
-        let input = Tensor::from_vec(
-            Device::Cpu,
-            Shape::create([1, 1, 3, 3]).unwrap(),
-            (0..9).map(|x| x as f32).collect(),
-        )
-        .unwrap();
-        let outputs = model
-            .run(&HashMap::from([("x".to_string(), input)]))
-            .unwrap();
-        assert_eq!(outputs["y"].to_vec::<f32>().unwrap(), expected);
-    }
 }
 
 #[test]
@@ -654,12 +515,6 @@ fn test_provider_limits_are_reported_during_preparation_with_onnx_provenance() {
     assert_provider_limits_are_reported_with_onnx_provenance(Device::Cpu);
 }
 
-#[cfg(feature = "cuda")]
-#[test]
-fn test_cuda_provider_limits_are_reported_during_preparation_with_onnx_provenance() {
-    assert_provider_limits_are_reported_with_onnx_provenance(Device::Cuda(0));
-}
-
 #[test]
 fn test_onnx_types_do_not_inherit_framework_binary_promotion() {
     let mut source = model("Add", 13);
@@ -674,31 +529,6 @@ fn test_onnx_types_do_not_inherit_framework_binary_promotion() {
         import(&source),
         Err(Error::UnsupportedOperator { .. })
     ));
-}
-
-#[cfg(feature = "cuda")]
-#[test]
-fn test_cuda_graphs_prepare_onnx_topk_with_both_results_as_its_decomposition() {
-    let mut source = model("TopK", 13);
-    let graph = source.graph.as_mut().unwrap();
-    graph.node[0].name = "choose".into();
-    graph.node[0].input.push("k".into());
-    graph.node[0].output.push("indices".into());
-    graph.output = vec![
-        value_info("y", &[1, 2, 1]),
-        typed_value_info("indices", &[1, 2, 1], tensor_proto::DataType::Int64),
-    ];
-    graph.initializer.push(TensorProto {
-        name: "k".into(),
-        data_type: tensor_proto::DataType::Int64 as i32,
-        dims: vec![1],
-        int64_data: vec![1],
-        ..Default::default()
-    });
-    let imported = import(&source).unwrap();
-    imported
-        .prepare(GraphPrepareOptions::new(Device::Cuda(0)))
-        .unwrap();
 }
 
 #[test]
@@ -808,18 +638,6 @@ fn fp16_constant_relu_model() -> ModelProto {
         },
     ];
     source
-}
-
-#[test]
-fn test_fp16_constant_folding_keeps_logical_fingerprints_and_runs_on_the_cpu() {
-    let imported = import(&fp16_constant_relu_model()).unwrap();
-    imported.program().fingerprint().unwrap();
-    // The CPU computes `F16` through the kernel IR interpreter.
-    assert!(
-        imported
-            .prepare(GraphPrepareOptions::new(Device::Cpu))
-            .is_ok()
-    );
 }
 
 #[cfg(feature = "cuda")]

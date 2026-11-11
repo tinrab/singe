@@ -1,13 +1,14 @@
-use std::{iter, path::Path, slice};
+use std::{collections::HashMap, iter, path::Path, slice};
 
 use serde::Deserialize;
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     generation::{CachedDecoder, DecoderOptions, RunningBatch},
+    graph::{Graph, capture},
     nn::{
         Activation, Conv2d, Conv2dConfig, DenseAttentionInput, GatedMlp, GroupedQueryAttention,
         Layer, LayerNorm, Linear, Mlp, Model, ModelState, PreNormBlock, RmsNorm, SelfAttention,
-        SourcedCausalLm, StateBuilder,
+        SourcedCausalLm, StateBuilder, TensorGroup, caches_from_inputs, named_cache_inputs,
     },
     signal::{LogMelOptions, LogMelSpectrogram},
 };
@@ -29,6 +30,9 @@ const LAYER_NORM_EPS: f32 = 1e-5;
 
 // The shortest clip the feature extractor reads, in samples, which it pads shorter clips to.
 const MIN_SAMPLES: i64 = 8_000;
+
+// The samples between mel frames.
+const HOP: i64 = 160;
 
 // The fields of the audio encoder's part of a Qwen3-ASR `config.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -156,13 +160,19 @@ fn sinusoids(length: i64, channels: i64) -> Vec<f32> {
 }
 
 impl Qwen3AsrEncoderLayers {
-    // Encodes one clip's log-mel features, `[1, mels, F]` with `F` whole chunks, of which the first `frames` are valid, to `[N, output]`, one row per audio token of its prompt.
+    // Encodes one clip's log-mel features, `[1, mels, F]` with `F` whole chunks, of which the first `frames`, an `I64` `[1]`, are its own.
+    // Returns a row per position of every chunk, `[F / chunk · positions, output]`, of which the first `count`, an `I64` `[1]`, are the rows the prompt's audio tokens read; the rest mean nothing.
+    // The valid positions and each window's length are computed from `frames` in the graph, so one captured encoder serves every clip of up to `F` frames.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "frame and position counts are far below where `F64` rounds them"
+    )]
     pub fn encode(
         &self,
         features: &Tensor,
-        frames: i64,
+        frames: &Tensor,
         state: &ModelState,
-    ) -> SingeResult<Tensor> {
+    ) -> SingeResult<(Tensor, Tensor)> {
         let config = &self.config;
         let &[1, mels, padded] = features.shape().dimensions() else {
             return Err(SingeError::invalid_argument(
@@ -170,9 +180,9 @@ impl Qwen3AsrEncoderLayers {
             ));
         };
         let chunk = config.chunk();
-        if padded % chunk != 0 || frames <= 0 || frames > padded {
+        if padded % chunk != 0 {
             return Err(SingeError::invalid_argument(
-                "Qwen3-ASR's features are whole chunks, with valid frames among them",
+                "Qwen3-ASR's features are whole chunks",
             ));
         }
 
@@ -191,34 +201,50 @@ impl Qwen3AsrEncoderLayers {
             return Err(SingeError::invalid_argument("Qwen3-ASR's convolutions"));
         };
         let width = config.d_model;
-        let positions = Tensor::from_vec(
-            hidden.device(),
-            Shape::create([steps, width])?,
-            self.positions.clone(),
-        )?
+        let device = hidden.device();
+        let positions = capture::literal(device, |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([steps, width])?,
+                self.positions.clone(),
+            )
+        })?
         .cast(hidden.data_type())?;
-        let valid = config.positions(frames);
+        let rows = chunks * steps;
         let hidden = hidden
             .permute(&[0, 3, 1, 2])?
             .contiguous()?
             .reshape([chunks, steps, channels * frequencies])?
             .apply(&self.projection, state)?
             .add(&positions)?
-            .reshape([chunks * steps, width])?
-            .narrow(0, 0, valid)?;
+            .reshape([rows, width])?;
 
-        // Each window attends within itself, as a batch whose last window counts only its own positions.
+        // Every chunk before the last of the clip's is whole, so its valid positions come first: a whole chunk's for each whole chunk of frames, and an eighth of the rest, rounded up, after three convolutions of stride two.
+        let frames = frames.cast(DataType::F32)?;
+        let whole = frames.div_scalar(chunk as f64)?.floor()?;
+        let count = whole.mul_scalar(steps as f64)?.add(
+            &frames
+                .sub(&whole.mul_scalar(chunk as f64)?)?
+                .div_scalar(8.0)?
+                .ceil()?,
+        )?;
+
+        // Each window attends within itself, as a batch whose windows count only the clip's own positions; a window past them counts one, whose rows mean nothing.
         let window = config.window();
-        let windows = (valid - 1) / window + 1;
-        let lengths = (0..windows)
-            .map(|index| {
-                i32::try_from((valid - index * window).min(window))
-                    .map_err(|_| SingeError::out_of_range("attention window"))
-            })
-            .collect::<SingeResult<Vec<_>>>()?;
-        let lengths = Tensor::from_vec(hidden.device(), Shape::create([windows])?, lengths)?;
+        let windows = (rows - 1) / window + 1;
+        let starts = capture::literal(device, |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([windows])?,
+                (0..windows).map(|index| (index * window) as f32).collect(),
+            )
+        })?;
+        let lengths = count
+            .sub(&starts)?
+            .clamp(1.0, window as f32)?
+            .cast(DataType::I32)?;
         let mut hidden = hidden
-            .pad(&[(0, windows * window - valid), (0, 0)], 0.0)?
+            .pad(&[(0, windows * window - rows), (0, 0)], 0.0)?
             .reshape([windows, window, width])?;
         for block in &self.blocks {
             hidden = block.forward(
@@ -232,13 +258,14 @@ impl Qwen3AsrEncoderLayers {
         }
 
         let [first, second] = &self.projector;
-        hidden
+        let rows = hidden
             .reshape([windows * window, width])?
-            .narrow(0, 0, valid)?
+            .narrow(0, 0, rows)?
             .apply(&self.norm, state)?
             .apply(first, state)?
             .apply(&config.activation_function, state)?
-            .apply(second, state)
+            .apply(second, state)?;
+        Ok((rows, count.cast(DataType::I64)?))
     }
 }
 
@@ -299,36 +326,141 @@ impl Qwen3Asr {
         &self.decoder
     }
 
-    // Turns one clip of 16 kHz samples, `[N]`, into its log-mel features, `[1, mels, F]` padded with zeros to whole chunks, and the count of its valid frames.
-    // A clip shorter than half a second is padded with silence first, as the feature extractor pads it.
-    pub fn features(&self, samples: &Tensor) -> SingeResult<(Tensor, i64)> {
+    // The samples of `chunks` chunks of mel frames, which a front end of that many chunks reads.
+    #[must_use]
+    pub const fn bucket_samples(&self, chunks: i64) -> i64 {
+        chunks * self.config.audio_config.chunk() * HOP
+    }
+
+    // The chunks of mel frames a clip of `samples` samples takes, at least one.
+    #[must_use]
+    pub const fn chunks_of(&self, samples: i64) -> i64 {
+        let frames = if samples > MIN_SAMPLES {
+            samples
+        } else {
+            MIN_SAMPLES
+        } / HOP;
+        let chunk = self.config.audio_config.chunk();
+        let chunks = (frames + chunk - 1) / chunk;
+        if chunks > 1 { chunks } else { 1 }
+    }
+
+    // Turns one clip whose first `count` of `samples` are its own, `[N]` with `N` whole chunks' samples and `count` an `I64` `[1]`, into its log-mel features, `[1, mels, F]`, and the count of its own frames, an `I64` `[1]`.
+    // A clip shorter than half a second counts as half a second, its own samples then silence, as the feature extractor pads it; frames after the clip's own are zero.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "the hop is a small count of samples"
+    )]
+    pub fn features(&self, samples: &Tensor, count: &Tensor) -> SingeResult<(Tensor, Tensor)> {
         let &[length] = samples.shape().dimensions() else {
             return Err(SingeError::invalid_argument(
                 "Qwen3-ASR reads one clip's samples, [samples]",
             ));
         };
         let audio = &self.config.audio_config;
+        if length % self.bucket_samples(1) != 0 {
+            return Err(SingeError::invalid_argument(
+                "Qwen3-ASR's front end reads whole chunks' samples",
+            ));
+        }
+
         let options = LogMelOptions {
-            samples: length.max(MIN_SAMPLES),
+            samples: length,
             ..LogMelOptions::whisper(audio.num_mel_bins)
         };
-        let frames = options.frames();
-        let chunk = audio.chunk();
+        let shortest = capture::literal(samples.device(), |device| {
+            Tensor::from_vec(device, Shape::create([1])?, vec![MIN_SAMPLES])
+        })?;
+        let count = count.maximum(&shortest)?;
         let features = LogMelSpectrogram::create(options)?
-            .forward(samples, self.encoder.state())?
-            .pad(
-                &[(0, 0), (0, 0), (0, (chunk - frames % chunk) % chunk)],
-                0.0,
-            )?
+            .counted(samples, &count)?
             .cast(self.encoder.state().floating_type()?)?;
+        let frames = count
+            .cast(DataType::F32)?
+            .div_scalar(HOP as f64)?
+            .floor()?
+            .cast(DataType::I64)?;
         Ok((features, frames))
     }
 
-    // Encodes one clip's features, `[1, mels, F]`, of which the first `frames` are valid, to the rows its prompt's audio tokens read, `[N, W]`.
-    pub fn encode(&self, features: &Tensor, frames: i64) -> SingeResult<Tensor> {
+    // Encodes one clip's features, `[1, mels, F]`, of which the first `frames`, an `I64` `[1]`, are its own, to rows its prompt's audio tokens read and their count, as `Qwen3AsrEncoderLayers::encode` does.
+    pub fn encode(&self, features: &Tensor, frames: &Tensor) -> SingeResult<(Tensor, Tensor)> {
         self.encoder
             .layer()
             .encode(features, frames, self.encoder.state())
+    }
+
+    // Encodes one clip of 16 kHz samples, `[N]`, to the rows its prompt's audio tokens read, `[R, W]`, eagerly over as few chunks as it takes.
+    pub fn encode_clip(&self, samples: &Tensor) -> SingeResult<Tensor> {
+        let &[length] = samples.shape().dimensions() else {
+            return Err(SingeError::invalid_argument(
+                "Qwen3-ASR reads one clip's samples, [samples]",
+            ));
+        };
+        let bucket = self.bucket_samples(self.chunks_of(length));
+        let padded = samples
+            .cast(DataType::F32)?
+            .pad(&[(0, bucket - length)], 0.0)?;
+        let count = Tensor::from_vec(samples.device(), Shape::create([1])?, vec![length])?;
+        let (features, frames) = self.features(&padded, &count)?;
+        let (rows, count) = self.encode(&features, &frames)?;
+        let count = count.to_vec::<i64>()?[0];
+        rows.narrow(0, 0, count)
+    }
+
+    // The step that encodes one clip of a bucket of `chunks` chunks into `decoder`'s first sequence's sources, as a graph whose inputs are `samples`, `[N]`, `source_length`, the clip's own samples, `source_position`, where its prompt's audio tokens start, both `I64` `[1]`, and the caches, named as the decoder's steps name them.
+    // Its output, `source_rows`, is how many audio tokens the prompt holds.
+    // Exported with the decoder's steps as `encode`, it lets a generation loop transcribe samples with nothing of Singe; the decoder's capacity must hold the prompt's start and every row of the bucket.
+    pub fn encode_step_graph(
+        &self,
+        decoder: &CachedDecoder<Qwen3AsrDecoderLayers>,
+        chunks: i64,
+    ) -> SingeResult<(Graph, HashMap<String, Tensor>)> {
+        let device = decoder
+            .caches()
+            .first()
+            .and_then(|cache| {
+                cache
+                    .named_tensors()
+                    .first()
+                    .map(|(_, tensor)| tensor.device())
+            })
+            .ok_or_else(|| SingeError::missing_input("a decoder's caches"))?;
+        let samples = self.bucket_samples(chunks);
+        let scalar = |value: i64| Tensor::from_vec(device, Shape::create([1])?, vec![value]);
+        let inputs = [
+            (
+                "samples".to_owned(),
+                Tensor::zeroed_on(device, DataType::F32, Shape::create([samples])?)?,
+            ),
+            ("source_length".to_owned(), scalar(samples)?),
+            ("source_position".to_owned(), scalar(0)?),
+        ]
+        .into_iter()
+        .chain(named_cache_inputs(decoder.caches()))
+        .collect::<Vec<_>>();
+        let bindings = self
+            .encoder
+            .state()
+            .capture_bindings()?
+            .merged(self.decoder.state().capture_bindings()?);
+        let (graph, _) = Graph::capture_with_bindings(inputs.clone(), bindings, |tensors| {
+            let [samples, length, position, captured @ ..] = tensors else {
+                return Err(SingeError::missing_input("the encode step's inputs"));
+            };
+            let caches = caches_from_inputs(decoder.caches(), captured)?;
+            let (features, frames) = self.features(samples, length)?;
+            let (rows, count) = self.encode(&features, &frames)?;
+            let offsets = capture::literal(device, |device| {
+                Tensor::arange(device, 0_i64, rows.shape().dimensions()[0], 1)
+            })?;
+            Qwen3AsrDecoderLayers::write_sources_at(&caches, 0, &offsets.add(position)?, &rows)?;
+            Ok(vec![count])
+        })?;
+        Ok((
+            graph.with_output_names(["source_rows"])?,
+            inputs.into_iter().collect(),
+        ))
     }
 
     // The prompt that asks for a transcription of audio of `audio_tokens` rows, as the snapshot's chat template writes it with no system text: the user's turn holds the audio, and the assistant's turn starts, given `language <name><asr_text>` when `language` forces one.
@@ -378,8 +510,7 @@ impl Qwen3Asr {
 
         let mut prompts = Vec::with_capacity(clips.len());
         for clip in clips {
-            let (features, frames) = self.features(clip)?;
-            let encoded = self.encode(&features, frames)?;
+            let encoded = self.encode_clip(clip)?;
             let prompt = self.prompt(tokenizer, encoded.shape().dimensions()[0], language)?;
             prompts.push((prompt, encoded));
         }

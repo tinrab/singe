@@ -225,6 +225,12 @@ impl Whisper {
         &self.config
     }
 
+    // The samples the front end reads, to which a clip is padded with silence or cut.
+    #[must_use]
+    pub const fn samples(&self) -> i64 {
+        self.features.options().samples
+    }
+
     #[must_use]
     pub const fn encoder(&self) -> &Model<WhisperEncoderLayers> {
         &self.encoder
@@ -270,16 +276,16 @@ impl Whisper {
         )
     }
 
-    // The step that encodes one clip's features, `[1, mels, frames]`, and writes the cross-attention caches of `decoder`'s first sequence, as a graph whose inputs are `features` and the caches, named as the decoder's steps name them.
-    // Exported with the decoder's step as `encode` and `decode`, it lets a generation loop transcribe with nothing of Singe.
+    // The step that encodes one clip of 16 kHz samples, `[N]` with `N` the front end's samples, a shorter clip padded with silence, and writes the cross-attention caches of `decoder`'s first sequence, as a graph whose inputs are `samples` and the caches, named as the decoder's steps name them.
+    // Exported with the decoder's step as `encode` and `decode`, it lets a generation loop transcribe samples with nothing of Singe.
     pub fn encode_step_graph(
         &self,
         decoder: &CachedDecoder<WhisperDecoderLayers>,
-        features: &Tensor,
+        samples: &Tensor,
     ) -> SingeResult<(Graph, HashMap<String, Tensor>)> {
         let (encoder, layers) = (&self.encoder, self.decoder.layer());
         let caches = named_cache_inputs(decoder.caches());
-        let inputs = iter::once(("features".to_owned(), features.clone()))
+        let inputs = iter::once(("samples".to_owned(), samples.clone()))
             .chain(caches)
             .collect::<Vec<_>>();
         let bindings = encoder
@@ -287,9 +293,9 @@ impl Whisper {
             .capture_bindings()?
             .merged(self.decoder.state().capture_bindings()?);
         let (graph, _) = Graph::capture_with_bindings(inputs.clone(), bindings, |tensors| {
-            let (features, captured) = tensors.split_at(1);
+            let (samples, captured) = tensors.split_at(1);
             let caches = caches_from_inputs(decoder.caches(), captured)?;
-            let sources = encoder.forward(&features[0])?.squeeze(0)?;
+            let sources = encoder.forward(&self.features(&samples[0])?)?.squeeze(0)?;
             layers.write_sources(&sources, 0, &caches, self.decoder.state())?;
             Ok(vec![sources])
         })?;
@@ -551,7 +557,11 @@ pub fn load(snapshot: impl AsRef<Path>, device: Device, data_type: DataType) -> 
         (name.starts_with("model.decoder.") || name == "proj_out.weight").then(|| name.to_owned())
     };
     Ok(Whisper {
-        features: LogMelSpectrogram::create(LogMelOptions::whisper(config.num_mel_bins))?,
+        // As many samples as the encoder reads frames, a hop each: 30 seconds for the published models.
+        features: LogMelSpectrogram::create(LogMelOptions {
+            samples: config.frames() * LogMelOptions::whisper(config.num_mel_bins).hop,
+            ..LogMelOptions::whisper(config.num_mel_bins)
+        })?,
         encoder: load_weights(
             &encoder_schema(&config, data_type)?,
             snapshot,

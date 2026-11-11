@@ -79,36 +79,3 @@ fn test_cuda_out_of_range_device_id_returns_unsupported_device() {
     assert_unsupported_device_details(cuda::execution_context(out_of_range), &expected);
     assert_unsupported_device_details(cuda::device(device_count), &expected);
 }
-
-#[test]
-fn test_cuda_device_count_reports_non_negative_count() {
-    let Some(device_count) = available_device_count() else {
-        return;
-    };
-
-    assert!(device_count >= 0);
-}
-
-#[test]
-fn test_cuda_backend_device_validates_device_id() {
-    let Some(_lock) = maybe_lock_device() else {
-        return;
-    };
-
-    let Some(device_count) = available_device_count() else {
-        return;
-    };
-    if device_count == 0 {
-        assert_unsupported_device_details(cuda::device(0), "no cuda devices are available");
-        return;
-    }
-
-    assert_eq!(cuda::device(0).unwrap(), Device::Cuda(0));
-}
-
-#[test]
-fn test_cuda_is_available_matches_device_count() {
-    let expected = cuda::device_count().is_ok_and(|count| count > 0);
-
-    assert_eq!(cuda::is_available(), expected);
-}

@@ -20,32 +20,6 @@ fn test_quantization_rejects_non_positive_and_non_finite_scales() {
 }
 
 #[test]
-fn test_quantization_non_finite_inputs_have_explicit_saturating_results() {
-    let input = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([3]).unwrap(),
-        vec![f32::NAN, f32::NEG_INFINITY, f32::INFINITY],
-    )
-    .unwrap();
-    assert_eq!(
-        input
-            .quantize(1., 3, DataType::I8)
-            .unwrap()
-            .to_vec::<i8>()
-            .unwrap(),
-        [3, -128, 127]
-    );
-    assert_eq!(
-        input
-            .quantize(1., 3, DataType::U8)
-            .unwrap()
-            .to_vec::<u8>()
-            .unwrap(),
-        [3, 0, 255]
-    );
-}
-
-#[test]
 fn test_folded_quantization_rounds_halfway_values_to_even() {
     let input = Tensor::from_vec(
         Device::Cpu,

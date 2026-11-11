@@ -18,7 +18,7 @@ pub use crate::{
     device::Device,
     error::{Error, Result},
     graph::{
-        Graph, GraphCompileOptions, GraphFingerprint, GraphFingerprintOptions, GraphInputClass,
+        Graph, GraphCompileOptions, GraphFingerprint, GraphFingerprintOptions,
         GraphOperationInputs, GraphOperationOutput, GraphOperationRequest,
         guards::{GraphGuardFailure, GraphGuards},
         ir::*,
@@ -38,28 +38,6 @@ impl Graph {
     /// Public insertion checks have separate public API coverage.
     pub(crate) fn add_operation_fixture(&mut self, request: GraphOperationRequest) -> ValueId {
         self.push_node(request.into_node())
-    }
-
-    pub(crate) fn add_copy_to_with_declared_output_for_test(
-        &mut self,
-        input: ValueId,
-        device: Device,
-        output: &Tensor,
-    ) -> Result<ValueId> {
-        self.add_named_node_with_layout(Node::copy_to_with_declared_output_for_test(
-            input, device, output,
-        ))
-    }
-
-    pub(crate) fn add_cast_with_declared_output_for_test(
-        &mut self,
-        input: ValueId,
-        data_type: DataType,
-        output: &Tensor,
-    ) -> Result<ValueId> {
-        self.add_named_node_with_layout(Node::cast_with_declared_output_for_test(
-            input, data_type, output,
-        ))
     }
 
     pub(crate) fn add_reshape_with_declared_output_for_test(
@@ -97,16 +75,6 @@ impl Graph {
             node.replace_kind(NodeKind::slice(input, dim, start, length));
         })
         .unwrap();
-    }
-
-    pub(crate) fn replace_node_concat_for_test(
-        &mut self,
-        id: ValueId,
-        inputs: Vec<ValueId>,
-        dim: i64,
-    ) {
-        self.update_node(id, |node| node.replace_kind(NodeKind::concat(inputs, dim)))
-            .unwrap();
     }
 
     pub(crate) fn replace_node_output_metadata_for_test(

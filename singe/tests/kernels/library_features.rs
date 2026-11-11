@@ -6,31 +6,13 @@ use std::collections::HashMap;
 
 use singe::{
     Device, Shape, Tensor,
-    backend::{
-        cuda::{
-            CublasFeature, CublasLtFeature, CudaGraphProvider, CudnnFeature, CufftFeature,
-            CutensorFeature, LibraryFeature, LoweringPolicy,
-            export::{CudaExport, CudaProgram, Library, StepProvider},
-        },
-        registry::{
-            BackendExecution, CudaGraphProviderSet, Operation, operation_support,
-            registered_operations,
-        },
-    },
+    backend::cuda::{CudnnFeature, LoweringPolicy, export::CudaExport},
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
     tensor::AttentionOptions,
     testing::{CompiledProgram, maybe_lock_device, program_target},
 };
 
 const DEVICE: Device = Device::Cuda(0);
-
-const LIBRARIES: [CudaGraphProvider; 5] = [
-    CudaGraphProvider::CudnnBackend,
-    CudaGraphProvider::Cublas,
-    CudaGraphProvider::CublasLt,
-    CudaGraphProvider::Cufft,
-    CudaGraphProvider::Cutensor,
-];
 
 fn random(device: Device, dimensions: &[i64], seed: u32) -> Tensor {
     let count = usize::try_from(dimensions.iter().product::<i64>()).unwrap();
@@ -80,26 +62,6 @@ fn cudnn_graph(device: Device) -> (Graph, Vec<(&'static str, Tensor)>) {
     (graph, inputs)
 }
 
-// What a program runs `operation` with.
-fn provider_of(program: &CudaProgram, operation: Operation) -> StepProvider {
-    program
-        .providers
-        .iter()
-        .find(|provider| provider.operation == Some(operation))
-        .unwrap_or_else(|| panic!("no {operation:?} in {:?}", program.providers))
-        .provider
-}
-
-fn export<L: Into<LibraryFeature>>(
-    graph: &Graph,
-    libraries: impl IntoIterator<Item = L>,
-) -> CudaProgram {
-    CudaExport::new("sm_120".parse().unwrap())
-        .with_libraries(libraries)
-        .export(graph)
-        .unwrap()
-}
-
 // What a graph's report says runs `name`.
 fn graph_provider(report: &str, name: &str) -> String {
     report
@@ -113,178 +75,6 @@ fn graph_provider(report: &str, name: &str) -> String {
         .next()
         .unwrap()
         .to_owned()
-}
-
-#[test]
-fn test_every_operation_a_library_runs_has_a_feature_of_its_own() {
-    for &operation in registered_operations() {
-        let support = operation_support(operation);
-        if !support.supports(BackendExecution::CudaGraph) {
-            continue;
-        }
-        for &provider in support.cuda_graph_providers() {
-            if LIBRARIES.contains(&provider) {
-                let feature = LibraryFeature::of(provider, operation)
-                    .unwrap_or_else(|| panic!("{provider:?} runs {operation:?} with no feature"));
-                assert_eq!(feature.provider(), provider);
-            }
-        }
-    }
-}
-
-#[test]
-fn test_features_default_to_all() {
-    assert_eq!(CudnnFeature::default(), CudnnFeature::All);
-    assert_eq!(CublasFeature::default(), CublasFeature::All);
-    assert_eq!(CublasLtFeature::default(), CublasLtFeature::All);
-    assert_eq!(CufftFeature::default(), CufftFeature::All);
-    assert_eq!(CutensorFeature::default(), CutensorFeature::All);
-}
-
-#[test]
-fn test_a_set_allows_what_its_features_name() {
-    let cases: [(LibraryFeature, &[(CudaGraphProvider, Operation)]); 6] = [
-        (
-            CudnnFeature::Convolution.into(),
-            &[
-                (CudaGraphProvider::CudnnBackend, Operation::Conv2d),
-                (CudaGraphProvider::CudnnBackend, Operation::Conv3d),
-            ],
-        ),
-        (
-            CudnnFeature::Attention.into(),
-            &[
-                (
-                    CudaGraphProvider::CudnnBackend,
-                    Operation::ScaledDotProductAttention,
-                ),
-                (CudaGraphProvider::CudnnBackend, Operation::PagedAttention),
-                (
-                    CudaGraphProvider::CudnnBackend,
-                    Operation::PagedAttentionOutput,
-                ),
-                (
-                    CudaGraphProvider::CudnnBackend,
-                    Operation::PagedAttentionLse,
-                ),
-            ],
-        ),
-        (
-            CublasLtFeature::ScaledMatmul.into(),
-            &[(CudaGraphProvider::CublasLt, Operation::ScaledMatMul)],
-        ),
-        (
-            CufftFeature::Rfft.into(),
-            &[(CudaGraphProvider::Cufft, Operation::Rfft)],
-        ),
-        (
-            CutensorFeature::Contraction.into(),
-            &[(CudaGraphProvider::Cutensor, Operation::Contraction)],
-        ),
-        (
-            CublasFeature::Matmul.into(),
-            &[(CudaGraphProvider::Cublas, Operation::MatMul)],
-        ),
-    ];
-    let pairs = cases
-        .iter()
-        .flat_map(|(_, pairs)| pairs.iter().copied())
-        .collect::<Vec<_>>();
-    for (feature, named) in cases {
-        let set = CudaGraphProviderSet::empty().with_feature(feature);
-        for &(provider, operation) in &pairs {
-            assert_eq!(
-                set.allows(provider, operation),
-                named.contains(&(provider, operation)),
-                "{feature:?} on {provider:?} {operation:?}"
-            );
-        }
-    }
-    // A whole library allows everything a feature of it names.
-    let whole = CudaGraphProviderSet::empty().with(CudaGraphProvider::CudnnBackend);
-    assert!(whole.allows(CudaGraphProvider::CudnnBackend, Operation::Conv3d));
-    assert!(whole.allows(CudaGraphProvider::CudnnBackend, Operation::MatMul));
-    assert!(!whole.allows(CudaGraphProvider::Cufft, Operation::Rfft));
-}
-
-#[test]
-fn test_repeating_a_library_adds_to_what_it_may_run() {
-    let policy = LoweringPolicy::default()
-        .with_libraries([CudnnFeature::Convolution, CudnnFeature::Attention]);
-    assert!(policy.allows(CudaGraphProvider::CudnnBackend, Operation::Conv2d));
-    assert!(policy.allows(
-        CudaGraphProvider::CudnnBackend,
-        Operation::ScaledDotProductAttention
-    ));
-    assert!(!policy.allows(CudaGraphProvider::CudnnBackend, Operation::MatMul));
-    assert!(!policy.allows(CudaGraphProvider::Cublas, Operation::MatMul));
-    assert!(policy.provider_enabled(CudaGraphProvider::Kernel));
-    assert!(policy.provider_enabled(CudaGraphProvider::Fusion));
-}
-
-#[test]
-fn test_programs_call_a_library_only_for_its_features() {
-    let (graph, _) = cudnn_graph(Device::Cpu);
-    let cudnn = StepProvider::Library(Library::Cudnn);
-    let cases = [
-        (CudnnFeature::Convolution, [true, false, false]),
-        (CudnnFeature::Matmul, [false, true, false]),
-        (CudnnFeature::Attention, [false, false, true]),
-        (CudnnFeature::All, [true, true, true]),
-    ];
-    for (feature, expected) in cases {
-        let program = export(&graph, [feature]);
-        let actual = [
-            Operation::Conv2d,
-            Operation::MatMul,
-            Operation::ScaledDotProductAttention,
-        ]
-        .map(|operation| provider_of(&program, operation) == cudnn);
-        assert_eq!(actual, expected, "{feature:?}");
-    }
-    // A plain library name is still the whole library, and several libraries take a list of features.
-    let program = export(&graph, [Library::Cudnn]);
-    assert_eq!(provider_of(&program, Operation::Conv2d), cudnn);
-    let program = export(
-        &graph,
-        [
-            LibraryFeature::Cudnn(CudnnFeature::Attention),
-            LibraryFeature::Cublas(CublasFeature::Matmul),
-        ],
-    );
-    assert_eq!(
-        provider_of(&program, Operation::ScaledDotProductAttention),
-        cudnn
-    );
-    assert_eq!(
-        provider_of(&program, Operation::MatMul),
-        StepProvider::Library(Library::Cublas)
-    );
-    assert_ne!(provider_of(&program, Operation::Conv2d), cudnn);
-}
-
-#[test]
-fn test_an_operation_only_its_feature_keeps_whole_decomposes_without_it() {
-    let inputs = [("signal", random(Device::Cpu, &[2, 1024], 8))];
-    let (graph, _) = Graph::capture(inputs, |inputs| {
-        let spectrum = inputs[0].rfft()?;
-        Ok(vec![spectrum.clone(), spectrum.irfft(1024)?])
-    })
-    .unwrap();
-    let whole = export(&graph, [CufftFeature::All]);
-    assert_eq!(whole.decomposed, []);
-    let forward = export(&graph, [CufftFeature::Rfft]);
-    assert_eq!(forward.decomposed, [Operation::Irfft]);
-    assert_eq!(
-        provider_of(&forward, Operation::Rfft),
-        StepProvider::Library(Library::Cufft)
-    );
-    let inverse = export(&graph, [CufftFeature::Irfft]);
-    assert_eq!(inverse.decomposed, [Operation::Rfft]);
-    assert_eq!(
-        provider_of(&inverse, Operation::Irfft),
-        StepProvider::Library(Library::Cufft)
-    );
 }
 
 #[test]

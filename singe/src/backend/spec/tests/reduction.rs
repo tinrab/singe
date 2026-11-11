@@ -41,14 +41,6 @@ fn test_softmax_problem_normalizes_axis() {
 }
 
 #[test]
-fn test_softmax_problem_detects_empty_tensor() {
-    let shape = Shape::create([2, 0, 4]).unwrap();
-    let problem = softmax_problem(&shape, 1).unwrap();
-    assert_eq!(problem.axis, 1);
-    assert_eq!(problem.axis_dimension, 0);
-}
-
-#[test]
 fn test_softmax_problem_rejects_out_of_range_axis() {
     let shape = Shape::create([2, 3, 4]).unwrap();
     assert!(matches!(

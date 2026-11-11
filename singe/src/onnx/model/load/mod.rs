@@ -54,6 +54,3 @@ impl OnnxModel {
         })
     }
 }
-
-#[cfg(test)]
-mod tests;

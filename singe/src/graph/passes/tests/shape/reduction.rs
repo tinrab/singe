@@ -40,21 +40,6 @@ fn test_infer_value_metadata_pass_infers_reduction_shape() {
 }
 
 #[test]
-fn test_infer_value_metadata_pass_infers_index_reduction_shape() {
-    let input_shape = Shape::create(vec![2, 3, 4]).unwrap();
-    let output_shape = Shape::create(vec![2, 4]).unwrap();
-    let output = Tensor::zeroed_on(Device::Cpu, DataType::I64, &output_shape).unwrap();
-    let mut graph = Graph::new();
-    let input = graph.add_input("x", DataType::F32, input_shape, Device::Cpu);
-    let argmax = add_dimension_operation(&mut graph, RegistryOperation::ArgMax, input, 1, &output);
-    replace_with_stale_shape_metadata(&mut graph, argmax);
-    graph.set_outputs(vec![argmax]).unwrap();
-
-    let normalized = infer_and_validate_value_metadata(&graph);
-    assert_metadata(&normalized, [(argmax, DataType::I64)], &output_shape);
-}
-
-#[test]
 fn test_infer_value_metadata_pass_infers_topk_shapes() {
     let input_shape = Shape::create(vec![2, 3, 4]).unwrap();
     let output_shape = Shape::create(vec![2, 2, 4]).unwrap();

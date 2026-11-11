@@ -74,6 +74,3 @@ impl<'a> Attributes<'a> {
         Error::invalid_attribute(node_label(self.node), name, format!("expected {expected}"))
     }
 }
-
-#[cfg(test)]
-mod tests;

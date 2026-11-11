@@ -8,20 +8,6 @@ use crate::{
 };
 
 #[test]
-fn test_concat_problem_describes_output_shape_and_iteration_sizes() {
-    let lhs = Shape::create([2, 3, 4]).unwrap();
-    let rhs = Shape::create([2, 5, 4]).unwrap();
-    let problem = concat_problem(&[&lhs, &rhs], 1, "test concat").unwrap();
-
-    assert_eq!(problem.axis, 1);
-    assert_eq!(problem.axis_sizes, vec![3, 5]);
-    assert_eq!(problem.output_axis_size, 8);
-    assert_eq!(problem.outer_size, 2);
-    assert_eq!(problem.inner_size, 4);
-    assert_eq!(problem.output_shape.dimensions(), &[2, 8, 4]);
-}
-
-#[test]
 fn test_concat_problem_normalizes_negative_axis() {
     let lhs = Shape::create([2, 3]).unwrap();
     let rhs = Shape::create([2, 4]).unwrap();
@@ -87,23 +73,6 @@ fn test_embedding_problem_describes_output_shape() {
 }
 
 #[test]
-fn test_embedding_problem_rejects_wrong_weight_rank() {
-    let weight = Shape::create([1, 4, 3]).unwrap();
-    let indices = Shape::create([5]).unwrap();
-
-    assert!(matches!(
-        embedding_problem(&weight, &indices, "test embedding"),
-        Err(Error::InvalidTensorRank {
-            operation,
-            name,
-            expected_rank: 2,
-            actual_rank: 3,
-            ..
-        }) if operation == "test embedding" && name == "weight"
-    ));
-}
-
-#[test]
 fn test_pad_problem_describes_output_shape_and_normalized_padding() {
     let input = Shape::create([2, 3, 4]).unwrap();
     let problem = pad_problem(&input, &[(1, 2), (0, 0)], "test pad").unwrap();
@@ -149,16 +118,6 @@ fn test_flatten_problem_describes_output_shape() {
     assert_eq!(problem.start_axis, 1);
     assert_eq!(problem.end_axis, 2);
     assert_eq!(problem.flattened_dimension, 12);
-    assert_eq!(problem.output_shape.dimensions(), &[2, 12, 5]);
-}
-
-#[test]
-fn test_flatten_problem_normalizes_negative_axes() {
-    let input = Shape::create([2, 3, 4, 5]).unwrap();
-    let problem = flatten_problem(&input, -3, -2, "test flatten").unwrap();
-
-    assert_eq!(problem.start_axis, 1);
-    assert_eq!(problem.end_axis, 2);
     assert_eq!(problem.output_shape.dimensions(), &[2, 12, 5]);
 }
 

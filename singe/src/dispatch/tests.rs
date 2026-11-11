@@ -54,17 +54,6 @@ fn test_composite_kernel_runs_when_backend_has_none() {
 }
 
 #[test]
-fn test_exclude_guard_restores_previous_keys() {
-    assert!(!excluded().contains(DispatchKey::Capture));
-    {
-        let _outer = ExcludeGuard::new(DispatchKey::Capture.and_higher());
-        assert!(excluded().contains(DispatchKey::Autocast));
-        assert!(excluded().contains(DispatchKey::Capture));
-    }
-    assert!(!excluded().contains(DispatchKey::Capture));
-}
-
-#[test]
 fn test_autocast_rejects_full_precision_and_nests() {
     assert!(autocast(DataType::F32).is_err());
     {

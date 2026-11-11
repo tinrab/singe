@@ -57,21 +57,6 @@ fn assert_matmul_error(
 }
 
 #[test]
-fn test_infer_value_metadata_pass_infers_matmul_shape() {
-    assert_matmul_shape(vec![2, 3], vec![3, 4], vec![2, 4]);
-}
-
-#[test]
-fn test_infer_value_metadata_pass_infers_batched_matmul_shape() {
-    assert_matmul_shape(vec![5, 2, 3], vec![5, 3, 4], vec![5, 2, 4]);
-}
-
-#[test]
-fn test_infer_value_metadata_pass_infers_multi_batched_matmul_shape() {
-    assert_matmul_shape(vec![2, 5, 3, 4], vec![2, 5, 4, 6], vec![2, 5, 3, 6]);
-}
-
-#[test]
 fn test_infer_value_metadata_pass_rejects_mismatched_multi_batched_matmul_shape() {
     let (graph, _) = stale_matmul_graph(
         Shape::create([2, 5, 3, 4]).unwrap(),

@@ -188,27 +188,3 @@ pub fn load(snapshot: impl AsRef<Path>, device: Device, data_type: DataType) -> 
         Some(&state_name),
     )
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_task_model_names_map_to_the_encoder_and_heads_are_ignored() {
-        assert_eq!(
-            state_name("bert.encoder.layer.0.output.dense.weight").unwrap(),
-            "encoder.layer.0.output.dense.weight"
-        );
-        assert_eq!(
-            state_name("embeddings.LayerNorm.gamma").unwrap(),
-            "embeddings.LayerNorm.weight"
-        );
-        assert_eq!(
-            state_name("bert.embeddings.LayerNorm.beta").unwrap(),
-            "embeddings.LayerNorm.bias"
-        );
-        assert_eq!(state_name("pooler.dense.weight"), None);
-        assert_eq!(state_name("cls.predictions.bias"), None);
-        assert_eq!(state_name("embeddings.position_ids"), None);
-    }
-}

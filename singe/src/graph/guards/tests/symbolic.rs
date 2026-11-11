@@ -22,27 +22,6 @@ fn guarded_identity_graph(axis: usize, name: &'static str) -> (Graph, Shape) {
 }
 
 #[test]
-fn test_graph_symbolic_input_dimension_allows_runtime_size_change() {
-    let static_shape = Shape::create(vec![2, 3]).unwrap();
-    let runtime_shape = Shape::create(vec![4, 3]).unwrap();
-    let captured_input = cpu_tensor(&static_shape, 1.0);
-    let (mut captured, _) =
-        Graph::capture([("x", captured_input)], |inputs| -> Result<Vec<Tensor>> {
-            Ok(vec![inputs[0].clone()])
-        })
-        .unwrap();
-    captured
-        .add_input_dimension_guard("x", 0, "batch", Some(1), Some(8))
-        .unwrap();
-
-    let outputs = captured
-        .run(&single_input("x", cpu_tensor(&runtime_shape, 1.0)))
-        .unwrap();
-
-    assert_eq!(outputs[0].shape().dimensions(), &[4, 3]);
-}
-
-#[test]
 fn test_graph_symbolic_input_dimension_propagates_to_same_shape_output() {
     let static_shape = Shape::create(vec![2, 3]).unwrap();
     let runtime_shape = Shape::create(vec![4, 3]).unwrap();

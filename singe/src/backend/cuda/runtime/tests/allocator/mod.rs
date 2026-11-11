@@ -1,5 +1,4 @@
 mod clear;
-mod stats;
 
 use super::*;
 

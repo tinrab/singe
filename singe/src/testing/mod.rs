@@ -9,7 +9,7 @@ mod program;
 pub use self::cuda::{maybe_lock_device, skip_if_stub};
 #[cfg(feature = "cuda")]
 pub use crate::backend::cuda::export::compiled::{
-    CompiledProgram, ProgramError, ProgramInstance, build_generation_loop,
+    CompiledProgram, ProgramError, ProgramInstance, build_generation_loop, build_runner,
     build_set_generation_loop, program_target,
 };
 use std::cell::Cell;

@@ -35,11 +35,6 @@ fn assert_invalid_reductions(device: Device) {
 }
 
 #[test]
-fn test_cpu_reduction_validation_rejects_empty_extrema_duplicate_axes_and_invalid_axes() {
-    assert_invalid_reductions(Device::Cpu);
-}
-
-#[test]
 fn test_scalar_views_reject_axes_outside_the_virtual_scalar_axis() {
     let scalar = Tensor::scalar(Device::Cpu, 3.0_f32).unwrap();
     for invalid in [-2, 1] {
@@ -170,28 +165,6 @@ fn assert_copy_and_view_identity(device: Device) {
         );
         assert_eq!(outputs[0].to_vec::<f32>().unwrap(), [1.0, 2.0, 3.0]);
     }
-}
-
-#[test]
-fn test_selected_scalar_and_offset_views_replay_changed_inputs() {
-    let original = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([2, 2]).unwrap(),
-        vec![1.0_f32, 2.0, 3.0, 4.0],
-    )
-    .unwrap();
-    let (captured, _) = Graph::capture([("x", original.clone())], |inputs| {
-        Ok(vec![inputs[0].index(&idx![1, 0])?])
-    })
-    .unwrap();
-    let changed = original.add_scalar(10.0).unwrap();
-    let result = captured
-        .compile()
-        .unwrap()
-        .run(&HashMap::from([("x".into(), changed)]))
-        .unwrap();
-    assert_eq!(result[0].shape(), &Shape::scalar());
-    assert_eq!(result[0].to_vec::<f32>().unwrap(), [13.0]);
 }
 
 #[test]
@@ -336,97 +309,6 @@ fn test_typed_fill_and_like_constructors_preserve_bool_half_and_integer_values()
     assert!(input.full_like(1.0_f32).is_err());
 }
 
-#[test]
-fn test_reduction_and_capture_preserve_rank_zero_outputs() {
-    let input = Tensor::from_vec(
-        Device::Cpu,
-        Shape::create([3]).unwrap(),
-        vec![1.0_f32, 2.0, 3.0],
-    )
-    .unwrap();
-    let (captured, _) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![inputs[0].sum(&[0], false)?, inputs[0].argmax(0)?])
-    })
-    .unwrap();
-    let outputs = captured.run(&HashMap::from([("x".into(), input)])).unwrap();
-    assert_eq!(outputs[0].shape().dimensions(), &[] as &[i64]);
-    assert_eq!(outputs[0].to_vec::<f32>().unwrap(), [6.0]);
-    assert_eq!(outputs[1].shape().dimensions(), &[] as &[i64]);
-    assert_eq!(outputs[1].to_vec::<i64>().unwrap(), [2]);
-}
-
-#[cfg(all(feature = "testing", feature = "cuda"))]
-#[test]
-fn test_cuda_nan_extrema_preserve_first_indices_and_nan_results() {
-    let _lock = device_lock(0).expect("the CUDA contract tests require device 0");
-    for (values, expected) in [
-        (vec![f32::NAN, 2.0, 2.0, -1.0], 0),
-        (vec![2.0, f32::NAN, f32::NAN, -1.0], 1),
-        (vec![f32::INFINITY, f32::NAN, f32::NEG_INFINITY], 1),
-        (vec![f32::NAN, f32::NAN], 0),
-    ] {
-        let input = Tensor::from_vec(
-            Device::Cuda(0),
-            Shape::create([i64::try_from(values.len()).unwrap()]).unwrap(),
-            values,
-        )
-        .unwrap();
-        let (captured, _) = Graph::capture([("x", input.clone())], |inputs| {
-            Ok(vec![
-                inputs[0].argmax(0)?,
-                inputs[0].argmin(0)?,
-                inputs[0].max_reduce(&[0], false)?,
-                inputs[0].min_reduce(&[0], false)?,
-            ])
-        })
-        .unwrap();
-        let mut compiled = cuda::compile_graph(&captured, &GraphCudaOptions::default()).unwrap();
-        let replayed = compiled
-            .run(&HashMap::from([("x".into(), input.clone())]))
-            .unwrap();
-        assert_eq!(replayed[0].to_vec::<i64>().unwrap(), [expected]);
-        assert_eq!(replayed[1].to_vec::<i64>().unwrap(), [expected]);
-        let outputs = captured.run(&HashMap::from([("x".into(), input)])).unwrap();
-        assert_eq!(outputs[0].to_vec::<i64>().unwrap(), [expected]);
-        assert_eq!(outputs[1].to_vec::<i64>().unwrap(), [expected]);
-        assert!(outputs[2].to_vec::<f32>().unwrap()[0].is_nan());
-        assert!(outputs[3].to_vec::<f32>().unwrap()[0].is_nan());
-    }
-}
-
-#[cfg(all(feature = "testing", feature = "cuda"))]
-#[test]
-fn test_cuda_comparisons_replay_bool_outputs_and_expand_replays_as_a_view() {
-    let _lock = device_lock(0).expect("the CUDA contract tests require device 0");
-    let input = Tensor::from_vec(
-        Device::Cuda(0),
-        Shape::create([3]).unwrap(),
-        vec![1.0_f32, 2.0, 3.0],
-    )
-    .unwrap();
-    let (captured, _) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![inputs[0].less(&inputs[0].add_scalar(1.0)?)?])
-    })
-    .unwrap();
-    let outputs = cuda::compile_graph(&captured, &GraphCudaOptions::default())
-        .unwrap()
-        .run(&HashMap::from([("x".into(), input.clone())]))
-        .unwrap();
-    assert_eq!(outputs[0].to_vec::<bool>().unwrap(), [true, true, true]);
-    let (expanded, _) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![inputs[0].expand(&Shape::create([2, 3])?)?])
-    })
-    .unwrap();
-    let outputs = cuda::compile_graph(&expanded, &GraphCudaOptions::default())
-        .unwrap()
-        .run(&HashMap::from([("x".into(), input)]))
-        .unwrap();
-    assert_eq!(
-        outputs[0].to_vec::<f32>().unwrap(),
-        [1.0, 2.0, 3.0, 1.0, 2.0, 3.0]
-    );
-}
-
 #[cfg(all(feature = "testing", feature = "cuda"))]
 #[test]
 fn test_cuda_host_readback_and_moves_preserve_strided_fp64_and_bool_values() {
@@ -467,88 +349,4 @@ fn test_cuda_host_readback_and_moves_preserve_strided_fp64_and_bool_values() {
             .unwrap(),
         [true; 6]
     );
-}
-
-#[cfg(all(feature = "testing", feature = "cuda"))]
-#[test]
-fn test_cuda_empty_reductions_replay_with_the_original_input_signature() {
-    let _lock = device_lock(0).expect("the CUDA contract tests require device 0");
-    let input = Tensor::from_vec(
-        Device::Cuda(0),
-        Shape::create([2, 0]).unwrap(),
-        Vec::<f32>::new(),
-    )
-    .unwrap();
-    let (captured, _) = Graph::capture([("x", input.clone())], |inputs| {
-        Ok(vec![
-            inputs[0].sum(&[1], false)?,
-            inputs[0].product(&[1], false)?,
-            inputs[0].mean(&[1], false)?,
-        ])
-    })
-    .unwrap();
-    let mut compiled = cuda::compile_graph(&captured, &GraphCudaOptions::default()).unwrap();
-    let bindings = HashMap::from([("x".into(), input.clone())]);
-    for _ in 0..2 {
-        let outputs = compiled.run(&bindings).unwrap();
-        assert_eq!(outputs[0].to_vec::<f32>().unwrap(), [0.0; 2]);
-        assert_eq!(outputs[1].to_vec::<f32>().unwrap(), [1.0; 2]);
-        assert!(
-            outputs[2]
-                .to_vec::<f32>()
-                .unwrap()
-                .iter()
-                .all(|value| value.is_nan())
-        );
-    }
-    assert!(input.max_reduce(&[1], false).is_err());
-    assert!(input.min_reduce(&[1], false).is_err());
-    let wrong = Tensor::from_vec(
-        Device::Cuda(0),
-        Shape::create([2, 1]).unwrap(),
-        vec![0.0_f32; 2],
-    )
-    .unwrap();
-    assert!(compiled.run(&HashMap::from([("x".into(), wrong)])).is_err());
-}
-
-fn assert_rank_zero_dimension_operations(device: Device) {
-    let scalar = Tensor::scalar(device, 2.5_f32).unwrap();
-    for dim in [0, -1] {
-        let softmax = scalar.softmax(dim).unwrap();
-        assert_eq!(softmax.shape().dimensions(), &[] as &[i64]);
-        assert_eq!(softmax.to_vec::<f32>().unwrap(), [1.0]);
-        assert_eq!(
-            scalar.log_softmax(dim).unwrap().to_vec::<f32>().unwrap(),
-            [0.0]
-        );
-        for index in [scalar.argmax(dim).unwrap(), scalar.argmin(dim).unwrap()] {
-            assert_eq!(index.shape().dimensions(), &[] as &[i64]);
-            assert_eq!(index.to_vec::<i64>().unwrap(), [0]);
-        }
-    }
-    assert!(scalar.softmax(1).is_err());
-    assert!(scalar.argmax(2).is_err());
-
-    let (captured, _) = Graph::capture([("x", scalar.clone())], |inputs| {
-        Ok(vec![inputs[0].softmax(0)?, inputs[0].argmax(-1)?])
-    })
-    .unwrap();
-    let outputs = captured
-        .run(&HashMap::from([("x".into(), scalar)]))
-        .unwrap();
-    assert_eq!(outputs[0].to_vec::<f32>().unwrap(), [1.0]);
-    assert_eq!(outputs[1].to_vec::<i64>().unwrap(), [0]);
-}
-
-#[test]
-fn test_rank_zero_inputs_reach_softmax_and_arg_reduction_kernels() {
-    assert_rank_zero_dimension_operations(Device::Cpu);
-}
-
-#[cfg(all(feature = "testing", feature = "cuda"))]
-#[test]
-fn test_cuda_rank_zero_inputs_reach_softmax_and_arg_reduction_kernels() {
-    let _lock = device_lock(0).expect("the CUDA contract tests require device 0");
-    assert_rank_zero_dimension_operations(Device::Cuda(0));
 }

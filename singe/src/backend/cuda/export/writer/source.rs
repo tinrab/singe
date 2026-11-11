@@ -279,9 +279,13 @@ impl Renderer<'_> {
                 ),
             })
         });
+        let run = program.decoding.is_none().then(|| {
+            format!("nvcc -std=c++17 {compile} {prefix}.cu {prefix}_run.cu {link} -o {prefix}_run")
+        });
         serde_json::to_string_pretty(&json!({
             "target": program.target.to_string(),
             "decoding": decoding,
+            "run": run,
             "tuning_records": {
                 "used": program.record_coverage.used,
             },
@@ -411,10 +415,12 @@ impl Renderer<'_> {
         );
         let manifest = self.manifest(&libraries, out.needs, &buffers)?;
         let generate = self.generation_loop(buffers.weights.len())?;
+        let run = self.runner(buffers.weights.len())?;
         let forced = self.forced.take();
         Ok(ProgramFiles {
             header: self.header()?,
             generate,
+            run,
             source,
             weights: buffers.weights,
             manifest,

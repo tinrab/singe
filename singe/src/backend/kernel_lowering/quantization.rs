@@ -144,7 +144,7 @@ pub fn quantization(
 
     let kinds = vec![AxisKind::Parallel; dimensions.len()];
     let mut builder = DomainKernel::create(
-        &format!("singe_{}", operation.name()),
+        &format!("singe_kernel_{}", operation.name()),
         &dimensions,
         &kinds,
         &[
