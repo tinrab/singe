@@ -475,7 +475,7 @@ fn test_row_lowerings_compute_an_element_wise_prologue_in_the_kernel() {
     )
     .unwrap();
     let lowered = softmax(Operation::Softmax, &group, -1, None).unwrap();
-    assert_eq!(lowered.kernel.name, "singe_fused_mul_add_softmax");
+    assert_eq!(lowered.kernel.name, "singe_kernel_fused_mul_add_softmax");
     assert_lowered_matches(&lowered, &inputs, &expected, tolerance);
 
     let attributes = LayerNormalizationAttributes {
