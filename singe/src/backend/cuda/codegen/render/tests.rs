@@ -2,9 +2,9 @@ use singe_codegen::emit::{EntryPoint, KernelSource, SourceLanguage, SourceParame
 
 use crate::{
     backend::cuda::codegen::{
-                BufferDescription, CompileRequirements, KernelAbi, KernelArgument, KernelArtifact,
-                KernelCode, KernelDescription, KernelLaunch, KernelOutput,
-            },
+        BufferDescription, CompileRequirements, KernelAbi, KernelArgument, KernelArtifact,
+        KernelCode, KernelDescription, KernelLaunch, KernelOutput,
+    },
     data_type::DataType,
     layout::Layout,
 };

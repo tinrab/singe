@@ -4,10 +4,7 @@ use singe_core::assert_close;
 
 use crate::{
     backend::{
-        cuda::{
-            self,
-            eager::tensor_algebra::contraction, test_support::assert_shape_mismatch,
-        },
+        cuda::{self, eager::tensor_algebra::contraction, test_support::assert_shape_mismatch},
         registry::{Operation, operation_name},
     },
     data_type::DataType,

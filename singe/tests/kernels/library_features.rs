@@ -6,10 +6,7 @@ use std::collections::HashMap;
 
 use singe::{
     Device, Shape, Tensor,
-    backend::cuda::{
-            CudnnFeature, LoweringPolicy,
-            export::CudaExport,
-        },
+    backend::cuda::{CudnnFeature, LoweringPolicy, export::CudaExport},
     graph::{Graph, GraphCudaOptions, GraphPrepareOptions},
     tensor::AttentionOptions,
     testing::{CompiledProgram, maybe_lock_device, program_target},
