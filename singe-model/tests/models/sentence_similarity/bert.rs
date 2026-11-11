@@ -1,13 +1,16 @@
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "cuda_13_4")]
-use singe::{DataType, Device, Shape, Tensor, nn::TokenBatch};
+use singe::{
+    DataType, Device, Shape, Tensor,
+    nn::{TensorGroup, TokenBatch},
+};
 use singe_model::text::sentence_similarity::{SentenceEmbedder, bert, load_sentence_embedder};
 #[cfg(feature = "cuda_13_4")]
 use singe_model::tokenization::TextTokenizer;
 
 #[cfg(feature = "cuda_13_4")]
-use singe_testing::lock_device;
+use singe_testing::{EVERY_PATH, check_paths, lock_device};
 use singe_testing::{Reference, Tolerance, assert_matches, integers, reference};
 
 const MODELS: [&str; 2] = ["base", "unnormalized"];
@@ -222,12 +225,31 @@ mod cuda {
 
     const DEVICE: Device = Device::Cuda(0);
 
+    // The captured embedder, pooling and normalization included, computes the reference's embeddings on every path, an exported program among them.
     #[test]
     fn test_tiny_bert_matches_transformers_on_cuda() {
         let Some(_lock) = lock_device() else {
             return;
         };
         check_references(DEVICE);
+        let reference = tiny(MODELS[0]);
+        let batch = batch(&reference, DEVICE);
+        let (graph, _) = embedder(&directory(MODELS[0]), DEVICE, DataType::F32)
+            .capture_group(&batch)
+            .unwrap();
+        let inputs = batch.named_tensors();
+        check_paths(
+            &graph,
+            &inputs
+                .iter()
+                .map(|(name, tensor)| (name.as_str(), tensor.clone()))
+                .collect::<Vec<_>>(),
+            &reference.values("f32.embeddings"),
+            F32_TOLERANCE,
+            "tiny bert",
+            &EVERY_PATH,
+            DEVICE,
+        );
     }
 
     #[test]

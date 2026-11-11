@@ -485,10 +485,10 @@ mod cuda {
         }
     }
 
-    // Exports the encode step and the decoder's step as one program with its generation loop, builds the loop, and runs it on `features`, `[1, mels, frames]`, returning the tokens it prints.
+    // Exports the encode step and the decoder's step as one program with its generation loop, builds the loop, and runs it on `samples` of a clip at 16 kHz, returning the tokens it prints.
     fn transcribe_through_loop(
         model: &Whisper,
-        features: &Tensor,
+        samples: &[f32],
         prefix: &[i64],
         new_tokens: usize,
         label: &str,
@@ -497,7 +497,13 @@ mod cuda {
             .create_decoder(DecoderOptions::new(1, model.config().max_target_positions))
             .unwrap();
         let step = decoder.step_graph().unwrap();
-        let (encode, _) = model.encode_step_graph(&decoder, features).unwrap();
+        let example = Tensor::zeroed_on(
+            DEVICE,
+            DataType::F32,
+            Shape::create([model.samples()]).unwrap(),
+        )
+        .unwrap();
+        let (encode, _) = model.encode_step_graph(&decoder, &example).unwrap();
         let set = CudaExport::new(program_target(DEVICE).unwrap())
             .with_decoding(step.layout)
             .export_steps(&[("encode", &encode), ("decode", &step.graph)])
@@ -507,10 +513,17 @@ mod cuda {
             .join(format!("{label}-generate-{}", process::id()));
         let _ = fs::remove_dir_all(&directory);
         let executable = build_set_generation_loop(&set, &directory).unwrap();
-        fs::write(directory.join("features.bin"), features.to_bytes().unwrap()).unwrap();
+        fs::write(
+            directory.join("samples.f32"),
+            samples
+                .iter()
+                .flat_map(|sample| sample.to_le_bytes())
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
         let output = Command::new(&executable)
             .arg(new_tokens.to_string())
-            .arg("features.bin")
+            .arg("samples.f32")
             .args(prefix.iter().map(i64::to_string))
             .current_dir(&directory)
             .output()
@@ -528,7 +541,7 @@ mod cuda {
             .collect()
     }
 
-    // The tiny model's first sequence generates its reference tokens through an exported program of an encode and a decode step, run by its generation loop with nothing of Singe.
+    // The tiny model transcribes a synthetic signal through an exported program of an encode step, front end included, and a decode step, run by its generation loop with nothing of Singe, to what it transcribes eagerly.
     #[test]
     fn test_tiny_whisper_generates_through_its_exported_loop() {
         let Some(_lock) = lock_device() else {
@@ -539,16 +552,22 @@ mod cuda {
         }
         let reference = tiny();
         let model = load(DEVICE, DataType::F32);
-        let features = features(&reference, DEVICE, DataType::F32)
-            .narrow(0, 0, 1)
-            .unwrap()
-            .contiguous()
+        let samples = tone_and_chirp(usize::try_from(model.samples()).unwrap() * 2 / 3, DEVICE);
+        let prefix = reference.integers("prefix");
+        let expected = model
+            .transcribe(
+                &samples,
+                &prefix,
+                &TranscribeOptions::new(GenerationOptions {
+                    max_new_tokens: 6,
+                    ..GenerationOptions::default()
+                }),
+            )
             .unwrap();
-        let expected = integers(&reference.metadata()["tokens"]["f32"][0]);
         let generated = transcribe_through_loop(
             &model,
-            &features,
-            &reference.integers("prefix"),
+            &samples.to_vec::<f32>().unwrap(),
+            &prefix,
             expected.len(),
             "whisper_tiny_loop",
         );
@@ -567,11 +586,10 @@ mod cuda {
         }
         let reference = real_reference();
         let model = whisper::load(real_snapshot(), DEVICE, DataType::F32).unwrap();
-        let features = model.features(&clip(DEVICE)).unwrap();
         let expected = integers(&reference["tokens"]);
         let generated = transcribe_through_loop(
             &model,
-            &features,
+            &clip(DEVICE).to_vec::<f32>().unwrap(),
             &integers(&reference["prefix"]),
             expected.len(),
             "whisper_real_loop",

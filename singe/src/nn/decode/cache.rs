@@ -465,6 +465,18 @@ impl SourceCache {
         )
     }
 
+    // Writes `rows`, `[N, W]`, as sequence `sequence`'s sources at `positions`, `[N]` of `I64`, which a captured step computes from a position it reads.
+    pub fn write_at(&self, sequence: usize, positions: &Tensor, rows: &Tensor) -> Result<()> {
+        let sequence = i64::try_from(sequence).map_err(|_| Error::out_of_range("sequence"))?;
+        self.rows.index_put_(
+            &[
+                TensorIndex::Single(sequence),
+                TensorIndex::Indices(positions.clone()),
+            ],
+            rows,
+        )
+    }
+
     // Replaces the rows of `embedded`, `[T, W]`, whose token is `placeholder` with their sequence's source at their position.
     pub fn embed(&self, step: &DecodeStep, embedded: &Tensor, placeholder: i64) -> Result<Tensor> {
         let tokens = step.tokens();

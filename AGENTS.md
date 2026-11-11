@@ -79,6 +79,10 @@ Use `uv` for Python helpers.
 - Decoder caches: `singe/src/nn/decode/` has `DecodeStep` and the caches, one per block from its own spec: paged `KvCache`s, a per-sequence `StateCache` for linear attention, and `HybridCache` for models that mix them.
   A layer carrying a state reads only each sequence's real tokens, `DecodeStep::real_tokens`, so padding and held rows leave it as it was.
   `SourcedCausalLm` adds a `SourceCache` whose rows a prompt's placeholder tokens read in place of their embeddings, as Qwen3-ASR's audio tokens do.
+- Programs: `singe/src/backend/cuda/export/` turns graphs into CUDA C++ programs, and several graphs into a set sharing weights.
+  A set exported with `with_decoding` writes a generation loop that fills every `DecodeStep` input, reads prompts through a `prompt` step, and runs an `encode` step on a source file; any other program writes a runner from input files to output files.
+  Inputs whose length varies pad to a fixed size with their length as a tensor input, so one graph serves the eager, compiled, and program paths.
+  `singe_model::export::export_snapshot`, run by `singe-model`'s `export` example, exports any snapshot its loaders know.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
 - cuDNN: the frontend port in `singe-cudnn/src/frontend/`, backend descriptors, engines, and execution in `singe-cudnn/src/backend/`, and legacy descriptor APIs in `singe-cudnn/src/legacy/`.
 - PTX: parsing in `singe-ptx/src/parser/`; the emulator defines supported instruction forms in `emulator/lowering/`, one module per family, and executes them in `emulator/engine/`.

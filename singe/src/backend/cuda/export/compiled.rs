@@ -273,6 +273,27 @@ pub fn build_set_generation_loop(
     build_written_loop(directory)
 }
 
+// Writes `program`, exported without a page layout, into `directory` with its runner, and builds the runner as the manifest says, returning the executable, which reads its weights from the same directory.
+//
+// # Errors
+//
+// Returns an error if the program has no runner, or writing or compiling fails.
+pub fn build_runner(program: &CudaProgram, directory: &Path) -> Result<PathBuf, ProgramError> {
+    program.write_to(directory, "model")?;
+    let manifest = read_manifest(directory, "model")?;
+    let command = manifest["run"]
+        .as_str()
+        .ok_or_else(|| Error::invalid_argument("program has no runner"))?;
+    let mut arguments = command
+        .split_whitespace()
+        .skip(1)
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    library_flags(&mut arguments);
+    run_compiler(&arguments, directory)?;
+    Ok(directory.join("model_run"))
+}
+
 fn build_written_loop(directory: &Path) -> Result<PathBuf, ProgramError> {
     let manifest = read_manifest(directory, "model")?;
     let command = manifest["decoding"]["generate"]

@@ -2,7 +2,12 @@
 
 use std::collections::HashMap;
 #[cfg(all(feature = "cuda", feature = "testing"))]
-use std::slice;
+use std::{
+    fs,
+    path::PathBuf,
+    process::{self, Command},
+    slice,
+};
 
 use serde_json::Value;
 use singe::{
@@ -11,8 +16,8 @@ use singe::{
 };
 #[cfg(all(feature = "cuda", feature = "testing"))]
 use singe::{
-    backend::cuda::export::{CudaExport, Library, StateKind},
-    testing::{CompiledProgram, maybe_lock_device, program_target},
+    backend::cuda::export::{CudaExport, CudaProgram, Library, StateKind},
+    testing::{CompiledProgram, build_runner, maybe_lock_device, program_target},
 };
 
 // Missing required exports fail compilation.
@@ -160,8 +165,11 @@ fn test_required_pytorch_exports_run_as_cuda_programs() {
                     values(&case["input"]),
                 )
                 .unwrap();
-                let outputs = compiled.run(&[input], 1).unwrap();
+                let outputs = compiled.run(slice::from_ref(&input), 1).unwrap();
                 assert_output(&outputs[0], &case["output"]);
+                if checked == 0 && label == "libraries" {
+                    check_runner(&program, &input, &case["output"], name);
+                }
                 checked += 1;
             }
             assert!(checked > 0, "{name} {label} ran no reference case");
@@ -214,4 +222,37 @@ fn test_required_pytorch_exports_run_as_cuda_programs() {
             }
         }
     }
+}
+
+// The runner an export writes beside a program reads its input from a file and writes its output to one, with nothing of Singe.
+#[cfg(all(feature = "cuda", feature = "testing"))]
+fn check_runner(program: &CudaProgram, input: &Tensor, expected: &Value, name: &str) {
+    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "../target/programs/onnx-{name}-run-{}",
+        process::id()
+    ));
+    let _ = fs::remove_dir_all(&directory);
+    let executable = build_runner(program, &directory).unwrap();
+    fs::write(directory.join("input.bin"), input.to_bytes().unwrap()).unwrap();
+    let output = Command::new(&executable)
+        .args(["input.bin", "output.bin"])
+        .current_dir(&directory)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let values = fs::read(directory.join("output.bin"))
+        .unwrap()
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|bytes| f32::from_le_bytes(*bytes))
+        .collect::<Vec<_>>();
+    let dimensions = program.outputs[0].layout.dimensions().to_vec();
+    let actual = Tensor::from_vec(Device::Cpu, Shape::create(dimensions).unwrap(), values).unwrap();
+    assert_output(&actual, expected);
+    let _ = fs::remove_dir_all(&directory);
 }

@@ -49,10 +49,17 @@ fn test_tiny_qwen3_5_decodes_on_cuda() {
 // The real model follows each of PyTorch's greedy tokens from a chat prompt, so every step's logits compare with its own, and a token may differ only where PyTorch's top two nearly tie.
 #[cfg(feature = "cuda_13_4")]
 mod real {
+    use std::{
+        fs,
+        path::PathBuf,
+        process::{self, Command},
+    };
+
     use singe::{
         DataType, Device,
-        generation::{Decoder, DecoderOptions},
-        testing::maybe_lock_device,
+        backend::cuda::export::CudaExport,
+        generation::{CachedDecoder, Decoder, DecoderOptions},
+        testing::{build_set_generation_loop, maybe_lock_device, program_target},
     };
     use singe_model::text::text_generation::qwen3_5;
     use singe_testing::{
@@ -132,5 +139,90 @@ mod real {
     #[ignore = "needs real snapshots, through SINGE_SNAPSHOT_<MODEL>"]
     fn test_qwen3_5_compiled_bf16_follows_pytorch() {
         check_real_bf16(true);
+    }
+
+    // The loop an export writes beside the one-token step and a prompt step of 64 rows generates PyTorch's greedy tokens from each chat prompt until a near tie, with nothing of Singe.
+    #[test]
+    #[ignore = "needs real snapshots, through SINGE_SNAPSHOT_<MODEL>"]
+    fn test_qwen3_5_generates_through_its_exported_loop() {
+        let Some(_lock) = maybe_lock_device() else {
+            return;
+        };
+        let Some(architecture) = program_target(Device::Cuda(0)) else {
+            return;
+        };
+        let reference = singe_testing::reference!("text_generation/qwen3_5/real");
+        let model = qwen3_5::load(
+            singe_testing::snapshot("QWEN35"),
+            Device::Cuda(0),
+            DataType::Bf16,
+        )
+        .unwrap();
+        let cases = reference.metadata()["cases"].as_array().unwrap();
+        let capacity = cases
+            .iter()
+            .map(|case| {
+                length(&integers(&case["input_ids"])) + length(case["steps"].as_array().unwrap())
+            })
+            .max()
+            .unwrap();
+        let decoder = CachedDecoder::create(&model, DecoderOptions::new(1, capacity)).unwrap();
+        let (step, prompt) = (
+            decoder.step_graph().unwrap(),
+            decoder.chunk_step_graph(63).unwrap(),
+        );
+        let program = CudaExport::new(architecture)
+            .with_decoding(step.layout)
+            .export_steps(&[("decode", &step.graph), ("prompt", &prompt.graph)])
+            .unwrap();
+        let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
+            "../target/programs/qwen3_5-generate-{}",
+            process::id()
+        ));
+        let _ = fs::remove_dir_all(&directory);
+        let executable = build_set_generation_loop(&program, &directory).unwrap();
+        for (number, case) in cases.iter().enumerate() {
+            let steps = case["steps"].as_array().unwrap();
+            let output = Command::new(&executable)
+                .arg(steps.len().to_string())
+                .args(integers(&case["input_ids"]).iter().map(i64::to_string))
+                .current_dir(&directory)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let generated = String::from_utf8(output.stdout)
+                .unwrap()
+                .lines()
+                .map(|line| line.parse::<i64>().unwrap())
+                .collect::<Vec<_>>();
+            assert_eq!(generated.len(), steps.len());
+            let top_logits = reference.values(&format!("case{number}.top_logits"));
+            let width = top_logits.len() / steps.len();
+            let difference = steps
+                .iter()
+                .zip(&generated)
+                .position(|(step, &token)| step["token"].as_i64().unwrap() != token);
+            eprintln!(
+                "{}: first difference from PyTorch {difference:?}",
+                case["prompt"]
+            );
+            if let Some(at) = difference {
+                let expected = &top_logits[at * width..][..width];
+                let rival = integers(&steps[at]["top_tokens"])
+                    .iter()
+                    .position(|&token| token == generated[at]);
+                assert!(
+                    rival.is_some_and(|rival| expected[0] - expected[rival] <= BF16_TIE),
+                    "{} at step {at}: {} against {expected:?}",
+                    case["prompt"],
+                    generated[at],
+                );
+            }
+        }
+        let _ = fs::remove_dir_all(&directory);
     }
 }

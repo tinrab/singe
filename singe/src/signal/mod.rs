@@ -159,6 +159,109 @@ fn mel_filters(options: &LogMelOptions) -> Vec<f32> {
 // The smallest power `log10` reads, as Whisper's extractor floors it.
 const POWER_FLOOR: f32 = 1e-10;
 
+impl LogMelSpectrogram {
+    // The log10 mel power of each frame of `padded`, `[B, N + window]`, samples already padded by half a window at each end: `[B, mels, N / hop]`.
+    fn log_power(&self, padded: &Tensor) -> Result<Tensor> {
+        let options = &self.options;
+        let window = capture::literal(padded.device(), |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([options.window])?,
+                self.window.clone(),
+            )
+        })?;
+        let filters = capture::literal(padded.device(), |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([options.bins(), options.mels])?,
+                self.filters.clone(),
+            )
+        })?;
+        let spectrum = padded
+            .contiguous()?
+            .unfold(1, options.window, options.hop)?
+            .mul(&window)?
+            .rfft()?;
+        #[expect(clippy::cast_possible_truncation, reason = "a constant that fits F32")]
+        let decade = LN_10 as f32;
+        spectrum
+            .mul(&spectrum)?
+            .sum(&[-1], false)?
+            .matmul(&filters)?
+            .transpose(1, 2)?
+            .clamp(POWER_FLOOR, f32::MAX)?
+            .log()?
+            .div_scalar(decade)?
+            .narrow(2, 0, options.frames())
+    }
+
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the range is a few decades"
+    )]
+    const fn range(&self) -> f32 {
+        self.options.dynamic_range as f32
+    }
+
+    // The spectrogram of one clip, `[1, mels, frames]`, whose first `count` of `samples` are its own, `[N]` with `N` the options' samples, and `count` an `I64` `[1]`.
+    // It reflects the clip at its own end rather than the buffer's, clamps against the loudest of the clip's own frames, `count / hop` of them, and leaves the frames after them zero, as Qwen3-ASR's extractor computes a clip alone and then pads its features.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "sample and frame indices are far below where `F32` rounds them"
+    )]
+    pub fn counted(&self, samples: &Tensor, count: &Tensor) -> Result<Tensor> {
+        let options = &self.options;
+        if samples.shape().dimensions() != [options.samples] {
+            return Err(Error::invalid_argument(
+                "a counted log-mel spectrogram reads one clip's samples, [samples]",
+            ));
+        }
+
+        let device = samples.device();
+        let half = options.window / 2;
+        let length = count.cast(DataType::F32)?;
+        // Each padded sample's source: the reflection at the clip's start, the clip, and the reflection at its own end.
+        let offsets = capture::literal(device, |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([options.samples + 2 * half])?,
+                (-half..options.samples + half)
+                    .map(|offset| offset as f32)
+                    .collect(),
+            )
+        })?
+        .abs()?;
+        let mirrored = length.mul_scalar(2.0)?.sub_scalar(2.0)?.sub(&offsets)?;
+        let sources = Tensor::where_select(&offsets.greater_equal(&length)?, &mirrored, &offsets)?
+            .cast(DataType::I64)?;
+        let log = self.log_power(
+            &samples
+                .cast(DataType::F32)?
+                .index_select(0, &sources)?
+                .unsqueeze(0)?,
+        )?;
+        let frames = capture::literal(device, |device| {
+            Tensor::from_vec(
+                device,
+                Shape::create([1, 1, options.frames()])?,
+                (0..options.frames()).map(|frame| frame as f32).collect(),
+            )
+        })?;
+        let own = frames.less(&length.div_scalar(options.hop as f64)?.floor()?)?;
+        let lowest = capture::literal(device, |device| {
+            Tensor::from_vec(device, Shape::create([1])?, vec![f32::NEG_INFINITY])
+        })?;
+        let floor = Tensor::where_select(&own, &log, &lowest)?
+            .max_reduce(&[1, 2], true)?
+            .sub_scalar(f64::from(self.range()))?;
+        let features = log.maximum(&floor)?.add_scalar(4.0)?.div_scalar(4.0)?;
+        let zero = capture::literal(device, |device| {
+            Tensor::from_vec(device, Shape::create([1])?, vec![0.0_f32])
+        })?;
+        Tensor::where_select(&own, &features, &zero)
+    }
+}
+
 impl Layer for LogMelSpectrogram {
     fn forward(&self, input: &Tensor, _state: &ModelState) -> Result<Tensor> {
         let options = &self.options;
@@ -179,43 +282,10 @@ impl Layer for LogMelSpectrogram {
             samples.narrow(1, 0, options.samples)?
         };
         let half = options.window / 2;
-        let window = capture::literal(samples.device(), |device| {
-            Tensor::from_vec(
-                device,
-                Shape::create([options.window])?,
-                self.window.clone(),
-            )
-        })?;
-        let filters = capture::literal(samples.device(), |device| {
-            Tensor::from_vec(
-                device,
-                Shape::create([options.bins(), options.mels])?,
-                self.filters.clone(),
-            )
-        })?;
-        let spectrum = samples
-            .pad_reflect(1, half, half)?
-            .contiguous()?
-            .unfold(1, options.window, options.hop)?
-            .mul(&window)?
-            .rfft()?;
-        #[expect(
-            clippy::cast_possible_truncation,
-            reason = "the range is a few decades"
-        )]
-        let range = options.dynamic_range as f32;
-        #[expect(clippy::cast_possible_truncation, reason = "a constant that fits F32")]
-        let decade = LN_10 as f32;
-        let log = spectrum
-            .mul(&spectrum)?
-            .sum(&[-1], false)?
-            .matmul(&filters)?
-            .transpose(1, 2)?
-            .clamp(POWER_FLOOR, f32::MAX)?
-            .log()?
-            .div_scalar(decade)?
-            .narrow(2, 0, options.frames())?;
-        let floor = log.max_reduce(&[1, 2], true)?.sub_scalar(range)?;
+        let log = self.log_power(&samples.pad_reflect(1, half, half)?)?;
+        let floor = log
+            .max_reduce(&[1, 2], true)?
+            .sub_scalar(f64::from(self.range()))?;
         log.maximum(&floor)?.add_scalar(4.0)?.div_scalar(4.0)
     }
 }

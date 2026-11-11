@@ -47,14 +47,17 @@ static void upload(void* buffer, const std::vector<int64_t>& values) {
     check_cuda(cudaMemcpy(buffer, values.data(), values.size() * sizeof(int64_t), cudaMemcpyHostToDevice), "cudaMemcpy");
 }
 
-static std::vector<char> read_file(const char* path, unsigned long long bytes) {
+// Reads `bytes` bytes of `path`, or with `exact` false up to that many.
+static std::vector<char> read_file(const char* path, unsigned long long bytes, bool exact = true) {
     std::vector<char> contents(bytes);
     FILE* file = fopen(path, "rb");
-    if (file == nullptr || fread(contents.data(), 1, bytes, file) != bytes) {
+    const size_t read = file == nullptr ? 0 : fread(contents.data(), 1, bytes, file);
+    if (file == nullptr || (exact && read != bytes)) {
         fprintf(stderr, "cannot read %llu bytes from %s\n", bytes, path);
         exit(1);
     }
     fclose(file);
+    contents.resize(read);
     return contents;
 }
 
@@ -98,15 +101,29 @@ int main(int argc, char** argv) {
         return 2;
     }
     const long new_tokens = strtol(argv[1], nullptr, 10);
+    // A token written `TOKEN*` stands for as many copies as the encode step gives its source rows, at its place in the prompt.
     std::vector<int64_t> sequence;
-    for (int argument = @first_token@; argument < argc; ++argument) sequence.push_back(strtoll(argv[argument], nullptr, 10));
+    int64_t placeholder = -1;
+    int64_t placeholder_rows = 1;
+    size_t placeholder_at = 0;
+    for (int argument = @first_token@; argument < argc; ++argument) {
+        char* end = nullptr;
+        const int64_t token = strtoll(argv[argument], &end, 10);
+        if (*end == '*') {
+            placeholder = token;
+            placeholder_at = sequence.size();
+        } else {
+            sequence.push_back(token);
+        }
+    }
 @weights@    @prefix@_state* state = nullptr;
     check(@prefix@_create(&state), "@prefix@_create");
     check(@prefix@_load_weights(state, weights.empty() ? nullptr : weights.data()), "@prefix@_load_weights");
 @structs@
 @buffers@
 @allocations@
-@encode@    const int64_t prompt = static_cast<int64_t>(sequence.size());
+@encode@    if (placeholder >= 0) sequence.insert(sequence.begin() + placeholder_at, placeholder_rows, placeholder);
+    const int64_t prompt = static_cast<int64_t>(sequence.size());
     std::vector<@logit_type@> logits(@logit_count@);
     long generated = 0;
     int64_t length = 0;

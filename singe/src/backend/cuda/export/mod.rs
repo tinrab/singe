@@ -10,7 +10,7 @@ mod writer;
 
 use std::sync::Arc;
 
-use singe_cuda::architecture::GpuArchitecture;
+pub use singe_cuda::architecture::GpuArchitecture;
 
 use self::builder::build_program;
 pub use self::{

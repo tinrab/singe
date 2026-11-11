@@ -213,6 +213,7 @@ pub fn generation_loop_source(
     let mut allocations = String::new();
     let mut struct_lines = String::new();
     let mut source = None;
+    let (mut length, mut position, mut rows) = (None, None, None);
     for (variable, step) in &all {
         emit!(
             struct_lines,
@@ -236,10 +237,17 @@ pub fn generation_loop_source(
                     )));
                 }
 
-                if source.replace((index, bytes)).is_some() {
-                    return Err(Error::invalid_argument(
-                        "an encode step reads one source besides the caches",
-                    ));
+                match name {
+                    "source_length" => length = Some(index),
+                    "source_position" => position = Some(index),
+                    _ => {
+                        let element = value.data_type.size_bytes();
+                        if source.replace((index, bytes, element)).is_some() {
+                            return Err(Error::invalid_argument(
+                                "an encode step reads one source besides its length, position, and the caches",
+                            ));
+                        }
+                    }
                 }
             }
 
@@ -255,6 +263,10 @@ pub fn generation_loop_source(
         for value in &step.program.outputs {
             let bytes = span_bytes(value.data_type, &value.layout)?;
             let index = buffers.index(&format!("{variable}output {}", value.graph_name), bytes)?;
+            if !decodes && value.graph_name == "source_rows" {
+                rows = Some(index);
+            }
+
             let ty = value_type(value.data_type)?;
             emit!(
                 allocations,
@@ -285,15 +297,41 @@ pub fn generation_loop_source(
     };
     let (usage, first_token, encode_code) = match (steps.encode, source) {
         (None, _) => ("NEW_TOKENS TOKEN...", "2", String::new()),
-        (Some(step), Some((index, bytes))) => (
-            "NEW_TOKENS SOURCE TOKEN...",
-            "3",
-            format!(
-                "    {{\n        // The source's bytes, as the encode step reads them.\n        const std::vector<char> source = read_file(argv[2], {bytes}ULL);\n        check_cuda(cudaMemcpy(buffer_{index}, source.data(), source.size(), cudaMemcpyHostToDevice), \"cudaMemcpy\");\n        check({run}(state, &encode_inputs, &encode_outputs, nullptr), \"{run}\");\n        unsigned int word = 0;\n        check({finish}(state, nullptr, &word), \"{finish}\");\n        if (word != 0) {{\n            fprintf(stderr, \"a checking kernel reported %u\\n\", word);\n            return 1;\n        }}\n    }}\n",
+        (Some(step), Some((index, bytes, element))) => {
+            // A source file may be shorter than its buffer, whose rest stays zero, and a length input says how much it held; a position says where the prompt's starred token stands, and rows how many times it stands there.
+            let mut code = format!(
+                "    {{\n        const std::vector<char> source = read_file(argv[2], {bytes}ULL, false);\n        check_cuda(cudaMemcpy(buffer_{index}, source.data(), source.size(), cudaMemcpyHostToDevice), \"cudaMemcpy\");\n"
+            );
+            if let Some(length) = length {
+                emit!(
+                    code,
+                    "        upload(buffer_{length}, std::vector<int64_t>{{static_cast<int64_t>(source.size() / {element})}});"
+                );
+            }
+
+            if let Some(position) = position {
+                emit!(
+                    code,
+                    "        upload(buffer_{position}, std::vector<int64_t>{{static_cast<int64_t>(placeholder_at)}});"
+                );
+            }
+
+            emit!(
+                code,
+                "        check({run}(state, &encode_inputs, &encode_outputs, nullptr), \"{run}\");\n        unsigned int word = 0;\n        check({finish}(state, nullptr, &word), \"{finish}\");\n        if (word != 0) {{\n            fprintf(stderr, \"a checking kernel reported %u\\n\", word);\n            return 1;\n        }}",
                 run = step.run,
                 finish = step.finish,
-            ),
-        ),
+            );
+            if let Some(rows) = rows {
+                emit!(
+                    code,
+                    "        check_cuda(cudaMemcpy(&placeholder_rows, buffer_{rows}, sizeof(placeholder_rows), cudaMemcpyDeviceToHost), \"cudaMemcpy\");"
+                );
+            }
+
+            emit!(code, "    }}");
+            ("NEW_TOKENS SOURCE TOKEN...", "3", code)
+        }
         (Some(_), None) => {
             return Err(Error::invalid_argument(
                 "an encode step reads a source besides the caches",
