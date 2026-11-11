@@ -36,7 +36,7 @@ use singe::{
     generation::DecoderStepGraph,
     graph::{Graph, GraphCompileOptions, GraphCudaOptions},
     nn::{PageTable, TensorGroup},
-    testing::{CompiledProgram, ProgramInstance, build_generation_loop, program_target},
+    testing::{CompiledProgram, ProgramInstance, build_set_generation_loop, program_target},
 };
 
 use crate::{Tolerance, assert_matches, integers};
@@ -155,8 +155,6 @@ pub struct Suite<L> {
     pub load: fn(&Path, Device, DataType) -> Model<L>,
     pub f32_tolerance: Tolerance,
     pub bf16_tolerance: Tolerance,
-    // Why exported programs cannot run the model yet, which skips their checks, or `None` to run them.
-    pub programs_skipped: Option<&'static str>,
 }
 
 impl<L: DecoderModel> Suite<L> {
@@ -499,25 +497,26 @@ impl<L: DecoderModel> Suite<L> {
             check_failed_step(&model);
         }
         #[cfg(feature = "cuda_13_4")]
-        if matches!(device, Device::Cuda(_)) && self.programs_skipped.is_none() {
+        if matches!(device, Device::Cuda(_)) {
             self.check_generation_loop(device);
         }
     }
 
+    // The loop an export writes beside a set of the one-token step and a prompt step of four rows generates the reference's tokens, reading the prompt in padded chunks.
     #[cfg(feature = "cuda_13_4")]
     fn check_generation_loop(&self, device: Device) {
         let Some(architecture) = program_target(device) else {
             return;
         };
         let (model, reference) = self.load(self.models[0], device, DataType::F32);
-        let options = DecoderOptions::new(1, 32);
-        let step = CachedDecoder::create(&model, options)
-            .unwrap()
-            .step_graph()
-            .unwrap();
+        let decoder = CachedDecoder::create(&model, DecoderOptions::new(1, 32)).unwrap();
+        let (step, prompt) = (
+            decoder.step_graph().unwrap(),
+            decoder.chunk_step_graph(3).unwrap(),
+        );
         let program = CudaExport::new(architecture)
             .with_decoding(step.layout)
-            .export(&step.graph)
+            .export_steps(&[("decode", &step.graph), ("prompt", &prompt.graph)])
             .unwrap();
         let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(format!(
             "../target/programs/{}-generate-{}",
@@ -525,7 +524,7 @@ impl<L: DecoderModel> Suite<L> {
             process::id()
         ));
         let _ = fs::remove_dir_all(&directory);
-        let executable = build_generation_loop(&program, &directory).unwrap();
+        let executable = build_set_generation_loop(&program, &directory).unwrap();
         let tokens = reference.tokens();
         let output = Command::new(&executable)
             .arg(tokens.len().to_string())
@@ -544,21 +543,6 @@ impl<L: DecoderModel> Suite<L> {
             .lines()
             .map(|line| line.parse::<i64>().unwrap())
             .collect::<Vec<_>>();
-        let compiled =
-            CompiledProgram::create(&program, &format!("{}_generate", self.family)).unwrap();
-        let mut decoder = ProgramDecoder::create(&compiled, &step, options);
-        let expected = generate(
-            &mut decoder,
-            &reference.prompt,
-            &GenerationOptions {
-                max_new_tokens: tokens.len(),
-                ..GenerationOptions::default()
-            },
-            None,
-            |_| Ok(()),
-        )
-        .unwrap();
-        assert_eq!(generated, expected, "{}", self.family);
         assert_eq!(generated, tokens, "{}", self.family);
         let _ = fs::remove_dir_all(&directory);
     }

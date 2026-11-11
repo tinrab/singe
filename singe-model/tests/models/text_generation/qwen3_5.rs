@@ -16,7 +16,6 @@ const SUITE: Suite<Qwen35Layers> = Suite {
         0.05,
         "BF16 keeps eight mantissa bits, and Singe accumulates attention in F32 where PyTorch rounds each step",
     ),
-    programs_skipped: Some("exported programs do not carry state caches yet"),
 };
 
 #[test]

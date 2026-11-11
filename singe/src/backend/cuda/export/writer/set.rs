@@ -4,11 +4,11 @@ use serde_json::{Value, json};
 
 use crate::{
     backend::cuda::export::{
-        program::{BufferKind, CudaProgramSet, ProgramEntry},
+        program::{BufferKind, CudaProgram, CudaProgramSet, ProgramEntry},
         writer::{
             CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
             LIBRARY_VERSION, ProgramFiles, Renderer,
-            generate::{LoopStep, generation_loop_source},
+            generate::{LoopStep, LoopSteps, generation_loop_source},
         },
     },
     error::{Error, Result},
@@ -182,24 +182,20 @@ impl CudaProgramSet {
                 let (program, types, run, finish) = step("decode").ok_or_else(|| {
                     Error::missing_input("a generation loop's `decode` step")
                 })?;
-                let encode = step("encode");
+                let (encode, prompt) = (step("encode"), step("prompt"));
                 let source = generation_loop_source(
                     prefix,
                     layout,
-                    LoopStep {
-                        program,
-                        types: &types,
-                        run: &run,
-                        finish: &finish,
-                    },
-                    encode
-                        .as_ref()
-                        .map(|(program, types, run, finish)| LoopStep {
+                    LoopSteps {
+                        decode: LoopStep {
                             program,
-                            types,
-                            run,
-                            finish,
-                        }),
+                            types: &types,
+                            run: &run,
+                            finish: &finish,
+                        },
+                        prompt: prompt.as_ref().map(loop_step),
+                        encode: encode.as_ref().map(loop_step),
+                    },
                     weights.len(),
                 )?;
                 files.push((format!("{prefix}_generate.cu"), source));
@@ -243,5 +239,17 @@ impl Renderer<'_> {
             }
         }
         cases
+    }
+}
+
+// A step of the set as the generation loop runs it: its program, the prefix of its structs, and its run and finish functions.
+fn loop_step<'a>(
+    (program, types, run, finish): &'a (&'a CudaProgram, String, String, String),
+) -> LoopStep<'a> {
+    LoopStep {
+        program,
+        types,
+        run,
+        finish,
     }
 }

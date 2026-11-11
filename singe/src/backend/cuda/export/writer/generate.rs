@@ -1,4 +1,4 @@
-// A loop that generates through a decoder step's program with nothing of Singe, writing each step's paging tensors as `PageTable` would for one sequence, after an encode step if the model has one.
+// A loop that generates through a decoder step's program with nothing of Singe, writing each step's tensors as `PageTable` would for one sequence, after an encode step if the model has one.
 
 use crate::{
     backend::cuda::{
@@ -15,8 +15,8 @@ use crate::{
     utility::emit,
 };
 
-// What a decoder step reads besides the state it carries from one step to the next, in the order `DecodeStep` names them.
-const STEP_INPUTS: [&str; 9] = [
+// What a decoder step reads besides the caches it carries from one step to the next, as `DecodeStep` names them, which the loop's `Step` holds under the same names.
+const STEP_INPUTS: [&str; 11] = [
     "tokens",
     "positions",
     "write_pages",
@@ -26,6 +26,8 @@ const STEP_INPUTS: [&str; 9] = [
     "pages",
     "last_page_lengths",
     "last_rows",
+    "real_tokens",
+    "sequence_ids",
 ];
 
 // The C++ that turns one logit of `data_type` into a `float`.
@@ -54,14 +56,101 @@ pub struct LoopStep<'a> {
     pub finish: &'a str,
 }
 
-// Writes a generation loop over `decode`, a decoder step of one sequence whose paged cache `layout` describes, through the program declared by `prefix`.
-// With `encode`, the loop first runs that step once on a source the command line names, which writes what the decoder steps read, such as cross-attention keys and values.
-// The steps' inputs of one name are one buffer.
+// The steps a generation loop runs: `decode`, of one token, and optionally `prompt`, of several rows of one sequence's prompt, and `encode`, once before the prompt.
+#[derive(Debug, Clone, Copy)]
+pub struct LoopSteps<'a> {
+    pub decode: LoopStep<'a>,
+    pub prompt: Option<LoopStep<'a>>,
+    pub encode: Option<LoopStep<'a>>,
+}
+
+// The device buffers of a loop: one per step input of each decoding step, since steps differ in rows, and one per other input name, which steps share, and per output.
+#[derive(Default)]
+struct Buffers {
+    named: Vec<(String, u64)>,
+}
+
+impl Buffers {
+    fn index(&mut self, name: &str, bytes: u64) -> Result<usize> {
+        if let Some(index) = self.named.iter().position(|(other, _)| other == name) {
+            if self.named[index].1 != bytes {
+                return Err(Error::invalid_argument(format!(
+                    "steps of a generation loop disagree on the size of {name}"
+                )));
+            }
+            return Ok(index);
+        }
+
+        self.named.push((name.to_owned(), bytes));
+        Ok(self.named.len() - 1)
+    }
+}
+
+// The rows a decoding step reads, from its token input.
+fn step_rows(program: &CudaProgram) -> Result<i64> {
+    let tokens = program
+        .inputs
+        .iter()
+        .find(|input| input.graph_name == "tokens")
+        .ok_or_else(|| Error::missing_input("a generation loop step's tokens"))?;
+    i64::try_from(tokens.layout.element_count())
+        .map_err(|_| Error::out_of_range("generation loop step rows"))
+}
+
+// The C++ that runs a decoding step of `rows` rows, `real` of them the sequence's own, after writing the step inputs it reads.
+fn step_code(
+    step: &LoopStep<'_>,
+    variable: &str,
+    rows: i64,
+    real: &str,
+    buffers: &mut Buffers,
+) -> Result<String> {
+    let mut code = format!(
+        "            const int64_t real = {real};\n            const Step step = paged_step(sequence, length, real, {rows});\n"
+    );
+    for input in &step.program.inputs {
+        let name = input.graph_name.as_str();
+        if !STEP_INPUTS.contains(&name) {
+            continue;
+        }
+
+        if input.data_type != DataType::I64 {
+            return Err(Error::invalid_argument(
+                "a generation loop writes 64-bit step inputs",
+            ));
+        }
+
+        let index = buffers.index(
+            &format!("{variable}{name}"),
+            span_bytes(input.data_type, &input.layout)?,
+        )?;
+        emit!(code, "            upload(buffer_{index}, step.{name});");
+    }
+
+    let [logits] = step.program.outputs.as_slice() else {
+        return Err(Error::invalid_argument(
+            "a generation loop reads a step with logits as its only output",
+        ));
+    };
+    let logits = buffers.index(
+        &format!("{variable}output {}", logits.graph_name),
+        span_bytes(logits.data_type, &logits.layout)?,
+    )?;
+    emit!(
+        code,
+        "            check({run}(state, &{variable}inputs, &{variable}outputs, nullptr), \"{run}\");\n            unsigned int word = 0;\n            check({finish}(state, nullptr, &word), \"{finish}\");\n            if (word != 0) {{\n                fprintf(stderr, \"a checking kernel reported %u\\n\", word);\n                return 1;\n            }}\n            step_logits = buffer_{logits};\n            length += real;",
+        run = step.run,
+        finish = step.finish,
+    );
+    Ok(code)
+}
+
+// Writes a generation loop over `steps`, decoder steps of one sequence whose paged cache `layout` describes, through the program declared by `prefix`.
+// With an encode step, the loop first runs it once on a source the command line names, which writes what the decoding steps read, such as cross-attention keys and values.
 pub fn generation_loop_source(
     prefix: &str,
     layout: PageLayout,
-    decode: LoopStep<'_>,
-    encode: Option<LoopStep<'_>>,
+    steps: LoopSteps<'_>,
     weights_bytes: usize,
 ) -> Result<String> {
     if layout.sequences != 1 {
@@ -70,14 +159,17 @@ pub fn generation_loop_source(
         ));
     }
 
-    let program = decode.program;
-    let [logits] = program.outputs.as_slice() else {
-        return Err(Error::invalid_argument(
-            "a generation loop reads a step with logits as its only output",
-        ));
-    };
-    let steps = encode.iter().chain([&decode]);
-    if steps.clone().any(|step| {
+    let decoding = [
+        Some(("", &steps.decode)),
+        steps.prompt.as_ref().map(|step| ("prompt_", step)),
+    ];
+    let all = steps
+        .encode
+        .iter()
+        .map(|step| ("encode_", step))
+        .chain(decoding.iter().flatten().copied())
+        .collect::<Vec<_>>();
+    if all.iter().any(|(_, step)| {
         step.program
             .state
             .iter()
@@ -88,103 +180,99 @@ pub fn generation_loop_source(
         ));
     }
 
-    // One buffer per input name across the steps, and one per output.
-    let mut allocations = String::new();
-    let mut buffers = Vec::<(String, u64)>::new();
-    let mut buffer_of = |name: &str, bytes: u64| -> Result<usize> {
-        if let Some(index) = buffers.iter().position(|(other, _)| other == name) {
-            if buffers[index].1 != bytes {
-                return Err(Error::invalid_argument(
-                    "steps of a generation loop disagree on an input's size",
-                ));
-            }
-            return Ok(index);
-        }
+    let decode_rows = step_rows(steps.decode.program)?;
+    if decode_rows != 1 {
+        return Err(Error::invalid_argument(
+            "a generation loop's decode step reads one token",
+        ));
+    }
 
-        buffers.push((name.to_owned(), bytes));
-        Ok(buffers.len() - 1)
-    };
-    let mut buffer_lines = String::new();
-    let mut source = None;
+    let mut buffers = Buffers::default();
+    let mut step_code_lines = String::new();
+    if let Some(prompt) = &steps.prompt {
+        let rows = step_rows(prompt.program)?;
+        let code = step_code(
+            prompt,
+            "prompt_",
+            rows,
+            &format!("std::min<int64_t>(pending, {rows})"),
+            &mut buffers,
+        )?;
+        emit!(
+            step_code_lines,
+            "        if (pending > 1) {{\n{code}\n        }} else {{"
+        );
+    } else {
+        emit!(step_code_lines, "        {{");
+    }
+
+    let code = step_code(&steps.decode, "", 1, "1", &mut buffers)?;
+    emit!(step_code_lines, "{code}\n        }}");
+
+    // Every other input is shared by name: the caches every step reads, and the encode step's source.
+    let mut allocations = String::new();
     let mut struct_lines = String::new();
-    for (step, variable) in encode
-        .iter()
-        .map(|step| (step, "encode_"))
-        .chain([(&decode, "")])
-    {
+    let mut source = None;
+    for (variable, step) in &all {
         emit!(
             struct_lines,
             "    {types}_inputs {variable}inputs;\n    {types}_outputs {variable}outputs;",
             types = step.types
         );
+        let decodes = !variable.starts_with("encode");
         for value in &step.program.inputs {
+            let name = value.graph_name.as_str();
             let bytes = span_bytes(value.data_type, &value.layout)?;
-            let index = buffer_of(&value.graph_name, bytes)?;
-            let ty = value_type(value.data_type)?;
-            let qualifier = if value.written { "" } else { "const " };
-            emit!(
-                allocations,
-                "    {variable}inputs.{name} = static_cast<{qualifier}{ty}*>(buffer_{index});",
-                name = value.name
-            );
-            let is_step = STEP_INPUTS.contains(&value.graph_name.as_str());
-            if !variable.is_empty() && !is_step && !value.graph_name.starts_with("cache.") {
-                if source.is_some() {
+            let is_step = decodes && STEP_INPUTS.contains(&name);
+            let index = if is_step {
+                buffers.index(&format!("{variable}{name}"), bytes)?
+            } else {
+                buffers.index(name, bytes)?
+            };
+            if !is_step && !name.starts_with("cache.") {
+                if decodes {
+                    return Err(Error::invalid_argument(format!(
+                        "a generation loop does not know what to write to step input {name}"
+                    )));
+                }
+
+                if source.replace((index, bytes)).is_some() {
                     return Err(Error::invalid_argument(
                         "an encode step reads one source besides the caches",
                     ));
                 }
-
-                source = Some((index, bytes));
             }
+
+            let ty = value_type(value.data_type)?;
+            let qualifier = if value.written { "" } else { "const " };
+            emit!(
+                allocations,
+                "    {variable}inputs.{field} = static_cast<{qualifier}{ty}*>(buffer_{index});",
+                field = value.name
+            );
         }
+
         for value in &step.program.outputs {
             let bytes = span_bytes(value.data_type, &value.layout)?;
-            let index = buffer_of(&format!("{variable}output {}", value.graph_name), bytes)?;
+            let index = buffers.index(&format!("{variable}output {}", value.graph_name), bytes)?;
             let ty = value_type(value.data_type)?;
             emit!(
                 allocations,
-                "    {variable}outputs.{name} = static_cast<{ty}*>(buffer_{index});",
-                name = value.name
+                "    {variable}outputs.{field} = static_cast<{ty}*>(buffer_{index});",
+                field = value.name
             );
         }
     }
 
-    for (index, (_, bytes)) in buffers.iter().enumerate() {
+    let mut buffer_lines = String::new();
+    for (index, (_, bytes)) in buffers.named.iter().enumerate() {
         emit!(
             buffer_lines,
             "    void* buffer_{index} = device_zeroed({bytes}ULL);"
         );
     }
 
-    let logits_index = buffers
-        .iter()
-        .position(|(name, _)| *name == format!("output {}", logits.graph_name))
-        .ok_or_else(|| Error::missing_output("generation loop logits"))?;
-
-    let step_buffer = |name: &str| -> Result<String> {
-        let found = program
-            .inputs
-            .iter()
-            .find(|input| input.graph_name == name)
-            .ok_or_else(|| Error::missing_input("generation loop step input"))?;
-        if found.data_type != DataType::I64 {
-            return Err(Error::invalid_argument(
-                "a generation loop writes 64-bit step inputs",
-            ));
-        }
-
-        let index = buffers
-            .iter()
-            .position(|(other, _)| other == name)
-            .ok_or_else(|| Error::missing_input("generation loop step input"))?;
-        Ok(format!("buffer_{index}"))
-    };
-    let step_buffers = STEP_INPUTS
-        .iter()
-        .map(|name| step_buffer(name))
-        .collect::<Result<Vec<_>>>()?;
-    let frees = (0..buffers.len())
+    let frees = (0..buffers.named.len())
         .map(|index| format!("    cudaFree(buffer_{index});"))
         .collect::<Vec<_>>()
         .join("\n");
@@ -195,7 +283,7 @@ pub fn generation_loop_source(
             "    const std::vector<char> weights = read_file(\"{prefix}.weights\", {weights_bytes}ULL);\n"
         )
     };
-    let (usage, first_token, encode_code) = match (encode, source) {
+    let (usage, first_token, encode_code) = match (steps.encode, source) {
         (None, _) => ("NEW_TOKENS TOKEN...", "2", String::new()),
         (Some(step), Some((index, bytes))) => (
             "NEW_TOKENS SOURCE TOKEN...",
@@ -212,7 +300,11 @@ pub fn generation_loop_source(
             ));
         }
     };
-    let logit_type = value_type(logits.data_type)?;
+    let [logits] = steps.decode.program.outputs.as_slice() else {
+        return Err(Error::invalid_argument(
+            "a generation loop reads a step with logits as its only output",
+        ));
+    };
     Ok(fill_template(
         include_str!("generate.cu.in"),
         &[
@@ -221,8 +313,9 @@ pub fn generation_loop_source(
             ("first_token", first_token),
             ("page_size", &layout.page_size.to_string()),
             ("capacity", &layout.capacity.to_string()),
+            ("scratch_page", &layout.scratch_page.to_string()),
             ("table_length", &layout.table_length.to_string()),
-            ("logit_type", logit_type),
+            ("logit_type", value_type(logits.data_type)?),
             ("logit_count", &logits.layout.element_count().to_string()),
             ("logit_conversion", logit_conversion(logits.data_type)?),
             ("weights", &weights),
@@ -230,18 +323,7 @@ pub fn generation_loop_source(
             ("buffers", &buffer_lines),
             ("allocations", &allocations),
             ("encode", &encode_code),
-            ("run", decode.run),
-            ("finish", decode.finish),
-            ("tokens", &step_buffers[0]),
-            ("positions", &step_buffers[1]),
-            ("write_pages", &step_buffers[2]),
-            ("write_slots", &step_buffers[3]),
-            ("query_offsets", &step_buffers[4]),
-            ("page_offsets", &step_buffers[5]),
-            ("pages", &step_buffers[6]),
-            ("last_page_lengths", &step_buffers[7]),
-            ("last_rows", &step_buffers[8]),
-            ("logits", &format!("buffer_{logits_index}")),
+            ("steps", &step_code_lines),
             ("frees", &frees),
         ],
     ))
@@ -258,15 +340,35 @@ impl Renderer<'_> {
         generation_loop_source(
             prefix,
             layout,
-            LoopStep {
-                program: self.program,
-                types: prefix,
-                run: &run,
-                finish: &finish,
+            LoopSteps {
+                decode: LoopStep {
+                    program: self.program,
+                    types: prefix,
+                    run: &run,
+                    finish: &finish,
+                },
+                prompt: None,
+                encode: None,
             },
-            None,
             weights_bytes,
         )
         .map(Some)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::nn::{DecodeStep, TensorGroup};
+
+    #[test]
+    fn test_the_loop_writes_every_input_a_decode_step_has() {
+        let step = DecodeStep::meta(2, 1, 4).unwrap();
+        let names = step
+            .named_tensors()
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, STEP_INPUTS);
     }
 }
