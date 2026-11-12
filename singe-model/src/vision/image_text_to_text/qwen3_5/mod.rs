@@ -1,17 +1,18 @@
 // Qwen3.5 reading images: the image front end, the vision encoder under `model.visual`, and the text decoder, whose prompts read the encoder's rows in place of their image tokens on M-RoPE's grid of positions.
 
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use serde::Deserialize;
 use serde_json::Value;
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
     generation::{CachedDecoder, DecoderOptions, GenerationOptions, RunningBatch},
+    graph::{Graph, capture},
     nn::{
         Activation, DenseAttentionInput, Embedding, GatedMlp, GroupedQueryAttention,
         GroupedQueryLayers, HeadProjection, Layer, LayerNorm, Linear, Mlp, Model, ModelState,
         OffsetRmsNorm, PreNormBlock, RotaryAngles, RotaryLayout, SourcedCausalLm, StateBuilder,
-        StateKey,
+        StateKey, caches_from_inputs, named_cache_inputs,
     },
     tensor::AttentionOptions,
 };
@@ -133,6 +134,8 @@ pub struct ImagePatches {
 #[derive(Debug, Clone)]
 pub struct Qwen35VisionEncoder {
     config: Qwen35VisionConfig,
+    // The side of the square table of learned positions.
+    side: i64,
     patch_weight: StateKey,
     patch_bias: StateKey,
     positions: Embedding,
@@ -143,7 +146,7 @@ pub struct Qwen35VisionEncoder {
 
 impl Qwen35VisionEncoder {
     // Encodes one image's patches into a row per merged block, `[N / 4, out]`.
-    pub fn encode(&self, image: &ImagePatches, state: &ModelState) -> Result<Tensor> {
+    pub fn encode(&self, image: &ImagePatches, state: &ModelState) -> SingeResult<Tensor> {
         let config = &self.config;
         let device = image.patches.device();
         let [rows, columns] = image.grid;
@@ -158,10 +161,15 @@ impl Qwen35VisionEncoder {
             .cast(data_type)?
             .matmul(&weight.transpose(0, 1)?)?
             .add(state.tensor(&self.patch_bias)?)?;
-        let (indices, weights) = position_taps(config, image.grid)?;
-        let indices = Tensor::from_vec(device, Shape::create([count * 4])?, indices)?;
-        let weights =
-            Tensor::from_vec(device, Shape::create([count, 4, 1])?, weights)?.cast(data_type)?;
+        let (indices, weights) = position_taps(config, self.side, image.grid);
+        // Literals, so a captured encode step holds them as constants of its image size.
+        let indices = capture::literal(device, |device| {
+            Tensor::from_vec(device, Shape::create([count * 4])?, indices.clone())
+        })?;
+        let weights = capture::literal(device, |device| {
+            Tensor::from_vec(device, Shape::create([count, 4, 1])?, weights.clone())
+        })?
+        .cast(data_type)?;
         let positions = indices
             .apply(&self.positions, state)?
             .reshape([count, 4, width])?
@@ -171,7 +179,10 @@ impl Qwen35VisionEncoder {
         let (cos, sin) = patch_angles(config, image.grid);
         let half = config.hidden_size / config.num_heads / 2;
         let table = |values: Vec<f32>| -> SingeResult<Tensor> {
-            Tensor::from_vec(device, Shape::create([count, half])?, values)?.cast(data_type)
+            capture::literal(device, |device| {
+                Tensor::from_vec(device, Shape::create([count, half])?, values.clone())
+            })?
+            .cast(data_type)
         };
         let angles = RotaryAngles::create(&table(cos)?, &table(sin)?, RotaryLayout::HalfSplit)?;
         for block in &self.blocks {
@@ -186,13 +197,13 @@ impl Qwen35VisionEncoder {
         }
 
         let merge = config.spatial_merge_size * config.spatial_merge_size;
-        Ok(hidden
+        hidden
             .squeeze(0)?
             .apply(&self.merger_norm, state)?
             .reshape([count / merge, width * merge])?
             .apply(&self.merger[0], state)?
             .apply(&Activation::GeluExact, state)?
-            .apply(&self.merger[1], state)?)
+            .apply(&self.merger[1], state)
     }
 }
 
@@ -218,8 +229,7 @@ fn patch_places(config: &Qwen35VisionConfig, [rows, columns]: [i64; 2]) -> Vec<(
     clippy::cast_possible_truncation,
     reason = "grid sides are far below where `F32` rounds them"
 )]
-fn position_taps(config: &Qwen35VisionConfig, grid: [i64; 2]) -> Result<(Vec<i64>, Vec<f32>)> {
-    let side = config.position_side()?;
+fn position_taps(config: &Qwen35VisionConfig, side: i64, grid: [i64; 2]) -> (Vec<i64>, Vec<f32>) {
     let axis = |index: i64, size: i64| {
         let source = index as f32 * (side - 1) as f32 / (size - 1).max(1) as f32;
         let floor = source.floor();
@@ -240,7 +250,7 @@ fn position_taps(config: &Qwen35VisionConfig, grid: [i64; 2]) -> Result<(Vec<i64
             }
         }
     }
-    Ok((indices, weights))
+    (indices, weights)
 }
 
 // Each patch's rotary cosines and sines, `[N, D / 2]`: a quarter of a head turns by the patch's row and the next quarter by its column, as `transformers`' axial vision rotary does with base 10000.
@@ -450,6 +460,100 @@ impl Qwen35VisionLanguage {
     }
 }
 
+impl Qwen35VisionLanguage {
+    #[must_use]
+    pub const fn decoder(&self) -> &Model<Qwen35ImageDecoder> {
+        &self.decoder
+    }
+
+    // The step that encodes one image of `height` by `width` pixels into `decoder`'s first sequence's sources and rotary offsets, as a graph whose inputs are `patches`, `[N, C · T · P · P]` in `F32` as `patches` cuts them, `source_position`, where its prompt's image tokens start, `I64` `[1]`, and the caches, named as the decoder's steps name them.
+    // Its output, `source_rows`, is how many image tokens the prompt holds.
+    // Exported with the decoder's steps as `encode`, it lets a generation loop describe an image with nothing of Singe, reading the patches from a file.
+    pub fn encode_step_graph(
+        &self,
+        decoder: &CachedDecoder<Qwen35ImageDecoder>,
+        height: i64,
+        width: i64,
+    ) -> Result<(Graph, HashMap<String, Tensor>)> {
+        let vision = &self.config.vision_config;
+        let factor = self.size_factor();
+        if height <= 0 || width <= 0 || height % factor != 0 || width % factor != 0 {
+            return Err(SingeError::invalid_argument(format!(
+                "an image's sides are positive multiples of {factor}"
+            ))
+            .into());
+        }
+
+        let device = self.device;
+        let grid = [height / vision.patch_size, width / vision.patch_size];
+        let merge = vision.spatial_merge_size;
+        let merged = [grid[0] / merge, grid[1] / merge];
+        let count = merged[0] * merged[1];
+        let capacity = decoder.capacity();
+        let inputs = [
+            (
+                "patches".to_owned(),
+                Tensor::zeroed_on(
+                    device,
+                    DataType::F32,
+                    Shape::create([grid[0] * grid[1], vision.patch_features()])?,
+                )?,
+            ),
+            (
+                "source_position".to_owned(),
+                Tensor::from_vec(device, Shape::create([1])?, vec![0_i64])?,
+            ),
+        ]
+        .into_iter()
+        .chain(named_cache_inputs(decoder.caches()))
+        .collect::<Vec<_>>();
+        let bindings = self
+            .encoder
+            .state()
+            .capture_bindings()?
+            .merged(self.decoder.state().capture_bindings()?);
+        // Each cache position's offsets, chosen from the image's: a row per image token, then the text after it, then the text before it.
+        let mut table = rotary_offsets(count + 1, 0, merged);
+        table.extend([0, 0, 0]);
+        let (graph, _) = Graph::capture_with_bindings(inputs.clone(), bindings, |tensors| {
+            let [patches, position, captured @ ..] = tensors else {
+                return Err(SingeError::missing_input("the encode step's inputs"));
+            };
+            let caches = caches_from_inputs(decoder.caches(), captured)?;
+            let rows = self.encoder.layer().encode(
+                &ImagePatches {
+                    patches: patches.clone(),
+                    grid,
+                },
+                self.encoder.state(),
+            )?;
+            let literal = |values: Vec<i64>, shape: Vec<i64>| {
+                capture::literal(device, |device| {
+                    Tensor::from_vec(device, Shape::create(shape.clone())?, values.clone())
+                })
+            };
+            let places = literal((0..count).collect(), vec![count])?;
+            Qwen35ImageDecoder::write_sources_at(&caches, 0, &places.add(position)?, &rows)?;
+            let every = literal((0..capacity).collect(), vec![capacity])?;
+            let relative = every.sub(position)?;
+            let before = relative.less(&literal(vec![0], vec![1])?)?;
+            let within = relative.less(&literal(vec![count], vec![1])?)?;
+            let choice = Tensor::where_select(
+                &before,
+                &literal(vec![count + 1], vec![1])?,
+                &Tensor::where_select(&within, &relative, &literal(vec![count], vec![1])?)?,
+            )?;
+            let offsets = literal(table.clone(), vec![count + 2, 3])?.index_select(0, &choice)?;
+            Qwen35ImageDecoder::write_positions_at(&caches, 0, &every, &offsets)?;
+            Ok(vec![literal(vec![count], vec![1])?])
+        })?;
+        Ok((
+            graph.with_output_names(["source_rows"])?,
+            inputs.into_iter().collect(),
+        ))
+    }
+}
+
 // How far each of `capacity` cache positions' rotary positions lie from the position, on the axes of time, height, and width, for a sequence whose image's `rows · columns` tokens start at `first`: an image token takes the image's start on time and its row and column after it on height and width, and the text after it continues from the start plus the grid's longer side, as `transformers`' `get_rope_index` places them.
 fn rotary_offsets(capacity: i64, first: i64, [rows, columns]: [i64; 2]) -> Vec<i64> {
     let count = rows * columns;
@@ -539,6 +643,7 @@ fn encoder_schema(
         let mut merger = visual.scope("merger");
         Qwen35VisionEncoder {
             config: config.clone(),
+            side: config.position_side()?,
             patch_weight,
             patch_bias,
             positions,

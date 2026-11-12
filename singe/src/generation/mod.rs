@@ -725,6 +725,12 @@ impl<L: DecoderModel> CachedDecoder<L> {
         &self.caches
     }
 
+    // Returns the most tokens each sequence holds.
+    #[must_use]
+    pub const fn capacity(&self) -> i64 {
+        self.pages.capacity()
+    }
+
     // Returns the model this decoder runs.
     #[must_use]
     pub const fn model(&self) -> &Model<L> {

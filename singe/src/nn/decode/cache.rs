@@ -540,6 +540,18 @@ impl PositionCache {
             .index_put_(&[TensorIndex::Single(sequence)], offsets)
     }
 
+    // Writes `offsets`, `[N, 3]`, as sequence `sequence`'s at `positions`, `[N]` of `I64`, as a captured encode step writes them, which a write of the whole row would leave out of its inputs.
+    pub fn write_at(&self, sequence: usize, positions: &Tensor, offsets: &Tensor) -> Result<()> {
+        let sequence = i64::try_from(sequence).map_err(|_| Error::out_of_range("sequence"))?;
+        self.offsets.index_put_(
+            &[
+                TensorIndex::Single(sequence),
+                TensorIndex::Indices(positions.clone()),
+            ],
+            offsets,
+        )
+    }
+
     // Returns each of the step's rows' rotary positions, `[T, 3]`.
     pub fn positions(&self, step: &DecodeStep) -> Result<Tensor> {
         self.offsets

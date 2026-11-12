@@ -22,7 +22,11 @@ use crate::{
         sentence_similarity::load_sentence_embedder,
         text_generation::{deepseek_v3, gemma2, gpt2, llama, qwen3, qwen3_5},
     },
-    vision::{image_feature_extraction::load_image_encoder, image_to_image::load_autoencoder},
+    vision::{
+        image_feature_extraction::load_image_encoder,
+        image_text_to_text::qwen3_5::load as load_vision_language,
+        image_to_image::load_autoencoder,
+    },
 };
 
 // How a snapshot exports: the target and libraries, the type of its weights, and the sizes its programs fix.
@@ -45,8 +49,10 @@ pub struct ExportOptions {
     pub audio_seconds: i64,
     // The tokens a sentence embedder's sequence holds.
     pub sequence_length: i64,
-    // The side of a square image an autoencoder reads.
+    // The side of a square image an autoencoder reads, and the height of the image Qwen3.5's encode step reads.
     pub image_size: i64,
+    // The width of the image Qwen3.5's encode step reads, `image_size` for `None`.
+    pub image_width: Option<i64>,
 }
 
 impl ExportOptions {
@@ -64,6 +70,7 @@ impl ExportOptions {
             audio_seconds: 30,
             sequence_length: 128,
             image_size: 256,
+            image_width: None,
         }
     }
 
@@ -128,6 +135,14 @@ pub fn export_snapshot(
             directory,
             options,
         )?,
+        "qwen3_5"
+            if files
+                .config::<serde_json::Value>()?
+                .get("vision_config")
+                .is_some() =>
+        {
+            image_decoder(snapshot, directory, options)?;
+        }
         "qwen3_5" | "qwen3_5_text" => {
             decoder(
                 &qwen3_5::load(snapshot, device, data_type)?,
@@ -268,6 +283,27 @@ fn transcriber(snapshot: &Path, directory: &Path, options: &ExportOptions) -> Re
                 .write_to(directory, "model")?;
         }
     }
+    Ok(())
+}
+
+// Qwen3.5 reading an image of `options.image_size` by `options.image_width` pixels: its encode step, which reads the image's patches, beside the decoder's steps, as one set with its generation loop of one sequence.
+fn image_decoder(snapshot: &Path, directory: &Path, options: &ExportOptions) -> Result<()> {
+    let model = load_vision_language(snapshot, options.device, options.data_type)?;
+    let generation = choices(&Snapshot::new(snapshot), options)?;
+    let decoder = CachedDecoder::create(model.decoder(), DecoderOptions::new(1, options.capacity))?;
+    let width = options.image_width.unwrap_or(options.image_size);
+    let (encode, _) = model.encode_step_graph(&decoder, options.image_size, width)?;
+    let (step, prompt) = choosing_steps(&decoder, &generation, Some(options.prompt_rows))?;
+    let prompt = prompt.ok_or_else(|| SingeError::missing_output("prompt step"))?;
+    options
+        .export()
+        .with_decoding(decoding(&step, &generation))
+        .export_steps(&[
+            ("encode", &encode),
+            ("decode", &step.graph),
+            ("prompt", &prompt.graph),
+        ])?
+        .write_to(directory, "model")?;
     Ok(())
 }
 

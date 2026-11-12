@@ -209,10 +209,17 @@ impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
         sequence: usize,
         offsets: &Tensor,
     ) -> Result<()> {
-        match caches.last() {
-            Some(SourcedCache::Positions(positions)) => positions.write(sequence, offsets),
-            _ => Err(Error::missing_input("a sourced decoder's position cache")),
-        }
+        positions_of(caches)?.write(sequence, offsets)
+    }
+
+    // Writes `offsets`, `[N, 3]`, as sequence `sequence`'s rotary offsets at `positions`, `[N]` of `I64`, as a captured encode step writes them.
+    pub fn write_positions_at(
+        caches: &[SourcedCache<B::Cache>],
+        sequence: usize,
+        positions: &Tensor,
+        offsets: &Tensor,
+    ) -> Result<()> {
+        positions_of(caches)?.write_at(sequence, positions, offsets)
     }
 
     // Writes `rows`, `[N, W]`, as sequence `sequence`'s sources at `positions`, `[N]` of `I64`, in the source cache of `caches`, as a captured encode step that reads where its sources go writes them.
@@ -223,6 +230,14 @@ impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
         rows: &Tensor,
     ) -> Result<()> {
         sources_of(caches)?.write_at(sequence, positions, rows)
+    }
+}
+
+// The position cache of a sourced decoder's `caches`, its last.
+fn positions_of<C>(caches: &[SourcedCache<C>]) -> Result<&PositionCache> {
+    match caches.last() {
+        Some(SourcedCache::Positions(positions)) => Ok(positions),
+        _ => Err(Error::missing_input("a sourced decoder's position cache")),
     }
 }
 

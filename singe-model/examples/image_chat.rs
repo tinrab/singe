@@ -1,10 +1,10 @@
-// Describes an image with a Qwen3.5 snapshot: `--image FILE`, `--prompt TEXT` for other than a request for one sentence, `--max-new-tokens N`, `--type f32|f16` for other than BF16, `--eager` for eager decoder steps, and `--tokens` to print the token ids too.
+// Describes an image with a Qwen3.5 snapshot: `--image FILE`, `--prompt TEXT` for other than a request for one sentence, `--max-new-tokens N`, `--type f32|f16` for other than BF16, `--eager` for eager decoder steps, `--tokens` to print the token ids too, and `--source FILE` to write the image's patches where an exported loop reads them, and print the prompt that loop takes.
 //
 // The image is resized as `transformers`' processor sizes it, bicubically when that changes its size, so an image already at such a size reads exactly as `transformers` reads it.
 
 mod support;
 
-use std::iter;
+use std::{fs, iter};
 
 use anyhow::{Result, bail};
 use singe::{DataType, generation::GenerationOptions};
@@ -58,6 +58,25 @@ fn main() -> Result<()> {
         } else {
             tokens.push(token);
         }
+    }
+
+    if let Some(path) = arguments.value("source") {
+        fs::write(path, image.patches.to_bytes()?)?;
+        let first = tokens.iter().position(|&token| token == image_token);
+        let prompt = tokens
+            .iter()
+            .enumerate()
+            .filter(|&(index, &token)| token != image_token || Some(index) == first)
+            .map(|(_, &token)| {
+                if token == image_token {
+                    format!("{token}*")
+                } else {
+                    token.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!("{prompt}");
     }
 
     let generated = model.generate(

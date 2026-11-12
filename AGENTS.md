@@ -83,6 +83,7 @@ Use `uv` for Python helpers.
 - Programs: `singe/src/backend/cuda/export/` turns graphs into CUDA C++ programs, and several graphs into a set sharing weights.
   A set exported with `with_decoding` writes a generation loop that fills every `DecodeStep` input, reads prompts through a `prompt` step, and runs an `encode` step on a source file; any other program writes a runner from input files to output files.
   Its steps end in choosing a token, sampling from the set's generator seeded by `--seed`, and the loop stops a sequence at the export's stop tokens and runs the rows a step was exported for over a `--prompts` file, as `RunningBatch` does.
+  An encode step writes whatever the decoder's caches need for its source, as Qwen3-ASR's writes audio rows and Qwen3.5's writes an image's rows and M-RoPE offsets, for an image of the size exported.
   Inputs whose length varies pad to a fixed size with their length as a tensor input, so one graph serves the eager, compiled, and program paths.
   `singe_model::export::export_snapshot`, run by `singe-model`'s `export` example, exports any snapshot its loaders know.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
