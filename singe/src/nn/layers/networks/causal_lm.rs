@@ -6,8 +6,8 @@ use crate::{
     error::{Error, Result},
     nn::{
         AttentionInput, CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer, Embedding,
-        GatedMlp, Layer, Linear, ModelState, PreNormBlock, RmsNorm, RotarySpec, RotaryTable,
-        SourceCache, SourceCacheSpec, SourcedCache,
+        GatedMlp, Layer, Linear, ModelState, PositionCache, PreNormBlock, RmsNorm, RotaryAngles,
+        RotarySpec, RotaryTable, SourceCache, SourceCacheSpec, SourcedCache,
     },
     tensor::Tensor,
 };
@@ -121,19 +121,31 @@ where
     pub fn forward_embedded(
         &self,
         step: &DecodeStep,
-        mut hidden: Tensor,
+        hidden: Tensor,
         tables: &RotaryTable,
         caches: &[B::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
-        let parts = &self.parts;
         let angles = tables.angles(step.positions())?;
+        self.forward_rotated(step, hidden, &angles, caches, state)
+    }
+
+    // Runs the step from its embeddings, `[T, W]`, rotating by `angles` rather than by its positions.
+    pub fn forward_rotated(
+        &self,
+        step: &DecodeStep,
+        mut hidden: Tensor,
+        angles: &RotaryAngles,
+        caches: &[B::Cache],
+        state: &ModelState,
+    ) -> Result<Tensor> {
+        let parts = &self.parts;
         for (block, cache) in parts.blocks.iter().zip(caches) {
             hidden = block.decode(
                 &AttentionInput {
                     hidden: &hidden,
                     step,
-                    angles: Some(&angles),
+                    angles: Some(angles),
                     cache,
                 },
                 state,
@@ -149,10 +161,12 @@ where
 // A causal language model whose prompts read sources in place of a placeholder token, as Qwen3-ASR's prompt reads audio features in place of its audio tokens.
 //
 // Its caches are the model's own, one per block, then a [`SourceCache`], which a sequence's sources are written to before its first step.
+// With M-RoPE sections, as Qwen3.5 places an image's tokens on its grid, a [`PositionCache`] follows, which a sequence's rotary offsets are written to before its first step too.
 pub struct SourcedCausalLm<B: DecodingLayer, N = RmsNorm> {
     model: CausalLm<B, N>,
     placeholder: i64,
     width: i64,
+    sections: Option<[i64; 3]>,
 }
 
 impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
@@ -163,7 +177,15 @@ impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
             model,
             placeholder,
             width,
+            sections: None,
         }
+    }
+
+    // Rotates by three position streams, which the position cache gives, combined by M-RoPE's interleaved `sections` as `RotaryTable::angles_in_sections` does.
+    #[must_use]
+    pub const fn with_position_sections(mut self, sections: [i64; 3]) -> Self {
+        self.sections = Some(sections);
+        self
     }
 
     #[must_use]
@@ -178,9 +200,18 @@ impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
         position: i64,
         rows: &Tensor,
     ) -> Result<()> {
+        sources_of(caches)?.write(sequence, position, rows)
+    }
+
+    // Writes `offsets`, `[capacity, 3]`, as sequence `sequence`'s rotary offsets, in the position cache of `caches`.
+    pub fn write_positions(
+        caches: &[SourcedCache<B::Cache>],
+        sequence: usize,
+        offsets: &Tensor,
+    ) -> Result<()> {
         match caches.last() {
-            Some(SourcedCache::Sources(sources)) => sources.write(sequence, position, rows),
-            _ => Err(Error::missing_input("a sourced decoder's source cache")),
+            Some(SourcedCache::Positions(positions)) => positions.write(sequence, offsets),
+            _ => Err(Error::missing_input("a sourced decoder's position cache")),
         }
     }
 
@@ -191,11 +222,20 @@ impl<B: DecodingLayer, N> SourcedCausalLm<B, N> {
         positions: &Tensor,
         rows: &Tensor,
     ) -> Result<()> {
-        match caches.last() {
-            Some(SourcedCache::Sources(sources)) => sources.write_at(sequence, positions, rows),
-            _ => Err(Error::missing_input("a sourced decoder's source cache")),
-        }
+        sources_of(caches)?.write_at(sequence, positions, rows)
     }
+}
+
+// The source cache of a sourced decoder's `caches`, after its blocks' caches.
+fn sources_of<C>(caches: &[SourcedCache<C>]) -> Result<&SourceCache> {
+    caches
+        .iter()
+        .rev()
+        .find_map(|cache| match cache {
+            SourcedCache::Sources(sources) => Some(sources),
+            _ => None,
+        })
+        .ok_or_else(|| Error::missing_input("a sourced decoder's source cache"))
 }
 
 impl<B: DecodingLayer, N: Debug> Debug for SourcedCausalLm<B, N> {
@@ -205,6 +245,7 @@ impl<B: DecodingLayer, N: Debug> Debug for SourcedCausalLm<B, N> {
             .field("model", &self.model)
             .field("placeholder", &self.placeholder)
             .field("width", &self.width)
+            .field("sections", &self.sections)
             .finish()
     }
 }
@@ -240,6 +281,14 @@ where
             size,
             SourceCacheSpec { width: self.width },
         )?));
+        if self.sections.is_some() {
+            caches.push(SourcedCache::Positions(PositionCache::create(
+                device,
+                data_type,
+                size,
+                (),
+            )?));
+        }
         Ok(caches)
     }
 
@@ -250,20 +299,28 @@ where
         caches: &[Self::Cache],
         state: &ModelState,
     ) -> Result<Tensor> {
-        let Some((SourcedCache::Sources(sources), layers)) = caches.split_last() else {
-            return Err(Error::missing_input("a sourced decoder's source cache"));
-        };
-        let layers = layers
-            .iter()
-            .map(|cache| match cache {
-                SourcedCache::Layer(cache) => Ok(cache.clone()),
-                SourcedCache::Sources(_) => Err(Error::invalid_argument(
-                    "a sourced decoder has one source cache, after its blocks' caches",
-                )),
-            })
-            .collect::<Result<Vec<_>>>()?;
+        let (mut layers, mut sources, mut positions) = (Vec::new(), None, None);
+        for cache in caches {
+            match cache {
+                SourcedCache::Layer(cache) => layers.push(cache.clone()),
+                SourcedCache::Sources(cache) => sources = Some(cache),
+                SourcedCache::Positions(cache) => positions = Some(cache),
+            }
+        }
+
+        let sources =
+            sources.ok_or_else(|| Error::missing_input("a sourced decoder's source cache"))?;
         let embedded = sources.embed(step, &self.model.embed(step, state)?, self.placeholder)?;
+        let angles = match (self.sections, positions) {
+            (Some(sections), Some(positions)) => {
+                tables.angles_in_sections(&positions.positions(step)?, sections)?
+            }
+            (None, _) => tables.angles(step.positions())?,
+            (Some(_), None) => {
+                return Err(Error::missing_input("a sourced decoder's position cache"));
+            }
+        };
         self.model
-            .forward_embedded(step, embedded, tables, &layers, state)
+            .forward_rotated(step, embedded, &angles, &layers, state)
     }
 }
