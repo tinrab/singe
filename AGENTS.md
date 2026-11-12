@@ -73,13 +73,16 @@ Use `uv` for Python helpers.
 - Tensor semantics: `singe/src/tensor/`, `shape/`, `layout/`, `storage/`, `data_type/`, and `device.rs`.
 - Operations and dispatch: operation metadata and inference in `singe/src/backend/registry/`, dispatch keys, kernels, autocast, and custom operations in `singe/src/dispatch/`, and backend kernel registration in `singe/src/backend/kernels.rs`.
 - Backends: `singe/src/backend/`, with `cpu/` and `cuda/` implementations; graphs live in `singe/src/graph/` and ONNX import in `singe/src/onnx/`.
-  Eager CUDA operations plan each kernel once per operation and input layouts, in `backend/cuda/kernel_plan/eager_plans.rs`, and launch on one stream per device.
+  Eager CUDA operations plan each kernel once per operation and input layouts, in `backend/cuda/kernel_plan/eager_plans.rs`, and enqueue on one eager stream per device without waiting, libraries included; a host read waits for that stream, and every other stream joins it before its work, through `CudaRuntime::order_after_eager`.
+  Checkpoints load a tensor at a time from where it lies in its file, through page-locked staging buffers, `backend/cuda/upload.rs`.
 - Generation: `singe/src/generation/` has the loop and `CachedDecoder`, whose compiled steps are the one-token step and the prompt chunks `DecoderOptions::prompt_chunks` names; a step pads to the smallest compiled step that holds it, and a larger one is an error.
+  `generate_batch` and `RunningBatch` run more prompts than rows, each joining as a row frees, and `choose` picks each row's token, greedy or sampled, as a choosing step graph does in a program.
 - Decoder caches: `singe/src/nn/decode/` has `DecodeStep` and the caches, one per block from its own spec: paged `KvCache`s, a per-sequence `StateCache` for linear attention, and `HybridCache` for models that mix them.
   A layer carrying a state reads only each sequence's real tokens, `DecodeStep::real_tokens`, so padding and held rows leave it as it was.
-  `SourcedCausalLm` adds a `SourceCache` whose rows a prompt's placeholder tokens read in place of their embeddings, as Qwen3-ASR's audio tokens do.
+  `SourcedCausalLm` adds a `SourceCache` whose rows a prompt's placeholder tokens read in place of their embeddings, as Qwen3-ASR's audio tokens and Qwen3.5's image tokens do, and with M-RoPE sections a `PositionCache` of each position's rotary offsets on three axes.
 - Programs: `singe/src/backend/cuda/export/` turns graphs into CUDA C++ programs, and several graphs into a set sharing weights.
   A set exported with `with_decoding` writes a generation loop that fills every `DecodeStep` input, reads prompts through a `prompt` step, and runs an `encode` step on a source file; any other program writes a runner from input files to output files.
+  Its steps end in choosing a token, sampling from the set's generator seeded by `--seed`, and the loop stops a sequence at the export's stop tokens and runs the rows a step was exported for over a `--prompts` file, as `RunningBatch` does.
   Inputs whose length varies pad to a fixed size with their length as a tensor input, so one graph serves the eager, compiled, and program paths.
   `singe_model::export::export_snapshot`, run by `singe-model`'s `export` example, exports any snapshot its loaders know.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
