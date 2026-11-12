@@ -1703,7 +1703,7 @@ def state_sequences(offsets, real, positions):
 def causal_conv1d_samples(pool, dtype):
     """A depthwise causal convolution of width four over the step's sequences, after their states."""
     if dtype not in FLOATS:
-        return []
+        return {}
     rows, taps = plain(pool, dtype, [9, 6]), plain(pool, dtype, [6, 4], 2, "unit")
     state = plain(pool, dtype, [4, 6, 3], 3)
     spans = state_span_inputs(pool, "causal conv1d")
@@ -1743,46 +1743,65 @@ def causal_conv1d_reference(rows, taps, state, offsets, real, positions):
     return (output if taps is not None else state).to(data_type)
 
 
+# Each case's step: its rows, and the spans of `STATE_SPANS`; "sequences" mixes fresh, held, empty, and padded sequences, "long prompts" runs a fresh and a held sequence past one chunk of the CUDA kernel's prompt form, and "decode" gives each sequence one row.
+DELTA_RULE_STEPS = {
+    "sequences": (9, STATE_SPANS),
+    "long prompts": (
+        48,
+        {
+            "query offsets": [0, 21, 46],
+            "real tokens": [21, 25],
+            "positions": [0, *range(1, 21), *range(9, 34), 0, 0],
+        },
+    ),
+    "decode": (
+        3,
+        {
+            "query offsets": [0, 1, 2, 3],
+            "real tokens": [1, 1, 1],
+            "positions": [4, 0, 7],
+        },
+    ),
+}
+
+
 def gated_delta_rule_samples(pool, dtype):
-    """The gated delta rule over the step's sequences, with unit keys and queries, negative decays, and strengths between zero and one."""
+    """The gated delta rule over each step of `DELTA_RULE_STEPS`, with unit keys and queries, negative decays, and strengths between zero and one, giving the output and the states the step leaves."""
     if dtype not in FLOATS:
         return []
-    explicit = lambda name, tensor: Input(
-        pool.explicit(f"gated delta rule {name}", tensor.to(DTYPES[dtype]))
-    )
-    unit = lambda seed: functional.normalize(
-        values("F64", [9, 2, 8], seed, "any"), dim=-1
-    )
-    operands = [
-        explicit("queries", unit(1)),
-        explicit("keys", unit(2)),
-        plain(pool, dtype, [9, 2, 6], 3),
-        explicit("decays", -values("F64", [9, 2], 4, "positive") / 4),
-        explicit("strengths", torch.sigmoid(values("F64", [9, 2], 5, "any"))),
-        plain(pool, "F32", [4, 2, 8, 6], 6, "unit"),
-        *state_span_inputs(pool, "gated delta rule"),
-    ]
-    return {
-        name: [
-            Sample(
-                "sequences",
-                operands,
-                lambda *operands, want_state=want_state: gated_delta_rule_reference(
-                    *operands, want_state
-                ),
-            )
+    samples = []
+    for label, (rows, spans) in DELTA_RULE_STEPS.items():
+        explicit = lambda name, tensor, label=label: Input(
+            pool.explicit(f"gated delta rule {label} {name}", tensor)
+        )
+        unit = lambda seed, rows=rows: functional.normalize(
+            values("F64", [rows, 2, 8], seed, "any"), dim=-1
+        ).to(DTYPES[dtype])
+        sequences = len(spans["real tokens"])
+        operands = [
+            explicit("queries", unit(1)),
+            explicit("keys", unit(2)),
+            explicit("values", values("F64", [rows, 2, 6], 3, "any").to(DTYPES[dtype])),
+            explicit(
+                "decays",
+                (-values("F64", [rows, 2], 4, "positive") / 4).to(DTYPES[dtype]),
+            ),
+            explicit(
+                "strengths",
+                torch.sigmoid(values("F64", [rows, 2], 5, "any")).to(DTYPES[dtype]),
+            ),
+            explicit("state", values("F32", [sequences, 2, 8, 6], 6, "unit")),
+            *[
+                explicit(name, torch.tensor(span, dtype=torch.int64))
+                for name, span in spans.items()
+            ],
         ]
-        for name, want_state in [
-            ("gated_delta_rule", False),
-            ("gated_delta_rule_state", True),
-        ]
-    }
+        samples.append(Sample(label, operands, gated_delta_rule_reference))
+    return samples
 
 
-def gated_delta_rule_reference(
-    q, k, v, g, beta, state, offsets, real, positions, want_state
-):
-    """Each sequence's real rows token by token from its state, or zeros from position zero, as `transformers`' `torch_recurrent_gated_delta_rule` runs them after its normalization, with the other rows zero; with `want_state`, the `F32` states the step leaves."""
+def gated_delta_rule_reference(q, k, v, g, beta, state, offsets, real, positions):
+    """Each sequence's real rows token by token from its state, or zeros from position zero, as `transformers`' `torch_recurrent_gated_delta_rule` runs them after its normalization, with the other rows zero, and the `F32` states the step leaves."""
     data_type = v.dtype
     wide = torch.float64 if data_type == torch.float64 else torch.float32
     q, k, v, g, beta = (tensor.to(wide) for tensor in (q, k, v, g, beta))
@@ -1799,7 +1818,7 @@ def gated_delta_rule_reference(
             held = held + k[row][:, :, None] * delta[:, None, :]
             output[row] = (held * q[row][:, :, None]).sum(dim=-2)
         states[sequence] = held
-    return states.to(torch.float32) if want_state else output.to(data_type)
+    return output.to(data_type), states.to(torch.float32)
 
 
 def paged_mla_attention_samples(pool, dtype):
@@ -3156,12 +3175,9 @@ def operations(pool):
         yield "paged_attention", dtype, paged_attention_samples(pool, dtype)
         yield "paged_mla_attention", dtype, paged_mla_attention_samples(pool, dtype)
         yield "grouped_matmul", dtype, grouped_matmul_samples(pool, dtype)
-        for samples in (
-            causal_conv1d_samples(pool, dtype),
-            gated_delta_rule_samples(pool, dtype),
-        ):
-            for name, cases in dict(samples).items():
-                yield name, dtype, cases
+        for name, cases in causal_conv1d_samples(pool, dtype).items():
+            yield name, dtype, cases
+        yield "gated_delta_rule", dtype, gated_delta_rule_samples(pool, dtype)
         yield "rotary_embedding", dtype, rotary_samples(pool, dtype)
     yield "scaled_mm", "F8E4M3", scaled_matmul_samples(pool, "F8E4M3")
     for name, samples in quantization_samples(pool).items():

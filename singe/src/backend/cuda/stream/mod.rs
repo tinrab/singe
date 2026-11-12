@@ -45,6 +45,8 @@ impl CudaStream {
     pub fn create_with_flags(device: Device, flags: StreamFlags) -> Result<Self> {
         let runtime = runtime_for_device(device)?;
         let stream = runtime.context().create_stream_with_flags(flags)?;
+        // Eager work does not wait for itself, so a new stream starts after what it has enqueued.
+        runtime.order_after_eager(&stream)?;
         Ok(Self::new(Arc::new(stream)))
     }
 

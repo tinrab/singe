@@ -73,7 +73,7 @@ const DATA_TYPES: [DataType; 16] = [
 ];
 
 /// Registry operations the fixture has no cases for, and why.
-const UNCOVERED: [(&str, &str); 11] = [
+const UNCOVERED: [(&str, &str); 13] = [
     (
         "paged_attention_output",
         "is `paged_attention`'s first result as graph capture records it; its cases cover it",
@@ -89,6 +89,14 @@ const UNCOVERED: [(&str, &str); 11] = [
     (
         "paged_mla_attention_lse",
         "is `paged_mla_attention`'s second result as graph capture records it; its cases cover it",
+    ),
+    (
+        "gated_delta_rule_output",
+        "is `gated_delta_rule`'s first result as graph capture records it; its cases cover it",
+    ),
+    (
+        "gated_delta_rule_state",
+        "is `gated_delta_rule`'s second result as graph capture records it; its cases cover it",
     ),
     (
         "assign",
@@ -816,7 +824,6 @@ fn tolerance(data_type: DataType, operation: &str) -> (f64, f64) {
             | "paged_mla_attention"
             | "causal_conv1d"
             | "gated_delta_rule"
-            | "gated_delta_rule_state"
     );
     match data_type {
         DataType::F32 if reassociates => (1e-5, 1e-4),

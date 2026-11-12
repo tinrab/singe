@@ -42,9 +42,11 @@ fn test_cuda_execution_context_uses_current_stream() {
         let _guard = cuda::set_current_stream(&stream).unwrap();
         let context = cuda::execution_context(device).unwrap();
         assert_eq!(context.device(), device);
-        assert_eq!(context.stream().unwrap().id().unwrap(), stream_id);
+        assert_eq!(context.stream().id().unwrap(), stream_id);
+        assert!(!context.is_eager());
     }
 
     let context = cuda::execution_context(device).unwrap();
-    assert!(context.stream().is_none());
+    assert!(context.is_eager());
+    assert_ne!(context.stream().id().unwrap(), stream_id);
 }

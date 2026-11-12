@@ -8,7 +8,7 @@ use crate::{
             eager::ensure_cuda_eager_same_device_inputs,
             gemm::{ScaledMatmulPointers, enqueue_scaled_matmul},
             kernel_plan,
-            stream::{CudaStream, ensure_not_stream_capturing},
+            stream::ensure_not_stream_capturing,
             tensor_region::CudaTensorSource,
         },
         decomposition,
@@ -108,7 +108,7 @@ fn cublaslt_scaled_matmul(
                 problem,
                 [lhs.data_type(), rhs.data_type(), output],
                 &pointers,
-                context.stream().map(CudaStream::raw),
+                Some(context.stream().raw()),
             )
         }
     })?;

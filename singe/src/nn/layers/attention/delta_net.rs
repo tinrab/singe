@@ -161,9 +161,8 @@ impl DecodingLayer for GatedDeltaNet {
             .softplus(1.0)?
             .mul(&rate)?;
         let recurrent = cache.recurrent();
-        let attended = query.gated_delta_rule(&key, &value, &decay, &strength, recurrent, spans)?;
-        let recurrent =
-            query.gated_delta_rule_state(&key, &value, &decay, &strength, recurrent, spans)?;
+        let (attended, recurrent) =
+            query.gated_delta_rule(&key, &value, &decay, &strength, recurrent, spans)?;
         cache.write(&convolution, &recurrent)?;
         let head_shape = [
             tokens.clone(),

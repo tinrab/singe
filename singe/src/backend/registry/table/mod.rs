@@ -9,9 +9,10 @@ use crate::{
         OperandRole, OperandSchema, OperationAttributeKind, OperationAttributes,
         OperationExecutorFamily, OutputRole, PAGED_ATTENTION_OPERANDS,
         PAGED_MLA_ATTENTION_OPERANDS, QUANTIZE_OPERANDS, QUANTIZED_MATMUL_OPERANDS,
-        RANDOM_OPERANDS, ROTARY_EMBEDDING_OPERANDS, ReductionAttributes, SAMPLING_OPERANDS,
-        SCALED_DOT_PRODUCT_ATTENTION_OPERANDS, SCALED_MATMUL_OPERANDS, SCATTER_OPERANDS,
-        SortAttributes, TERNARY_WHERE_OPERANDS, TOPK_OUTPUTS, UNARY_OPERANDS, VALUE_OUTPUT,
+        RANDOM_OPERANDS, RECURRENCE_OUTPUTS, ROTARY_EMBEDDING_OPERANDS, ReductionAttributes,
+        SAMPLING_OPERANDS, SCALED_DOT_PRODUCT_ATTENTION_OPERANDS, SCALED_MATMUL_OPERANDS,
+        SCATTER_OPERANDS, STATE_OUTPUT, SortAttributes, TERNARY_WHERE_OPERANDS, TOPK_OUTPUTS,
+        UNARY_OPERANDS, VALUE_OUTPUT,
         infer::{self, InferenceRule},
         support::OperationSupportProfile,
     },
@@ -1754,6 +1755,7 @@ operation_table! {
         onnx: None,
     },
     // Runs the gated delta rule over each sequence's real rows, token by token from its state, `[S, H, Dk, Dv]` in `F32`, or zeros for a sequence starting at position zero: decay the state by `exp(g)`, write `beta · (v − read)` at the key, and read it at the query; other rows are zero.
+    // Its results are the output and the state the step leaves, a sequence's state as it was when the step has no real rows of it.
     GatedDeltaRule {
         name: "gated_delta_rule",
         support: StateRecurrence,
@@ -1762,12 +1764,26 @@ operation_table! {
         attributes: None,
         operands: OperandSchema::Fixed(GATED_DELTA_RULE_OPERANDS),
         infer: gated_delta_rule,
+        outputs: RECURRENCE_OUTPUTS,
+        alias: None,
+        method: none,
+        onnx: None,
+    },
+    // Returns the gated delta rule's output alone, as graph capture records the operation's first result.
+    GatedDeltaRuleOutput {
+        name: "gated_delta_rule_output",
+        support: StateRecurrence,
+        family: Neural,
+        elementwise: None,
+        attributes: None,
+        operands: OperandSchema::Fixed(GATED_DELTA_RULE_OPERANDS),
+        infer: gated_delta_rule_output,
         outputs: VALUE_OUTPUT,
         alias: None,
         method: none,
         onnx: None,
     },
-    // Returns the gated delta rule's state after the step, or a sequence's state as it was when the step has no real rows of it.
+    // Returns the gated delta rule's state alone, as graph capture records the operation's second result.
     GatedDeltaRuleState {
         name: "gated_delta_rule_state",
         support: StateRecurrence,
@@ -1776,7 +1792,7 @@ operation_table! {
         attributes: None,
         operands: OperandSchema::Fixed(GATED_DELTA_RULE_OPERANDS),
         infer: gated_delta_rule_state,
-        outputs: VALUE_OUTPUT,
+        outputs: STATE_OUTPUT,
         alias: None,
         method: none,
         onnx: None,

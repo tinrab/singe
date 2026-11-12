@@ -186,11 +186,15 @@ pub fn tensor_output_view_with_len<'a, T: DeviceRepr>(
 }
 
 // The stream an eager kernel launches on: the one its context names, or the runtime's eager stream, which a launch borrows rather than creating a stream of its own.
-pub struct CudaKernelStream<'a>(&'a Stream);
+pub struct CudaKernelStream<'a> {
+    stream: &'a Stream,
+    // Whether this is the eager stream, whose launches nothing waits for.
+    eager: bool,
+}
 
 impl CudaKernelStream<'_> {
     pub(crate) const fn raw(&self) -> &Stream {
-        self.0
+        self.stream
     }
 
     /// Completes borrowed eager work or records it into the backend's active graph.
@@ -233,7 +237,8 @@ impl CudaKernelStream<'_> {
                 input.order_on(stream)?;
             }
         }
-        if capturing {
+        if capturing || self.eager {
+            // Eager launches run in order on the eager stream, whose storage returns to the cache only for reuse ordered after them.
             launch()
         } else {
             // The caller's tensor owners remain borrowed while the core scope drains success, errors, and unwinding.
@@ -253,8 +258,8 @@ pub fn kernel_stream_for_context(
             device,
         ));
     }
-    match context.stream() {
-        Some(stream) => Ok(CudaKernelStream(stream.raw())),
-        None => Ok(CudaKernelStream(context.runtime().eager_stream()?.raw())),
-    }
+    Ok(CudaKernelStream {
+        stream: context.stream().raw(),
+        eager: context.is_eager(),
+    })
 }

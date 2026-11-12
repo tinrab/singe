@@ -7,7 +7,7 @@ use crate::{
                 build::{
                     lower::{
                         placement::NodePlacement,
-                        results::{attention_sibling, plan_kernel_result, result_of},
+                        results::{plan_kernel_result, result_of, sibling},
                     },
                     operation::{contiguous_input, copy_to_input},
                 },
@@ -106,7 +106,7 @@ impl Builder<'_> {
         Ok(true)
     }
 
-    // Two-result kernels: normalized top-k holds both results, and each of latent attention's is its own node.
+    // Two-result kernels: normalized top-k holds both results, and each of attention's and the delta rule's is its own node.
     fn kernel_result_of(&mut self, id: ValueId) -> Result<bool> {
         let operation = self.ir.required_operation_for_value(id)?;
         let Some(kept) = operation.opcode().and_then(result_of) else {
@@ -154,7 +154,7 @@ impl Builder<'_> {
         let sibling = if is_topk {
             operation.result_values().nth(1)
         } else {
-            let other = attention_sibling(
+            let other = sibling(
                 operation
                     .opcode()
                     .ok_or_else(|| Error::missing_node("kernel results"))?,

@@ -1,6 +1,8 @@
 // The causal convolution and the gated delta rule over a step's sequences, and the states they leave.
 // A sequence's rows are `offsets[s]` onwards, its first `real[s]` real, and it starts from a zero state when its first real row is at position zero.
 
+use std::fmt::Write as _;
+
 use singe_codegen::emit::cuda_c::spelling::{load_expression, store_expression};
 
 use crate::{
@@ -15,8 +17,11 @@ use crate::{
     value::ValueSpec,
 };
 
-// The most value features one block of the delta rule holds, one per thread.
-const DELTA_RULE_THREADS: usize = 128;
+// The threads of one block of the delta rule: one warp, so a head's columns spread over several blocks.
+const WARP: usize = 32;
+
+// How many lanes share one value feature's column of the delta rule's state.
+const DELTA_RULE_PARTS: usize = 4;
 
 // The type a kernel computes `data_type` values in.
 const fn accumulator(data_type: DataType) -> &'static str {
@@ -62,9 +67,11 @@ impl KernelPlan {
                 Self::causal_conv1d(inputs, input, None, state, [offsets, real, positions])
             }
             (
-                Operation::GatedDeltaRule | Operation::GatedDeltaRuleState,
+                Operation::GatedDeltaRule
+                | Operation::GatedDeltaRuleOutput
+                | Operation::GatedDeltaRuleState,
                 [_, _, _, _, _, _, _, _, _],
-            ) => Self::gated_delta_rule(operation, inputs),
+            ) => Self::gated_delta_rule(inputs),
             _ => Err(Error::missing_input("cuda state recurrence operands")),
         }
     }
@@ -182,8 +189,9 @@ if (w >= {history}LL) {{
         Ok(writer.finish(label, launch, vec![spec], inputs, &[operation]))
     }
 
-    // One block per sequence, head, and slice of value features, each thread holding one feature's column of the state, `Dk` values, through the sequence's rows.
-    fn gated_delta_rule(operation: Operation, inputs: &[KernelInput]) -> Result<Self> {
+    // One warp per sequence, head, and slice of value features, running the sequence's rows token by token and writing the output and the state it leaves.
+    // Each value feature's column of the state, `Dk` values, is split across `parts` lanes, which sum what they read with shuffles, so a token's work per lane is `Dk / parts` long.
+    fn gated_delta_rule(inputs: &[KernelInput]) -> Result<Self> {
         let [query, key, value, decay, strength, state, ..] = inputs else {
             return Err(Error::missing_input("cuda gated delta rule operands"));
         };
@@ -198,7 +206,6 @@ if (w >= {history}LL) {{
         let data_type = value.data_type;
         let element = element_type(data_type)?;
         let ty = accumulator(data_type);
-        let want_state = operation == Operation::GatedDeltaRuleState;
         let mut writer = KernelWriter::new();
         let names = [
             "query",
@@ -228,110 +235,116 @@ if (w >= {history}LL) {{
             positions,
         ] = <[String; 9]>::try_from(declared)
             .map_err(|_| Error::missing_input("cuda gated delta rule operands"))?;
-        let output_type = if want_state { DataType::F32 } else { data_type };
-        let output = writer.output(output_type, "output")?;
-        let threads = value_dim.clamp(1, DELTA_RULE_THREADS).next_multiple_of(32);
+        let output = writer.output(data_type, "output")?;
+        let left = writer.output(DataType::F32, "left")?;
+        let parts = if key_dim.is_multiple_of(DELTA_RULE_PARTS) {
+            DELTA_RULE_PARTS
+        } else {
+            1
+        };
+        let columns = WARP / parts;
         let launch = writer.grid(
-            [sequences, heads, value_dim.div_ceil(threads)],
-            u32::try_from(threads)
+            [sequences, heads, value_dim.div_ceil(columns)],
+            u32::try_from(WARP)
                 .map_err(|_| Error::out_of_range("cuda gated delta rule threads"))?,
         )?;
+        let owned = key_dim / parts;
         let load = |name: &str, input: &KernelInput, index: &str| -> Result<String> {
             Ok(format!(
                 "static_cast<{ty}>({})",
                 load_expression(element_type(input.data_type)?, &format!("{name}[{index}]"))
             ))
         };
-        let load_key = load(&keys, key, &format!("r * {key_dim}ULL + d"))?;
-        let load_query = load(&queries, query, &format!("r * {key_dim}ULL + d"))?;
-        let load_value = load(&values, value, &format!("r * {value_dim}ULL + column"))?;
-        let load_decay = load(&decays, decay, "r")?;
-        let load_strength = load(&strengths, strength, "r")?;
         let stored = store_expression(element, "out");
         let zero = store_expression(element, &format!("static_cast<{ty}>(0)"));
-        let finish = if want_state {
-            format!(
-                "
+        let prologue = format!(
+            "
+const unsigned long long sequence = blockIdx.x, head = blockIdx.y;
+const unsigned int part = lane % {parts}U;
+const unsigned long long column = static_cast<unsigned long long>(blockIdx.z) * {columns}ULL + lane / {parts}U;
+const bool active = column < {value_dim}ULL;
+const long long start = static_cast<long long>({offsets}[sequence]);
+const long long count = static_cast<long long>({real}[sequence]);
+const bool fresh = count > 0 && static_cast<long long>({positions}[start]) == 0;
+const unsigned long long base = (sequence * {heads}ULL + head) * {key_dim}ULL * {value_dim}ULL + column;
+{ty} column_state[{owned}];
+#pragma unroll
+for (unsigned int t = 0; t < {owned}U; ++t) {{
+    const unsigned long long d = part + t * {parts}ULL;
+    column_state[t] = active && !fresh ? static_cast<{ty}>({held}[base + d * {value_dim}ULL]) : static_cast<{ty}>(0);
+}}"
+        );
+        // Rows that are not real are zero: those after a sequence's real rows up to the next sequence's or the step's end, and any before the first sequence.
+        let epilogue = format!(
+            "
 if (active) {{
     #pragma unroll
-    for (unsigned int d = 0; d < {key_dim}U; ++d) {output}[base + d * {value_dim}ULL] = static_cast<float>(column_state[d]);
-}}"
-            )
-        } else {
-            // Rows that are not real are zero: those after a sequence's real rows up to the next sequence's or the step's end, and any before the first sequence.
-            format!(
-                "
-if (active) {{
+    for (unsigned int t = 0; t < {owned}U; ++t) {left}[base + (part + t * {parts}ULL) * {value_dim}ULL] = static_cast<float>(column_state[t]);
+}}
+if (active && part == 0) {{
     const long long end = sequence + 1 == {sequences}ULL ? {tokens}LL : static_cast<long long>({offsets}[sequence + 1]);
     for (long long row = start + count; row < end; ++row) {output}[(static_cast<unsigned long long>(row) * {heads}ULL + head) * {value_dim}ULL + column] = {zero};
     if (sequence == 0) {{
         for (long long row = 0; row < start; ++row) {output}[(static_cast<unsigned long long>(row) * {heads}ULL + head) * {value_dim}ULL + column] = {zero};
     }}
 }}"
-            )
-        };
-        let write_output = if want_state {
-            String::new()
-        } else {
-            format!("if (active) {output}[r * {value_dim}ULL + column] = {stored};")
-        };
-        writer.lines(&format!(
+        );
+        let load_key = load(&keys, key, &format!("r * {key_dim}ULL + d"))?;
+        let load_query = load(&queries, query, &format!("r * {key_dim}ULL + d"))?;
+        let load_value = load(&values, value, &format!("r * {value_dim}ULL + column"))?;
+        let load_decay = load(&decays, decay, "r")?;
+        let load_strength = load(&strengths, strength, "r")?;
+        // Lanes of one column sum their parts with shuffles within groups of `parts` lanes, which every lane then holds.
+        let mut gather = String::new();
+        let mut width = 1;
+        while width < parts {
+            let _ = write!(
+                gather,
+                "\n    read += __shfl_xor_sync(0xffffffffU, read, {width});"
+            );
+            width *= 2;
+        }
+
+        let gather_out = gather.replace("read", "out");
+        let body = format!(
             "
 __shared__ {ty} shared_key[{key_dim}];
-__shared__ {ty} shared_query[{key_dim}];
-const unsigned long long sequence = blockIdx.x, head = blockIdx.y;
-const unsigned long long column = static_cast<unsigned long long>(blockIdx.z) * blockDim.x + lane;
-const bool active = column < {value_dim}ULL;
-const long long start = static_cast<long long>({offsets}[sequence]);
-const long long count = static_cast<long long>({real}[sequence]);
-const bool fresh = count > 0 && static_cast<long long>({positions}[start]) == 0;
-const unsigned long long base = (sequence * {heads}ULL + head) * {key_dim}ULL * {value_dim}ULL + column;
-{ty} column_state[{key_dim}];
-#pragma unroll
-for (unsigned int d = 0; d < {key_dim}U; ++d) {{
-    column_state[d] = active && !fresh ? static_cast<{ty}>({held}[base + d * {value_dim}ULL]) : static_cast<{ty}>(0);
-}}
+__shared__ {ty} shared_query[{key_dim}];{prologue}
 for (long long row = start; row < start + count; ++row) {{
     const unsigned long long r = static_cast<unsigned long long>(row) * {heads}ULL + head;
     for (unsigned int d = lane; d < {key_dim}U; d += blockDim.x) {{
         shared_key[d] = {load_key};
         shared_query[d] = {load_query};
     }}
-    __syncthreads();
+    __syncwarp();
     const {ty} factor = exp({load_decay});
     {ty} read = 0;
     #pragma unroll
-    for (unsigned int d = 0; d < {key_dim}U; ++d) {{
-        column_state[d] *= factor;
-        read += column_state[d] * shared_key[d];
-    }}
+    for (unsigned int t = 0; t < {owned}U; ++t) {{
+        column_state[t] *= factor;
+        read += column_state[t] * shared_key[part + t * {parts}U];
+    }}{gather}
     const {ty} delta = ((active ? {load_value} : static_cast<{ty}>(0)) - read) * {load_strength};
     {ty} out = 0;
     #pragma unroll
-    for (unsigned int d = 0; d < {key_dim}U; ++d) {{
-        column_state[d] += shared_key[d] * delta;
-        out += column_state[d] * shared_query[d];
-    }}
-    {write_output}
-    __syncthreads();
-}}{finish}"
-        ));
-        let shape = if want_state {
-            state.layout.shape().clone()
-        } else {
-            value.layout.shape().clone()
-        };
-        let label = if want_state {
-            "gated_delta_rule_state"
-        } else {
-            "gated_delta_rule"
-        };
+    for (unsigned int t = 0; t < {owned}U; ++t) {{
+        column_state[t] += shared_key[part + t * {parts}U] * delta;
+        out += column_state[t] * shared_query[part + t * {parts}U];
+    }}{gather_out}
+    if (active && part == 0) {output}[r * {value_dim}ULL + column] = {stored};
+    __syncwarp();
+}}{epilogue}"
+        );
+        writer.lines(&body);
         Ok(writer.finish(
-            label,
+            "gated_delta_rule",
             launch,
-            vec![ValueSpec::new(output_type, shape)],
+            vec![
+                ValueSpec::new(data_type, value.layout.shape().clone()),
+                ValueSpec::new(DataType::F32, state.layout.shape().clone()),
+            ],
             inputs,
-            &[operation],
+            &[Operation::GatedDeltaRule],
         ))
     }
 }

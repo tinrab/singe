@@ -181,11 +181,9 @@ impl CudaTransfer {
         };
         // The destination's allocation is ordered on the context's stream, so the copy waits for that stream first.
         let context = cuda::execution_context(stream.device())?;
-        if let Some(allocation_stream) = context.stream() {
-            let ready = CudaEvent::create(stream.device(), EventTiming::Disabled)?;
-            ready.record(allocation_stream)?;
-            ready.wait(stream)?;
-        }
+        let ready = CudaEvent::create(stream.device(), EventTiming::Disabled)?;
+        ready.record(context.stream())?;
+        ready.wait(stream)?;
 
         // SAFETY: both ranges hold `bytes` contiguous bytes of exclusively owned tensors, which the transfer retains until the copy completes; `Drop` waits for an unfinished copy.
         unsafe { DeviceMemory::<u8>::copy_async(target, origin, bytes, kind, stream.raw())? };

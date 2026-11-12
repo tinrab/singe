@@ -88,24 +88,27 @@ pub fn contraction(
             d_mode,
             output.region(),
         )?;
-        stream.raw().sync_scope(|_| {
-            Ok({
-                // SAFETY: the plan is built for these tensors; eager execution retains storage through the stream's ordered reuse.
-                unsafe {
-                    launch_cutensor_contraction_f32(
-                        &plan,
-                        stream,
-                        a,
-                        b,
-                        c,
-                        output.region(),
-                        alpha,
-                        beta,
-                        workspace.as_mut(),
-                    )
-                }
-            })
-        })?
+        let mut launch = || {
+            // SAFETY: the plan is built for these tensors; eager execution retains storage through the stream's ordered reuse.
+            unsafe {
+                launch_cutensor_contraction_f32(
+                    &plan,
+                    stream,
+                    a,
+                    b,
+                    c,
+                    output.region(),
+                    alpha,
+                    beta,
+                    workspace.as_mut(),
+                )
+            }
+        };
+        if context.is_eager() {
+            launch()
+        } else {
+            stream.raw().sync_scope(|_| Ok(launch()))?
+        }
     })?;
     // SAFETY: the completed contraction writes every element of the contiguous output.
     Ok(unsafe { output.assume_init() })

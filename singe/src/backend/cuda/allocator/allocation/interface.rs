@@ -44,7 +44,7 @@ impl CudaAllocator for CudaCachingAllocator {
             data_type,
             memory,
             Arc::clone(&self.cache) as Arc<dyn CudaMemoryRecycler>,
-            self.stream.clone(),
+            self.recycle_stream(),
         )
     }
 
@@ -65,7 +65,7 @@ impl CudaAllocator for CudaCachingAllocator {
             data_type,
             memory,
             Arc::clone(&self.cache) as Arc<dyn CudaMemoryRecycler>,
-            self.stream.clone(),
+            self.recycle_stream(),
         )
     }
 

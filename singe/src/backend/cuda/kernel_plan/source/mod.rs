@@ -327,6 +327,7 @@ impl KernelPlanner {
             Operation::CausalConv1d
                 | Operation::CausalConv1dState
                 | Operation::GatedDeltaRule
+                | Operation::GatedDeltaRuleOutput
                 | Operation::GatedDeltaRuleState
         ) {
             return KernelPlan::state_recurrence(operation, inputs);

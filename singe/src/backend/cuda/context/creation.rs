@@ -10,7 +10,7 @@ use crate::{
 };
 
 impl CudaExecutionContext {
-    /// Creates an execution context for `device` using CUDA default-stream semantics.
+    /// Creates an execution context for `device` on the runtime's eager stream.
     ///
     /// # Errors
     ///
@@ -21,8 +21,8 @@ impl CudaExecutionContext {
 
     /// Creates an execution context for `device` using `stream` for stream-ordered work.
     ///
-    /// Passing `None` is explicit default-stream behavior.
-    /// Passing `Some(stream)` makes eager library calls and allocator reuse event recording follow that stream.
+    /// Passing `None` runs on the runtime's eager stream.
+    /// Passing `Some(stream)` makes library calls, kernels, and allocator reuse follow that stream, which this orders after the eager stream.
     ///
     /// # Errors
     ///
@@ -47,13 +47,21 @@ impl CudaExecutionContext {
         }
 
         let runtime = runtime_for_device(device)?;
+        let (stream, eager) = match stream {
+            Some(stream) => {
+                runtime.order_after_eager(stream.raw())?;
+                (stream, false)
+            }
+            None => (runtime.eager_stream()?.clone(), true),
+        };
         let allocator = Arc::new(CudaCachingAllocator::create(
             runtime.context(),
-            stream.as_ref().map(CudaStream::raw_arc),
+            (!eager).then(|| stream.raw_arc()),
         )?);
         Ok(Self {
             device,
             stream,
+            eager,
             allocator,
             runtime,
         })

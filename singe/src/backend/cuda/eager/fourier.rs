@@ -16,7 +16,7 @@ use crate::{
             self,
             context::CudaExecutionContext,
             device_views::{tensor_input_view, tensor_output_view_with_len},
-            stream::{CudaStream, ensure_not_stream_capturing},
+            stream::ensure_not_stream_capturing,
             tensor_region::CudaTensorSource,
         },
         decomposition,
@@ -56,8 +56,7 @@ fn with_plan(
             .batch(batch)
             .create()
     };
-    let run =
-        |plan: &Plan| context.sync_scope(|| transform(plan, context.stream().map(CudaStream::raw)));
+    let run = |plan: &Plan| context.sync_scope(|| transform(plan, Some(context.stream().raw())));
     let runtime = context.runtime();
     // A plan's work area serves one transform at a time, so a caller holds the lock until its transform finishes.
     let mut plans = runtime.fft_plans().locked("cuda fft plans")?;

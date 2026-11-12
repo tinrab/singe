@@ -19,8 +19,12 @@ impl<T: CudaStorageByte> Drop for CudaStorage<T> {
                     .ok()
                     .map(|()| event)
             });
-            if ready_event.is_none() && data.context().synchronize().is_err() {
-                // A failed completion wait must never return a block for reuse.
+            // A caller's stream whose event could not be recorded waits for the whole context: a failed completion wait must never return a block for reuse.
+            // Eager storage has no stream to record on, since its reuse is ordered after the eager stream.
+            if self.recycle_stream.is_some()
+                && ready_event.is_none()
+                && data.context().synchronize().is_err()
+            {
                 return;
             }
 

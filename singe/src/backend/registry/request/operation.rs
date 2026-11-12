@@ -165,7 +165,10 @@ impl CheckedOperationRequest {
             .zip(self.inference().outputs())
             .all(|(role, output)| match role {
                 OutputRole::Output => support.supports_data_type(execution, output.data_type()),
-                OutputRole::Indices | OutputRole::Mask | OutputRole::LogSumExp => {
+                OutputRole::Indices
+                | OutputRole::Mask
+                | OutputRole::LogSumExp
+                | OutputRole::State => {
                     output.data_type() == role.data_type(self.inference().computation_data_type())
                 }
             });
