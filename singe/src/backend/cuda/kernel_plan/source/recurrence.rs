@@ -23,6 +23,15 @@ const WARP: usize = 32;
 // How many lanes share one value feature's column of the delta rule's state.
 const DELTA_RULE_PARTS: usize = 4;
 
+// The warps of one block of the delta rule's prompt form, which share each chunk's work on its keys.
+const CHUNK_WARPS: usize = 8;
+
+// The most rows a chunk of the delta rule's prompt form holds.
+const DELTA_RULE_CHUNK: usize = 16;
+
+// The shared bytes a chunk's keys, queries, and reads may take.
+const CHUNK_SHARED_BYTES: usize = 40 << 10;
+
 // The type a kernel computes `data_type` values in.
 const fn accumulator(data_type: DataType) -> &'static str {
     if matches!(data_type, DataType::F64) {
@@ -189,8 +198,9 @@ if (w >= {history}LL) {{
         Ok(writer.finish(label, launch, vec![spec], inputs, &[operation]))
     }
 
-    // One warp per sequence, head, and slice of value features, running the sequence's rows token by token and writing the output and the state it leaves.
-    // Each value feature's column of the state, `Dk` values, is split across `parts` lanes, which sum what they read with shuffles, so a token's work per lane is `Dk / parts` long.
+    // One block per sequence, head, and slice of value features, writing the output and the state the step leaves.
+    // Each value feature's column of the state, `Dk` values, is split across `parts` lanes, which sum what they read with shuffles.
+    // A step of single rows runs one warp per block, token by token; a step that reads prompts runs each sequence's rows in chunks, as `transformers`' `torch_chunk_gated_delta_rule` does, with four warps sharing each chunk's work on its keys.
     fn gated_delta_rule(inputs: &[KernelInput]) -> Result<Self> {
         let [query, key, value, decay, strength, state, ..] = inputs else {
             return Err(Error::missing_input("cuda gated delta rule operands"));
@@ -242,10 +252,12 @@ if (w >= {history}LL) {{
         } else {
             1
         };
-        let columns = WARP / parts;
+        let prompt = tokens > sequences;
+        let threads = if prompt { CHUNK_WARPS * WARP } else { WARP };
+        let columns = threads / parts;
         let launch = writer.grid(
             [sequences, heads, value_dim.div_ceil(columns)],
-            u32::try_from(WARP)
+            u32::try_from(threads)
                 .map_err(|_| Error::out_of_range("cuda gated delta rule threads"))?,
         )?;
         let owned = key_dim / parts;
@@ -306,8 +318,119 @@ if (active && part == 0) {{
         }
 
         let gather_out = gather.replace("read", "out");
-        let body = format!(
-            "
+        let body = if prompt {
+            let size = if ty == "double" { 8 } else { 4 };
+            let chunk = (CHUNK_SHARED_BYTES / (3 * key_dim * size)).clamp(1, DELTA_RULE_CHUNK);
+            let gather_sum = gather.replace("read", "sum");
+            // Per chunk of `n` rows, padded to `C` with rows that change nothing: `g` sums each row's decay from the chunk's start, `A` is the strictly lower `−β_i (k_i · k_j) e^(g_i − g_j)`, `T` solves `(I − A) T = I` by forward substitution, and `W = T diag(β e^g) K` is what each row reads of the chunk's starting state.
+            // Each column then takes `u = T diag(β) v` and `v' = u − W S`, writes `e^(g_i) q_i S + Σ_(j ≤ i) (q_i · k_j) e^(g_i − g_j) v'_j`, and leaves `S e^(g_C) + Σ_i k_i e^(g_C − g_i) v'_i`; every row of a chunk reads its starting state, so none waits for another.
+            format!(
+                "
+__shared__ {ty} chunk_key[{chunk}][{key_dim}];
+__shared__ {ty} chunk_query[{chunk}][{key_dim}];
+__shared__ {ty} chunk_read[{chunk}][{key_dim}];
+__shared__ {ty} solved[{chunk}][{chunk}];
+__shared__ {ty} scores[{chunk}][{chunk}];
+__shared__ {ty} decayed[{chunk}];
+__shared__ {ty} chunk_strength[{chunk}];
+__shared__ {ty} risen[{chunk}];
+__shared__ {ty} weight[{chunk}];
+__shared__ {ty} remaining[{chunk}];{prologue}
+for (long long first = start; first < start + count; first += {chunk}LL) {{
+    const long long n = start + count - first < {chunk}LL ? start + count - first : {chunk}LL;
+    for (unsigned int e = lane; e < {chunk}U * {key_dim}U; e += blockDim.x) {{
+        const unsigned int i = e / {key_dim}U, d = e % {key_dim}U;
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * {heads}ULL + head;
+        chunk_key[i][d] = i < n ? {load_key} : static_cast<{ty}>(0);
+        chunk_query[i][d] = i < n ? {load_query} : static_cast<{ty}>(0);
+    }}
+    if (lane == 0) {{
+        {ty} sum = 0;
+        for (unsigned int i = 0; i < {chunk}U; ++i) {{
+            const unsigned long long r = static_cast<unsigned long long>(first + i) * {heads}ULL + head;
+            sum += i < n ? {load_decay} : static_cast<{ty}>(0);
+            decayed[i] = sum;
+            chunk_strength[i] = i < n ? {load_strength} : static_cast<{ty}>(0);
+            risen[i] = exp(sum);
+            weight[i] = chunk_strength[i] * risen[i];
+        }}
+        for (unsigned int i = 0; i < {chunk}U; ++i) remaining[i] = exp(sum - decayed[i]);
+    }}
+    __syncthreads();
+    for (unsigned int e = lane; e < {chunk}U * {chunk}U; e += blockDim.x) {{
+        const unsigned int i = e / {chunk}U, j = e % {chunk}U;
+        {ty} kk = 0, qk = 0;
+        if (j <= i) {{
+            for (unsigned int d = 0; d < {key_dim}U; ++d) {{
+                kk += chunk_key[i][d] * chunk_key[j][d];
+                qk += chunk_query[i][d] * chunk_key[j][d];
+            }}
+        }}
+        const {ty} fall = j <= i ? exp(decayed[i] - decayed[j]) : static_cast<{ty}>(0);
+        solved[i][j] = j < i ? -chunk_strength[i] * kk * fall : static_cast<{ty}>(0);
+        scores[i][j] = qk * fall;
+    }}
+    __syncthreads();
+    for (unsigned int i = 1; i < {chunk}U; ++i) {{
+        {ty} entry = 0;
+        if (lane < i) {{
+            entry = solved[i][lane];
+            for (unsigned int m = lane + 1; m < i; ++m) entry += solved[i][m] * solved[m][lane];
+        }}
+        __syncthreads();
+        if (lane < i) solved[i][lane] = entry;
+        __syncthreads();
+    }}
+    for (unsigned int e = lane; e < {chunk}U * {key_dim}U; e += blockDim.x) {{
+        const unsigned int i = e / {key_dim}U, d = e % {key_dim}U;
+        {ty} sum = weight[i] * chunk_key[i][d];
+        for (unsigned int j = 0; j < i; ++j) sum += solved[i][j] * weight[j] * chunk_key[j][d];
+        chunk_read[i][d] = sum;
+    }}
+    __syncthreads();
+    {ty} weighted[{chunk}], fresh_values[{chunk}];
+    #pragma unroll
+    for (unsigned int i = 0; i < {chunk}U; ++i) {{
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * {heads}ULL + head;
+        weighted[i] = i < n && active ? chunk_strength[i] * {load_value} : static_cast<{ty}>(0);
+    }}
+    #pragma unroll
+    for (unsigned int i = 0; i < {chunk}U; ++i) {{
+        {ty} u = weighted[i];
+        #pragma unroll
+        for (unsigned int j = 0; j < i; ++j) u += solved[i][j] * weighted[j];
+        {ty} sum = 0;
+        #pragma unroll
+        for (unsigned int t = 0; t < {owned}U; ++t) sum += chunk_read[i][part + t * {parts}U] * column_state[t];{gather_sum}
+        fresh_values[i] = u - sum;
+    }}
+    #pragma unroll
+    for (unsigned int i = 0; i < {chunk}U; ++i) {{
+        {ty} sum = 0;
+        #pragma unroll
+        for (unsigned int t = 0; t < {owned}U; ++t) sum += chunk_query[i][part + t * {parts}U] * column_state[t];{gather_sum}
+        {ty} out = risen[i] * sum;
+        #pragma unroll
+        for (unsigned int j = 0; j <= i; ++j) out += scores[i][j] * fresh_values[j];
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * {heads}ULL + head;
+        if (i < n && active && part == 0) {output}[r * {value_dim}ULL + column] = {stored};
+    }}
+    #pragma unroll
+    for (unsigned int i = 0; i < {chunk}U; ++i) fresh_values[i] *= remaining[i];
+    const {ty} last = risen[{chunk} - 1];
+    #pragma unroll
+    for (unsigned int t = 0; t < {owned}U; ++t) {{
+        {ty} entry = column_state[t] * last;
+        #pragma unroll
+        for (unsigned int i = 0; i < {chunk}U; ++i) entry += chunk_key[i][part + t * {parts}U] * fresh_values[i];
+        column_state[t] = entry;
+    }}
+    __syncthreads();
+}}{epilogue}"
+            )
+        } else {
+            format!(
+                "
 __shared__ {ty} shared_key[{key_dim}];
 __shared__ {ty} shared_query[{key_dim}];{prologue}
 for (long long row = start; row < start + count; ++row) {{
@@ -334,7 +457,8 @@ for (long long row = start; row < start + count; ++row) {{
     if (active && part == 0) {output}[r * {value_dim}ULL + column] = {stored};
     __syncwarp();
 }}{epilogue}"
-        );
+            )
+        };
         writer.lines(&body);
         Ok(writer.finish(
             "gated_delta_rule",
