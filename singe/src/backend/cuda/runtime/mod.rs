@@ -15,8 +15,10 @@ use singe_cufft::{plan::Plan, types::TransformType};
 
 use singe_cublas::{context::Context as CublasContext, lt::context::Context as CublasLtContext};
 use singe_cuda::{
-    architecture::GpuArchitecture, context::Context as CudaContext, module::KernelFunction,
-    stream::StreamFlags,
+    architecture::GpuArchitecture,
+    context::Context as CudaContext,
+    module::KernelFunction,
+    stream::{Stream, StreamCaptureStatus, StreamFlags},
 };
 use singe_cudnn::context::Context as CudnnContext;
 use singe_cutensor::context::Context as CutensorContext;
@@ -119,7 +121,8 @@ impl CudaRuntime {
         })
     }
 
-    // Returns the stream eager kernels launch on when their context names none, a blocking stream, so it stays ordered with the legacy default stream the libraries use then.
+    // Returns the stream eager work runs on when its context names none: kernels, library calls, and copies, none of which wait for it.
+    // It is a blocking stream, so a host copy on the legacy default stream waits for what it holds.
     pub(crate) fn eager_stream(&self) -> Result<&CudaStream> {
         if let Some(stream) = self.eager_stream.get() {
             return Ok(stream);
@@ -131,6 +134,18 @@ impl CudaRuntime {
         Ok(self
             .eager_stream
             .get_or_init(|| CudaStream::new(Arc::new(stream))))
+    }
+
+    // Orders the work enqueued on `stream` from now on after what the eager stream holds, as a stream not ordered with it does before reading what eager work wrote.
+    // A capturing stream is left alone, since a capture cannot wait on work outside it, and eager work refuses to run under capture.
+    pub(crate) fn order_after_eager(&self, stream: &Stream) -> Result<()> {
+        let eager = self.eager_stream()?;
+        if eager.raw() == stream || stream.capture_status()? != StreamCaptureStatus::None {
+            return Ok(());
+        }
+
+        stream.join(eager.raw())?;
+        Ok(())
     }
 
     // Returns the bounded cache of cuFFT plans eager transforms reuse, since planning takes far longer than a transform.

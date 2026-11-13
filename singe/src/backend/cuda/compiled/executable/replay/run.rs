@@ -10,6 +10,7 @@ use crate::{
         },
         graph_value::{CudaGraphValue, GraphOutputBuffers},
         nvtx::CudaNvtxRange,
+        runtime::runtime_for_device,
         stream::CudaStream,
     },
     error::Result,
@@ -114,6 +115,8 @@ impl CudaCompiledGraph {
     ) -> Result<Vec<CudaGraphValue>> {
         self.replay_stats.asynchronous_runs = self.replay_stats.asynchronous_runs.saturating_add(1);
         let _replay_range = CudaNvtxRange::create("singe cuda graph replay");
+        // Inputs come from eager work, which runs on its own stream without waiting.
+        runtime_for_device(self.device)?.order_after_eager(stream.raw())?;
         self.prepare_replay_on_stream(stream)?;
         let mut submission = ReplaySubmission::create(stream)?;
         let result = run_replay_submission(self, inputs, stream, output_target, &mut submission);

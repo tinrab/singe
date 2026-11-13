@@ -48,6 +48,16 @@ pub fn execute(
     run(&plans[0], inputs)
 }
 
+// Runs `operation` as `execute` does, returning every output its kernel writes.
+pub fn execute_outputs(
+    operation: Operation,
+    attributes: &OperationAttributes,
+    inputs: &[&Tensor],
+) -> Result<Vec<Tensor>> {
+    let plans = eager_plans::plan(operation, attributes, inputs)?;
+    run_outputs(&plans[0], inputs)
+}
+
 /// Runs `operation` on `inputs` through a kernel `planner` plans, uncached, as tests of other planners do.
 #[cfg(test)]
 pub fn execute_with(

@@ -378,8 +378,15 @@ pub struct ProgramEntry {
 #[derive(Debug, Clone)]
 pub struct CudaProgramSet {
     pub entries: Vec<ProgramEntry>,
-    // The paged cache of its `decode` step, when the set has a generation loop through that step, after its `encode` step if it has one.
-    pub decoding: Option<PageLayout>,
+    // How its generation loop runs its `decode` step, after its `encode` step if it has one, when it has a loop.
+    pub decoding: Option<Decoding>,
+}
+
+// How a generation loop runs an exported decoder: the paged cache its steps fall in, and the tokens that end a sequence, which the loop prints as the sequence's last.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Decoding {
+    pub layout: PageLayout,
+    pub stop_tokens: Vec<i64>,
 }
 
 // A whole graph as ordered steps over planned buffers, which `render` writes as C++.
@@ -407,6 +414,6 @@ pub struct CudaProgram {
     pub library_table: bool,
     // What the program's libraries may do to its numbers, as the policy stood at export.
     pub numerics: NumericalPolicy,
-    // Where a decoder step's tokens fall in its paged cache, when the export writes a generation loop.
-    pub decoding: Option<PageLayout>,
+    // How a generation loop runs it, when the export writes one.
+    pub decoding: Option<Decoding>,
 }

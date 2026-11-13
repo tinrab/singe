@@ -523,18 +523,83 @@ impl DecodeCache for SourceCache {
     }
 }
 
+input_group! {
+    // How far each cache position's rotary positions lie from the position itself, `[S, capacity, 3]` of `I64`, on M-RoPE's three axes of time, height, and width.
+    //
+    // A sequence's offsets are written before its first step, as its sources are: zero for text before an image, an image's grid for its tokens, and the shift that places the text after it.
+    pub struct PositionCache {
+        offsets,
+    }
+}
+
+impl PositionCache {
+    // Writes `offsets`, `[capacity, 3]`, as sequence `sequence`'s.
+    pub fn write(&self, sequence: usize, offsets: &Tensor) -> Result<()> {
+        let sequence = i64::try_from(sequence).map_err(|_| Error::out_of_range("sequence"))?;
+        self.offsets
+            .index_put_(&[TensorIndex::Single(sequence)], offsets)
+    }
+
+    // Writes `offsets`, `[N, 3]`, as sequence `sequence`'s at `positions`, `[N]` of `I64`, as a captured encode step writes them, which a write of the whole row would leave out of its inputs.
+    pub fn write_at(&self, sequence: usize, positions: &Tensor, offsets: &Tensor) -> Result<()> {
+        let sequence = i64::try_from(sequence).map_err(|_| Error::out_of_range("sequence"))?;
+        self.offsets.index_put_(
+            &[
+                TensorIndex::Single(sequence),
+                TensorIndex::Indices(positions.clone()),
+            ],
+            offsets,
+        )
+    }
+
+    // Returns each of the step's rows' rotary positions, `[T, 3]`.
+    pub fn positions(&self, step: &DecodeStep) -> Result<Tensor> {
+        self.offsets
+            .index(&[
+                TensorIndex::Indices(step.sequence_ids().clone()),
+                TensorIndex::Indices(step.positions().clone()),
+            ])?
+            .add(&step.positions().unsqueeze(-1)?)
+    }
+
+    #[must_use]
+    pub const fn offsets(&self) -> &Tensor {
+        &self.offsets
+    }
+}
+
+impl DecodeCache for PositionCache {
+    type Spec = ();
+
+    fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
+        Self::from_tensors(tensors)
+    }
+
+    fn create(device: Device, _: DataType, size: CacheSize, (): ()) -> Result<Self> {
+        Ok(Self {
+            offsets: Tensor::zeroed_on(
+                device,
+                DataType::I64,
+                Shape::create([size.sequences, size.capacity, 3])?,
+            )?,
+        })
+    }
+}
+
 // What sizes a [`SourcedCache`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourcedCacheSpec<S> {
     Layer(S),
     Sources(SourceCacheSpec),
+    Positions,
 }
 
-// The caches of a decoder whose prompts read sources: each block's cache of kind `C`, then one of sources.
+// The caches of a decoder whose prompts read sources: each block's cache of kind `C`, then one of sources, then one of rotary positions for a decoder that places its sources on a grid.
 #[derive(Debug, Clone)]
 pub enum SourcedCache<C> {
     Layer(C),
     Sources(SourceCache),
+    Positions(PositionCache),
 }
 
 impl<C: DecodeCache> TensorGroup for SourcedCache<C> {
@@ -542,6 +607,7 @@ impl<C: DecodeCache> TensorGroup for SourcedCache<C> {
         match self {
             Self::Layer(cache) => cache.named_tensors(),
             Self::Sources(cache) => cache.named_tensors(),
+            Self::Positions(cache) => cache.named_tensors(),
         }
     }
 }
@@ -560,6 +626,9 @@ impl<C: DecodeCache> DecodeCache for SourcedCache<C> {
             SourcedCacheSpec::Sources(spec) => {
                 Self::Sources(SourceCache::create(device, data_type, size, spec)?)
             }
+            SourcedCacheSpec::Positions => {
+                Self::Positions(PositionCache::create(device, data_type, size, ())?)
+            }
         })
     }
 
@@ -567,6 +636,7 @@ impl<C: DecodeCache> DecodeCache for SourcedCache<C> {
         Ok(match self {
             Self::Layer(cache) => Self::Layer(cache.rebuilt(tensors)?),
             Self::Sources(cache) => Self::Sources(cache.rebuilt(tensors)?),
+            Self::Positions(cache) => Self::Positions(cache.rebuilt(tensors)?),
         })
     }
 }

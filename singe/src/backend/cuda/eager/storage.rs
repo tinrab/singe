@@ -129,12 +129,11 @@ fn copy_through_peer(peer: &PeerCopy, src: &Tensor, device: Device) -> Result<Te
         byte_size,
         "cuda peer copy output",
     )?;
-    if let Some(stream) = context.stream() {
-        peer.copy(&mut output_memory, &src_memory, stream.raw())?;
-    } else {
-        let stream = CudaStream::create(device)?;
-        peer.copy(&mut output_memory, &src_memory, stream.raw())?;
-    }
+    // The source's device orders its eager work before the copy, as the copy's stream is the destination's.
+    cuda::execution_context(src.device())?
+        .runtime()
+        .order_after_eager(context.stream().raw())?;
+    peer.copy(&mut output_memory, &src_memory, context.stream().raw())?;
     // SAFETY: the completed copy writes every byte with the source's valid representation.
     Ok(unsafe { output.assume_init() })
 }
@@ -172,17 +171,13 @@ fn copy_contiguous_tensor_same_device(src: &Tensor) -> Result<Tensor> {
     )?;
 
     context.sync_scope(|| {
-        if let Some(stream) = context.stream() {
-            // SAFETY: the source is initialized and the draining scope retains both borrows.
-            unsafe {
-                transfer::copy_device_async_unchecked(
-                    &mut output_memory,
-                    &src_memory,
-                    stream.raw(),
-                )?;
-            }
-        } else {
-            transfer::copy_device(&mut output_memory, &src_memory)?;
+        // SAFETY: the source is initialized, and the scope retains both borrows or, on the eager stream, orders any reuse of them after the copy.
+        unsafe {
+            transfer::copy_device_async_unchecked(
+                &mut output_memory,
+                &src_memory,
+                context.stream().raw(),
+            )?;
         }
         Ok(())
     })?;

@@ -30,34 +30,30 @@ impl CudaCachingAllocator {
     fn initialize_storage(
         &self,
         data_type: DataType,
-        mut memory: DeviceMemory<MaybeUninit<u8>>,
+        memory: DeviceMemory<MaybeUninit<u8>>,
         initialization: Initialization<'_>,
     ) -> Result<CudaStorage> {
         self.context.bind()?;
         match initialization {
             Initialization::Zero => {
-                if let Some(stream) = &self.stream {
-                    // SAFETY: this unique block is writable; earlier uses precede the cache's wait event.
-                    unsafe {
-                        DeviceMemory::<u8>::set_async(
-                            memory.as_mut_ptr().cast(),
-                            0,
-                            memory.len(),
-                            stream,
-                        )?;
-                    }
+                // SAFETY: this unique block is writable; earlier uses precede it on the stream, through the cache's wait.
+                unsafe {
+                    DeviceMemory::<u8>::set_async(
+                        memory.as_mut_ptr().cast(),
+                        0,
+                        memory.len(),
+                        &self.stream,
+                    )?;
+                }
 
-                    stream.synchronize()?;
-                } else {
-                    memory.set_zeroes()?;
+                // Eager work after it runs in order on the eager stream, and a host read waits for that stream.
+                if !self.eager {
+                    self.stream.synchronize()?;
                 }
             }
             Initialization::Bytes(bytes) => {
-                let mut region = memory.region();
-                if let Some(stream) = &self.stream {
-                    // SAFETY: cache reuse dependencies and this producer use the allocator's stream.
-                    region = unsafe { region.with_stream(stream)? };
-                }
+                // SAFETY: cache reuse dependencies and this producer use the allocator's stream.
+                let region = unsafe { memory.region().with_stream(&self.stream)? };
 
                 // SAFETY: every MaybeUninit value is valid and this owned block is exclusively borrowed.
                 let mut destination = unsafe {
@@ -75,7 +71,7 @@ impl CudaCachingAllocator {
                 data_type,
                 memory,
                 Arc::clone(&self.cache) as Arc<dyn CudaMemoryRecycler>,
-                self.stream.clone(),
+                self.recycle_stream(),
             )
         }
     }

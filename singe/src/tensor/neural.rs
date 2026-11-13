@@ -546,7 +546,8 @@ impl Tensor {
     }
 
     // Runs the gated delta rule over each sequence's real rows, from `state`, `[S, H, Dk, Dv]` in `F32`, or zeros for a sequence starting at position zero.
-    // For each row in order, with `self` the queries `[T, H, Dk]`, the state decays by `exp(decay)`, takes `strength · (value − read)` at the key, where `read` is what it held there, and is read at the query; the result is `[T, H, Dv]`, and rows that are not a sequence's own are zero.
+    // For each row in order, with `self` the queries `[T, H, Dk]`, the state decays by `exp(decay)`, takes `strength · (value − read)` at the key, where `read` is what it held there, and is read at the query.
+    // Returns the output, `[T, H, Dv]`, whose rows that are not a sequence's own are zero, and the state the step leaves, a sequence's state as it was when the step has no real rows of it.
     // Queries and keys arrive as the caller wants them read, so any normalization and scale come first.
     pub fn gated_delta_rule(
         &self,
@@ -556,8 +557,8 @@ impl Tensor {
         strength: &Self,
         state: &Self,
         spans: SequenceSpans<'_>,
-    ) -> Result<Self> {
-        call_one(
+    ) -> Result<(Self, Self)> {
+        let mut outputs = call(
             Operation::GatedDeltaRule,
             OperationAttributes::None,
             &[
@@ -571,34 +572,12 @@ impl Tensor {
                 spans.real_tokens,
                 spans.positions,
             ],
-        )
-    }
-
-    // Returns `state` as `gated_delta_rule` leaves it.
-    pub fn gated_delta_rule_state(
-        &self,
-        key: &Self,
-        value: &Self,
-        decay: &Self,
-        strength: &Self,
-        state: &Self,
-        spans: SequenceSpans<'_>,
-    ) -> Result<Self> {
-        call_one(
-            Operation::GatedDeltaRuleState,
-            OperationAttributes::None,
-            &[
-                self,
-                key,
-                value,
-                decay,
-                strength,
-                state,
-                spans.query_offsets,
-                spans.real_tokens,
-                spans.positions,
-            ],
-        )
+        )?
+        .into_iter();
+        match (outputs.next(), outputs.next()) {
+            (Some(output), Some(state)) => Ok((output, state)),
+            _ => Err(Error::missing_output("gated delta rule")),
+        }
     }
 }
 

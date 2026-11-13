@@ -326,6 +326,8 @@ pub enum OutputRole {
     Mask,
     // The `F32` log-sum-exp of each row an attention normalizes.
     LogSumExp,
+    // The `F32` state a recurrence leaves.
+    State,
 }
 
 impl OutputRole {
@@ -336,7 +338,7 @@ impl OutputRole {
             Self::Output => declared_data_type,
             Self::Indices => DataType::I64,
             Self::Mask => DataType::Bool,
-            Self::LogSumExp => DataType::F32,
+            Self::LogSumExp | Self::State => DataType::F32,
         }
     }
 }
@@ -409,6 +411,12 @@ pub const ATTENTION_LSE_OUTPUTS: &[OutputRole] = &[OutputRole::Output, OutputRol
 
 // A log-sum-exp alone.
 pub const LSE_OUTPUT: &[OutputRole] = &[OutputRole::LogSumExp];
+
+// A recurrence's output and the `F32` state it leaves.
+pub const RECURRENCE_OUTPUTS: &[OutputRole] = &[OutputRole::Output, OutputRole::State];
+
+// A recurrence's `F32` state alone.
+pub const STATE_OUTPUT: &[OutputRole] = &[OutputRole::State];
 
 /// One Boolean mask output.
 pub const MASK_OUTPUT: &[OutputRole] = &[OutputRole::Mask];

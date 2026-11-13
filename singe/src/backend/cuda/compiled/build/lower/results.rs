@@ -1,5 +1,5 @@
 // A kernel with two results runs once however many of them a graph reads.
-// Normalized top-k is one operation with both results; graph capture records each result of latent attention as its own operation, so the first to lower runs the kernel and its sibling, if any, only publishes its result.
+// Normalized top-k is one operation with both results; graph capture records each result of attention and of the delta rule as its own operation, so the first to lower runs the kernel and its sibling, if any, only publishes its result.
 // A result nothing reads goes to a buffer the compiled graph keeps.
 
 use singe_cuda::graph::GraphNode;
@@ -60,20 +60,25 @@ fn paged_cudnn(
 // The position of `operation` among its kernel's results.
 pub fn result_of(operation: Operation) -> Option<usize> {
     match operation {
-        Operation::TopK | Operation::PagedAttentionOutput | Operation::PagedMlaAttentionOutput => {
-            Some(0)
-        }
-        Operation::PagedAttentionLse | Operation::PagedMlaAttentionLse => Some(1),
+        Operation::TopK
+        | Operation::PagedAttentionOutput
+        | Operation::PagedMlaAttentionOutput
+        | Operation::GatedDeltaRuleOutput => Some(0),
+        Operation::PagedAttentionLse
+        | Operation::PagedMlaAttentionLse
+        | Operation::GatedDeltaRuleState => Some(1),
         _ => None,
     }
 }
 
-// The operation of attention's other result.
-pub fn attention_sibling(operation: Operation) -> Operation {
+// The operation of a projected result's other result.
+pub fn sibling(operation: Operation) -> Operation {
     match operation {
         Operation::PagedAttentionOutput => Operation::PagedAttentionLse,
         Operation::PagedAttentionLse => Operation::PagedAttentionOutput,
         Operation::PagedMlaAttentionOutput => Operation::PagedMlaAttentionLse,
+        Operation::GatedDeltaRuleOutput => Operation::GatedDeltaRuleState,
+        Operation::GatedDeltaRuleState => Operation::GatedDeltaRuleOutput,
         _ => Operation::PagedMlaAttentionOutput,
     }
 }
@@ -84,7 +89,7 @@ fn other_result(request: &GraphOperationLoweringRequest<'_>) -> Result<Option<Va
     let operation = ir.required_operation_for_value(request.id)?;
     let other = match operation.opcode() {
         Some(Operation::TopK) => return Ok(operation.result_values().nth(1)),
-        Some(opcode) => attention_sibling(opcode),
+        Some(opcode) => sibling(opcode),
         None => return Ok(None),
     };
     let Some(first) = operation.inputs().first() else {
@@ -113,7 +118,7 @@ fn other_result(request: &GraphOperationLoweringRequest<'_>) -> Result<Option<Va
     Ok(None)
 }
 
-// Plans the two-result kernel of `operation`, which top-k's selection and latent attention each run for both results.
+// Plans the two-result kernel of `operation`, which top-k's selection, attention, and the delta rule each run for both results.
 pub fn plan_kernel_result(
     planner: &KernelPlanner,
     operation: &OperationNode,
@@ -131,6 +136,13 @@ pub fn plan_kernel_result(
         return KernelPlan::topk_select(input, &topk)?.ok_or_else(|| {
             Error::unsupported_operation("cuda graph kernel results of these operands")
         });
+    }
+
+    if matches!(
+        operation.opcode(),
+        Some(Operation::GatedDeltaRuleOutput | Operation::GatedDeltaRuleState)
+    ) {
+        return KernelPlan::state_recurrence(Operation::GatedDeltaRule, inputs);
     }
 
     let attention = attributes

@@ -377,7 +377,7 @@ pub fn paged_mla_attention(
 }
 
 // The causal convolution, the gated delta rule, and the states they leave, each one generated kernel over contiguous inputs.
-pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Tensor> {
+pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<Tensor>> {
     let [first, rest @ ..] = inputs else {
         return Err(Error::missing_input("cuda state recurrence"));
     };
@@ -387,5 +387,15 @@ pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Tenso
         .map(Tensor::contiguous)
         .collect::<Result<Vec<_>>>()?;
     let inputs = contiguous.iter().collect::<Vec<_>>();
-    kernel_plan::execute(operation, &OperationAttributes::None, &inputs)
+    // The delta rule's projections run its one kernel and keep their result.
+    let (planned, kept) = match operation {
+        Operation::GatedDeltaRuleOutput => (Operation::GatedDeltaRule, Some(0)),
+        Operation::GatedDeltaRuleState => (Operation::GatedDeltaRule, Some(1)),
+        operation => (operation, None),
+    };
+    let mut outputs = kernel_plan::execute_outputs(planned, &OperationAttributes::None, &inputs)?;
+    Ok(match kept {
+        Some(kept) => vec![outputs.swap_remove(kept)],
+        None => outputs,
+    })
 }

@@ -169,6 +169,9 @@ impl KernelBench {
             .map(|kernel| self.prepared(kernel))
             .collect::<Result<Vec<_>>>()?;
         let flush = self.prepared(&self.flush.0)?;
+        // The buffers come from eager work, which the bench's stream follows before its first capture.
+        self.runtime.order_after_eager(self.stream.raw())?;
+        self.stream.synchronize()?;
         let start = CudaEvent::create(self.device, EventTiming::Recorded)?;
         let end = CudaEvent::create(self.device, EventTiming::Recorded)?;
         let buffers = self.buffers()?;
@@ -244,6 +247,7 @@ impl KernelBench {
 
     fn launch(&self, generated: &KernelArtifact) -> Result<()> {
         let prepared = self.prepared(generated)?;
+        self.runtime.order_after_eager(self.stream.raw())?;
         self.enqueue(&prepared, &self.buffers()?)
     }
 

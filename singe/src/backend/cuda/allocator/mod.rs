@@ -21,13 +21,16 @@ static CACHING_ALLOCATOR_CACHES: OnceLock<Mutex<HashMap<usize, Arc<CudaCachingAl
 /// Stream-aware CUDA caching allocator.
 ///
 /// Freed blocks are kept in a per-context cache and reused by exact byte size.
-/// When the allocator is associated with a stream, dropped storage records a completion event on that stream and later reuse waits for the event before handing the block out again.
+/// On the eager stream, a dropped block returns to the cache at once: eager work runs in order on that stream, and every other stream waits for it before reusing the block.
+/// When the allocator is associated with another stream, dropped storage records a completion event on that stream and later reuse waits for the event before handing the block out again.
 #[derive(Debug, Clone)]
 pub struct CudaCachingAllocator {
     device: Device,
     context: Arc<CudaContext>,
     cache: Arc<CudaCachingAllocatorCache>,
-    stream: Option<Arc<Stream>>,
+    stream: Arc<Stream>,
+    // Whether `stream` is the runtime's eager stream rather than a caller's.
+    eager: bool,
 }
 
 #[cfg(all(test, feature = "testing"))]

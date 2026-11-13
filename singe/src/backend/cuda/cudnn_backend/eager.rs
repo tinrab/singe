@@ -187,7 +187,7 @@ pub fn execute_cudnn_template<'a>(
     regions.extend([output_region, workspace.region()]);
     context.with_cudnn(|cudnn| {
         let binding = cudnn.stream()?;
-        binding.sync_scope(|| {
+        let execute = || {
             for region in &regions {
                 if let Some(producer) = region.stream()
                     && producer.as_raw() != binding.as_raw()
@@ -197,10 +197,15 @@ pub fn execute_cudnn_template<'a>(
                 }
             }
 
-            // SAFETY: the template and initialized input remain live, the output is exclusive, and this scope completes all writes before pending storage is promoted.
+            // SAFETY: the template and initialized input remain live, the output is exclusive, and this scope completes all writes before pending storage is promoted, or on the eager stream orders every reuse of it after them.
             unsafe { plan.execute(cudnn, &pack) }?;
             Ok(())
-        })
+        };
+        if context.is_eager() {
+            execute()
+        } else {
+            binding.sync_scope(execute)
+        }
     })?;
     drop(regions);
     // SAFETY: completed cuDNN execution initializes every contiguous output element.

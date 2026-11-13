@@ -343,12 +343,13 @@ macro_rules! backend_kernels {
             Operation::CausalConv1d,
             Operation::CausalConv1dState,
             Operation::GatedDeltaRule,
+            Operation::GatedDeltaRuleOutput,
             Operation::GatedDeltaRuleState,
         ] {
             builder.kernel(
                 operation,
                 key,
-                Kernel::single(move |call: &KernelCall<'_>| {
+                Kernel::new(move |call: &KernelCall<'_>| {
                     $kernels::state_recurrence(operation, call.inputs())
                 }),
             );

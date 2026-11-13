@@ -14,9 +14,9 @@ pub use self::{
     },
     neural::{
         attention, avg_pool2d, batch_norm, causal_conv1d, causal_conv1d_state, contraction, conv2d,
-        conv3d, embedding, gated_delta_rule, gated_delta_rule_state, grouped_matmul, irfft,
-        layer_norm, matmul, max_pool2d, paged_attention, paged_attention_lse,
-        paged_attention_output, paged_mla_attention, paged_mla_attention_lse,
+        conv3d, embedding, gated_delta_rule, gated_delta_rule_output, gated_delta_rule_state,
+        grouped_matmul, irfft, layer_norm, matmul, max_pool2d, paged_attention,
+        paged_attention_lse, paged_attention_output, paged_mla_attention, paged_mla_attention_lse,
         paged_mla_attention_output, quantized_matmul, rfft, rotary_embedding, scaled_matmul,
         softmax,
     },

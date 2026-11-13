@@ -47,6 +47,7 @@ pub(crate) mod tensor_region;
 #[cfg(all(test, feature = "testing"))]
 mod test_support;
 mod transfer;
+pub(crate) mod upload;
 mod utility;
 
 #[cfg(feature = "onnx")]

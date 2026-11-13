@@ -52,19 +52,21 @@ fn tensor_like(values: Vec<f64>, like: &Tensor, data_type: DataType) -> Result<T
     Tensor::from_vec(Device::Cpu, like.shape().clone(), values)?.cast(data_type)
 }
 
-// Runs `operation`, one of the causal convolution and the gated delta rule and their states, on `inputs`.
-pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Tensor> {
+// Runs `operation`, one of the causal convolution and its state and the gated delta rule and its results, on `inputs`, returning its results.
+pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Vec<Tensor>> {
     match (operation, inputs) {
         (Operation::CausalConv1d, [input, weight, state, offsets, real, positions]) => {
             let spans = Spans::read(offsets, real, positions)?;
-            causal_conv1d(input, Some(weight), state, &spans)
+            Ok(vec![causal_conv1d(input, Some(weight), state, &spans)?])
         }
         (Operation::CausalConv1dState, [input, state, offsets, real, positions]) => {
             let spans = Spans::read(offsets, real, positions)?;
-            causal_conv1d(input, None, state, &spans)
+            Ok(vec![causal_conv1d(input, None, state, &spans)?])
         }
         (
-            Operation::GatedDeltaRule | Operation::GatedDeltaRuleState,
+            Operation::GatedDeltaRule
+            | Operation::GatedDeltaRuleOutput
+            | Operation::GatedDeltaRuleState,
             [
                 query,
                 key,
@@ -78,11 +80,13 @@ pub fn state_recurrence(operation: Operation, inputs: &[Tensor]) -> Result<Tenso
             ],
         ) => {
             let spans = Spans::read(offsets, real, positions)?;
-            gated_delta_rule(
-                [query, key, value, decay, strength, state],
-                &spans,
-                operation == Operation::GatedDeltaRuleState,
-            )
+            let (output, state) =
+                gated_delta_rule([query, key, value, decay, strength, state], &spans)?;
+            Ok(match operation {
+                Operation::GatedDeltaRuleOutput => vec![output],
+                Operation::GatedDeltaRuleState => vec![state],
+                _ => vec![output, state],
+            })
         }
         _ => Err(Error::missing_input("cpu state recurrence operands")),
     }
@@ -138,8 +142,8 @@ fn causal_conv1d(
     }
 }
 
-// Returns the rule's output, or with `want_state` the state it leaves.
-fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans, want_state: bool) -> Result<Tensor> {
+// Returns the rule's output and the state it leaves.
+fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans) -> Result<(Tensor, Tensor)> {
     let [query, key, value, decay, strength, state] = operands;
     let &[_, heads, key_dim, value_dim] = state.shape().dimensions() else {
         return Err(Error::invalid_argument("gated delta rule state rank"));
@@ -191,9 +195,8 @@ fn gated_delta_rule(operands: [&Tensor; 6], spans: &Spans, want_state: bool) -> 
         }
     }
 
-    if want_state {
-        tensor_like(states, state, DataType::F32)
-    } else {
-        tensor_like(output, value, value.data_type())
-    }
+    Ok((
+        tensor_like(output, value, value.data_type())?,
+        tensor_like(states, state, DataType::F32)?,
+    ))
 }

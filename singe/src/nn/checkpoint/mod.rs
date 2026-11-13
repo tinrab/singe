@@ -1,3 +1,5 @@
+mod shard;
+
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt::{Debug, Formatter, Result as FmtResult},
@@ -6,11 +8,14 @@ use std::{
 };
 
 use safetensors::{
-    Dtype, SafeTensors,
-    tensor::{self, TensorView},
+    Dtype,
+    tensor::{self, TensorInfo, TensorView},
 };
 use serde::Deserialize;
 
+use self::shard::{Shard, shape_of, stored_type};
+#[cfg(feature = "cuda")]
+use crate::backend::cuda::upload::CudaUpload;
 use crate::{
     data_type::DataType,
     device::Device,
@@ -74,7 +79,7 @@ impl ModelState {
     ///
     /// Returns an error if the file cannot be read or checkpoint parsing, schema validation, device transfer, or state replacement fails.
     pub fn load_safetensors(&self, path: impl AsRef<Path>) -> Result<Self> {
-        self.load_safetensors_bytes(&read(path)?)
+        self.load_shards(vec![Shard::open(path)?], &CheckpointOptions::default())
     }
 
     /// Checks keys, dtype, shape, and all tied entries before publication.
@@ -84,16 +89,15 @@ impl ModelState {
     ///
     /// Returns an error if the checkpoint is malformed, keys are missing or unexpected, data types or shapes differ from the state schema, tied values disagree, dimensions cannot be represented, tensor construction or device transfer fails, or state replacement validation fails.
     pub fn load_safetensors_bytes(&self, bytes: &[u8]) -> Result<Self> {
-        let checkpoint = SafeTensors::deserialize(bytes)?;
-        let options = CheckpointOptions::default();
-        self.check_keys(checkpoint.names().into_iter(), &options)?;
-        let mut loading = Loading::default();
-        self.load_shard(&checkpoint, &options, &mut loading)?;
-        self.publish(&loading)
+        self.load_shards(
+            vec![Shard::from_bytes(bytes)?],
+            &CheckpointOptions::default(),
+        )
     }
 
-    // Loads the checkpoint of a Hugging Face snapshot directory: `model.safetensors`, or the shards `model.safetensors.index.json` names, read one at a time.
+    // Loads the checkpoint of a Hugging Face snapshot directory: `model.safetensors`, or the shards `model.safetensors.index.json` names.
     // A `diffusers` snapshot names the same files `diffusion_pytorch_model`.
+    // Each tensor is read from its file straight to its device, so no shard is held whole on the host.
     pub fn load_checkpoint(
         &self,
         directory: impl AsRef<Path>,
@@ -110,26 +114,34 @@ impl ModelState {
             })
             .unwrap_or(CHECKPOINT_STEMS[0]);
         let index = directory.join(format!("{stem}.safetensors.index.json"));
-        let mut loading = Loading::default();
         if !index.exists() {
-            let bytes = read(directory.join(format!("{stem}.safetensors")))?;
-            let checkpoint = SafeTensors::deserialize(&bytes)?;
-            self.check_keys(checkpoint.names().into_iter(), options)?;
-            self.load_shard(&checkpoint, options, &mut loading)?;
-            self.finish_pieces(options, &mut loading)?;
-            return self.publish(&loading);
+            let shard = Shard::open(directory.join(format!("{stem}.safetensors")))?;
+            return self.load_shards(vec![shard], options);
         }
 
         let index: ShardIndex =
-            serde_json::from_slice(&read(index)?).map_err(CheckpointError::Index)?;
-        self.check_keys(index.weight_map.keys().map(String::as_str), options)?;
-        let mut shards = index.weight_map.values().collect::<Vec<_>>();
-        shards.sort();
-        shards.dedup();
-        for shard in shards {
-            let bytes = read(directory.join(shard))?;
-            let checkpoint = SafeTensors::deserialize(&bytes)?;
-            self.load_shard(&checkpoint, options, &mut loading)?;
+            serde_json::from_slice(&fs::read(index)?).map_err(CheckpointError::Index)?;
+        let mut files = index.weight_map.values().collect::<Vec<_>>();
+        files.sort();
+        files.dedup();
+        let shards = files
+            .into_iter()
+            .map(|file| Shard::open(directory.join(file)))
+            .collect::<Result<Vec<_>>>()?;
+        self.load_shards(shards, options)
+    }
+
+    // Checks the names `shards` hold, reads each tensor, and publishes the state they make.
+    fn load_shards(
+        &self,
+        mut shards: Vec<Shard<'_>>,
+        options: &CheckpointOptions<'_>,
+    ) -> Result<Self> {
+        let names = shards.iter().flat_map(Shard::names).collect::<Vec<_>>();
+        self.check_keys(names.iter().map(String::as_str), options)?;
+        let mut loading = Loading::default();
+        for shard in 0..shards.len() {
+            self.load_shard(&mut shards, shard, options, &mut loading)?;
         }
 
         self.finish_pieces(options, &mut loading)?;
@@ -177,25 +189,27 @@ impl ModelState {
         Ok(())
     }
 
-    // Casts and places each tensor of one shard.
+    // Reads, casts, and places each tensor of one shard, in the order its bytes lie.
     fn load_shard(
         &self,
-        checkpoint: &SafeTensors<'_>,
+        shards: &mut [Shard<'_>],
+        shard: usize,
         options: &CheckpointOptions<'_>,
         loading: &mut Loading,
     ) -> Result<()> {
-        for (name, view) in checkpoint.tensors() {
-            let piece = options.piece(&name);
+        for stored_name in shards[shard].names() {
+            let piece = options.piece(&stored_name);
             let Some(name) = piece
                 .as_ref()
                 .map(|piece| piece.state.clone())
-                .or_else(|| options.state_name(&name))
+                .or_else(|| options.state_name(&stored_name))
             else {
                 continue;
             };
+            let info = shards[shard].info(&stored_name)?;
             let binding = &self.snapshot.schema.bindings[&name];
             let target = binding.spec().data_type();
-            let source = stored_type(view.dtype())?;
+            let source = stored_type(info.dtype)?;
             if source != target && !(options.convert && source.is_float() && target.is_float()) {
                 return Err(Error::unsupported_operation_with_details(
                     "checkpoint dtype",
@@ -203,15 +217,9 @@ impl ModelState {
                 ));
             }
 
-            let shape = Shape::create(
-                view.shape()
-                    .iter()
-                    .map(|&dimension| to_i64(dimension, "checkpoint dimension"))
-                    .collect::<Result<Vec<_>>>()?,
-            )?;
+            let shape = shape_of(&info)?;
             if let Some(piece) = piece {
-                let host =
-                    Tensor::from_bytes(Device::Cpu, source, &shape, view.data())?.cast(target)?;
+                let host = shards[shard].tensor_as(&info, target)?;
                 loading
                     .pieces
                     .entry(binding.id())
@@ -237,11 +245,9 @@ impl ModelState {
                 ));
             }
 
-            // Casting on the host keeps one copy of a weight on the device, and ties compare before anything uploads.
-            let host =
-                Tensor::from_bytes(Device::Cpu, source, &shape, view.data())?.cast(target)?;
+            // Ties compare as the schema's type, a chunk at a time from their files, before the second uploads.
             if let Some(tied) = loading.tied.get(&binding.id()) {
-                if *tied != host.to_bytes()? {
+                if !same_values(shards, tied, (shard, &info), target)? {
                     return Err(Error::invalid_argument(format!(
                         "conflicting tied state bindings at `{name}`"
                     )));
@@ -255,12 +261,11 @@ impl ModelState {
                 .map_or_else(|| self.named_tensor(&name).map(Tensor::device), Some)
                 .ok_or_else(|| Error::missing_input("checkpoint tensor's binding"))?;
             if self.has_tie(binding.id()) {
-                loading.tied.insert(binding.id(), host.to_bytes()?);
+                loading.tied.insert(binding.id(), (shard, info.clone()));
             }
 
-            loading
-                .tensors
-                .insert(binding.id(), host.to_device(device)?);
+            let tensor = loading.read(&mut shards[shard], &info, target, &shape, device)?;
+            loading.tensors.insert(binding.id(), tensor);
         }
         Ok(())
     }
@@ -363,12 +368,73 @@ struct ShardIndex {
     weight_map: BTreeMap<String, String>,
 }
 
-// What a load has gathered: each logical binding's tensor, and the host bytes of those with ties, across shards.
+// What a load has gathered: each logical binding's tensor, and where the first of each tie lies, across shards.
 #[derive(Default)]
 struct Loading {
     tensors: HashMap<usize, Tensor>,
-    tied: HashMap<usize, Vec<u8>>,
+    tied: HashMap<usize, (usize, TensorInfo)>,
     pieces: HashMap<usize, PieceAssembly>,
+    // The page-locked buffers each CUDA device's tensors upload through.
+    #[cfg(feature = "cuda")]
+    uploads: Vec<(Device, CudaUpload)>,
+}
+
+impl Loading {
+    // Reads `info`'s tensor as `target` onto `device`: a chunk at a time on CUDA, and whole on the host otherwise.
+    fn read(
+        &mut self,
+        shard: &mut Shard<'_>,
+        info: &TensorInfo,
+        target: DataType,
+        shape: &Shape,
+        device: Device,
+    ) -> Result<Tensor> {
+        // Booleans go through the host, whose tensors check each value.
+        #[cfg(feature = "cuda")]
+        if device.is_cuda() && target != DataType::Bool {
+            let at = if let Some(at) = self.uploads.iter().position(|(other, _)| *other == device) {
+                at
+            } else {
+                self.uploads.push((device, CudaUpload::create(device)?));
+                self.uploads.len() - 1
+            };
+            return self.uploads[at].1.tensor(target, shape, |offset, chunk| {
+                shard.read_as(info, target, offset, chunk)
+            });
+        }
+
+        shard.tensor_as(info, target)?.to_device(device)
+    }
+}
+
+// How many bytes of two tied tensors compare at once.
+const COMPARED_BYTES: usize = 1 << 20;
+
+// Whether the tensor `tied` locates and `info` in shard `shard` hold the same values as `target`.
+fn same_values(
+    shards: &mut [Shard<'_>],
+    (tied_shard, tied): &(usize, TensorInfo),
+    (shard, info): (usize, &TensorInfo),
+    target: DataType,
+) -> Result<bool> {
+    if tied.shape != info.shape {
+        return Ok(false);
+    }
+
+    let total = shape_of(info)?.element_count() * target.size_bytes();
+    let (mut first, mut second) = (vec![0; COMPARED_BYTES], vec![0; COMPARED_BYTES]);
+    let mut offset = 0;
+    while offset < total {
+        let length = COMPARED_BYTES.min(total - offset);
+        shards[*tied_shard].read_as(tied, target, offset, &mut first[..length])?;
+        shards[shard].read_as(info, target, offset, &mut second[..length])?;
+        if first[..length] != second[..length] {
+            return Ok(false);
+        }
+
+        offset += length;
+    }
+    Ok(true)
 }
 
 // A state tensor being assembled on the host from pieces, which may arrive across shards.
@@ -464,34 +530,6 @@ impl PieceAssembly {
         }
         Tensor::from_bytes(Device::Cpu, self.data_type, &self.shape, &self.bytes)
     }
-}
-
-fn read(path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    Ok(fs::read(path)?)
-}
-
-fn stored_type(dtype: Dtype) -> Result<DataType> {
-    Ok(match dtype {
-        Dtype::BOOL => DataType::Bool,
-        Dtype::U8 => DataType::U8,
-        Dtype::I8 => DataType::I8,
-        Dtype::U16 => DataType::U16,
-        Dtype::I16 => DataType::I16,
-        Dtype::U32 => DataType::U32,
-        Dtype::I32 => DataType::I32,
-        Dtype::U64 => DataType::U64,
-        Dtype::I64 => DataType::I64,
-        Dtype::F16 => DataType::F16,
-        Dtype::BF16 => DataType::Bf16,
-        Dtype::F32 => DataType::F32,
-        Dtype::F64 => DataType::F64,
-        other => {
-            return Err(Error::unsupported_operation_with_details(
-                "checkpoint dtype",
-                format!("{other:?}"),
-            ));
-        }
-    })
 }
 
 fn checkpoint_dtype(dtype: DataType) -> Result<Dtype> {

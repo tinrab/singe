@@ -1,12 +1,13 @@
 // Exports a snapshot as CUDA C++ programs that run with nothing of Singe: `--snapshot DIR --directory OUT`.
 //
 // A generating model writes `model_generate.cu` beside its program set, a transcriber's reading a file of F32 samples, and any other model `model_run.cu`, which maps input files to output files; `model.json` says how to build each.
-// `--architecture sm_120` for other than this machine's GPU, `--library NAME` for each library a program may call, every one if none is named, `--type f32|f16` for other than BF16, and the sizes a program fixes: `--capacity` tokens, `--seconds` of audio, `--length` tokens of a sentence, and `--image-size`.
+// `--architecture sm_120` for other than this machine's GPU, `--library NAME` for each library a program may call, every one if none is named, `--type f32|f16` for other than BF16, and the sizes a program fixes: `--capacity` tokens, `--rows` sequences at once, `--seconds` of audio, `--length` tokens of a sentence, and `--image-size`, with `--image-width` for an image Qwen3.5 reads that is not square.
+// A generating model's loop takes the most likely token unless `--temperature`, `--top-k`, or `--top-p` asks it to sample, and its `--seed` then starts the draws.
 
 mod support;
 
 use anyhow::{Context, Result, bail};
-use singe::{DataType, backend::cuda::export::compiled::program_target};
+use singe::{DataType, backend::cuda::export::compiled::program_target, tensor::SamplingOptions};
 use singe_model::export::{ExportOptions, export_snapshot};
 
 use crate::support::Arguments;
@@ -36,6 +37,22 @@ fn main() -> Result<()> {
         Some("f32") => DataType::F32,
         Some(other) => bail!("unknown --type {other}"),
     };
+    if let Some(rows) = arguments.value("rows") {
+        options.rows = rows.parse()?;
+    }
+
+    let temperature = arguments.value("temperature").map(str::parse).transpose()?;
+    let top_k = arguments.value("top-k").map(str::parse).transpose()?;
+    let top_p = arguments.value("top-p").map(str::parse).transpose()?;
+    if temperature.is_some() || top_k.is_some() || top_p.is_some() {
+        options.sampling = Some(
+            SamplingOptions::new()
+                .with_temperature(temperature.unwrap_or(1.0))
+                .with_top_k(top_k)
+                .with_top_p(top_p.unwrap_or(1.0)),
+        );
+    }
+
     for (name, field) in [
         ("capacity", &mut options.capacity),
         ("seconds", &mut options.audio_seconds),
@@ -45,6 +62,10 @@ fn main() -> Result<()> {
         if let Some(value) = arguments.value(name) {
             *field = value.parse()?;
         }
+    }
+
+    if let Some(width) = arguments.value("image-width") {
+        options.image_width = Some(width.parse()?);
     }
 
     let exported = export_snapshot(&arguments.snapshot, directory, &options)?;

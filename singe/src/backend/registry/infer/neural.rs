@@ -476,6 +476,16 @@ fn gated_delta_rule_shapes(context: &InferenceContext<'_>) -> Result<[i64; 5]> {
 // The gated delta rule's output, of the values' shape and type.
 pub fn gated_delta_rule(context: &InferenceContext<'_>) -> Result<OperationInference> {
     gated_delta_rule_shapes(context)?;
+    let (value, state) = (context.input(2)?, context.input(5)?);
+    let mut inference = context.same_type(value.shape());
+    inference.outputs[0] = ValueSpec::new(value.data_type(), value.shape().clone());
+    inference.outputs[1] = ValueSpec::new(DataType::F32, state.shape().clone());
+    Ok(inference)
+}
+
+// The gated delta rule's output alone, of the values' type and shape.
+pub fn gated_delta_rule_output(context: &InferenceContext<'_>) -> Result<OperationInference> {
+    gated_delta_rule_shapes(context)?;
     let value = context.input(2)?;
     let mut inference = context.same_type(value.shape());
     inference.outputs[0] = ValueSpec::new(value.data_type(), value.shape().clone());

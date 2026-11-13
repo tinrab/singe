@@ -555,7 +555,7 @@ impl Builder<'_> {
             let target = ir
                 .input_values()
                 .find_map(|(id, input)| (input == name).then_some(id))
-                .ok_or_else(|| Error::missing_input("program written input"))?;
+                .ok_or_else(|| Error::missing_input(format!("program written input {name}")))?;
             let destination = self.view_of(target)?;
             if let BufferKind::Input(index) = self.buffers[destination.buffer.0].kind {
                 self.inputs[index].written = true;

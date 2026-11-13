@@ -9,9 +9,10 @@ use std::{
 #[cfg(feature = "cuda")]
 use crate::graph::GraphCudaOptions;
 use crate::{
+    data_type::DataType,
     device::Device,
     error::{Error, Result},
-    graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedBuffers},
+    graph::{Graph, GraphExecutor, GraphPrepareOptions, SharedBuffers, capture},
     nn::{
         DecodeStep, DecoderModel, InputGroup, Model, PageLayout, PageTable, TensorGroup,
         caches_from_inputs, named_cache_inputs,
@@ -104,8 +105,6 @@ pub struct RunningBatch<'a, D: Decoder + ?Sized> {
     options: GenerationOptions,
     rows: Vec<Option<RunningSequence>>,
     joined: usize,
-    // What each suppression adds to the logits, `[2, V]`: the first row for later tokens, the second for a sequence's first, built at the first step.
-    suppression: Option<Tensor>,
 }
 
 impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
@@ -124,7 +123,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
             options,
             rows,
             joined: 0,
-            suppression: None,
         })
     }
 
@@ -194,8 +192,18 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
                     .is_some_and(|row| row.generated == 0 && row.pending.len() == portion)
             })
             .collect::<Vec<_>>();
-        let logits = self.suppress(logits, &first)?;
-        let chosen = next_tokens(&logits, &self.options, generator)?;
+        let first = first
+            .iter()
+            .map(|&first| i64::from(first))
+            .collect::<Vec<_>>();
+        let first = Tensor::from_vec(
+            logits.device(),
+            Shape::create([
+                i64::try_from(first.len()).map_err(|_| Error::out_of_range("generation rows"))?
+            ])?,
+            first,
+        )?;
+        let chosen = choose(&logits, &first, &self.options, generator)?.to_vec::<i64>()?;
         if chosen.len() != self.rows.len() {
             return Err(Error::missing_output("generated tokens"));
         }
@@ -231,63 +239,6 @@ impl<'a, D: Decoder + ?Sized> RunningBatch<'a, D> {
     }
 }
 
-impl<D: Decoder + ?Sized> RunningBatch<'_, D> {
-    // Adds negative infinity to the logits of each row's suppressed tokens, with the first-token suppression on the rows in `first`.
-    fn suppress(&mut self, logits: Tensor, first: &[bool]) -> Result<Tensor> {
-        if self.options.suppressed_tokens.is_empty()
-            && self.options.first_suppressed_tokens.is_empty()
-        {
-            return Ok(logits);
-        }
-
-        let vocabulary = logits.shape().dimensions()[1];
-        if self.suppression.is_none() {
-            let width = usize::try_from(vocabulary)
-                .map_err(|_| Error::out_of_range("generation vocabulary"))?;
-            let mut table = vec![0.0_f32; 2 * width];
-            let mut mask = |token: i64, rows: &[usize]| {
-                let index = usize::try_from(token)
-                    .ok()
-                    .filter(|&index| index < width)
-                    .ok_or_else(|| {
-                        Error::invalid_argument(format!(
-                            "suppressed token {token} is outside a vocabulary of {width}"
-                        ))
-                    })?;
-                for row in rows {
-                    table[row * width + index] = f32::NEG_INFINITY;
-                }
-                Ok::<_, Error>(())
-            };
-            for &token in &self.options.suppressed_tokens {
-                mask(token, &[0, 1])?;
-            }
-
-            for &token in &self.options.first_suppressed_tokens {
-                mask(token, &[1])?;
-            }
-
-            self.suppression = Some(
-                Tensor::from_vec(logits.device(), Shape::create([2, vocabulary])?, table)?
-                    .cast(logits.data_type())?,
-            );
-        }
-
-        let rows = first
-            .iter()
-            .map(|&first| i64::from(first))
-            .collect::<Vec<_>>();
-        let count =
-            i64::try_from(rows.len()).map_err(|_| Error::out_of_range("generation rows"))?;
-        let rows = Tensor::from_vec(logits.device(), Shape::create([count])?, rows)?;
-        let suppression = self
-            .suppression
-            .as_ref()
-            .ok_or_else(|| Error::missing_output("suppression"))?;
-        logits.add(&suppression.index_select(0, &rows)?)
-    }
-}
-
 // How many of its `pending` tokens each row reads in a step, so the step fits what the decoder compiled: a token per running row, and up to `largest` more, given to the first rows that have them.
 fn step_portions(pending: &[usize], largest: Option<usize>) -> Vec<usize> {
     let Some(largest) = largest else {
@@ -308,7 +259,7 @@ fn step_portions(pending: &[usize], largest: Option<usize>) -> Vec<usize> {
 
 // Generates tokens after each of `prompts`, which may differ in length, calling `on_token` with a sequence's index and each token as it is chosen, and returns each sequence's tokens.
 //
-// A finished sequence frees what it holds, and its row stays idle for the rest of the batch's steps.
+// Prompts beyond the decoder's rows wait, and each takes the first row a finished sequence frees, before the next step.
 pub fn generate_batch(
     decoder: &mut (impl Decoder + ?Sized),
     prompts: &[&[i64]],
@@ -320,14 +271,6 @@ pub fn generate_batch(
         return Err(Error::invalid_argument("generation prompt is empty"));
     }
 
-    if prompts.len() != decoder.sequences() {
-        return Err(Error::length_mismatch(
-            "generation prompts",
-            decoder.sequences(),
-            prompts.len(),
-        ));
-    }
-
     let mut tokens = vec![Vec::new(); prompts.len()];
     if options.max_new_tokens == 0 {
         decoder.reset();
@@ -335,11 +278,20 @@ pub fn generate_batch(
     }
 
     let mut batch = RunningBatch::create(decoder, options.clone())?;
-    for prompt in prompts {
-        batch.join(prompt)?;
-    }
+    let mut waiting = prompts.iter();
+    loop {
+        while let Some(prompt) = waiting.as_slice().first() {
+            if batch.join(prompt)?.is_none() {
+                break;
+            }
 
-    while !batch.is_empty() {
+            waiting.next();
+        }
+
+        if batch.is_empty() {
+            break;
+        }
+
         for generated in batch.advance(generator)? {
             tokens[generated.sequence].push(generated.token);
             on_token(generated.sequence, generated.token)?;
@@ -348,12 +300,52 @@ pub fn generate_batch(
     Ok(tokens)
 }
 
-// Chooses a token for each row of `logits`, `[S, V]`.
-fn next_tokens(
+// Chooses a token for each row of `logits`, `[S, V]`, as `options` asks: never a suppressed token, nor a first-suppressed one in a row whose `first`, `[S]` of `I64`, is one, then the most likely token or a draw from `generator`.
+// Returns `[S]` of `I64`; a captured step chooses through this too, so a program chooses as a running batch does.
+pub fn choose(
     logits: &Tensor,
+    first: &Tensor,
     options: &GenerationOptions,
     generator: Option<&Generator>,
-) -> Result<Vec<i64>> {
+) -> Result<Tensor> {
+    let rows = logits.dimension(0)?;
+    let logits =
+        if options.suppressed_tokens.is_empty() && options.first_suppressed_tokens.is_empty() {
+            logits.clone()
+        } else {
+            let vocabulary = logits.shape().dimensions()[1];
+            let width = usize::try_from(vocabulary)
+                .map_err(|_| Error::out_of_range("generation vocabulary"))?;
+            // What each suppression adds to the logits, `[2, V]`: the first row for later tokens, the second for a sequence's first.
+            let mut table = vec![0.0_f32; 2 * width];
+            let mut mask = |token: i64, rows: &[usize]| {
+                let index = usize::try_from(token)
+                    .ok()
+                    .filter(|&index| index < width)
+                    .ok_or_else(|| {
+                        Error::invalid_argument(format!(
+                            "suppressed token {token} is outside a vocabulary of {width}"
+                        ))
+                    })?;
+                for row in rows {
+                    table[row * width + index] = f32::NEG_INFINITY;
+                }
+                Ok::<_, Error>(())
+            };
+            for &token in &options.suppressed_tokens {
+                mask(token, &[0, 1])?;
+            }
+
+            for &token in &options.first_suppressed_tokens {
+                mask(token, &[1])?;
+            }
+
+            let table = capture::literal(logits.device(), |device| {
+                Tensor::from_vec(device, Shape::create([2, vocabulary])?, table)
+            })?
+            .cast(logits.data_type())?;
+            logits.add(&table.index_select(0, first)?)?
+        };
     options
         .sampling
         .as_ref()
@@ -361,7 +353,7 @@ fn next_tokens(
             || logits.argmax(-1),
             |sampling| logits.sample(sampling, generator),
         )?
-        .to_vec::<i64>()
+        .reshape_with(&[rows])
 }
 
 // The steps past one token per row that a compiled decoder compiles, by the extra tokens they read: `smallest`, then four times as many each time, up to `largest` and to one less than a sequence's capacity, which is always the last.
@@ -480,12 +472,12 @@ impl DecoderOptions {
     }
 }
 
-// One decode step as a graph, the inputs it reads, and the logits it computed on them.
+// One decode step as a graph, the inputs it reads, and what it computed on them: the logits of each sequence's last token, or with a choice, the token each sequence chose.
 #[derive(Debug)]
 pub struct DecoderStepGraph {
     pub graph: Graph,
     pub inputs: HashMap<String, Tensor>,
-    pub logits: Tensor,
+    pub output: Tensor,
     // Where the step's tokens fall in its paged cache, which `CudaExport::with_decoding` writes a generation loop from.
     pub layout: PageLayout,
 }
@@ -586,6 +578,25 @@ impl<L: DecoderModel> CachedDecoder<L> {
 
     // The step that reads `chunk` extra tokens, as `step_graph` gives the step that reads none.
     pub fn chunk_step_graph(&self, chunk: usize) -> Result<DecoderStepGraph> {
+        self.capture_step(chunk, None)
+    }
+
+    // The step that reads `chunk` extra tokens and chooses each sequence's next token as `options` asks, drawing from `generator` when it samples.
+    // Besides the step's own inputs it reads `first_tokens`, `[S]` of `I64`, one where a sequence's next token is its first, and it returns the chosen tokens, `[S]` of `I64`, so a program of it chooses as a running batch does.
+    pub fn choosing_step_graph(
+        &self,
+        chunk: usize,
+        options: &GenerationOptions,
+        generator: Option<&Generator>,
+    ) -> Result<DecoderStepGraph> {
+        self.capture_step(chunk, Some((options, generator)))
+    }
+
+    fn capture_step(
+        &self,
+        chunk: usize,
+        choice: Option<(&GenerationOptions, Option<&Generator>)>,
+    ) -> Result<DecoderStepGraph> {
         let layer = self.model.layer();
         let data_type = self.model.state().floating_type()?;
         let caches = layer.caches(data_type, self.device, self.pages.cache_size()?)?;
@@ -599,10 +610,19 @@ impl<L: DecoderModel> CachedDecoder<L> {
             ))
             .collect::<Vec<_>>();
         let step = pages.step(self.device, &tokens)?;
+        let sequences =
+            i64::try_from(pages.sequences()).map_err(|_| Error::out_of_range("sequences"))?;
+        let first = choice
+            .map(|_| {
+                Tensor::zeroed_on(self.device, DataType::I64, Shape::create([sequences])?)
+                    .map(|first| ("first_tokens".to_owned(), first))
+            })
+            .transpose()?;
         let inputs = step
             .named_tensors()
             .into_iter()
             .chain(named_cache_inputs(&caches))
+            .chain(first.clone())
             .collect::<Vec<_>>();
         let state = self
             .model
@@ -612,10 +632,20 @@ impl<L: DecoderModel> CachedDecoder<L> {
             Graph::capture_with_bindings(inputs, state.capture_bindings()?, |inputs| {
                 let (step, captured) = inputs.split_at(DecodeStep::COUNT);
                 let step = DecodeStep::from_tensors(step)?;
+                let (captured, first) = match choice {
+                    Some(_) => captured.split_at(captured.len() - 1),
+                    None => (captured, &[][..]),
+                };
                 let caches = caches_from_inputs(&caches, captured)?;
-                Ok(vec![layer.forward(&step, &self.tables, &caches, &state)?])
+                let logits = layer.forward(&step, &self.tables, &caches, &state)?;
+                Ok(vec![match (choice, first) {
+                    (Some((options, generator)), [first]) => {
+                        choose(&logits, first, options, generator)?
+                    }
+                    _ => logits,
+                }])
             })?;
-        let logits = outputs
+        let output = outputs
             .into_iter()
             .next()
             .ok_or_else(|| Error::missing_output("decoder step graph"))?;
@@ -631,8 +661,9 @@ impl<L: DecoderModel> CachedDecoder<L> {
                 .named_tensors()
                 .into_iter()
                 .chain(named_cache_inputs(&caches))
+                .chain(first)
                 .collect(),
-            logits,
+            output,
         })
     }
 
@@ -692,6 +723,12 @@ impl<L: DecoderModel> CachedDecoder<L> {
     #[must_use]
     pub fn caches(&self) -> &[L::Cache] {
         &self.caches
+    }
+
+    // Returns the most tokens each sequence holds.
+    #[must_use]
+    pub const fn capacity(&self) -> i64 {
+        self.pages.capacity()
     }
 
     // Returns the model this decoder runs.
@@ -939,14 +976,13 @@ mod tests {
     }
 
     #[test]
-    fn test_generation_refuses_an_empty_prompt_and_the_wrong_batch() {
+    fn test_generation_refuses_an_empty_prompt() {
         let mut decoder = Counting::new(2);
         let options = GenerationOptions {
             max_new_tokens: 1,
             ..GenerationOptions::default()
         };
         assert!(generate_batch(&mut decoder, &[&[1], &[]], &options, None, |_, _| Ok(())).is_err());
-        assert!(generate_batch(&mut decoder, &[&[1]], &options, None, |_, _| Ok(())).is_err());
     }
 
     // A finished sequence holds for the rest of the batch's steps and keeps nothing more.

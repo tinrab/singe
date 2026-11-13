@@ -7,7 +7,7 @@ use singe::{
     nn::{
         Decoder, GatedDeltaNet, GatedDeltaNetLayers, GatedDeltaNetSpec, GatedMlp,
         GroupedQueryAttention, GroupedQueryLayers, HeadProjection, HybridCacheSpec, HybridLayer,
-        Model, OffsetRmsNorm, PreNormBlock,
+        Model, ModelState, OffsetRmsNorm, PreNormBlock,
     },
 };
 
@@ -45,7 +45,7 @@ const fn default_output_gate() -> bool {
 
 impl Qwen35TextConfig {
     // A checkpoint using one of these would load and then compute something else.
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn validate(&self) -> Result<()> {
         if !self.attn_output_gate {
             return Err(unsupported("full attention without an output gate"));
         }
@@ -153,6 +153,16 @@ fn delta_net(
 
 // Builds Qwen3.5's decoder on `Device::Meta`, under `scope`.
 fn schema(config: &Qwen35TextConfig, scope: &str, data_type: DataType) -> Result<Qwen35> {
+    let (decoder, state) = decoder(config, scope, data_type)?;
+    Ok(Model::new(decoder, state))
+}
+
+// Builds Qwen3.5's decoder layers and their state on `Device::Meta`, under `scope`.
+pub(crate) fn decoder(
+    config: &Qwen35TextConfig,
+    scope: &str,
+    data_type: DataType,
+) -> Result<(Qwen35Layers, ModelState)> {
     let spec = config.decoder.spec(data_type, true)?;
     let net = config.delta_net();
     let (decoder, state) = causal_lm_in(
@@ -185,7 +195,7 @@ fn schema(config: &Qwen35TextConfig, scope: &str, data_type: DataType) -> Result
             ))
         },
     )?;
-    Ok(Model::new(decoder, state))
+    Ok((decoder, state))
 }
 
 // Loads a Hugging Face snapshot directory, converting the weights to `data_type`.

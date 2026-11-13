@@ -43,6 +43,10 @@ name = "image_features"
 required-features = ["cuda_13_4"]
 
 [[example]]
+name = "image_chat"
+required-features = ["cuda_13_4"]
+
+[[example]]
 name = "autoencode"
 required-features = ["cuda_13_4"]
 

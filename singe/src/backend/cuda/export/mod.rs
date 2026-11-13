@@ -15,9 +15,9 @@ pub use singe_cuda::architecture::GpuArchitecture;
 use self::builder::build_program;
 pub use self::{
     program::{
-        Activation, BufferId, BufferKind, BufferView, CudaProgram, CudaProgramSet, GemmOperand,
-        Library, LibraryCall, OperationProvider, ProgramBuffer, ProgramEntry, ProgramState,
-        ProgramStep, ProgramValue, StateKind, StepProvider,
+        Activation, BufferId, BufferKind, BufferView, CudaProgram, CudaProgramSet, Decoding,
+        GemmOperand, Library, LibraryCall, OperationProvider, ProgramBuffer, ProgramEntry,
+        ProgramState, ProgramStep, ProgramValue, StateKind, StepProvider,
     },
     writer::{ProgramFiles, set::ProgramSetFiles},
 };
@@ -37,7 +37,6 @@ use crate::{
     device::Device,
     error::{Error, Result},
     graph::{Graph, GraphCompileOptions},
-    nn::PageLayout,
 };
 
 // Exports graphs as CUDA C++ programs for one architecture.
@@ -52,7 +51,7 @@ pub struct CudaExport {
     state_functions: bool,
     records: Option<Arc<TuningRecords>>,
     library_table: bool,
-    decoding: Option<PageLayout>,
+    decoding: Option<Decoding>,
 }
 
 impl CudaExport {
@@ -72,11 +71,11 @@ impl CudaExport {
         }
     }
 
-    // Writes, beside the program, a loop that generates through it one token at a time, for a decoder step graph whose paged cache `layout` describes, as `DecoderStepGraph::layout` gives it.
+    // Writes, beside the program, a loop that generates through its choosing steps, as `CachedDecoder::choosing_step_graph` captures them, for the paged cache `DecoderStepGraph::layout` gives and the stop tokens `decoding` names.
     // The loop is the way to run an exported model with nothing of Singe: `<prefix>_generate.cu`, which the manifest says how to build.
     #[must_use]
-    pub const fn with_decoding(mut self, layout: PageLayout) -> Self {
-        self.decoding = Some(layout);
+    pub fn with_decoding(mut self, decoding: Decoding) -> Self {
+        self.decoding = Some(decoding);
         self
     }
 
@@ -159,7 +158,8 @@ impl CudaExport {
     }
 
     // Writes several graphs of one model as one program, each under a name C++ accepts, whose tensors in common exist once.
-    // Graphs that hold different values under one state name are not one model, and generators advance per step, so neither can be shared.
+    // Graphs that hold different values under one state name are not one model.
+    // Every step draws from the set's one generator, each starting where the last step left it.
     // With a page layout, the set's generation loop decodes through the step named `decode`, after running the step named `encode` once if there is one, and steps' inputs of one name are one buffer, so an encode step can write the caches the decoder reads.
     //
     // # Errors
@@ -178,10 +178,10 @@ impl CudaExport {
             program.decoding = None;
             let mut shared = Vec::with_capacity(program.state.len());
             for state in &program.state {
+                // Each step keeps its own generator, which the set loads from its one before the step runs and stores back after.
                 if matches!(state.kind, StateKind::Generator { .. }) {
-                    return Err(Error::invalid_argument(
-                        "a program of several steps cannot share a generator",
-                    ));
+                    shared.push(None);
+                    continue;
                 }
 
                 // State is one tensor under one name in every step, and a step that differs is not of this model.
@@ -234,7 +234,7 @@ impl CudaExport {
         }
         Ok(CudaProgramSet {
             entries,
-            decoding: self.decoding,
+            decoding: self.decoding.clone(),
         })
     }
 
@@ -286,7 +286,7 @@ impl CudaExport {
         program.decomposed.clone_from(&compiled.analysis.decomposed);
         program.state_functions = self.state_functions;
         program.library_table = self.library_table;
-        program.decoding = self.decoding;
+        program.decoding.clone_from(&self.decoding);
         // A record decides, for targets that have the instructions.
         if self.target.compute_capability() >= (9, 0)
             && let Some(records) = planner.context().records()

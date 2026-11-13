@@ -4,6 +4,7 @@ use crate::{
     data_type::DataType,
     device::Device,
     error::{Error, Result},
+    graph::capture,
     nn::TensorGroup,
     shape::Shape,
     tensor::Tensor,
@@ -218,6 +219,50 @@ impl RotaryTable {
         })
     }
 
+    // Looks up the angles of `positions`, `[T, 3]`, one stream per M-RoPE axis of time, height, and width, as `transformers`' interleaved M-RoPE does: frequency `i` takes the height stream when `i % 3 == 1` and `i < 3 · sections[1]`, the width stream when `i % 3 == 2` and `i < 3 · sections[2]`, and the time stream otherwise.
+    pub fn angles_in_sections(
+        &self,
+        positions: &Tensor,
+        sections: [i64; 3],
+    ) -> Result<RotaryAngles> {
+        let &[_, width] = self.cos.shape().dimensions() else {
+            return Err(Error::invalid_argument("rotary table rank"));
+        };
+        let pairs = to_usize(width, "rotary pairs")?;
+        let section = |axis: usize| to_usize(sections[axis], "rotary sections");
+        let (heights, widths) = (section(1)?, section(2)?);
+        let mut streams = vec![0.0_f32; 3 * pairs];
+        for pair in 0..pairs {
+            let axis = match pair % 3 {
+                1 if pair < 3 * heights => 1,
+                2 if pair < 3 * widths => 2,
+                _ => 0,
+            };
+            streams[axis * pairs + pair] = 1.0;
+        }
+
+        let data_type = self.cos.data_type();
+        let streams = capture::literal(positions.device(), |device| {
+            Tensor::from_vec(device, Shape::create([3, width])?, streams.clone())
+        })?
+        .cast(data_type)?;
+        let rows = positions.dimension(0)?;
+        let flat = positions.reshape_with(&[(-1).into()])?;
+        let pick = |table: &Tensor| -> Result<Tensor> {
+            table
+                .index_select(0, &flat)?
+                .reshape_with(&[rows.clone(), 3.into(), (-1).into()])?
+                .mul(&streams)?
+                .sum(&[1], false)?
+                .unsqueeze(1)
+        };
+        Ok(RotaryAngles {
+            cos: pick(&self.cos)?,
+            sin: pick(&self.sin)?,
+            layout: self.layout,
+        })
+    }
+
     // Looks up the angles of `positions`, `[T]`.
     pub fn angles(&self, positions: &Tensor) -> Result<RotaryAngles> {
         Ok(RotaryAngles {
@@ -238,6 +283,15 @@ impl TensorGroup for RotaryTable {
 }
 
 impl RotaryAngles {
+    // Returns angles whose cosines and sines are `cos` and `sin`, `[T, D / 2]`, as an encoder computes them for positions a table does not hold.
+    pub fn create(cos: &Tensor, sin: &Tensor, layout: RotaryLayout) -> Result<Self> {
+        Ok(Self {
+            cos: cos.unsqueeze(1)?,
+            sin: sin.unsqueeze(1)?,
+            layout,
+        })
+    }
+
     // Rotates `input`, `[..., T, H, D]`: each feature of a pair turns against the other.
     //
     // A head wider than the table turns its first features and passes the rest through, as partial rotary does.
@@ -396,5 +450,41 @@ mod tests {
             ..spec(RotaryLayout::HalfSplit)
         };
         assert!(RotaryTable::create(Device::Cpu, DataType::F32, odd, 4).is_err());
+    }
+
+    // A table of six pairs whose sections give pairs 1 and 4 to height and pair 2 to width: each pair turns by its own stream's position.
+    #[test]
+    fn test_sections_turn_each_pair_by_its_axis() {
+        let spec = RotarySpec {
+            head_dim: 12,
+            frequencies: RotaryFrequencies::new(100.0),
+            layout: RotaryLayout::HalfSplit,
+        };
+        let table = RotaryTable::create(Device::Cpu, DataType::F32, spec, 8).unwrap();
+        let positions = Tensor::from_vec(
+            Device::Cpu,
+            Shape::create([1, 3]).unwrap(),
+            vec![2_i64, 5, 7],
+        )
+        .unwrap();
+        let mixed = table
+            .angles_in_sections(&positions, [2, 2, 1])
+            .unwrap()
+            .cos
+            .to_vec::<f32>()
+            .unwrap();
+        let single = |position: i64| {
+            let position =
+                Tensor::from_vec(Device::Cpu, Shape::create([1]).unwrap(), vec![position]).unwrap();
+            table
+                .angles(&position)
+                .unwrap()
+                .cos
+                .to_vec::<f32>()
+                .unwrap()
+        };
+        let (time, height, width) = (single(2), single(5), single(7));
+        let expected = [time[0], height[1], width[2], time[3], height[4], time[5]];
+        assert_eq!(mixed, expected);
     }
 }

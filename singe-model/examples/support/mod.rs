@@ -130,6 +130,30 @@ pub fn read_image(path: &str, width: u32, height: u32) -> Result<Vec<f32>> {
     Ok(values)
 }
 
+// Reads an image file at the size `size` gives for its own, `(width, height)`, resizing it bicubically only when that differs, as channel-major RGB in [0, 1].
+pub fn read_image_sized(
+    path: &str,
+    size: impl FnOnce(u32, u32) -> Result<(u32, u32)>,
+) -> Result<(Vec<f32>, u32, u32)> {
+    let image = image::open(path).with_context(|| format!("reading {path}"))?;
+    let (width, height) = size(image.width(), image.height())?;
+    let image = if (width, height) == (image.width(), image.height()) {
+        image.to_rgb8()
+    } else {
+        image
+            .resize_exact(width, height, FilterType::CatmullRom)
+            .to_rgb8()
+    };
+    let plane = usize::try_from(width * height)?;
+    let mut values = vec![0.0; 3 * plane];
+    for (index, pixel) in image.pixels().enumerate() {
+        for channel in 0..3 {
+            values[channel * plane + index] = f32::from(pixel[channel]) / 255.0;
+        }
+    }
+    Ok((values, width, height))
+}
+
 // Writes channel-major RGB in [0, 1] as an image file, whose extension picks the format.
 pub fn write_image(path: &str, values: &[f32], width: u32, height: u32) -> Result<()> {
     let plane = usize::try_from(width * height)?;

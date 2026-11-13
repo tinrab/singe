@@ -6,8 +6,11 @@ use std::{
 use singe_cuda::{context::Context as CudaContext, error::Error as CudaError, stream::Stream};
 
 use crate::{
-    backend::cuda::allocator::{
-        CACHING_ALLOCATOR_CACHES, CudaCachingAllocator, cache::CudaCachingAllocatorCache,
+    backend::cuda::{
+        allocator::{
+            CACHING_ALLOCATOR_CACHES, CudaCachingAllocator, cache::CudaCachingAllocatorCache,
+        },
+        runtime::runtime_for_device,
     },
     device::Device,
     error::Result,
@@ -19,17 +22,21 @@ impl CudaCachingAllocator {
         CACHING_ALLOCATOR_CACHES.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
-    /// Creates an allocator retaining the actual context and optional execution stream.
+    /// Creates an allocator retaining the actual context and its execution stream, the runtime's eager stream for `None`.
     /// Cached blocks from another context are never reused, even on the same device.
     ///
     /// # Errors
     ///
-    /// Returns an error if the optional stream belongs to another CUDA context or the allocator cache registry mutex is poisoned.
+    /// Returns an error if the stream belongs to another CUDA context, `context` is not the device runtime's for `None`, or the allocator cache registry mutex is poisoned.
     pub fn create(context: &Arc<CudaContext>, stream: Option<Arc<Stream>>) -> Result<Self> {
-        if stream
-            .as_ref()
-            .is_some_and(|stream| stream.context() != context)
-        {
+        let eager = stream.is_none();
+        let stream = if let Some(stream) = stream {
+            stream
+        } else {
+            let runtime = runtime_for_device(Device::Cuda(context.device().id()))?;
+            runtime.eager_stream()?.raw_arc()
+        };
+        if stream.context() != context {
             return Err(CudaError::StreamContextMismatch.into());
         }
 
@@ -47,6 +54,7 @@ impl CudaCachingAllocator {
             context: Arc::clone(context),
             cache,
             stream,
+            eager,
         })
     }
 
