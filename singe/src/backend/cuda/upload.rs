@@ -1,4 +1,6 @@
-use singe_cuda::memory::{DeviceMemory, HostAllocationFlags, MemoryCopyKind, PinnedHostMemory};
+use std::mem;
+
+use singe_cuda::memory::{DeviceMemory, MemoryCopyKind, PinnedVec};
 
 use crate::{
     backend::cuda::{self, CudaEvent, EventTiming},
@@ -17,7 +19,7 @@ const CHUNK_BYTES: usize = 8 << 20;
 // A tensor then takes no more host memory than the two buffers, however large it is.
 pub struct CudaUpload {
     device: Device,
-    staging: [PinnedHostMemory<u8>; 2],
+    staging: [PinnedVec<u8>; 2],
     // When each buffer's last copy has read it.
     copied: [CudaEvent; 2],
     next: usize,
@@ -26,13 +28,8 @@ pub struct CudaUpload {
 impl CudaUpload {
     pub fn create(device: Device) -> Result<Self> {
         let context = cuda::execution_context(device)?;
-        let buffer = || {
-            PinnedHostMemory::<u8>::zeroed(
-                context.runtime().context(),
-                CHUNK_BYTES,
-                HostAllocationFlags::DEFAULT,
-            )
-        };
+        let pinned = context.runtime().context().pinned_host();
+        let buffer = || pinned.zeroed::<u8>(CHUNK_BYTES);
         Ok(Self {
             device,
             staging: [buffer()?, buffer()?],
@@ -66,7 +63,7 @@ impl CudaUpload {
             let index = self.next;
             self.next = 1 - index;
             self.copied[index].synchronize()?;
-            let buffer = &mut self.staging[index].as_slice_mut()[..length];
+            let buffer = &mut self.staging[index][..length];
             fill(offset, buffer)?;
             // SAFETY: the output spans `total` bytes past `target`, the page-locked buffer stays untouched until the event recorded after the copy completes, and the output's storage returns to the cache only for reuse ordered after the copy.
             unsafe {
@@ -79,7 +76,15 @@ impl CudaUpload {
                 )?;
             }
 
-            self.copied[index].record(context.stream())?;
+            if let Err(error) = self.copied[index].record(context.stream()) {
+                // `Drop` would wait for the buffer's previous copy, not this one, so the buffer stays out of the pool unless the stream drains.
+                if context.stream().synchronize().is_err() {
+                    let empty = Vec::new_in(self.staging[index].allocator().clone());
+                    mem::forget(mem::replace(&mut self.staging[index], empty));
+                }
+                return Err(error);
+            }
+
             offset += length;
         }
 

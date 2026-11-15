@@ -1,5 +1,7 @@
+use std::alloc::Allocator;
+
 use super::*;
-use crate::{error::Status, testing, view::ZeroableDeviceRepr};
+use crate::{error::Status, testing};
 
 #[test]
 fn test_it_works() -> Result<()> {
@@ -95,116 +97,98 @@ fn test_async_device_memory_allocates_from_pool() -> Result<()> {
 }
 
 #[test]
-fn test_pinned_host_memory_from_slice_and_zeroes() -> Result<()> {
-    let (_lock, _ctx) = testing::bootstrap()?;
-
-    let host = PinnedHostMemory::from_slice(&_ctx, &[1_i32, 2, 3])?;
-    assert_eq!(host.as_slice(), &[1, 2, 3]);
-    assert_eq!(host.len(), 3);
-    assert_eq!(host.byte_len()?, 3 * size_of::<i32>());
-
-    let zeroes = PinnedHostMemory::<u32>::zeroed(&_ctx, 4, HostAllocationFlags::DEFAULT)?;
-    assert_eq!(zeroes.as_slice(), &[0, 0, 0, 0]);
-
-    Ok(())
-}
-
-#[test]
-fn test_pinned_host_try_clone_and_raw_round_trip() -> Result<()> {
-    let (_lock, _ctx) = testing::bootstrap()?;
-
-    let host = PinnedHostMemory::from_slice_with_flags(
-        &_ctx,
-        &[1_u32, 2, 3],
-        HostAllocationFlags::PORTABLE,
-    )?;
-    let cloned = host.try_clone()?;
-    assert_eq!(cloned.as_slice(), host.as_slice());
-    assert_eq!(cloned.flags(), host.flags());
-
-    let (ptr, len, flags, allocation_context) = host.into_raw_parts().unwrap();
-    // SAFETY: the pointer and length come from the allocation that the test just made.
-    let rebuilt =
-        unsafe { PinnedHostMemory::from_raw_parts(&allocation_context, ptr, len, flags) }?;
-    assert_eq!(rebuilt.as_slice(), &[1, 2, 3]);
-    assert_eq!(rebuilt.flags(), HostAllocationFlags::PORTABLE);
-
-    Ok(())
-}
-
-#[test]
-fn test_mapped_pinned_host_memory_reports_device_alias() -> Result<()> {
+fn test_pinned_vec_grows_and_reuses_blocks() -> Result<()> {
     let (_lock, context) = testing::bootstrap()?;
-    if !context.device().properties()?.can_map_host_memory {
-        return Ok(());
+    let pinned = context.pinned_host();
+
+    let mut values = PinnedVec::new_in(pinned.clone());
+    for value in 0_u32..10_000 {
+        values.push(value);
     }
 
-    let mut host = PinnedHostMemory::from_slice_with_flags(
-        &context,
-        &[5_u32, 6, 7, 8],
-        HostAllocationFlags::MAPPED,
-    )?;
-    let flags = match host.host_flags() {
-        Ok(flags) => flags,
-        Err(Error::Cuda {
-            code: Status::NotSupported | Status::InvalidValue,
-            ..
-        }) => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    assert!(flags.contains(HostAllocationFlags::MAPPED));
+    assert!(values.iter().copied().eq(0..10_000));
+    assert_eq!(pinned.stats().active_bytes, 65_536);
+    drop(values);
+    assert_eq!(pinned.stats().active_bytes, 0);
 
-    let mapped = match host.mapped_device_ptr() {
-        Ok(mapped) => mapped,
-        Err(Error::Cuda {
-            code: Status::NotSupported | Status::InvalidValue,
-            ..
-        }) => return Ok(()),
-        Err(error) => return Err(error),
-    };
-    assert!(!mapped.is_null());
-    assert_eq!(host.mapped_device_view()?.len(), host.len());
-    assert_eq!(host.mapped_device_view_mut()?.len(), host.len());
+    let chunks = pinned.stats().chunks;
+    let values = pinned.from_slice(&[7_u64; 4096])?;
+    assert_eq!(values.len(), 4096);
+    assert_eq!(pinned.stats().chunks, chunks);
 
     Ok(())
 }
 
 #[test]
-fn test_pinned_host_copy_round_trip() -> Result<()> {
-    let (_lock, _ctx) = testing::bootstrap()?;
-
-    let host_in = PinnedHostMemory::from_slice(&_ctx, &[7_i32, 8, 9])?;
-    // SAFETY: the buffer is fully written by the operation before it is read.
-    let mut device = unsafe { DeviceMemory::create_unchecked(&_ctx, host_in.len()) }?;
-    device.copy_from_pinned(&host_in)?;
-
-    let mut host_out =
-        PinnedHostMemory::<i32>::zeroed(&_ctx, host_in.len(), HostAllocationFlags::DEFAULT)?;
-    device.copy_to_pinned(&mut host_out)?;
-
-    assert_eq!(host_out.as_slice(), host_in.as_slice());
-
-    Ok(())
-}
-
-#[test]
-fn test_pinned_host_scoped_async_copy_round_trip() -> Result<()> {
+fn test_pinned_vec_round_trips_through_device() -> Result<()> {
     let (_lock, context) = testing::bootstrap()?;
     let stream = context.create_stream()?;
+    let pinned = context.pinned_host();
 
-    let host_in = PinnedHostMemory::from_slice(&context, &[10_i32, 11, 12])?;
+    let host_in = pinned.from_slice(&[10_i32, 11, 12])?;
     // SAFETY: the buffer is fully written by the operation before it is read.
     let mut device = unsafe { DeviceMemory::create_unchecked(&context, host_in.len()) }?;
-    let mut host_out =
-        PinnedHostMemory::<i32>::zeroed(&context, host_in.len(), HostAllocationFlags::DEFAULT)?;
-
-    stream.sync_scope(|scope| device.copy_from_pinned_async(&host_in, scope))?;
+    device.copy_from_pinned(&host_in)?;
+    let mut host_out = pinned.zeroed::<i32>(host_in.len())?;
     stream.sync_scope(|scope| device.copy_to_pinned_async(&mut host_out, scope))?;
 
-    assert_eq!(host_out.as_slice(), host_in.as_slice());
+    assert_eq!(host_out, host_in);
 
     Ok(())
 }
+
+#[test]
+fn test_pinned_layouts() -> Result<()> {
+    let (_lock, context) = testing::bootstrap()?;
+    let pinned = context.pinned_host();
+
+    let empty = pinned.with_capacity::<u64>(0)?;
+    assert_eq!(empty.capacity(), 0);
+    assert_eq!(pinned.stats().chunks, 0);
+
+    let page = Layout::from_size_align(16, 4096).unwrap();
+    let block = pinned.allocate(page).unwrap();
+    assert!(block.cast::<u8>().addr().get().is_multiple_of(4096));
+    // SAFETY: the block came from this allocator with this layout.
+    unsafe { pinned.deallocate(block.cast(), page) };
+
+    let too_aligned = Layout::from_size_align(16, 8192).unwrap();
+    assert!(pinned.allocate(too_aligned).is_err());
+    assert!(matches!(
+        pinned.with_capacity::<Page>(1),
+        Err(Error::UnsupportedPinnedAlignment { align: 8192 })
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_pinned_release_cached() -> Result<()> {
+    let (_lock, context) = testing::bootstrap()?;
+    let pinned = context.pinned_host();
+
+    let small = pinned.with_capacity::<u8>(100)?;
+    let large = pinned.with_capacity::<u8>(5 << 20)?;
+    assert_eq!(pinned.stats().reserved_bytes, 8 << 20);
+
+    drop(large);
+    let other = pinned.with_capacity::<u8>(3 << 20)?;
+    assert_eq!(pinned.stats().reserved_bytes, 6 << 20);
+
+    drop(other);
+    pinned.release_cached()?;
+    assert_eq!(pinned.stats().chunks, 1);
+
+    drop(small);
+    pinned.release_cached()?;
+    assert_eq!(pinned.stats(), PinnedStats::default());
+
+    Ok(())
+}
+
+#[expect(dead_code, reason = "only the alignment matters")]
+#[repr(align(8192))]
+struct Page(u8);
 
 #[test]
 fn test_pitched_device_memory_copy_round_trip() -> Result<()> {
@@ -416,27 +400,6 @@ fn test_managed_memory_advise_uses_typed_wrapper() -> Result<()> {
         managed.unset_accessed_by(device)?;
     }
 
-    Ok(())
-}
-
-#[test]
-fn test_pinned_host_rejects_non_empty_zst() -> Result<()> {
-    let (_lock, context) = testing::bootstrap()?;
-    #[derive(Clone, Copy)]
-    struct Zst;
-
-    unsafe impl DeviceRepr for Zst {}
-
-    unsafe impl ZeroableDeviceRepr for Zst {}
-
-    assert!(matches!(
-        PinnedHostMemory::<Zst>::from_slice(&context, &[Zst]),
-        Err(Error::InvalidMemoryAllocationRequest)
-    ));
-    assert!(matches!(
-        PinnedHostMemory::<Zst>::zeroed(&context, 1, HostAllocationFlags::DEFAULT),
-        Err(Error::InvalidMemoryAllocationRequest)
-    ));
     Ok(())
 }
 

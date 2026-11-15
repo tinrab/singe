@@ -1,9 +1,13 @@
-use std::{mem::MaybeUninit, ptr, sync::Arc};
+use std::{
+    mem::{self, MaybeUninit},
+    ptr,
+    sync::Arc,
+};
 
 use singe_cuda::{
     context::Context as CudaContext,
     error::{Error as CudaError, Result as CudaResult},
-    memory::{DeviceMemory, HostAllocationFlags, PinnedHostMemory},
+    memory::{DeviceMemory, PinnedVec},
 };
 
 use crate::{
@@ -29,7 +33,7 @@ pub struct WorkspaceMemory<'comm> {
 
 #[derive(Debug)]
 struct HostWorkspace {
-    memory: Option<PinnedHostMemory<MaybeUninit<u8>>>,
+    memory: Option<PinnedVec<u8>>,
 }
 
 impl<'comm> WorkspaceMemory<'comm> {
@@ -76,7 +80,7 @@ impl<'comm> WorkspaceMemory<'comm> {
             });
         }
 
-        let actual = self.host.memory.as_ref().map_or(0, PinnedHostMemory::len) as u64;
+        let actual = self.host.memory.as_ref().map_or(0, Vec::capacity) as u64;
         if actual < required.host_size() {
             return Err(Error::InsufficientWorkspaceSize {
                 required: required.host_size(),
@@ -96,7 +100,7 @@ impl<'comm> WorkspaceMemory<'comm> {
         self.device.as_mut_ptr().cast()
     }
 
-    pub(crate) fn host_mut_ptr(&self) -> *mut () {
+    pub(crate) fn host_mut_ptr(&mut self) -> *mut () {
         self.host.as_mut_ptr()
     }
 }
@@ -106,24 +110,40 @@ impl HostWorkspace {
         let memory = if size == 0 {
             None
         } else {
-            Some(PinnedHostMemory::<u8>::create_uninit(
-                context,
-                size,
-                HostAllocationFlags::DEFAULT,
-            )?)
+            Some(context.pinned_host().with_capacity(size)?)
         };
         Ok(Self { memory })
     }
 
-    fn as_mut_ptr(&self) -> *mut () {
+    fn as_mut_ptr(&mut self) -> *mut () {
         self.memory
-            .as_ref()
-            .map_or_else(ptr::null_mut, |memory| memory.as_ptr().cast_mut().cast())
+            .as_mut()
+            .map_or_else(ptr::null_mut, |memory| memory.as_mut_ptr().cast())
+    }
+
+    fn release_after<'a>(&mut self, contexts: impl IntoIterator<Item = &'a Arc<CudaContext>>) {
+        // Native work may still use the workspace, and the pinned pool hands a freed block out again at once.
+        let Some(memory) = &self.memory else {
+            return;
+        };
+
+        let waited = contexts
+            .into_iter()
+            .try_for_each(|context| context.synchronize())
+            .and_then(|()| memory.allocator().context().synchronize());
+        if let Err(error) = waited {
+            eprintln!(
+                "failed to wait for work using a cutensor host workspace: {}",
+                singe_core::ErrorChain(&error)
+            );
+            mem::forget(self.memory.take());
+        }
     }
 }
 
 impl Drop for WorkspaceMemory<'_> {
     fn drop(&mut self) {
+        self.host.release_after([self.device.context()]);
         if let Some(context) = &self.context
             && let Err(error) = context.clear_operation_cache()
         {

@@ -10,7 +10,7 @@ use std::{
 use singe_cuda::{
     context::Context as CudaContext,
     event::Event,
-    memory::{DeviceMemory, PinnedHostMemory},
+    memory::{DeviceMemory, PinnedVec},
 };
 
 use crate::{device::Device, storage::cuda::CudaMemoryRecycler};
@@ -33,7 +33,8 @@ pub struct CudaCachingAllocatorCache {
 
 #[derive(Debug)]
 pub struct StagingBuffer {
-    pub(crate) memory: PinnedHostMemory<u8>,
+    #[expect(dead_code, reason = "held until its copy has run")]
+    pub(crate) memory: PinnedVec<u8>,
     pub(crate) copied: Event,
 }
 

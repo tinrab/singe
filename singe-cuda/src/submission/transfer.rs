@@ -5,7 +5,7 @@ use crate::{
     context::Context,
     error::{Error, Result},
     graph::owned::{Recordable, Recording},
-    memory::{DeviceMemory, HostAllocationFlags, MemoryCopyKind, PinnedHostMemory},
+    memory::{DeviceMemory, MemoryCopyKind, PinnedVec},
     stream::Stream,
     submission::{AccessMode, DeviceOperation, Execution, Operation, Resources},
     view::{AnyBitPatternDeviceRepr, DeviceRegion, DeviceRegionProvider, DeviceRepr},
@@ -102,7 +102,7 @@ unsafe impl<T: DeviceRepr> DeviceRegionProvider for DeviceValue<T> {
 /// A prepared host-to-device transfer; allocation and staging happen at construction.
 #[derive(Debug)]
 pub struct Upload<T: DeviceRepr> {
-    staging: PinnedHostMemory<T>,
+    staging: Arc<PinnedVec<T>>,
     destination: DeviceMemory<MaybeUninit<T>>,
 }
 
@@ -116,7 +116,7 @@ impl<T: DeviceRepr> Upload<T> {
     /// Returns an error if staging or device allocation fails, byte-size arithmetic overflows, the context cannot be bound, or CUDA rejects the allocation or staging initialization.
     pub fn create(context: &Arc<Context>, values: &[T]) -> Result<Self> {
         Ok(Self {
-            staging: PinnedHostMemory::from_slice(context, values)?,
+            staging: Arc::new(context.pinned_host().from_slice(values)?),
             destination: DeviceMemory::<T>::create_uninit(context, values.len())?,
         })
     }
@@ -166,7 +166,7 @@ unsafe impl<T: DeviceRepr + Send + Sync> DeviceOperation for Upload<T> {}
 #[derive(Debug)]
 pub struct Readback<T: AnyBitPatternDeviceRepr> {
     source: Arc<DeviceValue<T>>,
-    staging: PinnedHostMemory<MaybeUninit<T>>,
+    staging: PinnedVec<T>,
 }
 
 impl<T: AnyBitPatternDeviceRepr> Readback<T> {
@@ -180,30 +180,33 @@ impl<T: AnyBitPatternDeviceRepr> Readback<T> {
     /// Returns an error if pinned staging allocation fails, the byte count overflows, the source context cannot be bound, or CUDA rejects the allocation.
     pub fn create(source: impl Into<Arc<DeviceValue<T>>>) -> Result<Self> {
         let source = source.into();
-        let staging = PinnedHostMemory::<T>::create_uninit(
-            source.memory.context(),
-            source.len(),
-            HostAllocationFlags::DEFAULT,
-        )?;
+        let staging = source
+            .memory
+            .context()
+            .pinned_host()
+            .with_capacity(source.len())?;
         Ok(Self { source, staging })
     }
 }
 
 unsafe impl<T: AnyBitPatternDeviceRepr + Send + Sync> Operation for Readback<T> {
-    type Pending = PinnedHostMemory<MaybeUninit<T>>;
+    type Pending = (Arc<PinnedVec<T>>, usize);
 
-    type Output = Vec<T>;
+    type Output = PinnedVec<T>;
 
-    fn enqueue(self, execution: &mut Execution) -> Result<Self::Pending> {
+    fn enqueue(mut self, execution: &mut Execution) -> Result<Self::Pending> {
+        // Moving the vector into its `Arc` leaves its buffer in place.
+        let destination = self.staging.as_mut_ptr();
+        let staging = Arc::new(self.staging);
         let mut resources = Resources::new();
         resources.retain(Arc::clone(self.source.memory.allocation()));
-        resources.retain_pinned(&self.staging, AccessMode::Write);
+        resources.retain_pinned(&staging, AccessMode::Write);
         resources.access(self.source.region(), AccessMode::Read);
         // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
         unsafe {
             execution.enqueue(resources, |stream| {
                 DeviceMemory::<T>::copy_async(
-                    self.staging.as_ptr().cast_mut().cast(),
+                    destination,
                     self.source.memory.as_ptr().cast(),
                     self.source.len(),
                     MemoryCopyKind::DeviceToHost,
@@ -211,12 +214,15 @@ unsafe impl<T: AnyBitPatternDeviceRepr + Send + Sync> Operation for Readback<T> 
                 )
             })?;
         }
-        Ok(self.staging)
+        Ok((staging, self.source.len()))
     }
 
-    unsafe fn resolve(pending: Self::Pending) -> Result<Self::Output> {
-        // SAFETY: DMA completed successfully and the source contains valid values.
-        Ok(unsafe { pending.assume_init() }.as_slice().to_vec())
+    unsafe fn resolve((staging, length): Self::Pending) -> Result<Self::Output> {
+        // Retirement dropped the ledger's clone before resolution.
+        let mut staging = Arc::into_inner(staging).ok_or(Error::AllocationInUse)?;
+        // SAFETY: the copy filled `length` values, the capacity `with_capacity` reserved, and any bytes are valid values.
+        unsafe { staging.set_len(length) };
+        Ok(staging)
     }
 }
 

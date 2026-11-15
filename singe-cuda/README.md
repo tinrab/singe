@@ -11,7 +11,7 @@ Safe Rust wrappers for the CUDA driver and runtime APIs, including runtime compi
 This crate provides:
 
 - **CUDA resources:** devices, shared contexts, streams, and events.
-- **Typed memory:** device buffers and views, pinned and managed memory, stream-ordered allocations, and peer copies.
+- **Typed memory:** device buffers and views, pooled pinned memory allocator, managed memory, stream-ordered allocations, and peer copies.
 - **Kernel execution:** runtime compilation with NVRTC, module loading, JIT linking, and typed launch methods through [`cuda_module!`](../singe-cuda-macros/README.md).
 - **Asynchronous work:** composable operations with blocking or async completion, plus CUDA graph capture and replay.
 - **Profiling and interoperability:** NVTX annotations and optional adapters for `cuda-core` and `cudarc`.
@@ -210,6 +210,43 @@ buffer.free_async()?;
 
 The [`memory_pool`](examples/memory_pool.rs) example also creates the pool, keeps memory reserved between allocations, and trims it at the end.
 
+## Pinned host memory
+
+Ordinary host memory is pageable.
+The OS may move it or swap it out, so the GPU cannot read it directly.
+CUDA copies pageable memory through a pinned staging buffer of its own, and an asynchronous copy from pageable memory may block the calling thread until the data is staged.
+
+Pinned (or page-locked) memory stays in physical memory at a fixed address, so the GPU reads and writes it directly.
+Copies to and from it run at higher bandwidth, and an asynchronous copy returns at once, overlapping with other work.
+The OS can't page pinned memory, so use it for buffers that move data to and from the GPU, not for everything.
+Allocating it is also slower than ordinary allocation, which is why each context keeps a pool of it.
+
+`Context::pinned_host` returns the allocator for that pool, a [std::alloc::Allocator](https://doc.rust-lang.org/std/alloc/trait.Allocator.html).
+A `Vec` that uses it is a `PinnedVec`, which pinned copies accept:
+
+```rust,ignore
+use singe_cuda::memory::{DeviceMemory, PinnedVec};
+
+let pinned = context.pinned_host();
+let mut input: PinnedVec<f32> = Vec::new_in(pinned.clone());
+input.extend((0..4096_u16).map(f32::from));
+
+let mut device = DeviceMemory::<f32>::zeroed(&context, input.len())?;
+stream.sync_scope(|scope| device.copy_from_pinned_async(&input, scope))?;
+
+let mut output = pinned.zeroed::<f32>(input.len())?;
+device.copy_to_pinned(&mut output)?;
+assert_eq!(output, input);
+```
+
+A `PinnedVec` is an ordinary `Vec` otherwise, and you can index, iterate, and push to it.
+Dropping one returns its memory to the pool without a CUDA call, so short-lived buffers are cheap, and `release_cached` gives memory nothing uses back to CUDA.
+A `Vec` that fails to grow aborts the process, as with any allocator.
+`with_capacity`, `from_slice`, and `zeroed` return an error instead, so use them when the size is known up front.
+The pool does not know which buffers queued GPU work still uses, so keep a buffer alive until that work finishes; `sync_scope` and submissions do this for you.
+
+See [`pinned_memory`](examples/pinned_memory.rs) for the complete example.
+
 ## Typed kernels
 
 `cuda_module!` reads the kernel's parameter list and generates a Rust method with matching argument types.
@@ -321,6 +358,7 @@ The caller must make sure every access stays in bounds and every buffer stays va
 - [Graph replay](examples/graph_replay.rs): capture a kernel and replay it against the same device buffer.
 - [Owned transfers](examples/owned_transfers.rs): compose an upload and readback, then await completion.
 - [Memory pool](examples/memory_pool.rs): reuse pool-backed allocations, free them on a stream, and trim unused memory.
+- [Pinned memory](examples/pinned_memory.rs): fill a pinned vector, copy it through the device, and reuse the pool's memory.
 - [Stream pool](examples/stream_pool.rs): distribute independent jobs across streams and collect their results.
 
 See the [API reference](https://docs.rs/singe-cuda).

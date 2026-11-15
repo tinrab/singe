@@ -6,7 +6,7 @@ use singe_cuda::{
     external_memory::MappedBuffer,
     graph::GraphBuffer,
     memory::{
-        AsyncDeviceMemory, DeviceMemory, ManagedMemory, PinnedHostMemory, RegisteredHostMemory,
+        AsyncDeviceMemory, DeviceMemory, ManagedMemory, PinnedVec, RegisteredHostMemory,
         RegisteredHostSlice, RegisteredHostVec,
     },
     view::{
@@ -242,9 +242,24 @@ macro_rules! host_output {
     };
 }
 
-registered_host_buffer!(PinnedHostMemory<T>);
+unsafe impl<T: DeviceRepr> IoBuffer for PinnedVec<T> {
+    fn ptr(&self) -> BufferPointer {
+        BufferPointer::from_const(self.as_ptr().cast())
+    }
 
-host_output!(PinnedHostMemory<T>);
+    fn byte_len(&self) -> Result<usize> {
+        let () = T::LAYOUT;
+        checked_byte_len::<T>(self.len(), "buffer")
+    }
+
+    fn context(&self) -> Option<&Arc<Context>> {
+        Some(self.allocator().context())
+    }
+}
+
+unsafe impl<T: NoUninitDeviceRepr> IoInput for PinnedVec<T> {}
+
+host_output!(PinnedVec<T>);
 
 registered_host_buffer!(RegisteredHostVec<T>);
 

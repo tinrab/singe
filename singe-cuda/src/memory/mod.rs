@@ -30,7 +30,11 @@ use singe_cuda_sys::{
     runtime,
 };
 
-pub use self::pool::MemoryPoolUsage;
+pub(crate) use self::pinned::PinnedPool;
+pub use self::{
+    pinned::{PinnedHost, PinnedStats, PinnedVec},
+    pool::MemoryPoolUsage,
+};
 use crate::{
     context::Context,
     driver::entry_points::cuMemGetLocationInfo,
@@ -398,27 +402,6 @@ impl From<MemoryPoolProps> for driver::CUmemPoolProps {
             gpuDirectRDMACapable: value.gpu_direct_rdma_capable.into(),
             reserved: [0; 53],
         }
-    }
-}
-
-bitflags::bitflags! {
-    /// Capabilities requested for a CUDA page-locked host allocation.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct HostAllocationFlags: u32 {
-        /// Uses the default page-locked allocation policy.
-        const DEFAULT = runtime::cudaHostAllocDefault;
-        /// Makes the allocation recognized as page-locked by other CUDA contexts.
-        const PORTABLE = runtime::cudaHostAllocPortable;
-        /// Maps the allocation into the CUDA address space for device access.
-        const MAPPED = runtime::cudaHostAllocMapped;
-        /// Uses write-combined host memory, suited to CPU writes followed by device reads.
-        const WRITE_COMBINED = runtime::cudaHostAllocWriteCombined;
-    }
-}
-
-impl Display for HostAllocationFlags {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        parser::to_writer(self, f)
     }
 }
 
@@ -946,122 +929,6 @@ impl Drop for HostRegistration {
     }
 }
 
-/// Retains a CUDA pinned host allocation independently of its typed buffer.
-///
-/// Raw host and mapped device addresses require externally established validity and access ordering.
-#[derive(Debug)]
-pub struct PinnedAllocation {
-    context: Arc<Context>,
-    id: AllocationId,
-    ptr: *mut u8,
-    bytes: usize,
-    flags: HostAllocationFlags,
-}
-
-// SAFETY: only raw addresses and immutable metadata are exposed.
-// Typed borrows or unsafe caller contracts govern all host and device accesses.
-unsafe impl Send for PinnedAllocation {}
-
-unsafe impl Sync for PinnedAllocation {}
-
-impl PinnedAllocation {
-    /// Describes the full host allocation without requiring a device mapping.
-    #[must_use]
-    pub fn host_region(&self) -> HostRegion<'_> {
-        // SAFETY: this owner retains the complete allocation and original flags.
-        unsafe {
-            HostRegion::from_raw_parts(
-                &self.context,
-                self.id,
-                self.bytes,
-                self.flags.contains(HostAllocationFlags::PORTABLE),
-            )
-        }
-    }
-
-    /// Returns the identity shared by host and mapped device views.
-    #[must_use]
-    pub const fn id(&self) -> AllocationId {
-        self.id
-    }
-
-    /// Returns the allocation's CUDA context.
-    #[must_use]
-    pub fn context(&self) -> &Arc<Context> {
-        &self.context
-    }
-
-    /// Returns the original host address, or null for an empty allocation.
-    #[must_use]
-    pub const fn as_ptr(&self) -> *mut u8 {
-        self.ptr
-    }
-
-    /// Returns the full allocation size independent of any initialized prefix.
-    #[must_use]
-    pub const fn byte_len(&self) -> usize {
-        self.bytes
-    }
-
-    /// Returns the allocation flags.
-    #[must_use]
-    pub const fn flags(&self) -> HostAllocationFlags {
-        self.flags
-    }
-
-    /// Returns the mapped device address in the retained context.
-    ///
-    /// # Errors
-    ///
-    /// Propagates context-binding and CUDA host-to-device mapping query errors, including memory that is not mapped for this context.
-    pub fn mapped_device_ptr(&self) -> Result<DevicePtr> {
-        self.context.bind()?;
-        if self.bytes == 0 {
-            // SAFETY: a null address is always a valid `DevicePtr`.
-            return Ok(unsafe { DevicePtr::from_raw(ptr::null_mut()) });
-        }
-        mapped_host_device_ptr(self.ptr.cast())
-    }
-
-    /// Describes the full mapped allocation without asserting element initialization.
-    ///
-    /// # Errors
-    ///
-    /// Propagates mapping-query errors and rejects a nonempty null mapping or an ending address that overflows `usize`.
-    pub fn mapped_device_region(&self) -> Result<DeviceRegion<'_>> {
-        let pointer = self.mapped_device_ptr()?;
-        // SAFETY: the owner retains the allocation and the CUDA mapping's context.
-        unsafe { DeviceRegion::from_raw_parts(&self.context, self.id, pointer.cast(), self.bytes) }
-    }
-}
-
-impl Drop for PinnedAllocation {
-    fn drop(&mut self) {
-        if self.ptr.is_null() {
-            return;
-        }
-        if let Err(error) = self
-            .context
-            .bind()
-            // SAFETY: `self.ptr` came from the matching host allocation and is freed exactly once, in `Drop`.
-            .and_then(|()| unsafe { free_host_raw(self.ptr.cast()) })
-        {
-            eprintln!(
-                "failed to free cuda pinned allocation: {}",
-                singe_core::ErrorChain(&error)
-            );
-        }
-    }
-}
-
-/// Owned typed CUDA page-locked host memory.
-#[derive(Debug)]
-pub struct PinnedHostMemory<T: DeviceRepr> {
-    allocation: Arc<PinnedAllocation>,
-    ptr: NonNull<T>,
-    length: usize,
-}
-
 /// Mutable borrowed host memory registered with CUDA for the registration lifetime.
 #[derive(Debug)]
 pub struct RegisteredHostMemory<'a, T: DeviceRepr> {
@@ -1256,12 +1123,8 @@ unsafe impl<T: DeviceRepr + Send> Send for ManagedMemory<T> {}
 unsafe impl<T: DeviceRepr + Sync> Sync for ManagedMemory<T> {}
 
 // SAFETY: host wrappers own or borrow their storage like `Vec<T>`, `&mut [T]` and `&[T]`,
-// so they carry the same bounds on `T`. Pinned allocations and registrations can be
-// released from any thread.
-unsafe impl<T: DeviceRepr + Send> Send for PinnedHostMemory<T> {}
-
-unsafe impl<T: DeviceRepr + Sync> Sync for PinnedHostMemory<T> {}
-
+// so they carry the same bounds on `T`. Registrations can be released from any
+// thread.
 #[expect(
     clippy::non_send_fields_in_send_ty,
     reason = "raw host pointers follow the owned or borrowed storage bounds explained above"
@@ -1281,51 +1144,6 @@ unsafe impl<T: DeviceRepr + Sync> Sync for RegisteredHostSlice<'_, T> {}
 unsafe impl<T: DeviceRepr + Send> Send for RegisteredHostVec<T> {}
 
 unsafe impl<T: DeviceRepr + Sync> Sync for RegisteredHostVec<T> {}
-
-unsafe impl<T: DeviceRepr> HostSlice<T> for PinnedHostMemory<T> {
-    fn as_host_ptr(&self) -> *const T {
-        self.as_ptr()
-    }
-
-    fn len(&self) -> usize {
-        self.len()
-    }
-}
-
-unsafe impl<T: DeviceRepr> HostSliceMut<T> for PinnedHostMemory<T> {
-    fn as_host_mut_ptr(&mut self) -> *mut T {
-        self.as_mut_ptr()
-    }
-}
-
-unsafe impl ByteBuffer for PinnedHostMemory<u8> {
-    fn as_byte_ptr(&self) -> *const u8 {
-        self.as_ptr()
-    }
-
-    fn byte_len(&self) -> usize {
-        self.length
-    }
-}
-
-unsafe impl ByteBufferMut for PinnedHostMemory<u8> {
-    fn as_byte_mut_ptr(&mut self) -> *mut u8 {
-        self.as_mut_ptr()
-    }
-}
-
-unsafe impl<T: DeviceRepr> CudaHostSlice<T> for PinnedHostMemory<T> {
-    fn host_region(&self) -> HostRegion<'_> {
-        self.allocation
-            .host_region()
-            .slice(..self.byte_len().expect("valid host slice length"))
-            .expect("host slice fits its allocation")
-    }
-}
-
-unsafe impl<T: DeviceRepr> PinnedHostSlice<T> for PinnedHostMemory<T> {}
-
-unsafe impl<T: DeviceRepr> PinnedHostSliceMut<T> for PinnedHostMemory<T> {}
 
 unsafe impl<T: DeviceRepr> HostSlice<T> for RegisteredHostMemory<'_, T> {
     fn as_host_ptr(&self) -> *const T {
@@ -1586,31 +1404,6 @@ fn dangling_or_non_null<T>(ptr: *mut T, len: usize) -> Result<NonNull<T>> {
     } else {
         NonNull::new(ptr).ok_or(Error::NullHandle)
     }
-}
-
-unsafe fn alloc_host_raw(size: usize) -> Result<*mut ()> {
-    let mut ptr = ptr::null_mut();
-    // SAFETY: `cudaMallocHost` receives valid output locations.
-    unsafe {
-        try_ffi!(runtime::cudaMallocHost(
-            &raw mut ptr,
-            size as runtime::size_t
-        ))?;
-    }
-    Ok(ptr.cast())
-}
-
-unsafe fn alloc_pinned_raw(size: usize, flags: HostAllocationFlags) -> Result<*mut ()> {
-    let mut ptr = ptr::null_mut();
-    // SAFETY: `cudaHostAlloc` receives valid output locations.
-    unsafe {
-        try_ffi!(runtime::cudaHostAlloc(
-            &raw mut ptr,
-            size as _,
-            flags.bits()
-        ))?;
-    }
-    Ok(ptr.cast())
 }
 
 unsafe fn free_host_raw(ptr: *mut ()) -> Result<()> {

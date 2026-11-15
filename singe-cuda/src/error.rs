@@ -488,6 +488,12 @@ pub enum Error {
     /// The requested memory extent cannot be allocated or represented by the allocation calculation.
     #[error("invalid memory allocation request")]
     InvalidMemoryAllocationRequest,
+    /// A pinned host allocation needs an alignment above 4096 bytes, or CUDA returned a chunk that is not page-aligned.
+    #[error("pinned host memory cannot align to {align} bytes")]
+    UnsupportedPinnedAlignment {
+        /// Alignment in bytes that the pool cannot give.
+        align: usize,
+    },
     /// Another owner still retains the allocation, preventing exclusive ownership transfer or release.
     #[error("allocation is still retained by another owner")]
     AllocationInUse,

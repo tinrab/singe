@@ -6,11 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use singe_cuda::{
-    context::Context,
-    memory::{HostAllocationFlags, PinnedHostMemory},
-    stream::StreamBinding,
-};
+use singe_cuda::{context::Context, memory::PinnedVec, stream::StreamBinding};
 use singe_cufile_sys as sys;
 
 use crate::{
@@ -106,13 +102,13 @@ struct AsyncIoState {
 
 #[derive(Debug)]
 struct HostStatus {
-    memory: PinnedHostMemory<i64>,
+    memory: PinnedVec<i64>,
 }
 
 impl HostStatus {
     fn create(context: &Arc<Context>) -> Result<Self> {
         Ok(Self {
-            memory: PinnedHostMemory::zeroed(context, 1, HostAllocationFlags::DEFAULT)?,
+            memory: context.pinned_host().zeroed(1)?,
         })
     }
 
@@ -121,7 +117,7 @@ impl HostStatus {
     }
 
     fn get(&self) -> i64 {
-        self.memory.as_slice()[0]
+        self.memory[0]
     }
 }
 

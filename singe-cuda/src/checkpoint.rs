@@ -17,7 +17,7 @@ use crate::{
     device::{Device, Uuid},
     driver::entry_points::{cuCheckpointOperationComplete, ensure_supported},
     error::{Error, Result, Status},
-    memory::{HostAllocationFlags, PinnedHostMemory},
+    memory::PinnedVec,
     try_ffi,
     types::DevicePtr,
 };
@@ -684,25 +684,24 @@ impl StorageRegion<'_> {
 
         let context = self.context()?;
         context.bind()?;
-        let mut pinned = PinnedHostMemory::<u8>::create_uninit(
-            context,
-            destination.len(),
-            HostAllocationFlags::DEFAULT,
-        )?;
-        // SAFETY: `cuMemcpyDtoHAsync`, `cuStreamSynchronize` receive live handles owned by the wrappers and pointers that stay valid for each call.
+        let mut pinned = context
+            .pinned_host()
+            .with_capacity::<u8>(destination.len())?;
+        // SAFETY: `cuMemcpyDtoHAsync` receives live handles owned by the wrappers and a staging buffer of `size` bytes.
         unsafe {
             try_ffi!(driver::cuMemcpyDtoHAsync(
-                pinned.as_slice_mut().as_mut_ptr().cast(),
+                pinned.as_mut_ptr().cast(),
                 self.raw.devPtr,
                 self.raw.size,
                 self.raw.stream
             ))?;
-            try_ffi!(driver::cuStreamSynchronize(self.raw.stream))?;
         }
 
-        // SAFETY: the successful transfer initialized the entire byte buffer and completed.
-        let pinned = unsafe { pinned.assume_init() };
-        destination.copy_from_slice(pinned.as_slice());
+        let mut pinned = self.synchronize_holding(pinned)?;
+
+        // SAFETY: the successful transfer initialized the entire capacity and completed.
+        unsafe { pinned.set_len(destination.len()) };
+        destination.copy_from_slice(&pinned);
         Ok(())
     }
 
@@ -719,17 +718,28 @@ impl StorageRegion<'_> {
 
         let context = self.context()?;
         context.bind()?;
-        let pinned = PinnedHostMemory::from_slice(context, source)?;
-        // SAFETY: `cuMemcpyHtoDAsync`, `cuStreamSynchronize` receive live handles owned by the wrappers and pointers that stay valid for each call.
+        let pinned = context.pinned_host().from_slice(source)?;
+        // SAFETY: `cuMemcpyHtoDAsync` receives live handles owned by the wrappers and a staging buffer of `size` bytes.
         unsafe {
             try_ffi!(driver::cuMemcpyHtoDAsync(
                 self.raw.devPtr,
-                pinned.as_slice().as_ptr().cast(),
+                pinned.as_ptr().cast(),
                 self.raw.size,
                 self.raw.stream
             ))?;
-            try_ffi!(driver::cuStreamSynchronize(self.raw.stream))
         }
+
+        self.synchronize_holding(pinned).map(drop)
+    }
+
+    fn synchronize_holding(&self, staging: PinnedVec<u8>) -> Result<PinnedVec<u8>> {
+        // SAFETY: `cuStreamSynchronize` receives the live stream owned by this operation.
+        if let Err(error) = unsafe { try_ffi!(driver::cuStreamSynchronize(self.raw.stream)) } {
+            // The copy may still use the staging, so it never returns to the pool.
+            mem::forget(staging);
+            return Err(error);
+        }
+        Ok(staging)
     }
 }
 

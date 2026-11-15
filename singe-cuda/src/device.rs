@@ -501,7 +501,7 @@ impl Device {
     /// Explicitly destroys and cleans up all resources associated with the current device in the current process.
     /// Accessing these resources or passing them to subsequent API calls after reset results in undefined behavior.
     /// These resources include streams, events, arrays, mipmapped arrays, pitched allocations, texture and surface objects, external memory and semaphore objects, and graphics resources owned by the current device state.
-    /// These resources also include memory allocations by [`DeviceMemory::alloc`](crate::memory::DeviceMemory::alloc), [`PinnedHostMemory`](crate::memory::PinnedHostMemory), [`DeviceMemory::alloc_managed`](crate::memory::DeviceMemory::alloc_managed), and [`PitchedDeviceMemory`](crate::memory::PitchedDeviceMemory).
+    /// These resources also include memory allocations by [`DeviceMemory::alloc`](crate::memory::DeviceMemory::alloc), [`PinnedHost`](crate::memory::PinnedHost), [`DeviceMemory::alloc_managed`](crate::memory::DeviceMemory::alloc_managed), and [`PitchedDeviceMemory`](crate::memory::PitchedDeviceMemory).
     /// Any subsequent call to this device reinitializes it.
     ///
     /// This call resets the device immediately.

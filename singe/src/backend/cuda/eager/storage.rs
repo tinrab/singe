@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use singe_cuda::memory::{HostAllocationFlags, PinnedHostMemory, peer::PeerCopy, transfer};
+use singe_cuda::memory::{peer::PeerCopy, transfer};
 
 use crate::{
     backend::{
@@ -16,7 +16,7 @@ use crate::{
     device::Device,
     error::{Error, Result},
     shape::Shape,
-    storage::cpu::CpuStorage,
+    storage::cpu::{CpuStorage, buffer::PinnedBytes},
     tensor::Tensor,
     utility::{Locked, checked_mul},
 };
@@ -210,12 +210,8 @@ pub fn pinned_tensor(data_type: DataType, shape: &Shape, data: &[u8]) -> Result<
     }
 
     let context = cuda::execution_context(Device::Cuda(0))?;
-    let memory = PinnedHostMemory::from_slice_with_flags(
-        context.runtime().context(),
-        data,
-        HostAllocationFlags::PORTABLE,
-    )?;
-    let storage = CpuStorage::create_pinned(data_type, memory)?;
+    let bytes = PinnedBytes::copied(&context.runtime().context().pinned_host(), data)?;
+    let storage = CpuStorage::create_pinned(data_type, bytes)?;
     // SAFETY: the storage holds exactly the validated bytes of this shape and data type.
     Ok(unsafe { Tensor::from_parts_unchecked(storage, data_type, shape.clone()) })
 }

@@ -85,6 +85,9 @@ fn clear_blocks(cache: &CudaCachingAllocatorCache) -> Result<()> {
     // CUDA destruction may wait for GPU work.
     // Release host cache locks first.
     drop(blocks);
+    if let Some(context) = cache.context.upgrade() {
+        context.pinned_host().release_cached()?;
+    }
 
     Ok(())
 }

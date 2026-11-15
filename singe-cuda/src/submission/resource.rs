@@ -3,7 +3,7 @@ use std::{any::Any, fmt, ops::Range, sync::Arc};
 use crate::{
     context::Context,
     error::{Error, Result},
-    memory::{CudaHostSlice, PinnedHostMemory},
+    memory::PinnedVec,
     stream::Stream,
     submission::Completion,
     view::{
@@ -150,10 +150,20 @@ impl Resources {
         self.retain(region.into_owner());
     }
 
-    /// Retains pinned staging and declares its host byte range without requiring a device mapping.
-    pub fn retain_pinned<T: DeviceRepr>(&mut self, memory: &PinnedHostMemory<T>, mode: AccessMode) {
-        self.host_access(memory.host_region(), mode);
-        self.retain(Arc::clone(memory.allocation()));
+    /// Retains a pinned buffer and declares its whole capacity as a host access, so work may write past its length.
+    pub fn retain_pinned<T: DeviceRepr + Send + Sync>(
+        &mut self,
+        buffer: &Arc<PinnedVec<T>>,
+        mode: AccessMode,
+    ) {
+        let bytes = buffer.capacity() * size_of::<T>();
+        self.host_access(
+            buffer
+                .allocator()
+                .host_region(buffer.as_ptr().cast(), bytes),
+            mode,
+        );
+        self.retain(Arc::clone(buffer));
     }
 
     /// Declares an access to a resource such as an array that has no linear device pointer.

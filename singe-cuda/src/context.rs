@@ -17,6 +17,7 @@ use crate::{
     graph::Graph,
     jit::JitOptions,
     library::Library,
+    memory::PinnedPool,
     module::{Module, ModuleImage, artifact::ArtifactMetadata},
     nvrtc::{self, CompilationArtifact, OutputKind},
     submission::{Access, AccessGuard, AccessMode, AccessTracker, lock_access},
@@ -88,6 +89,7 @@ pub struct Context {
     device: Device,
     ownership: RawContextOwnership,
     pub(crate) access_tracker: Arc<Mutex<AccessTracker>>,
+    pub(crate) pinned: PinnedPool,
 }
 
 /// Native release responsibility, including a retained external ownership token.
@@ -293,6 +295,7 @@ impl Context {
                 device,
                 ownership: RawContextOwnership::Created,
                 access_tracker: AccessTracker::for_context(handle as usize)?,
+                pinned: PinnedPool::default(),
             }))
         }
     }
@@ -328,6 +331,7 @@ impl Context {
                 device,
                 ownership: RawContextOwnership::Primary,
                 access_tracker: AccessTracker::for_context(handle as usize)?,
+                pinned: PinnedPool::default(),
             }))
         }
     }
@@ -764,6 +768,7 @@ impl Context {
             device,
             ownership,
             access_tracker: AccessTracker::for_context(handle as usize)?,
+            pinned: PinnedPool::default(),
         }))
     }
 
@@ -773,6 +778,7 @@ impl Context {
     /// For borrowed contexts, keep the returned external token live while using the raw handle.
     #[must_use]
     pub fn into_raw_parts(mut self) -> (driver::CUcontext, Device, RawContextOwnership) {
+        self.release_pinned();
         let handle = mem::replace(&mut self.handle, ptr::null_mut());
         (handle, self.device, self.ownership.clone())
     }
@@ -786,11 +792,25 @@ unsafe impl Send for Context {}
 
 unsafe impl Sync for Context {}
 
+impl Context {
+    fn release_pinned(&self) {
+        if let Err(error) = self.pinned.release_all(self) {
+            eprintln!(
+                "failed to free cuda pinned host memory: {}",
+                singe_core::ErrorChain(&error)
+            );
+        }
+    }
+}
+
 impl Drop for Context {
     fn drop(&mut self) {
         if self.handle.is_null() {
             return;
         }
+
+        // Fields drop after this body, and pinned chunks must go before the native context.
+        self.release_pinned();
         // SAFETY: `cuCtxDestroy_v2`, `cuDevicePrimaryCtxRelease_v2` receive live handles owned by the wrappers.
         unsafe {
             let result = match &self.ownership {

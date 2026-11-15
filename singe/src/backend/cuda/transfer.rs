@@ -1,6 +1,6 @@
 //! Non-blocking copies between page-locked host tensors and CUDA tensors.
 
-use std::sync::Arc;
+use std::{mem, sync::Arc};
 
 use singe_core::ErrorChain;
 use singe_cuda::{
@@ -185,10 +185,17 @@ impl CudaTransfer {
         ready.record(context.stream())?;
         ready.wait(stream)?;
 
+        let event = CudaEvent::create(stream.device(), EventTiming::Disabled)?;
         // SAFETY: both ranges hold `bytes` contiguous bytes of exclusively owned tensors, which the transfer retains until the copy completes; `Drop` waits for an unfinished copy.
         unsafe { DeviceMemory::<u8>::copy_async(target, origin, bytes, kind, stream.raw())? };
-        let event = CudaEvent::create(stream.device(), EventTiming::Disabled)?;
-        event.record(stream)?;
+        if let Err(error) = event.record(stream) {
+            // The copy may still use both tensors, whose memory returns for reuse on drop.
+            if stream.synchronize().is_err() {
+                mem::forget((source, destination));
+            }
+            return Err(error);
+        }
+
         Ok(Self {
             event,
             pending: Some(Pending {

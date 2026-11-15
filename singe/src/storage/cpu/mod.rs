@@ -9,11 +9,10 @@ use std::{
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-#[cfg(feature = "cuda")]
-use singe_cuda::memory::PinnedHostMemory;
-
 #[cfg(feature = "testing")]
 pub use self::profiling::CpuStorageCopyStats;
+#[cfg(feature = "cuda")]
+use crate::storage::cpu::buffer::PinnedBytes;
 use crate::{
     activity,
     data_type::DataType,
@@ -22,7 +21,7 @@ use crate::{
     observation::check_storage_readback,
     storage::{
         StorageVersion,
-        cpu::buffer::{CpuBuffer, HostBytes},
+        cpu::buffer::{CpuBuffer, HeapBytes},
     },
     tensor::{TensorDataType, validate_boolean_bytes},
 };
@@ -52,7 +51,7 @@ impl CpuStorage {
 
     /// Takes ownership of `values` without copying them.
     pub(crate) fn from_values<T: Copy>(values: Vec<T>) -> Self {
-        Self::from_buffer(CpuBuffer::Heap(HostBytes::from_vec(values)))
+        Self::from_buffer(CpuBuffer::Heap(HeapBytes::from_vec(values)))
     }
 
     /// Allocates zero-filled CPU storage for `element_count` elements of `data_type`.
@@ -108,10 +107,11 @@ impl CpuStorage {
     ///
     /// Returns an error if the byte length is not a whole number of elements or a boolean byte is neither 0 nor 1.
     #[cfg(feature = "cuda")]
-    pub fn create_pinned(data_type: DataType, bytes: PinnedHostMemory<u8>) -> Result<Self> {
-        validate_elements(data_type, bytes.as_slice(), "cpu pinned storage bytes")?;
+    pub(crate) fn create_pinned(data_type: DataType, bytes: PinnedBytes) -> Result<Self> {
+        let buffer = CpuBuffer::Pinned(bytes);
+        validate_elements(data_type, buffer.as_bytes(), "cpu pinned storage bytes")?;
         activity::storage_request();
-        Ok(Self::wrap(CpuBuffer::Pinned(bytes)))
+        Ok(Self::wrap(buffer))
     }
 
     /// Returns whether the allocation is page-locked, so CUDA copies read and write it directly.

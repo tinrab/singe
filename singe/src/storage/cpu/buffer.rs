@@ -6,7 +6,10 @@ use std::{
 };
 
 #[cfg(feature = "cuda")]
-use singe_cuda::memory::PinnedHostMemory;
+use singe_cuda::memory::{PinnedHost, PinnedVec};
+
+#[cfg(feature = "cuda")]
+use crate::error::Result;
 
 /// Allocation unit for zero-filled and copied host bytes, aligned for every tensor element type.
 #[derive(Clone, Copy)]
@@ -14,20 +17,20 @@ use singe_cuda::memory::PinnedHostMemory;
 struct Block([u8; 64]);
 
 /// Owned host bytes from a vector of any element type, freed as that vector.
-pub struct HostBytes {
+pub struct HeapBytes {
     pointer: NonNull<u8>,
     length: usize,
     capacity: usize,
     free: unsafe fn(NonNull<u8>, usize),
 }
 
-// SAFETY: `HostBytes` uniquely owns its allocation, like the `Vec` it came from.
-unsafe impl Send for HostBytes {}
+// SAFETY: `HeapBytes` uniquely owns its allocation, like the `Vec` it came from.
+unsafe impl Send for HeapBytes {}
 
 // SAFETY: shared access only reads the bytes.
-unsafe impl Sync for HostBytes {}
+unsafe impl Sync for HeapBytes {}
 
-impl HostBytes {
+impl HeapBytes {
     /// Adopts `values` without copying; the bytes are `values` in native-endian order.
     pub fn from_vec<T: Copy>(values: Vec<T>) -> Self {
         let mut values = ManuallyDrop::new(values);
@@ -67,10 +70,41 @@ impl HostBytes {
     }
 }
 
-impl Drop for HostBytes {
+impl Drop for HeapBytes {
     fn drop(&mut self) {
         // SAFETY: `free` is the deallocator of the vector this allocation came from.
         unsafe { (self.free)(self.pointer, self.capacity) }
+    }
+}
+
+#[cfg(feature = "cuda")]
+pub struct PinnedBytes {
+    blocks: PinnedVec<Block>,
+    length: usize,
+}
+
+#[cfg(feature = "cuda")]
+impl PinnedBytes {
+    pub fn copied(pinned: &PinnedHost, data: &[u8]) -> Result<Self> {
+        let count = data.len().div_ceil(size_of::<Block>());
+        let mut blocks = pinned.with_capacity(count)?;
+        blocks.resize(count, Block([0; 64]));
+        let mut bytes = Self {
+            blocks,
+            length: data.len(),
+        };
+        bytes.as_bytes_mut().copy_from_slice(data);
+        Ok(bytes)
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        // SAFETY: the blocks hold at least `length` initialized bytes.
+        unsafe { slice::from_raw_parts(self.blocks.as_ptr().cast::<u8>(), self.length) }
+    }
+
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        // SAFETY: the blocks hold at least `length` initialized bytes, borrowed uniquely here.
+        unsafe { slice::from_raw_parts_mut(self.blocks.as_mut_ptr().cast::<u8>(), self.length) }
     }
 }
 
@@ -87,10 +121,10 @@ unsafe fn free_vec<T>(pointer: NonNull<u8>, capacity: usize) {
 
 /// Untyped host bytes behind a CPU allocation.
 pub enum CpuBuffer {
-    Heap(HostBytes),
+    Heap(HeapBytes),
     /// Page-locked bytes that CUDA copies read and write without staging.
     #[cfg(feature = "cuda")]
-    Pinned(PinnedHostMemory<u8>),
+    Pinned(PinnedBytes),
 }
 
 impl Debug for CpuBuffer {
@@ -112,18 +146,18 @@ impl Clone for CpuBuffer {
 
 impl CpuBuffer {
     pub fn zeroed(length: usize) -> Self {
-        Self::Heap(HostBytes::zeroed(length))
+        Self::Heap(HeapBytes::zeroed(length))
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self::Heap(HostBytes::copied(bytes))
+        Self::Heap(HeapBytes::copied(bytes))
     }
 
     pub fn allocation_byte_size(&self) -> usize {
         match self {
             Self::Heap(bytes) => bytes.capacity,
             #[cfg(feature = "cuda")]
-            Self::Pinned(bytes) => bytes.len(),
+            Self::Pinned(bytes) => bytes.blocks.capacity() * size_of::<Block>(),
         }
     }
 
@@ -131,7 +165,7 @@ impl CpuBuffer {
         match self {
             Self::Heap(bytes) => bytes.as_bytes(),
             #[cfg(feature = "cuda")]
-            Self::Pinned(bytes) => bytes.as_slice(),
+            Self::Pinned(bytes) => bytes.as_bytes(),
         }
     }
 
@@ -139,7 +173,7 @@ impl CpuBuffer {
         match self {
             Self::Heap(bytes) => bytes.as_bytes_mut(),
             #[cfg(feature = "cuda")]
-            Self::Pinned(bytes) => bytes.as_slice_mut(),
+            Self::Pinned(bytes) => bytes.as_bytes_mut(),
         }
     }
 
