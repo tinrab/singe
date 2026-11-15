@@ -32,7 +32,7 @@ use singe_cuda_sys::{
 
 pub(crate) use self::pinned::PinnedPool;
 pub use self::{
-    pinned::{PinnedHost, PinnedStats, PinnedVec},
+    pinned::{MappedPinned, PinnedHost, PinnedStats, PinnedVec},
     pool::MemoryPoolUsage,
 };
 use crate::{

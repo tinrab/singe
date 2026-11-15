@@ -159,6 +159,31 @@ fn test_pinned_layouts() -> Result<()> {
         Err(Error::UnsupportedPinnedAlignment { align: 8192 })
     ));
 
+    let mut values = pinned.from_slice(&[1_u32, 2, 3])?;
+    let block = values.as_ptr();
+    values.extend([4, 5, 6, 7, 8]);
+    assert_eq!(values.as_ptr(), block);
+    values.truncate(2);
+    values.shrink_to_fit();
+    assert_eq!(values.as_ptr(), block);
+    assert_eq!(values, [1, 2]);
+    values.extend(0..1024);
+    assert_ne!(values.as_ptr(), block);
+    assert_eq!(values[..3], [1, 2, 0]);
+
+    Ok(())
+}
+
+#[test]
+fn test_pinned_vec_mapped_device_view() -> Result<()> {
+    let (_lock, context) = testing::bootstrap()?;
+    let device = DeviceMemory::from_slice(&context, &[3_i32, 4, 5])?;
+    let mut host = context.pinned_host().zeroed::<i32>(3)?;
+
+    transfer::copy_device(&mut host.mapped_device_view_mut()?, &device)?;
+    assert_eq!(host, [3, 4, 5]);
+    assert_eq!(host.mapped_device_view()?.len(), 3);
+
     Ok(())
 }
 

@@ -239,11 +239,15 @@ device.copy_to_pinned(&mut output)?;
 assert_eq!(output, input);
 ```
 
-A `PinnedVec` is an ordinary `Vec` otherwise, and you can index, iterate, and push to it.
+A `PinnedVec` is an ordinary `Vec` otherwise.
 Dropping one returns its memory to the pool without a CUDA call, so short-lived buffers are cheap, and `release_cached` gives memory nothing uses back to CUDA.
 A `Vec` that fails to grow aborts the process, as with any allocator.
 `with_capacity`, `from_slice`, and `zeroed` return an error instead, so use them when the size is known up front.
 The pool does not know which buffers queued GPU work still uses, so keep a buffer alive until that work finishes; `sync_scope` and submissions do this for you.
+
+The pool's memory is also mapped into the device's address space.
+`MappedPinned::mapped_device_view` and `mapped_device_view_mut` give a kernel or copy direct access to a `PinnedVec`, with no copy to device memory first.
+Every such access crosses the bus, so a view suits data the device touches once, such as a few values a kernel reports back.
 
 See [`pinned_memory`](examples/pinned_memory.rs) for the complete example.
 

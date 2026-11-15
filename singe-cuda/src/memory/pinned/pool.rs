@@ -12,9 +12,9 @@ use singe_cuda_sys::runtime;
 use crate::{
     context::Context,
     error::{Error, Result},
-    memory::free_host_raw,
+    memory::{free_host_raw, mapped_host_device_ptr},
     try_ffi,
-    view::{AllocationId, HostRegion},
+    view::{AllocationId, DeviceRegion, HostRegion},
 };
 
 const SMALLEST_BLOCK: usize = 256;
@@ -162,6 +162,32 @@ impl PinnedPool {
             .expect("pinned block lies inside its chunk")
     }
 
+    pub(crate) fn device_region<'a>(
+        &self,
+        context: &'a Arc<Context>,
+        pointer: *const u8,
+        bytes: usize,
+    ) -> Result<DeviceRegion<'a>> {
+        let chunk = self
+            .lock()
+            .chunk_holding(pointer.addr())
+            .map(|chunk| (chunk.id, chunk.bytes, chunk.base));
+        let Some((id, chunk_bytes, base)) = chunk else {
+            // SAFETY: an empty range has no bytes for any alias to share.
+            return unsafe {
+                DeviceRegion::from_raw_parts(context, AllocationId::create(), ptr::null_mut(), 0)
+            };
+        };
+
+        // Asked per view, so a device that cannot map host memory fails here, not on every allocation.
+        context.bind()?;
+        let device = mapped_host_device_ptr(base.as_ptr().cast())?;
+        let offset = pointer.addr() - base.addr().get();
+        // SAFETY: the chunk stays allocated and mapped while the context lives, and its device alias shares the host region's identity.
+        unsafe { DeviceRegion::from_raw_parts(context, id, device.as_raw().cast(), chunk_bytes)? }
+            .slice(offset..offset + bytes)
+    }
+
     fn lock(&self) -> MutexGuard<'_, PoolState> {
         // A panic elsewhere must not make `deallocate` unwind, and the state stays consistent at every unlock.
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
@@ -279,6 +305,10 @@ fn free_chunks(chunks: Vec<Chunk>) -> Result<()> {
         }
     }
     result
+}
+
+pub fn same_class(first: Layout, second: Layout) -> bool {
+    matches!((class(first), class(second)), (Ok(first), Ok(second)) if first == second)
 }
 
 fn class(layout: Layout) -> Result<usize> {

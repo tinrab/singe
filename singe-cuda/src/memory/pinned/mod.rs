@@ -10,11 +10,15 @@ use std::{
     sync::Arc,
 };
 
-pub use self::pool::{PinnedPool, PinnedStats};
+use self::pool::same_class;
+pub use self::{
+    pool::{PinnedPool, PinnedStats},
+    slice::MappedPinned,
+};
 use crate::{
     context::Context,
     error::{Error, Result},
-    view::{HostRegion, ZeroableDeviceRepr},
+    view::{DeviceRegion, HostRegion, ZeroableDeviceRepr},
 };
 
 /// An allocator for page-locked host memory, drawn from a pool its CUDA context owns.
@@ -127,6 +131,50 @@ impl PinnedHost {
         self.0.pinned.host_region(&self.0, pointer, bytes)
     }
 
+    pub(crate) fn device_region(
+        &self,
+        pointer: *const u8,
+        bytes: usize,
+    ) -> Result<DeviceRegion<'_>> {
+        self.0.pinned.device_region(&self.0, pointer, bytes)
+    }
+
+    // SAFETY: the caller upholds `Allocator::grow`'s contract for `block`, `old`, and `new`, whichever direction the size moves.
+    unsafe fn resize(
+        &self,
+        block: NonNull<u8>,
+        old: Layout,
+        new: Layout,
+        zeroed: bool,
+    ) -> StdResult<NonNull<[u8]>, AllocError> {
+        // A block keeps serving a layout of its own class, and `deallocate` with the new layout finds that class.
+        if old.size() != 0 && new.size() != 0 && same_class(old, new) {
+            if zeroed && new.size() > old.size() {
+                // SAFETY: the block's class covers `new.size()` bytes.
+                unsafe {
+                    ptr::write_bytes(block.add(old.size()).as_ptr(), 0, new.size() - old.size());
+                };
+            }
+            return Ok(NonNull::slice_from_raw_parts(block, new.size()));
+        }
+
+        let moved = if zeroed {
+            self.allocate_zeroed(new)?
+        } else {
+            self.allocate(new)?
+        };
+        // SAFETY: both blocks hold at least the smaller size, and distinct live blocks never overlap.
+        unsafe {
+            ptr::copy_nonoverlapping(
+                block.as_ptr(),
+                moved.cast::<u8>().as_ptr(),
+                old.size().min(new.size()),
+            );
+            self.deallocate(block, old);
+        }
+        Ok(moved)
+    }
+
     fn allocate_block(&self, layout: Layout) -> Result<NonNull<u8>> {
         if layout.size() == 0 {
             return NonNull::new(ptr::without_provenance_mut(layout.align()))
@@ -140,6 +188,7 @@ impl PinnedHost {
 // Blocks are disjoint pieces of page-locked host allocations, and the pool neither reads them nor unwinds.
 /// Allocates blocks from the context's pool.
 /// A zero-sized layout takes no memory.
+/// Growing or shrinking keeps a block in place while the new layout falls in the block's size class.
 unsafe impl Allocator for PinnedHost {
     fn allocate(&self, layout: Layout) -> StdResult<NonNull<[u8]>, AllocError> {
         let block = self.allocate_block(layout).map_err(|_| AllocError)?;
@@ -150,5 +199,35 @@ unsafe impl Allocator for PinnedHost {
         if layout.size() != 0 {
             self.0.pinned.deallocate(block, layout);
         }
+    }
+
+    unsafe fn grow(
+        &self,
+        block: NonNull<u8>,
+        old: Layout,
+        new: Layout,
+    ) -> StdResult<NonNull<[u8]>, AllocError> {
+        // SAFETY: the caller upholds `grow`'s contract.
+        unsafe { self.resize(block, old, new, false) }
+    }
+
+    unsafe fn grow_zeroed(
+        &self,
+        block: NonNull<u8>,
+        old: Layout,
+        new: Layout,
+    ) -> StdResult<NonNull<[u8]>, AllocError> {
+        // SAFETY: the caller upholds `grow_zeroed`'s contract.
+        unsafe { self.resize(block, old, new, true) }
+    }
+
+    unsafe fn shrink(
+        &self,
+        block: NonNull<u8>,
+        old: Layout,
+        new: Layout,
+    ) -> StdResult<NonNull<[u8]>, AllocError> {
+        // SAFETY: the caller upholds `shrink`'s contract.
+        unsafe { self.resize(block, old, new, false) }
     }
 }
