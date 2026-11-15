@@ -10,7 +10,9 @@ mod library;
 mod measure;
 mod plan;
 mod records;
+mod reference;
 mod report;
+mod small_graph;
 mod tune;
 
 pub use self::{

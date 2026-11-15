@@ -54,7 +54,6 @@ num-traits.workspace = true
 num_enum.workspace = true
 half.workspace = true
 libm.workspace = true
-rand.workspace = true
 libloading = { workspace = true, optional = true }
 rayon.workspace = true
 safetensors.workspace = true

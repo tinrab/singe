@@ -22,6 +22,8 @@ pub enum FailureStage {
     ReadBack,
 }
 
+pub type Attempt<T, E = CandidateFailure> = Result<T, E>;
+
 // Why a candidate has no time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CandidateFailure {

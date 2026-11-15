@@ -14,23 +14,13 @@ use crate::{
     utility::emit,
 };
 
-// What a decoder step reads besides the caches it carries from one step to the next, as `DecodeStep` names them, which the loop's `Step` holds under the same names.
-const STEP_INPUTS: [&str; 11] = [
-    "tokens",
-    "positions",
-    "write_pages",
-    "write_slots",
-    "query_offsets",
-    "page_offsets",
-    "pages",
-    "last_page_lengths",
-    "last_rows",
-    "real_tokens",
-    "sequence_ids",
-];
+// What a decoder step reads besides its caches, one packed tensor, which the loop's `pack` writes from its `Step` in `PACKED_ORDER`.
+const STEP_INPUT: &str = "step";
 
 // Where a choosing step reads which rows choose their sequence's first token.
 const FIRST_TOKENS: &str = "first_tokens";
+
+const PREVIOUS: &str = "previous";
 
 // One program a generation loop runs, and the names its C++ declarations take.
 #[derive(Debug, Clone, Copy)]
@@ -52,15 +42,22 @@ pub struct LoopSteps<'a> {
 }
 
 // The device buffers of a loop: one per step input of each decoding step, since steps differ in rows, and one per other input name, which steps share, and per output.
+// A buffer that `alias` names lies inside another, from a byte offset, and is neither allocated nor freed itself.
+struct Buffer {
+    name: String,
+    bytes: u64,
+    alias: Option<(usize, u64)>,
+}
+
 #[derive(Default)]
 struct Buffers {
-    named: Vec<(String, u64)>,
+    named: Vec<Buffer>,
 }
 
 impl Buffers {
     fn index(&mut self, name: &str, bytes: u64) -> Result<usize> {
-        if let Some(index) = self.named.iter().position(|(other, _)| other == name) {
-            if self.named[index].1 != bytes {
+        if let Some(index) = self.find(name) {
+            if self.named[index].bytes != bytes {
                 return Err(Error::invalid_argument(format!(
                     "steps of a generation loop disagree on the size of {name}"
                 )));
@@ -68,50 +65,87 @@ impl Buffers {
             return Ok(index);
         }
 
-        self.named.push((name.to_owned(), bytes));
+        self.named.push(Buffer {
+            name: name.to_owned(),
+            bytes,
+            alias: None,
+        });
         Ok(self.named.len() - 1)
+    }
+
+    fn alias(&mut self, name: &str, bytes: u64, base: usize, offset: u64) -> usize {
+        self.named.push(Buffer {
+            name: name.to_owned(),
+            bytes,
+            alias: Some((base, offset)),
+        });
+        self.named.len() - 1
+    }
+
+    fn find(&self, name: &str) -> Option<usize> {
+        self.named.iter().position(|buffer| buffer.name == name)
     }
 }
 
-// The rows a decoding step reads, from its token input.
-fn step_rows(program: &CudaProgram) -> Result<i64> {
-    let tokens = program
+// The rows a decoding step reads, from the length of its packed step input over `sequences` sequences and a page table of `table` entries.
+fn step_rows(program: &CudaProgram, sequences: i64, table: i64) -> Result<i64> {
+    let step = program
         .inputs
         .iter()
-        .find(|input| input.graph_name == "tokens")
-        .ok_or_else(|| Error::missing_input("a generation loop step's tokens"))?;
-    i64::try_from(tokens.layout.element_count())
-        .map_err(|_| Error::out_of_range("generation loop step rows"))
+        .find(|input| input.graph_name == STEP_INPUT)
+        .ok_or_else(|| Error::missing_input("a generation loop step's packed step"))?;
+    let length = i64::try_from(step.layout.element_count())
+        .map_err(|_| Error::out_of_range("generation loop step rows"))?;
+    Ok((length - 2 * (sequences + 1) - 3 * sequences - table) / 5)
 }
 
-// The C++ that runs a decoding step after writing the step inputs it reads and which rows choose a first token, and points `step_tokens` at the tokens it chose.
+// The C++ that enqueues a decoding step after writing the step inputs it reads, which rows choose a first token, and the tokens the step before chose, and points `step_tokens` at the tokens it chooses; with the bytes it uploads.
+// It launches through the loop's graph `slot`, zero for the decode step and one for the prompt step.
 fn step_code(
     step: &LoopStep<'_>,
     variable: &str,
+    slot: usize,
     sequences: i64,
     buffers: &mut Buffers,
-) -> Result<String> {
-    let mut code = String::new();
-    for input in &step.program.inputs {
-        let name = input.graph_name.as_str();
-        let value = if STEP_INPUTS.contains(&name) {
-            format!("step.{name}")
-        } else if name == FIRST_TOKENS {
-            "first".to_owned()
-        } else {
-            continue;
-        };
-        if input.data_type != DataType::I64 {
-            return Err(Error::invalid_argument(
-                "a generation loop writes 64-bit step inputs",
-            ));
-        }
+) -> Result<(String, u64)> {
+    let input = |name: &str| {
+        step.program
+            .inputs
+            .iter()
+            .find(|input| input.graph_name == name)
+    };
+    let packed = input(STEP_INPUT)
+        .ok_or_else(|| Error::missing_input("a generation loop step's packed step"))?;
+    if packed.data_type != DataType::I64 {
+        return Err(Error::invalid_argument(
+            "a generation loop writes 64-bit step inputs",
+        ));
+    }
 
-        let index = buffers.index(
-            &format!("{variable}{name}"),
-            span_bytes(input.data_type, &input.layout)?,
-        )?;
-        emit!(code, "            upload(buffer_{index}, {value});");
+    // The rows choosing their first token follow the packed step in its buffer, so one copy writes both.
+    let step_bytes = span_bytes(packed.data_type, &packed.layout)?;
+    let first_bytes = input(FIRST_TOKENS)
+        .map(|first| span_bytes(first.data_type, &first.layout))
+        .transpose()?
+        .unwrap_or(0);
+    let index = buffers.index(&format!("{variable}{STEP_INPUT}"), step_bytes + first_bytes)?;
+    let mut code = String::new();
+    if first_bytes > 0 {
+        buffers.alias(
+            &format!("{variable}{FIRST_TOKENS}"),
+            first_bytes,
+            index,
+            step_bytes,
+        );
+        emit!(
+            code,
+            "            std::vector<int64_t> packed = pack(step);\n            packed.insert(packed.end(), first_tokens.begin(), first_tokens.end());\n            upload_staged(buffer_{index}, packed, staging[parity]);"
+        );
+    } else {
+        emit!(
+            code,
+            "            upload_staged(buffer_{index}, pack(step), staging[parity]);"
+        );
     }
 
     let [tokens] = step.program.outputs.as_slice() else {
@@ -127,17 +161,30 @@ fn step_code(
         ));
     }
 
+    let token_bytes = span_bytes(tokens.data_type, &tokens.layout)?;
     let tokens = buffers.index(
         &format!("{variable}output {}", tokens.graph_name),
-        span_bytes(tokens.data_type, &tokens.layout)?,
+        token_bytes,
     )?;
+    let previous = input(PREVIOUS)
+        .filter(|previous| previous.data_type == DataType::I64)
+        .ok_or_else(|| {
+            Error::missing_input("the tokens a generation loop step reads from the step before")
+        })?;
+    let previous = buffers.index(PREVIOUS, span_bytes(previous.data_type, &previous.layout)?)?;
     emit!(
         code,
-        "            check({run}(state, &{variable}inputs, &{variable}outputs, nullptr), \"{run}\");\n            unsigned int word = 0;\n            check({finish}(state, nullptr, &word), \"{finish}\");\n            if (word != 0) {{\n                fprintf(stderr, \"a checking kernel reported %u\\n\", word);\n                return 1;\n            }}\n            step_tokens = buffer_{tokens};",
+        "            if (previous != nullptr) check_cuda(cudaMemcpyAsync(buffer_{previous}, previous->tokens, {token_bytes}ULL, cudaMemcpyDeviceToDevice, loop_stream), \"cudaMemcpyAsync\");\n            check(launch(step_graphs[{slot}], [&] {{ return static_cast<int>({run}(state, &{variable}inputs, &{variable}outputs, loop_stream)); }}), \"{run}\");\n            step_tokens = buffer_{tokens};\n            ran[{slot}] = true;",
         run = step.run,
-        finish = step.finish,
     );
-    Ok(code)
+    Ok((code, step_bytes + first_bytes))
+}
+
+fn finish_code(step: &LoopStep<'_>, slot: usize) -> String {
+    format!(
+        "    if (ran[{slot}]) {{\n        unsigned int word = 0;\n        check({finish}(state, loop_stream, &word), \"{finish}\");\n        if (word != 0) {{\n            fprintf(stderr, \"a checking kernel reported %u\\n\", word);\n            return 1;\n        }}\n    }}",
+        finish = step.finish,
+    )
 }
 
 // Writes a generation loop over `steps`, choosing steps of the rows and paged cache `decoding` describes, through the program declared by `prefix`, with `seed` the C++ that seeds its draws from `seed`.
@@ -158,7 +205,7 @@ pub fn generation_loop_source(
         ));
     }
 
-    if step_rows(steps.decode.program)? != sequences {
+    if step_rows(steps.decode.program, sequences, layout.table_length)? != sequences {
         return Err(Error::invalid_argument(
             "a generation loop's decode step reads a token per row",
         ));
@@ -166,26 +213,32 @@ pub fn generation_loop_source(
 
     let mut buffers = Buffers::default();
     let mut step_lines = String::new();
+    let mut finish_lines = String::new();
+    let mut staging = 0;
     let mut prompt_rows = sequences;
     if let Some(prompt) = &steps.prompt {
-        prompt_rows = step_rows(prompt.program)?;
+        prompt_rows = step_rows(prompt.program, sequences, layout.table_length)?;
         if prompt_rows <= sequences {
             return Err(Error::invalid_argument(
                 "a generation loop's prompt step reads more rows than its decode step",
             ));
         }
 
-        let code = step_code(prompt, "prompt_", sequences, &mut buffers)?;
+        let (code, bytes) = step_code(prompt, "prompt_", 1, sequences, &mut buffers)?;
+        staging = bytes;
         emit!(
             step_lines,
             "        if (!decode) {{\n{code}\n        }} else {{"
         );
+        emit!(finish_lines, "{}", finish_code(prompt, 1));
     } else {
         emit!(step_lines, "        {{");
     }
 
-    let code = step_code(&steps.decode, "", sequences, &mut buffers)?;
+    let (code, bytes) = step_code(&steps.decode, "", 0, sequences, &mut buffers)?;
+    let staging = staging.max(bytes) / 8;
     emit!(step_lines, "{code}\n        }}");
+    emit!(finish_lines, "{}", finish_code(&steps.decode, 0));
 
     let all = steps
         .encode
@@ -198,7 +251,7 @@ pub fn generation_loop_source(
     let mut allocations = String::new();
     let mut struct_lines = String::new();
     let mut source = None;
-    let (mut length, mut position, mut rows) = (None, None, None);
+    let (mut length, mut position, mut rows, mut grid) = (None, None, None, None);
     for (variable, step) in &all {
         emit!(
             struct_lines,
@@ -209,13 +262,15 @@ pub fn generation_loop_source(
         for value in &step.program.inputs {
             let name = value.graph_name.as_str();
             let bytes = span_bytes(value.data_type, &value.layout)?;
-            let is_step = decodes && (STEP_INPUTS.contains(&name) || name == FIRST_TOKENS);
+            let is_step = decodes && (name == STEP_INPUT || name == FIRST_TOKENS);
             let index = if is_step {
-                buffers.index(&format!("{variable}{name}"), bytes)?
+                buffers
+                    .find(&format!("{variable}{name}"))
+                    .ok_or_else(|| Error::missing_input("a generation loop step's buffer"))?
             } else {
                 buffers.index(name, bytes)?
             };
-            if !is_step && !name.starts_with("cache.") {
+            if !is_step && name != PREVIOUS && !name.starts_with("cache.") {
                 if decodes {
                     return Err(Error::invalid_argument(format!(
                         "a generation loop does not know what to write to step input {name}"
@@ -225,11 +280,12 @@ pub fn generation_loop_source(
                 match name {
                     "source_length" => length = Some(index),
                     "source_position" => position = Some(index),
+                    "source_grid" => grid = Some((index, bytes)),
                     _ => {
                         let element = value.data_type.size_bytes();
                         if source.replace((index, bytes, element)).is_some() {
                             return Err(Error::invalid_argument(
-                                "an encode step reads one source besides its length, position, and the caches",
+                                "an encode step reads one source besides its length, position, grid, and the caches",
                             ));
                         }
                     }
@@ -262,15 +318,27 @@ pub fn generation_loop_source(
     }
 
     let mut buffer_lines = String::new();
-    for (index, (_, bytes)) in buffers.named.iter().enumerate() {
-        emit!(
-            buffer_lines,
-            "    void* buffer_{index} = device_zeroed({bytes}ULL);"
-        );
+    for (index, buffer) in buffers.named.iter().enumerate() {
+        if let Some((base, offset)) = buffer.alias {
+            emit!(
+                buffer_lines,
+                "    void* buffer_{index} = static_cast<char*>(buffer_{base}) + {offset};"
+            );
+        } else {
+            emit!(
+                buffer_lines,
+                "    void* buffer_{index} = device_zeroed({bytes}ULL);",
+                bytes = buffer.bytes
+            );
+        }
     }
 
-    let frees = (0..buffers.named.len())
-        .map(|index| format!("    cudaFree(buffer_{index});"))
+    let frees = buffers
+        .named
+        .iter()
+        .enumerate()
+        .filter(|(_, buffer)| buffer.alias.is_none())
+        .map(|(index, _)| format!("    cudaFree(buffer_{index});"))
         .collect::<Vec<_>>()
         .join("\n");
     let weights = if weights_bytes == 0 {
@@ -282,16 +350,24 @@ pub fn generation_loop_source(
     };
     let (usage, arguments, source_argument, encode_code) = match (steps.encode, source) {
         (None, _) => (
-            "[--seed N] NEW_TOKENS (TOKEN... | --prompts FILE)",
+            "[--seed N] [--ids] [--raw] [--tokens] [--stream] [--time] NEW_TOKENS (PROMPT... | --prompts FILE)",
             "2",
             String::new(),
             String::new(),
         ),
         (Some(step), Some((index, bytes, element))) => {
-            // A source file may be shorter than its buffer, whose rest stays zero, and a length input says how much it held; a position says where the prompt's starred token stands, and rows how many times it stands there.
+            // A source file starts with its grid when the step reads one, and may be shorter than its buffer, whose rest stays zero, and a length input says how much it held; a position says where the prompt's starred token stands, and rows how many times it stands there.
+            let header = grid.map_or(0, |(_, bytes)| bytes);
             let mut code = format!(
-                "    {{\n        if (prompts.size() != 1) {{\n            fprintf(stderr, \"a model with an encode step decodes one prompt\\n\");\n            return 2;\n        }}\n        const std::vector<char> source = read_file(source_path, {bytes}ULL, false);\n        check_cuda(cudaMemcpy(buffer_{index}, source.data(), source.size(), cudaMemcpyHostToDevice), \"cudaMemcpy\");\n"
+                "    {{\n        if (prompts.size() != 1) {{\n            fprintf(stderr, \"a model with an encode step decodes one prompt\\n\");\n            return 2;\n        }}\n        const std::vector<char> file = read_file(source_path, {header}ULL + {bytes}ULL + 1ULL, false);\n        if (file.size() < {header}ULL || file.size() > {header}ULL + {bytes}ULL) {{\n            fprintf(stderr, \"%s holds %zu bytes, where the encode step reads %llu to %llu\\n\", source_path, file.size(), {header}ULL, {header}ULL + {bytes}ULL);\n            return 2;\n        }}\n        const std::vector<char> source(file.begin() + {header}, file.end());\n        check_cuda(cudaMemcpy(buffer_{index}, source.data(), source.size(), cudaMemcpyHostToDevice), \"cudaMemcpy\");\n"
             );
+            if let Some((grid, bytes)) = grid {
+                emit!(
+                    code,
+                    "        check_cuda(cudaMemcpy(buffer_{grid}, file.data(), {bytes}ULL, cudaMemcpyHostToDevice), \"cudaMemcpy\");"
+                );
+            }
+
             if let Some(length) = length {
                 emit!(
                     code,
@@ -321,9 +397,10 @@ pub fn generation_loop_source(
 
             emit!(code, "    }}");
             (
-                "[--seed N] NEW_TOKENS SOURCE (TOKEN... | --prompts FILE)",
+                "[--seed N] [--ids] [--raw] [--tokens] [--stream] [--time] NEW_TOKENS SOURCE (PROMPT... | --prompts FILE)",
                 "3",
-                "    const char* source_path = argv[argument++];\n".to_owned(),
+                "    const char* source_path = encode_only ? nullptr : argv[argument++];\n"
+                    .to_owned(),
                 code,
             )
         }
@@ -332,6 +409,17 @@ pub fn generation_loop_source(
                 "an encode step reads a source besides the caches",
             ));
         }
+    };
+    let samples = all.iter().any(|(_, step)| {
+        step.program
+            .state
+            .iter()
+            .any(|state| matches!(state.kind, StateKind::Generator { .. }))
+    });
+    let tokenizer = if decoding.tokenizer.is_some() {
+        format!("{prefix}.tokenizer")
+    } else {
+        String::new()
     };
     let stop_tokens = decoding
         .stop_tokens
@@ -354,6 +442,12 @@ pub fn generation_loop_source(
             ("largest", &(prompt_rows - sequences).to_string()),
             ("prompt_rows", &prompt_rows.to_string()),
             ("stop_tokens", &stop_tokens),
+            ("tokenizer", &tokenizer),
+            ("graph_replay_code", include_str!("graph_replay.cu.in")),
+            ("tokenizer_code", include_str!("tokenizer.cu.in")),
+            ("prompt_code", include_str!("prompts.cu.in")),
+            ("paged_step_code", include_str!("paged_step.cu.in")),
+            ("samples", if samples { "true" } else { "false" }),
             ("weights", &weights),
             ("seed", seed),
             ("structs", &struct_lines),
@@ -361,6 +455,8 @@ pub fn generation_loop_source(
             ("allocations", &allocations),
             ("encode", &encode_code),
             ("steps", &step_lines),
+            ("finish", &finish_lines),
+            ("staging_words", &staging.to_string()),
             ("frees", &frees),
         ],
     ))
@@ -408,16 +504,23 @@ impl Renderer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nn::{DecodeStep, TensorGroup};
+    use crate::nn::{DecodeStep, PACKED_ORDER, TensorGroup};
 
     #[test]
-    fn test_the_loop_writes_every_input_a_decode_step_has() {
+    fn test_the_loop_packs_a_step_as_decode_step_unpacks_it() {
         let step = DecodeStep::meta(2, 1, 4).unwrap();
         let names = step
             .named_tensors()
             .into_iter()
             .map(|(name, _)| name)
             .collect::<Vec<_>>();
-        assert_eq!(names, STEP_INPUTS);
+        assert_eq!(names, [STEP_INPUT]);
+        let template = include_str!("paged_step.cu.in");
+        let pack = &template[template.find("pack(const Step& step)").unwrap()..];
+        let places = PACKED_ORDER
+            .iter()
+            .map(|name| pack.find(&format!("&step.{name}")).unwrap())
+            .collect::<Vec<_>>();
+        assert!(places.windows(2).all(|pair| pair[0] < pair[1]));
     }
 }

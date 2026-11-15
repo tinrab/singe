@@ -27,7 +27,7 @@ pub use self::{
     feed_forward::{DecoderFeedForward, GatedMlp, MixtureOfExperts, Mlp, MoeLayers, MoeRouting},
     heads::{MeanPooling, PoolingInput},
     linear::{Flatten, Linear},
-    networks::{CausalLm, CausalLmParts, Decoder, SourcedCausalLm},
+    networks::{CausalLm, CausalLmParts, Decoder, MultiTokenPrediction, SourcedCausalLm},
     normalization::{BatchNorm2d, LayerNorm, LayerScale, OffsetRmsNorm, RmsNorm},
     positional::{
         RotaryAngles, RotaryFrequencies, RotaryLayout, RotarySpec, RotaryTable, YarnFrequencies,

@@ -8,6 +8,7 @@ pub mod set;
 mod source;
 mod state;
 mod steps;
+mod tokenizer;
 
 use std::{cell::RefCell, fs, path::Path};
 
@@ -53,6 +54,7 @@ pub struct ProgramFiles {
     pub manifest: String,
     // A loop that generates through the program, for one exported with a page layout.
     pub generate: Option<String>,
+    pub tokenizer: Option<String>,
     // A command that runs the program once from input files to output files, for one exported without a page layout.
     pub run: Option<String>,
     // How many configurations its records force on its libraries.
@@ -233,7 +235,7 @@ impl CudaProgram {
         .render()
     }
 
-    // Writes `<prefix>.h`, `<prefix>.cu`, `<prefix>.json`, `<prefix>.weights` when the program has large constants, and `<prefix>_generate.cu` when it was exported with a page layout.
+    // Writes `<prefix>.h`, `<prefix>.cu`, `<prefix>.json`, `<prefix>.weights` when the program has large constants, `<prefix>_generate.cu` when it was exported with a page layout, and `<prefix>.tokenizer` when with a tokenizer too.
     //
     // # Errors
     //
@@ -247,6 +249,10 @@ impl CudaProgram {
         fs::write(directory.join(format!("{prefix}.json")), files.manifest)?;
         if let Some(generate) = files.generate {
             fs::write(directory.join(format!("{prefix}_generate.cu")), generate)?;
+        }
+
+        if let Some(tokenizer) = files.tokenizer {
+            fs::write(directory.join(format!("{prefix}.tokenizer")), tokenizer)?;
         }
 
         if let Some(run) = files.run {

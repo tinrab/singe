@@ -15,9 +15,10 @@ pub use singe_cuda::architecture::GpuArchitecture;
 use self::builder::build_program;
 pub use self::{
     program::{
-        Activation, BufferId, BufferKind, BufferView, CudaProgram, CudaProgramSet, Decoding,
-        GemmOperand, Library, LibraryCall, OperationProvider, ProgramBuffer, ProgramEntry,
-        ProgramState, ProgramStep, ProgramValue, StateKind, StepProvider,
+        Activation, BufferId, BufferKind, BufferView, CharacterClasses, Composition, CudaProgram,
+        CudaProgramSet, Decoding, GemmOperand, Library, LibraryCall, LoopEncoder, LoopToken,
+        LoopTokenizer, OperationProvider, ProgramBuffer, ProgramEntry, ProgramState, ProgramStep,
+        ProgramValue, StateKind, StepProvider,
     },
     writer::{ProgramFiles, set::ProgramSetFiles},
 };

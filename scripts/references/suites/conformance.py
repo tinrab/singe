@@ -1775,13 +1775,15 @@ def gated_delta_rule_samples(pool, dtype):
             pool.explicit(f"gated delta rule {label} {name}", tensor)
         )
         unit = lambda seed, rows=rows: functional.normalize(
-            values("F64", [rows, 2, 8], seed, "any"), dim=-1
+            values("F64", [rows, 2, 16], seed, "any"), dim=-1
         ).to(DTYPES[dtype])
         sequences = len(spans["real tokens"])
         operands = [
             explicit("queries", unit(1)),
             explicit("keys", unit(2)),
-            explicit("values", values("F64", [rows, 2, 6], 3, "any").to(DTYPES[dtype])),
+            explicit(
+                "values", values("F64", [rows, 2, 40], 3, "any").to(DTYPES[dtype])
+            ),
             explicit(
                 "decays",
                 (-values("F64", [rows, 2], 4, "positive") / 4).to(DTYPES[dtype]),
@@ -1790,7 +1792,7 @@ def gated_delta_rule_samples(pool, dtype):
                 "strengths",
                 torch.sigmoid(values("F64", [rows, 2], 5, "any")).to(DTYPES[dtype]),
             ),
-            explicit("state", values("F32", [sequences, 2, 8, 6], 6, "unit")),
+            explicit("state", values("F32", [sequences, 2, 16, 40], 6, "unit")),
             *[
                 explicit(name, torch.tensor(span, dtype=torch.int64))
                 for name, span in spans.items()
@@ -2127,6 +2129,25 @@ def grouped_topk_routing_reference(logits, bias, groups, kept_groups, top_k, sca
     _, ids = torch.topk(pruned, k=top_k, dim=1, sorted=True)
     chosen = scores.gather(1, ids)
     return ids, chosen / (chosen.sum(dim=1, keepdim=True) + 1e-20) * scale
+
+
+def softmax_topk_routing_reference(logits, top_k):
+    probabilities = torch.softmax(logits.to(torch.float32), dim=-1)
+    chosen, ids = torch.topk(probabilities, top_k, dim=-1)
+    return ids, chosen / chosen.sum(dim=-1, keepdim=True)
+
+
+def moe_reference(tokens, ids, weights, gate_up, down):
+    output = torch.zeros_like(tokens)
+    for token in range(tokens.shape[0]):
+        for slot in range(ids.shape[1]):
+            expert = int(ids[token, slot])
+            gate, up = functional.linear(tokens[token], gate_up[expert]).chunk(
+                2, dim=-1
+            )
+            hidden = functional.linear(functional.silu(gate) * up, down[expert])
+            output[token] += hidden * weights[token, slot]
+    return output
 
 
 def composite_samples(pool, dtype):
@@ -3101,6 +3122,44 @@ def composite_samples(pool, dtype):
                 [logits, bias],
                 lambda x, b: grouped_topk_routing_reference(x, b, 4, 2, 3, 2.5),
                 {"groups": 4, "kept_groups": 2, "top_k": 3, "scale": 2.5},
+            ),
+        ]
+        samples["softmax_topk_routing"] = [
+            Sample(
+                "qwen",
+                [logits],
+                lambda x: softmax_topk_routing_reference(x, 3),
+                {"top_k": 3},
+            ),
+        ]
+        experts = Input(
+            pool.explicit(
+                "moe experts",
+                torch.tensor(
+                    [[0, 2], [1, 2], [3, 0], [2, 1], [0, 3]], dtype=torch.int64
+                ),
+            )
+        )
+        expert_weights = Input(
+            pool.explicit(
+                "moe weights",
+                torch.tensor(
+                    [[0.7, 0.3], [0.5, 0.5], [0.9, 0.1], [0.6, 0.4], [0.2, 0.8]]
+                ),
+            )
+        )
+        samples["moe"] = [
+            Sample(
+                "experts",
+                [
+                    plain(pool, dtype, [5, 6]),
+                    experts,
+                    expert_weights,
+                    plain(pool, dtype, [4, 8, 6], 2),
+                    plain(pool, dtype, [4, 6, 4], 3),
+                ],
+                moe_reference,
+                {},
             ),
         ]
     if dtype == "I64":

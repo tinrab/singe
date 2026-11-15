@@ -218,9 +218,15 @@ impl ModelState {
 
     // Returns the floating type this state's weights are in, which caches and tables follow.
     pub fn floating_type(&self) -> Result<DataType> {
-        self.bindings()
+        // Buffers a program adds, such as a draft head in another type, do not decide it.
+        let floats = || {
+            self.bindings()
+                .filter(|(_, tensor)| tensor.data_type().is_float())
+        };
+        floats()
+            .find(|(binding, _)| binding.kind() != StateBindingKind::Buffer)
+            .or_else(|| floats().next())
             .map(|(_, tensor)| tensor.data_type())
-            .find(|data_type| data_type.is_float())
             .ok_or_else(|| Error::missing_input("model state floating tensor"))
     }
 

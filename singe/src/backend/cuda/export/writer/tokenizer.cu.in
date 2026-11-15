@@ -1,0 +1,373 @@
+// A byte-level BPE tokenizer: each token's bytes, and, if it encodes, how text becomes tokens, as the file the export writes beside the loop describes them; `tokenizer.rs` writes it.
+using Ranges = std::vector<std::pair<uint32_t, uint32_t>>;
+
+struct Tokenizer {
+    std::vector<std::string> bytes;
+    std::vector<char> special;
+    bool encodes = false;
+    std::string before, after;
+    int64_t placeholder = -1;
+    // The added tokens, longest first, which text matches as written.
+    std::vector<int64_t> added;
+    int64_t byte_ids[256] = {};
+    // Each pair of tokens that merges, as `left << 32 | right`, with its rank and the token it merges to.
+    std::unordered_map<uint64_t, std::pair<int64_t, int64_t>> merges;
+    Ranges letters, marks, numbers, whitespace;
+    bool marks_are_letters = false;
+    bool composes = false;
+    std::unordered_map<uint32_t, std::vector<uint32_t>> decompositions;
+    std::vector<std::array<uint32_t, 3>> combining_classes;
+    std::unordered_map<uint64_t, uint32_t> pairs;
+};
+
+static void tokenizer_failure(const char* what) {
+    fprintf(stderr, "%s is not a tokenizer: %s\n", tokenizer_path, what);
+    exit(1);
+}
+
+static std::string read_word(FILE* file) {
+    std::string word;
+    int c = fgetc(file);
+    while (c == ' ' || c == '\n' || c == '\r' || c == '\t') c = fgetc(file);
+    while (c != EOF && c != ' ' && c != '\n' && c != '\r' && c != '\t') {
+        word.push_back(static_cast<char>(c));
+        c = fgetc(file);
+    }
+    if (word.empty()) tokenizer_failure("it ends early");
+    return word;
+}
+
+static long long read_number(FILE* file) {
+    const std::string word = read_word(file);
+    char* end = nullptr;
+    const long long value = strtoll(word.c_str(), &end, 10);
+    if (*end != '\0') tokenizer_failure("a number is not one");
+    return value;
+}
+
+// Reads a section's name and returns its count.
+static long long read_section(FILE* file, const char* name) {
+    if (read_word(file) != name) tokenizer_failure(name);
+    return read_number(file);
+}
+
+static std::string read_hex(FILE* file) {
+    const std::string word = read_word(file);
+    std::string bytes;
+    if (word == "-") return bytes;
+    if (word.size() % 2 != 0) tokenizer_failure("hex bytes come in pairs");
+    for (size_t index = 0; index < word.size(); index += 2) bytes.push_back(static_cast<char>(strtol(word.substr(index, 2).c_str(), nullptr, 16)));
+    return bytes;
+}
+
+static Ranges read_ranges(FILE* file, const char* name) {
+    Ranges ranges(static_cast<size_t>(read_section(file, name)));
+    for (auto& range : ranges) {
+        range.first = static_cast<uint32_t>(read_number(file));
+        range.second = static_cast<uint32_t>(read_number(file));
+    }
+    return ranges;
+}
+
+static uint64_t pair_key(uint64_t left, uint64_t right) { return left << 32 | right; }
+
+static Tokenizer load_tokenizer() {
+    Tokenizer tokenizer;
+    FILE* file = fopen(tokenizer_path, "r");
+    if (file == nullptr) {
+        fprintf(stderr, "cannot read %s\n", tokenizer_path);
+        exit(1);
+    }
+    const size_t count = static_cast<size_t>(read_section(file, "tokens"));
+    tokenizer.bytes.resize(count);
+    tokenizer.special.resize(count);
+    for (size_t id = 0; id < count; ++id) {
+        tokenizer.special[id] = static_cast<char>(read_number(file));
+        tokenizer.bytes[id] = read_hex(file);
+    }
+    tokenizer.encodes = read_section(file, "encoder") != 0;
+    if (tokenizer.encodes) {
+        read_section(file, "template");
+        tokenizer.before = read_hex(file);
+        tokenizer.after = read_hex(file);
+        read_section(file, "placeholder");
+        tokenizer.placeholder = read_number(file);
+        tokenizer.added.resize(static_cast<size_t>(read_section(file, "added")));
+        for (int64_t& id : tokenizer.added) id = read_number(file);
+        std::stable_sort(tokenizer.added.begin(), tokenizer.added.end(), [&](int64_t a, int64_t b) {
+            return tokenizer.bytes[static_cast<size_t>(a)].size() > tokenizer.bytes[static_cast<size_t>(b)].size();
+        });
+        const long long merges = read_section(file, "merges");
+        for (long long rank = 0; rank < merges; ++rank) {
+            const long long left = read_number(file), right = read_number(file), merged = read_number(file);
+            tokenizer.merges.emplace(pair_key(static_cast<uint64_t>(left), static_cast<uint64_t>(right)), std::make_pair(rank, merged));
+        }
+        tokenizer.letters = read_ranges(file, "letters");
+        tokenizer.marks = read_ranges(file, "marks");
+        tokenizer.numbers = read_ranges(file, "numbers");
+        tokenizer.whitespace = read_ranges(file, "whitespace");
+        read_section(file, "marks_are_letters");
+        tokenizer.marks_are_letters = read_number(file) != 0;
+        tokenizer.composes = read_section(file, "composition") != 0;
+        if (tokenizer.composes) {
+            const long long decompositions = read_section(file, "decompositions");
+            for (long long index = 0; index < decompositions; ++index) {
+                const uint32_t point = static_cast<uint32_t>(read_number(file));
+                std::vector<uint32_t> parts(static_cast<size_t>(read_number(file)));
+                for (uint32_t& part : parts) part = static_cast<uint32_t>(read_number(file));
+                tokenizer.decompositions.emplace(point, parts);
+            }
+            tokenizer.combining_classes.resize(static_cast<size_t>(read_section(file, "combining_classes")));
+            for (auto& range : tokenizer.combining_classes) {
+                for (uint32_t& value : range) value = static_cast<uint32_t>(read_number(file));
+            }
+            const long long pairs = read_section(file, "pairs");
+            for (long long index = 0; index < pairs; ++index) {
+                const long long first = read_number(file), second = read_number(file), composed = read_number(file);
+                tokenizer.pairs.emplace(pair_key(static_cast<uint64_t>(first), static_cast<uint64_t>(second)), static_cast<uint32_t>(composed));
+            }
+        }
+        // The vocabulary's tokens by their bytes, leaving out the added tokens, which text matches as written.
+        const std::unordered_set<int64_t> added(tokenizer.added.begin(), tokenizer.added.end());
+        std::unordered_map<std::string, int64_t> ids;
+        for (size_t id = 0; id < count; ++id) {
+            if (!added.count(static_cast<int64_t>(id)) && !tokenizer.bytes[id].empty()) ids.emplace(tokenizer.bytes[id], static_cast<int64_t>(id));
+        }
+        for (int byte = 0; byte < 256; ++byte) {
+            const auto found = ids.find(std::string(1, static_cast<char>(byte)));
+            if (found == ids.end()) tokenizer_failure("a byte has no token");
+            tokenizer.byte_ids[byte] = found->second;
+        }
+    }
+    fclose(file);
+    return tokenizer;
+}
+
+static bool in_ranges(const Ranges& ranges, uint32_t point) {
+    const auto after = std::upper_bound(ranges.begin(), ranges.end(), point, [](uint32_t value, const std::pair<uint32_t, uint32_t>& range) { return value < range.first; });
+    return after != ranges.begin() && point <= std::prev(after)->second;
+}
+
+static std::vector<uint32_t> code_points(const std::string& text) {
+    std::vector<uint32_t> points;
+    for (size_t index = 0; index < text.size();) {
+        const unsigned char lead = static_cast<unsigned char>(text[index]);
+        const size_t length = lead < 0x80 ? 1 : (lead >> 5) == 6 ? 2 : (lead >> 4) == 14 ? 3 : (lead >> 3) == 30 ? 4 : 0;
+        if (length == 0 || index + length > text.size()) {
+            fprintf(stderr, "a prompt is not UTF-8\n");
+            exit(2);
+        }
+        uint32_t point = length == 1 ? lead : lead & (0x7f >> length);
+        for (size_t next = 1; next < length; ++next) {
+            const unsigned char byte = static_cast<unsigned char>(text[index + next]);
+            if ((byte & 0xc0) != 0x80) {
+                fprintf(stderr, "a prompt is not UTF-8\n");
+                exit(2);
+            }
+            point = point << 6 | (byte & 0x3f);
+        }
+        points.push_back(point);
+        index += length;
+    }
+    return points;
+}
+
+static void append_utf8(std::string& text, uint32_t point) {
+    if (point < 0x80) {
+        text.push_back(static_cast<char>(point));
+    } else if (point < 0x800) {
+        text.push_back(static_cast<char>(0xc0 | point >> 6));
+        text.push_back(static_cast<char>(0x80 | (point & 0x3f)));
+    } else if (point < 0x10000) {
+        text.push_back(static_cast<char>(0xe0 | point >> 12));
+        text.push_back(static_cast<char>(0x80 | (point >> 6 & 0x3f)));
+        text.push_back(static_cast<char>(0x80 | (point & 0x3f)));
+    } else {
+        text.push_back(static_cast<char>(0xf0 | point >> 18));
+        text.push_back(static_cast<char>(0x80 | (point >> 12 & 0x3f)));
+        text.push_back(static_cast<char>(0x80 | (point >> 6 & 0x3f)));
+        text.push_back(static_cast<char>(0x80 | (point & 0x3f)));
+    }
+}
+
+static uint32_t combining_class(const Tokenizer& tokenizer, uint32_t point) {
+    const auto& ranges = tokenizer.combining_classes;
+    const auto after = std::upper_bound(ranges.begin(), ranges.end(), point, [](uint32_t value, const std::array<uint32_t, 3>& range) { return value < range[0]; });
+    return after != ranges.begin() && point <= std::prev(after)->at(1) ? std::prev(after)->at(2) : 0;
+}
+
+// Text as NFC: each code point decomposed, each run of combining marks in canonical order, and each mark composed with the starter before it unless a mark between blocks it.
+static std::vector<uint32_t> composed(const Tokenizer& tokenizer, const std::vector<uint32_t>& text) {
+    std::vector<uint32_t> points;
+    for (const uint32_t point : text) {
+        const auto found = tokenizer.decompositions.find(point);
+        if (found == tokenizer.decompositions.end()) {
+            points.push_back(point);
+        } else {
+            points.insert(points.end(), found->second.begin(), found->second.end());
+        }
+    }
+    for (size_t start = 0; start < points.size();) {
+        if (combining_class(tokenizer, points[start]) == 0) {
+            ++start;
+            continue;
+        }
+        size_t end = start;
+        while (end < points.size() && combining_class(tokenizer, points[end]) != 0) ++end;
+        std::stable_sort(points.begin() + static_cast<long>(start), points.begin() + static_cast<long>(end), [&](uint32_t a, uint32_t b) { return combining_class(tokenizer, a) < combining_class(tokenizer, b); });
+        start = end;
+    }
+    std::vector<uint32_t> result;
+    long starter = -1;
+    // The class of the last code point kept after the starter, or -1 for none.
+    long last = -1;
+    for (const uint32_t point : points) {
+        const long point_class = static_cast<long>(combining_class(tokenizer, point));
+        if (starter >= 0 && (last < 0 || last < point_class)) {
+            const auto found = tokenizer.pairs.find(pair_key(result[static_cast<size_t>(starter)], point));
+            if (found != tokenizer.pairs.end()) {
+                result[static_cast<size_t>(starter)] = found->second;
+                continue;
+            }
+        }
+        if (point_class == 0) {
+            starter = static_cast<long>(result.size());
+            last = -1;
+        } else {
+            last = point_class;
+        }
+        result.push_back(point);
+    }
+    return result;
+}
+
+// Where each word ends, as the pre-tokenizer of Qwen's tokenizers splits text: `(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`, with `[\p{L}\p{M}]` for its letters when marks are letters.
+static size_t word_end(const Tokenizer& tokenizer, const std::vector<uint32_t>& text, size_t start) {
+    const size_t size = text.size();
+    const auto letter = [&](uint32_t point) { return in_ranges(tokenizer.letters, point) || (tokenizer.marks_are_letters && in_ranges(tokenizer.marks, point)); };
+    const auto number = [&](uint32_t point) { return in_ranges(tokenizer.numbers, point); };
+    const auto space = [&](uint32_t point) { return in_ranges(tokenizer.whitespace, point); };
+    const auto line_break = [](uint32_t point) { return point == '\r' || point == '\n'; };
+    const auto other = [&](uint32_t point) { return !space(point) && !letter(point) && !number(point); };
+    // Case folding as `(?i)` matches the contractions, where the long s folds to `s`.
+    const auto folded = [](uint32_t point) { return point >= 'A' && point <= 'Z' ? point + 32 : point == 0x17f ? 's' : point; };
+    if (text[start] == '\'' && start + 1 < size) {
+        const uint32_t first = folded(text[start + 1]);
+        if (first == 's' || first == 't' || first == 'm' || first == 'd') return start + 2;
+        if (start + 2 < size) {
+            const uint32_t second = folded(text[start + 2]);
+            if ((first == 'r' && second == 'e') || (first == 'v' && second == 'e') || (first == 'l' && second == 'l')) return start + 3;
+        }
+    }
+    {
+        size_t end = start;
+        const uint32_t point = text[start];
+        if (!line_break(point) && !in_ranges(tokenizer.letters, point) && !number(point) && start + 1 < size && letter(text[start + 1])) ++end;
+        if (letter(text[end])) {
+            while (end < size && letter(text[end])) ++end;
+            return end;
+        }
+    }
+    if (number(text[start])) return start + 1;
+    {
+        size_t end = start;
+        if (text[start] == ' ' && start + 1 < size && other(text[start + 1])) ++end;
+        if (other(text[end])) {
+            while (end < size && other(text[end])) ++end;
+            while (end < size && line_break(text[end])) ++end;
+            return end;
+        }
+    }
+    size_t run = start;
+    while (run < size && space(text[run])) ++run;
+    for (size_t end = run; end > start; --end) {
+        if (line_break(text[end - 1])) return end;
+    }
+    if (run < size && run - 1 > start) return run - 1;
+    return std::max(run, start + 1);
+}
+
+// Appends the tokens of one word's bytes, merging the lowest-ranked pair, the first of equals, until none merges.
+static void merge_word(const Tokenizer& tokenizer, const std::string& word, std::vector<int64_t>& tokens) {
+    std::vector<int64_t> symbols;
+    for (const char byte : word) symbols.push_back(tokenizer.byte_ids[static_cast<unsigned char>(byte)]);
+    while (symbols.size() > 1) {
+        size_t best = symbols.size();
+        int64_t best_rank = 0, merged = 0;
+        for (size_t index = 0; index + 1 < symbols.size(); ++index) {
+            const auto found = tokenizer.merges.find(pair_key(static_cast<uint64_t>(symbols[index]), static_cast<uint64_t>(symbols[index + 1])));
+            if (found != tokenizer.merges.end() && (best == symbols.size() || found->second.first < best_rank)) {
+                best = index;
+                best_rank = found->second.first;
+                merged = found->second.second;
+            }
+        }
+        if (best == symbols.size()) break;
+        symbols[best] = merged;
+        symbols.erase(symbols.begin() + static_cast<long>(best) + 1);
+    }
+    tokens.insert(tokens.end(), symbols.begin(), symbols.end());
+}
+
+static std::vector<int64_t> encode_text(const Tokenizer& tokenizer, const std::string& text) {
+    std::vector<int64_t> tokens;
+    const auto plain = [&](size_t from, size_t to) {
+        if (from == to) return;
+        std::vector<uint32_t> points = code_points(text.substr(from, to - from));
+        if (tokenizer.composes) points = composed(tokenizer, points);
+        for (size_t start = 0; start < points.size();) {
+            const size_t end = word_end(tokenizer, points, start);
+            std::string word;
+            for (size_t index = start; index < end; ++index) append_utf8(word, points[index]);
+            merge_word(tokenizer, word, tokens);
+            start = end;
+        }
+    };
+    size_t start = 0, index = 0;
+    while (index < text.size()) {
+        int64_t found = -1;
+        for (const int64_t id : tokenizer.added) {
+            const std::string& bytes = tokenizer.bytes[static_cast<size_t>(id)];
+            if (!bytes.empty() && text.compare(index, bytes.size(), bytes) == 0) {
+                found = id;
+                break;
+            }
+        }
+        if (found < 0) {
+            ++index;
+            continue;
+        }
+        plain(start, index);
+        tokens.push_back(found);
+        index += tokenizer.bytes[static_cast<size_t>(found)].size();
+        start = index;
+    }
+    plain(start, text.size());
+    return tokens;
+}
+
+// Moves the whole characters at the front of `pending` to `text`, each invalid sequence as U+FFFD, keeping a character the bytes have only begun unless `last`.
+static void take_text(std::string& pending, std::string& text, bool last) {
+    size_t index = 0;
+    while (index < pending.size()) {
+        const unsigned char lead = static_cast<unsigned char>(pending[index]);
+        const size_t length = lead < 0x80 ? 1 : (lead >> 5) == 6 ? 2 : (lead >> 4) == 14 ? 3 : (lead >> 3) == 30 ? 4 : 0;
+        if (length == 0) {
+            text += "\xef\xbf\xbd";
+            ++index;
+            continue;
+        }
+        size_t have = 1;
+        while (have < length && index + have < pending.size() && (static_cast<unsigned char>(pending[index + have]) & 0xc0) == 0x80) ++have;
+        if (have == length) {
+            text.append(pending, index, length);
+            index += length;
+            continue;
+        }
+        if (index + have == pending.size() && !last) break;
+        text += "\xef\xbf\xbd";
+        index += have;
+    }
+    pending.erase(0, index);
+}
+

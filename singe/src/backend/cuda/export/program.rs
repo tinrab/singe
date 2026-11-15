@@ -382,11 +382,52 @@ pub struct CudaProgramSet {
     pub decoding: Option<Decoding>,
 }
 
-// How a generation loop runs an exported decoder: the paged cache its steps fall in, and the tokens that end a sequence, which the loop prints as the sequence's last.
+// How a generation loop runs an exported decoder: the paged cache its steps fall in, the tokens that end a sequence, which the loop prints as the sequence's last, and the tokenizer it reads and writes text with, if it has one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Decoding {
     pub layout: PageLayout,
     pub stop_tokens: Vec<i64>,
+    pub tokenizer: Option<LoopTokenizer>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoopTokenizer {
+    pub tokens: Vec<LoopToken>,
+    pub encoder: Option<LoopEncoder>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoopToken {
+    pub bytes: Vec<u8>,
+    pub special: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoopEncoder {
+    // The text before and after a prompt.
+    pub template: [String; 2],
+    pub placeholder: Option<i64>,
+    pub added: Vec<i64>,
+    // Each merge of two tokens into a third, `[left, right, merged]`, from the first to apply.
+    pub merges: Vec<[i64; 3]>,
+    pub classes: CharacterClasses,
+    pub marks_are_letters: bool,
+    pub composition: Option<Composition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharacterClasses {
+    pub letters: Vec<[u32; 2]>,
+    pub marks: Vec<[u32; 2]>,
+    pub numbers: Vec<[u32; 2]>,
+    pub whitespace: Vec<[u32; 2]>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Composition {
+    pub decompositions: Vec<(u32, Vec<u32>)>,
+    pub combining_classes: Vec<[u32; 3]>,
+    pub pairs: Vec<[u32; 3]>,
 }
 
 // A whole graph as ordered steps over planned buffers, which `render` writes as C++.

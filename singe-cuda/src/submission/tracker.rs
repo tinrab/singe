@@ -35,18 +35,54 @@ impl From<&Access> for AccessKey {
     }
 }
 
-impl AccessKey {
-    fn conflicts(&self, other: &Self) -> bool {
-        self.id == other.id
-            && ranges_overlap(&self.range, &other.range)
-            && (self.mode != AccessMode::Read || other.mode != AccessMode::Read)
+#[derive(Debug)]
+struct PendingAccess {
+    touched: Vec<Range<usize>>,
+    written: Vec<Range<usize>>,
+    event: Weak<Event>,
+}
+
+impl PendingAccess {
+    fn create(accesses: &[AccessKey], event: Weak<Event>) -> Self {
+        // Sorted and merged, so an access finds a conflict by binary search however many a submission made, as a graph's thousands of values do.
+        Self {
+            touched: merged(accesses.iter()),
+            written: merged(
+                accesses
+                    .iter()
+                    .filter(|access| access.mode != AccessMode::Read),
+            ),
+            event,
+        }
+    }
+
+    fn conflicts(&self, access: &AccessKey) -> bool {
+        let ranges = if access.mode == AccessMode::Read {
+            &self.written
+        } else {
+            &self.touched
+        };
+        let first = ranges.partition_point(|range| range.end <= access.range.start);
+        ranges
+            .get(first)
+            .is_some_and(|range| ranges_overlap(range, &access.range))
     }
 }
 
-#[derive(Debug)]
-struct PendingAccess {
-    accesses: Vec<AccessKey>,
-    event: Weak<Event>,
+fn merged<'a>(accesses: impl Iterator<Item = &'a AccessKey>) -> Vec<Range<usize>> {
+    let mut ranges = accesses
+        .map(|access| access.range.clone())
+        .filter(|range| range.start < range.end)
+        .collect::<Vec<_>>();
+    ranges.sort_unstable_by_key(|range| range.start);
+    let mut merged: Vec<Range<usize>> = Vec::with_capacity(ranges.len());
+    for range in ranges {
+        match merged.last_mut() {
+            Some(last) if range.start <= last.end => last.end = last.end.max(range.end),
+            _ => merged.push(range),
+        }
+    }
+    merged
 }
 
 // Allocation identity is global: portable mapped host storage can have aliases in different contexts.
@@ -105,6 +141,17 @@ pub struct AccessGuard<'a> {
     cells: Vec<Arc<AccessCell>>,
     acquired: usize,
     thread: PhantomData<Rc<()>>,
+}
+
+fn by_allocation(accesses: &[Access]) -> HashMap<AllocationId, Vec<AccessKey>> {
+    let mut grouped = HashMap::<_, Vec<_>>::new();
+    for access in accesses {
+        grouped
+            .entry(access.id)
+            .or_default()
+            .push(AccessKey::from(access));
+    }
+    grouped
 }
 
 pub fn lock_access<'a>(
@@ -227,20 +274,19 @@ impl AccessGuard<'_> {
             }
         }
 
-        let keys: Vec<_> = accesses.iter().map(AccessKey::from).collect();
+        let keys = by_allocation(accesses);
         for cell in &self.cells {
+            let Some(keys) = keys.get(&cell.id) else {
+                continue;
+            };
             let mut state = cell
                 .state
                 .lock()
                 .map_err(|_| Error::AccessTrackingPoisoned)?;
             state.prune_completed()?;
             for pending in &state.pending {
-                if keys.iter().any(|key| {
-                    pending
-                        .accesses
-                        .iter()
-                        .any(|previous| key.conflicts(previous))
-                }) && let Some(event) = pending.event.upgrade()
+                if keys.iter().any(|key| pending.conflicts(key))
+                    && let Some(event) = pending.event.upgrade()
                 {
                     if event.context() == stream.context() {
                         stream.wait_event(&event)?;
@@ -259,16 +305,12 @@ impl AccessGuard<'_> {
         reason = "ordering and recording require exclusive access to the tracking transaction guard"
     )]
     pub(crate) fn record(&mut self, accesses: &[Access], event: &Arc<Event>) {
+        let mut accesses = by_allocation(accesses);
         for cell in &self.cells {
-            let accesses = accesses
-                .iter()
-                .filter(|access| access.id == cell.id)
-                .map(AccessKey::from)
-                .collect();
-            lock_for_cleanup(&cell.state).pending.push(PendingAccess {
-                accesses,
-                event: Arc::downgrade(event),
-            });
+            let accesses = accesses.remove(&cell.id).unwrap_or_default();
+            lock_for_cleanup(&cell.state)
+                .pending
+                .push(PendingAccess::create(&accesses, Arc::downgrade(event)));
         }
     }
 
@@ -299,10 +341,7 @@ impl AccessGuard<'_> {
                 .lock()
                 .map_err(|_| Error::AccessTrackingPoisoned)?;
             for pending in &state.pending {
-                if pending
-                    .accesses
-                    .iter()
-                    .any(|previous| access.conflicts(previous))
+                if pending.conflicts(&access)
                     && let Some(event) = pending.event.upgrade()
                 {
                     event.synchronize()?;

@@ -11,6 +11,7 @@ mod matmul;
 mod quantization;
 mod reduction;
 mod rotary;
+mod row;
 mod window;
 
 use singe_codegen::ir::ElementType;
@@ -26,8 +27,9 @@ pub use self::{
     },
     matmul::{Epilogue, Lhs, Weight, contraction, matmul},
     quantization::quantization,
-    reduction::{batch_norm, normalization, normalization_with_epilogue, reduction, scan, softmax},
+    reduction::{reduction, scan},
     rotary::rotary_embedding,
+    row::{batch_norm, normalization, softmax},
     window::{conv2d, pool2d},
 };
 

@@ -1,0 +1,109 @@
+// A row of the batch: the prompt it runs, what it still reads, and the pages it holds.
+struct Row {
+    bool running = false;
+    size_t prompt = 0;
+    std::vector<int64_t> pending;
+    std::vector<int64_t> pages;
+    int64_t length = 0;
+    long generated = 0;
+};
+
+// A step enqueued and not yet read: whether it ran the decode graph, which of the two staging and reading buffers it took, where its tokens are, and the prompt each row chose a token for, or -1.
+struct UnreadStep {
+    bool active = false;
+    bool decode = false;
+    int parity = 0;
+    const void* tokens = nullptr;
+    std::vector<long long> choosing;
+};
+
+// The tensors `PageTable::step_padded` writes for `rows` reading `reads`, padded to `total` rows, taking free pages as rows reach new ones; a negative token reads what its row chose in the step before.
+struct Step {
+    std::vector<int64_t> tokens, positions, write_pages, write_slots, query_offsets, page_offsets, pages, last_page_lengths, last_rows,
+        real_tokens, sequence_ids;
+};
+
+static Step paged_step(std::vector<Row>& rows, std::vector<int64_t>& free, const std::vector<std::vector<int64_t>>& reads, int64_t total) {
+    Step step;
+    std::vector<int64_t> portions;
+    for (const std::vector<int64_t>& tokens : reads) portions.push_back(static_cast<int64_t>(tokens.size()));
+    int64_t taken = 0;
+    size_t padded = 0;
+    for (size_t row = 0; row < rows.size(); ++row) {
+        taken += std::max<int64_t>(portions[row], 1);
+        if (portions[row] > 0) padded = row;
+    }
+    const int64_t padding = total - taken;
+    std::vector<int64_t> visible;
+    step.query_offsets.push_back(0);
+    for (size_t index = 0; index < rows.size(); ++index) {
+        Row& row = rows[index];
+        for (int64_t token = 0; token < portions[index]; ++token) {
+            const size_t page = static_cast<size_t>(row.length / page_size);
+            if (page == row.pages.size()) {
+                row.pages.push_back(free.back());
+                free.pop_back();
+            }
+            step.tokens.push_back(reads[index][static_cast<size_t>(token)]);
+            step.positions.push_back(row.length);
+            step.write_pages.push_back(row.pages[page]);
+            step.write_slots.push_back(row.length % page_size);
+            ++row.length;
+        }
+        if (portions[index] == 0) {
+            step.tokens.push_back(0);
+            step.positions.push_back(std::min(row.length, capacity - 1));
+            step.write_pages.push_back(scratch_page);
+            step.write_slots.push_back(0);
+        }
+        const int64_t last = static_cast<int64_t>(step.tokens.size()) - 1;
+        int64_t keys = row.length;
+        // Padding follows the last row with tokens, as further queries whose keys count toward its length in this step alone.
+        if (index == padded) {
+            for (int64_t position = row.length; position < row.length + padding; ++position) {
+                step.tokens.push_back(0);
+                step.positions.push_back(std::min(position, capacity - 1));
+                step.write_pages.push_back(scratch_page);
+                step.write_slots.push_back(position % page_size);
+            }
+            keys += padding;
+        }
+        visible.push_back(keys);
+        step.query_offsets.push_back(static_cast<int64_t>(step.tokens.size()));
+        step.last_rows.push_back(last);
+        step.real_tokens.push_back(portions[index]);
+        step.sequence_ids.resize(step.tokens.size(), static_cast<int64_t>(index));
+    }
+    step.page_offsets.push_back(0);
+    for (size_t index = 0; index < rows.size(); ++index) {
+        const int64_t seen = visible[index];
+        if (seen == 0) {
+            // An idle row reads the scratch page, since every attention kernel takes a key.
+            step.pages.push_back(scratch_page);
+            step.last_page_lengths.push_back(1);
+        } else {
+            const int64_t used = (seen - 1) / page_size + 1;
+            const int64_t held = std::min<int64_t>(used, static_cast<int64_t>(rows[index].pages.size()));
+            for (int64_t page = 0; page < used; ++page) step.pages.push_back(page < held ? rows[index].pages[static_cast<size_t>(page)] : scratch_page);
+            step.last_page_lengths.push_back((seen - 1) % page_size + 1);
+        }
+        step.page_offsets.push_back(static_cast<int64_t>(step.pages.size()));
+    }
+    step.pages.resize(static_cast<size_t>(table_length), 0);
+    return step;
+}
+
+static std::vector<int64_t> pack(const Step& step) {
+    std::vector<int64_t> packed;
+    for (const std::vector<int64_t>* part : {&step.tokens, &step.positions, &step.write_pages, &step.write_slots, &step.query_offsets, &step.page_offsets, &step.pages, &step.last_page_lengths, &step.last_rows, &step.real_tokens, &step.sequence_ids}) {
+        packed.insert(packed.end(), part->begin(), part->end());
+    }
+    return packed;
+}
+
+
+// Copies a step's packed inputs to `buffer` on the loop's stream through page-locked `staging`, which the copy reads after this returns.
+static void upload_staged(void* buffer, const std::vector<int64_t>& values, int64_t* staging) {
+    std::copy(values.begin(), values.end(), staging);
+    check_cuda(cudaMemcpyAsync(buffer, staging, values.size() * sizeof(int64_t), cudaMemcpyHostToDevice, loop_stream), "cudaMemcpyAsync");
+}

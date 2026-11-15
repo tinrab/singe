@@ -13,7 +13,7 @@ use safetensors::{
 };
 use serde::Deserialize;
 
-use self::shard::{Shard, shape_of, stored_type};
+use self::shard::{AlignedBytes, Shard, shape_of, stored_type};
 #[cfg(feature = "cuda")]
 use crate::backend::cuda::upload::CudaUpload;
 use crate::{
@@ -332,7 +332,7 @@ pub type StatePieceMap = dyn Fn(&str) -> Option<StatePiece>;
 pub struct CheckpointOptions<'a> {
     // Where tensors go, or each binding's current device for `None`.
     pub device: Option<Device>,
-    // Casts floating tensors to the schema's type, on the host, rather than refusing a different one.
+    // Casts floating tensors to the schema's type rather than refusing a different one.
     pub convert: bool,
     // How checkpoint names become state names; they map to themselves without this.
     pub names: Option<&'a StateNameMap>,
@@ -398,9 +398,12 @@ impl Loading {
                 self.uploads.push((device, CudaUpload::create(device)?));
                 self.uploads.len() - 1
             };
-            return self.uploads[at].1.tensor(target, shape, |offset, chunk| {
-                shard.read_as(info, target, offset, chunk)
-            });
+            // A tensor stored as another type uploads as it is stored and casts on the device.
+            let source = stored_type(info.dtype)?;
+            let uploaded = self.uploads[at].1.tensor(source, shape, |offset, chunk| {
+                shard.read_as(info, source, offset, chunk)
+            })?;
+            return uploaded.cast(target);
         }
 
         shard.tensor_as(info, target)?.to_device(device)
@@ -422,13 +425,16 @@ fn same_values(
     }
 
     let total = shape_of(info)?.element_count() * target.size_bytes();
-    let (mut first, mut second) = (vec![0; COMPARED_BYTES], vec![0; COMPARED_BYTES]);
+    let (mut first, mut second) = (
+        AlignedBytes::zeroed(COMPARED_BYTES),
+        AlignedBytes::zeroed(COMPARED_BYTES),
+    );
     let mut offset = 0;
     while offset < total {
         let length = COMPARED_BYTES.min(total - offset);
-        shards[*tied_shard].read_as(tied, target, offset, &mut first[..length])?;
-        shards[shard].read_as(info, target, offset, &mut second[..length])?;
-        if first[..length] != second[..length] {
+        shards[*tied_shard].read_as(tied, target, offset, &mut first.as_mut()[..length])?;
+        shards[shard].read_as(info, target, offset, &mut second.as_mut()[..length])?;
+        if first.as_ref()[..length] != second.as_ref()[..length] {
             return Ok(false);
         }
 

@@ -107,7 +107,7 @@ impl WorkspaceLayout {
                 byte_offset: offset,
                 byte_len,
                 byte_alignment: alignment,
-                initializer: tensor.workspace_initializer.clone(),
+                initializer: tensor.workspace_initializer,
             });
         }
 

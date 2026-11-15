@@ -1,0 +1,72 @@
+// A prompt's tokens, and where its starred token stands, if it has one.
+struct Prompt {
+    std::vector<int64_t> tokens;
+    int64_t placeholder = -1;
+    size_t placeholder_at = 0;
+};
+
+static void add_token(Prompt& prompt, const char* text) {
+    char* end = nullptr;
+    const int64_t token = strtoll(text, &end, 10);
+    if (*end == '*') {
+        prompt.placeholder = token;
+        prompt.placeholder_at = prompt.tokens.size();
+    } else {
+        prompt.tokens.push_back(token);
+    }
+}
+
+// A prompt of text: its tokens, inside the template unless `raw`, with the first placeholder token starred.
+static Prompt text_prompt(const Tokenizer& tokenizer, const std::string& text, bool raw) {
+    Prompt prompt;
+    for (const int64_t token : encode_text(tokenizer, raw ? text : tokenizer.before + text + tokenizer.after)) {
+        if (token == tokenizer.placeholder && prompt.placeholder < 0) {
+            prompt.placeholder = token;
+            prompt.placeholder_at = prompt.tokens.size();
+        } else {
+            prompt.tokens.push_back(token);
+        }
+    }
+    return prompt;
+}
+
+static Prompt token_prompt(const std::string& line) {
+    Prompt prompt;
+    std::string word;
+    for (const char c : line + " ") {
+        if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+            if (!word.empty()) add_token(prompt, word.c_str());
+            word.clear();
+        } else {
+            word.push_back(c);
+        }
+    }
+    return prompt;
+}
+
+// Each line of a prompts file, with `\n` and `\\` read as a line break and a backslash when `text`.
+static std::vector<std::string> read_lines(const char* path, bool text) {
+    std::vector<std::string> lines;
+    FILE* file = fopen(path, "r");
+    if (file == nullptr) {
+        fprintf(stderr, "cannot read prompts from %s\n", path);
+        exit(1);
+    }
+    std::string line;
+    for (int c = fgetc(file);; c = fgetc(file)) {
+        if (c == EOF || c == '\n') {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (!line.empty()) lines.push_back(line);
+            line.clear();
+            if (c == EOF) break;
+        } else if (c == '\\' && text) {
+            const int escaped = fgetc(file);
+            line.push_back(escaped == 'n' ? '\n' : static_cast<char>(escaped));
+        } else {
+            line.push_back(static_cast<char>(c));
+        }
+    }
+    fclose(file);
+    return lines;
+}
+

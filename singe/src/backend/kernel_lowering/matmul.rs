@@ -14,7 +14,7 @@ use crate::{
             expression::{ElementValue, Expressions},
             group::FusedStep,
             quantization::unpacked,
-            reduction::row_schedule,
+            row::row_schedule,
         },
         registry::PackedFormat,
         spec,

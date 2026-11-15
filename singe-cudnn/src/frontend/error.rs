@@ -1123,9 +1123,7 @@ impl fmt::Display for SdpaRequirement {
 }
 
 fn on_sm(sm_version: Option<i32>) -> String {
-    sm_version
-        .map(|sm_version| format!(" on SM {sm_version}"))
-        .unwrap_or_default()
+    sm_version.map_or_default(|sm_version| format!(" on SM {sm_version}"))
 }
 
 fn plan_report_details(reports: &[PlanBuildReport]) -> String {

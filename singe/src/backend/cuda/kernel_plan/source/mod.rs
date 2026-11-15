@@ -1,4 +1,5 @@
 mod attention;
+mod cudnn_paging;
 mod dot_product;
 mod element_wise;
 mod grouped;
@@ -8,6 +9,7 @@ mod mma;
 mod norm;
 mod paged_attention;
 mod paged_general;
+mod paging;
 mod parameters;
 mod random;
 mod recurrence;
@@ -47,10 +49,11 @@ use crate::{
 };
 
 pub use self::{
-    paged_attention::{
-        QueryRotation, cudnn_paging, plan_cudnn_paging_indices, plan_cudnn_paging_results,
+    cudnn_paging::{
+        cudnn_paging, plan_cudnn_paging_indices, plan_cudnn_paging_results,
         plan_cudnn_query_lengths,
     },
+    paged_attention::QueryRotation,
     parameters::{KernelParameters, SplitParameters, has_tcgen05, parameter_key},
     rotary_cache::{RotaryCacheInputs, RotationNorm},
     writer::value_type,
@@ -330,7 +333,7 @@ impl KernelPlanner {
                 | Operation::GatedDeltaRuleOutput
                 | Operation::GatedDeltaRuleState
         ) {
-            return KernelPlan::state_recurrence(operation, inputs);
+            return KernelPlan::state_recurrence(operation, inputs, self.has_tensor_cores());
         }
 
         if let (Operation::GroupedMatMul, [input, weights, offsets]) = (operation, inputs) {
@@ -554,18 +557,7 @@ impl KernelPlanner {
             {
                 return Ok(Some(plan));
             }
-            match epilogue {
-                Some(epilogue) => kernel_lowering::normalization_with_epilogue(
-                    operation,
-                    normalization,
-                    group,
-                    parameters,
-                    epilogue,
-                )?,
-                None => {
-                    kernel_lowering::normalization(operation, normalization, group, parameters)?
-                }
-            }
+            kernel_lowering::normalization(operation, normalization, group, parameters, epilogue)?
         } else if matches!(operation, Operation::Softmax | Operation::LogSoftmax) {
             let dim = attributes
                 .dimension()

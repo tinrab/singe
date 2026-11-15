@@ -3,21 +3,22 @@ use std::{collections::HashMap, iter, path::Path, slice};
 use serde::Deserialize;
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    generation::{CachedDecoder, DecoderOptions, RunningBatch},
+    generation::{CachedDecoder, generate_batch},
     graph::{Graph, capture},
     nn::{
         Activation, Conv2d, Conv2dConfig, DenseAttentionInput, GatedMlp, GroupedQueryAttention,
-        Layer, LayerNorm, Linear, Mlp, Model, ModelState, PreNormBlock, RmsNorm, SelfAttention,
-        SourcedCausalLm, StateBuilder, TensorGroup, caches_from_inputs, named_cache_inputs,
+        Layer, LayerNorm, Linear, Model, ModelState, PreNormBlock, RmsNorm, SourcedCausalLm,
+        StateBuilder, TensorGroup,
     },
     signal::{LogMelOptions, LogMelSpectrogram},
 };
 
 use crate::{
+    BatchOptions,
     assembly::{
-        DecoderSpec, causal, causal_lm_in, grouped_attention, load_weights, pre_norm_block,
+        DecoderSpec, EncoderBlock, EncoderSpec, causal, causal_lm_in, encoder_block,
+        grouped_attention, load_weights, pre_norm_block,
     },
-    audio::automatic_speech_recognition::whisper::TranscribeOptions,
     config::{Snapshot, unsupported},
     error::Result,
     schema::Schema,
@@ -123,8 +124,6 @@ impl Qwen3AsrConfig {
         self.text_config.validate()
     }
 }
-
-type EncoderBlock = PreNormBlock<SelfAttention, Mlp, LayerNorm>;
 
 // Qwen3-ASR's audio encoder: each chunk of mel frames through three convolutions of stride two with GELU, a projection of channels and frequencies, and sinusoid positions that restart each chunk; then the valid positions through pre-norm blocks attending within windows, a norm, and a projector of two linears around GELU into the decoder's width.
 #[derive(Debug, Clone)]
@@ -428,39 +427,28 @@ impl Qwen3Asr {
             .ok_or_else(|| SingeError::missing_input("a decoder's caches"))?;
         let samples = self.bucket_samples(chunks);
         let scalar = |value: i64| Tensor::from_vec(device, Shape::create([1])?, vec![value]);
-        let inputs = [
+        let inputs = vec![
             (
                 "samples".to_owned(),
                 Tensor::zeroed_on(device, DataType::F32, Shape::create([samples])?)?,
             ),
             ("source_length".to_owned(), scalar(samples)?),
             ("source_position".to_owned(), scalar(0)?),
-        ]
-        .into_iter()
-        .chain(named_cache_inputs(decoder.caches()))
-        .collect::<Vec<_>>();
-        let bindings = self
-            .encoder
-            .state()
-            .capture_bindings()?
-            .merged(self.decoder.state().capture_bindings()?);
-        let (graph, _) = Graph::capture_with_bindings(inputs.clone(), bindings, |tensors| {
-            let [samples, length, position, captured @ ..] = tensors else {
-                return Err(SingeError::missing_input("the encode step's inputs"));
-            };
-            let caches = caches_from_inputs(decoder.caches(), captured)?;
-            let (features, frames) = self.features(samples, length)?;
-            let (rows, count) = self.encode(&features, &frames)?;
-            let offsets = capture::literal(device, |device| {
-                Tensor::arange(device, 0_i64, rows.shape().dimensions()[0], 1)
+        ];
+        let (graph, inputs) =
+            decoder.encode_step_graph(self.encoder.state(), inputs, |inputs, caches| {
+                let [samples, length, position] = inputs else {
+                    return Err(SingeError::missing_input("the encode step's inputs"));
+                };
+                let (features, frames) = self.features(samples, length)?;
+                let (rows, count) = self.encode(&features, &frames)?;
+                let offsets = capture::literal(device, |device| {
+                    Tensor::arange(device, 0_i64, rows.shape().dimensions()[0], 1)
+                })?;
+                Qwen3AsrDecoderLayers::write_sources_at(caches, 0, &offsets.add(position)?, &rows)?;
+                Ok(vec![count])
             })?;
-            Qwen3AsrDecoderLayers::write_sources_at(&caches, 0, &offsets.add(position)?, &rows)?;
-            Ok(vec![count])
-        })?;
-        Ok((
-            graph.with_output_names(["source_rows"])?,
-            inputs.into_iter().collect(),
-        ))
+        Ok((graph.with_output_names(["source_rows"])?, inputs))
     }
 
     // The prompt that asks for a transcription of audio of `audio_tokens` rows, as the snapshot's chat template writes it with no system text: the user's turn holds the audio, and the assistant's turn starts, given `language <name><asr_text>` when `language` forces one.
@@ -488,7 +476,7 @@ impl Qwen3Asr {
         tokenizer: &TextTokenizer,
         samples: &Tensor,
         language: Option<&str>,
-        options: &TranscribeOptions,
+        options: &BatchOptions,
     ) -> Result<Vec<i64>> {
         self.transcribe_batch(tokenizer, slice::from_ref(samples), language, options)?
             .pop()
@@ -502,7 +490,7 @@ impl Qwen3Asr {
         tokenizer: &TextTokenizer,
         clips: &[Tensor],
         language: Option<&str>,
-        options: &TranscribeOptions,
+        options: &BatchOptions,
     ) -> Result<Vec<Vec<i64>>> {
         if clips.is_empty() || options.rows == 0 {
             return Ok(vec![Vec::new(); clips.len()]);
@@ -522,81 +510,39 @@ impl Qwen3Asr {
     pub fn generate(
         &self,
         prompts: &[(Vec<i64>, Tensor)],
-        options: &TranscribeOptions,
+        options: &BatchOptions,
     ) -> Result<Vec<Vec<i64>>> {
         if prompts.is_empty() || options.rows == 0 {
             return Ok(vec![Vec::new(); prompts.len()]);
         }
 
-        let capacity = prompts
-            .iter()
-            .map(|(prompt, _)| prompt.len() + options.generation.max_new_tokens)
-            .max()
-            .unwrap_or(0);
-        let capacity =
-            i64::try_from(capacity).map_err(|_| SingeError::out_of_range("transcription"))?;
-        let mut decoder =
-            CachedDecoder::create(&self.decoder, DecoderOptions::new(options.rows, capacity))?;
-        if options.compile {
-            decoder.compile()?;
-        }
+        let mut decoder = options.decoder(
+            &self.decoder,
+            prompts.iter().map(|(prompt, _)| prompt.len()),
+        )?;
 
         let audio = self.config.audio_token_id;
-        let mut tokens = vec![Vec::new(); prompts.len()];
-        let mut next = 0;
-        let mut batch = RunningBatch::create(&mut decoder, options.generation.clone())?;
-        loop {
-            while let Some((prompt, encoded)) = prompts.get(next) {
+        let tokens = prompts
+            .iter()
+            .map(|(prompt, _)| prompt.as_slice())
+            .collect::<Vec<_>>();
+        Ok(generate_batch(
+            &mut decoder,
+            &tokens,
+            &options.generation,
+            None,
+            |decoder, row, index| {
+                let (prompt, encoded) = &prompts[index];
                 let first = prompt
                     .iter()
                     .position(|&token| token == audio)
                     .ok_or_else(|| SingeError::invalid_argument("a prompt without audio"))?;
                 let first = i64::try_from(first).map_err(|_| SingeError::out_of_range("prompt"))?;
-                let joined = batch.join_with(prompt, |decoder, row| {
-                    Qwen3AsrDecoderLayers::write_sources(decoder.caches(), row, first, encoded)
-                })?;
-                if joined.is_none() {
-                    break;
-                }
-
-                next += 1;
-            }
-
-            if batch.is_empty() {
-                return Ok(tokens);
-            }
-
-            for generated in batch.advance(None)? {
-                tokens[generated.sequence].push(generated.token);
-            }
-        }
+                Qwen3AsrDecoderLayers::write_sources(decoder.caches(), row, first, encoded)
+            },
+            |_, _| Ok(()),
+        )?)
     }
-}
-
-fn encoder_block(
-    schema: &mut Schema<'_>,
-    config: &Qwen3AsrEncoderConfig,
-) -> SingeResult<EncoderBlock> {
-    let width = config.d_model;
-    let mut attention = schema.scope("self_attn");
-    let attention = SelfAttention::create(
-        attention.linear("q_proj", width, width, true)?,
-        attention.linear("k_proj", width, width, true)?,
-        attention.linear("v_proj", width, width, true)?,
-        attention.linear("out_proj", width, width, true)?,
-        config.encoder_attention_heads,
-        width,
-    )?;
-    Ok(PreNormBlock::new(
-        schema.layer_norm("self_attn_layer_norm", width, LAYER_NORM_EPS)?,
-        attention,
-        schema.layer_norm("final_layer_norm", width, LAYER_NORM_EPS)?,
-        Mlp::new(
-            schema.linear("fc1", width, config.encoder_ffn_dim, true)?,
-            schema.linear("fc2", config.encoder_ffn_dim, width, true)?,
-            config.activation_function,
-        ),
-    ))
 }
 
 fn encoder_schema(
@@ -627,8 +573,15 @@ fn encoder_schema(
             convolution(&mut tower, "conv2d3", hidden)?,
         ];
         let projection = tower.linear("conv_out", hidden * config.frequencies(), width, false)?;
+        let spec = EncoderSpec {
+            width: config.d_model,
+            heads: config.encoder_attention_heads,
+            inner: config.encoder_ffn_dim,
+            activation: config.activation_function,
+            key_bias: true,
+        };
         let blocks = (0..config.encoder_layers)
-            .map(|layer| encoder_block(&mut tower.scope(format!("layers.{layer}")), config))
+            .map(|layer| encoder_block(&mut tower.scope(format!("layers.{layer}")), &spec))
             .collect::<SingeResult<Vec<_>>>()?;
         let norm = tower.layer_norm("ln_post", width, LAYER_NORM_EPS)?;
         let mut projector = Schema::new(builder.scope("model.multi_modal_projector"), data_type);
@@ -668,6 +621,7 @@ fn decoder_schema(
                 grouped_attention(schema, &spec, causal())
             })
         },
+        None,
     )?;
     Ok(Model::new(
         SourcedCausalLm::new(decoder, config.audio_token_id, spec.width),

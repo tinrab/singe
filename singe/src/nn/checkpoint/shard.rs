@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
     path::Path,
+    slice,
 };
 
 use safetensors::{
@@ -10,11 +11,11 @@ use safetensors::{
 };
 
 use crate::{
-    data_type::DataType,
+    data_type::{DataType, bf16, f16},
     device::Device,
     error::{Error, Result},
     shape::Shape,
-    tensor::Tensor,
+    tensor::{Tensor, TensorDataType},
     utility::{checked_mul, to_i64},
 };
 
@@ -83,7 +84,6 @@ impl<'a> Shard<'a> {
             .ok_or_else(|| Error::missing_input(format!("checkpoint tensor `{name}`")))
     }
 
-    // Fills `buffer` with the bytes of `info`'s tensor as `target`, from byte `offset` of it as `target`, casting what the file holds if it holds another type.
     pub fn read_as(
         &mut self,
         info: &TensorInfo,
@@ -99,27 +99,22 @@ impl<'a> Shard<'a> {
         let (target_size, source_size) = (target.size_bytes(), source.size_bytes());
         let first = offset / target_size;
         let count = buffer.len() / target_size;
-        let mut stored = vec![0; checked_mul(count, source_size, "checkpoint chunk bytes")?];
-        self.read_at(info, first * source_size, &mut stored)?;
-        let shape = Shape::create([to_i64(count, "checkpoint chunk elements")?])?;
-        let cast = Tensor::from_bytes(Device::Cpu, source, &shape, &stored)?.cast(target)?;
-        buffer.copy_from_slice(&cast.to_bytes()?);
-        Ok(())
+        let mut stored =
+            AlignedBytes::zeroed(checked_mul(count, source_size, "checkpoint chunk bytes")?);
+        self.read_at(info, first * source_size, stored.as_mut())?;
+        cast_floats(source, stored.as_ref(), target, buffer)
     }
 
     // Returns the whole of `info`'s tensor as `target` on the host.
     pub fn tensor_as(&mut self, info: &TensorInfo, target: DataType) -> Result<Tensor> {
         let shape = shape_of(info)?;
-        let mut bytes = vec![
-            0;
-            checked_mul(
-                shape.element_count(),
-                target.size_bytes(),
-                "checkpoint tensor bytes"
-            )?
-        ];
-        self.read_as(info, target, 0, &mut bytes)?;
-        Tensor::from_bytes(Device::Cpu, target, &shape, &bytes)
+        let mut bytes = AlignedBytes::zeroed(checked_mul(
+            shape.element_count(),
+            target.size_bytes(),
+            "checkpoint tensor bytes",
+        )?);
+        self.read_as(info, target, 0, bytes.as_mut())?;
+        Tensor::from_bytes(Device::Cpu, target, &shape, bytes.as_ref())
     }
 
     // Fills `buffer` with the stored bytes of `info`'s tensor from byte `offset` of them.
@@ -141,6 +136,64 @@ impl<'a> Shard<'a> {
             }
         }
         Ok(())
+    }
+}
+
+pub struct AlignedBytes {
+    words: Vec<u64>,
+    length: usize,
+}
+
+impl AlignedBytes {
+    pub fn zeroed(length: usize) -> Self {
+        Self {
+            words: vec![0; length.div_ceil(8)],
+            length,
+        }
+    }
+}
+
+impl AsRef<[u8]> for AlignedBytes {
+    fn as_ref(&self) -> &[u8] {
+        // SAFETY: the words span at least `length` initialized bytes, and any byte is a valid `u8`.
+        unsafe { slice::from_raw_parts(self.words.as_ptr().cast::<u8>(), self.length) }
+    }
+}
+
+impl AsMut<[u8]> for AlignedBytes {
+    fn as_mut(&mut self) -> &mut [u8] {
+        // SAFETY: the words span at least `length` initialized bytes, and any bytes written make valid words.
+        unsafe { slice::from_raw_parts_mut(self.words.as_mut_ptr().cast::<u8>(), self.length) }
+    }
+}
+
+fn cast_floats(source: DataType, stored: &[u8], target: DataType, output: &mut [u8]) -> Result<()> {
+    fn into<S: TensorDataType>(values: &[S], target: DataType, output: &mut [u8]) -> Result<()> {
+        fn write<T: TensorDataType>(
+            values: &[impl TensorDataType],
+            output: &mut [u8],
+        ) -> Result<()> {
+            for (slot, value) in T::from_bytes_mut(output)?.iter_mut().zip(values) {
+                *slot = T::from_scalar(value.into_scalar());
+            }
+            Ok(())
+        }
+
+        match target {
+            DataType::F16 => write::<f16>(values, output),
+            DataType::Bf16 => write::<bf16>(values, output),
+            DataType::F32 => write::<f32>(values, output),
+            DataType::F64 => write::<f64>(values, output),
+            _ => Err(Error::unsupported_data_type("checkpoint cast target")),
+        }
+    }
+
+    match source {
+        DataType::F16 => into(f16::from_bytes(stored)?, target, output),
+        DataType::Bf16 => into(bf16::from_bytes(stored)?, target, output),
+        DataType::F32 => into(f32::from_bytes(stored)?, target, output),
+        DataType::F64 => into(f64::from_bytes(stored)?, target, output),
+        _ => Err(Error::unsupported_data_type("checkpoint cast source")),
     }
 }
 

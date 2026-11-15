@@ -8,8 +8,7 @@ use crate::{
             ElementGroup, ElementWiseKernel, EpilogueNode, EpilogueValue, FusedOperand, FusedStep,
             Lhs, LoweredKernel, RowEpilogue, STATUS_INDEX_OUT_OF_BOUNDS,
             STATUS_INVALID_QUANTIZATION_SCALE, Selection, Weight, batch_norm, contraction, conv2d,
-            gather, normalization, normalization_with_epilogue, pool2d, quantization, reduction,
-            scan, scatter, softmax,
+            gather, normalization, pool2d, quantization, reduction, scan, scatter, softmax,
         },
         registry::{
             BackendExecution, BatchNormalizationAttributes, ClampAttributes, Conv2dAttributes,
@@ -369,7 +368,8 @@ fn test_lowered_reductions_softmax_and_normalizations_match_the_cpu() {
                 .map(|input| (input.data_type(), input.layout()))
                 .collect::<Vec<_>>();
             let group = ElementGroup::input(data_type, input.layout());
-            let lowered = normalization(operation, &attributes, &group, &layouts[1..]).unwrap();
+            let lowered =
+                normalization(operation, &attributes, &group, &layouts[1..], None).unwrap();
             assert_lowered_matches(&lowered, &inputs, &expected, tolerance);
         }
         if !cpu_supports(Operation::BatchNorm) {
@@ -468,6 +468,7 @@ fn test_row_lowerings_compute_an_element_wise_prologue_in_the_kernel() {
         &attributes,
         &group,
         &[(data_type, weight.layout())],
+        None,
     )
     .unwrap();
     let mut inputs = inputs.to_vec();
@@ -484,6 +485,7 @@ fn test_row_lowerings_compute_an_element_wise_prologue_in_the_kernel() {
         &attributes,
         &stored,
         &[(data_type, weight.layout())],
+        None,
     )
     .unwrap();
     assert_eq!(lowered.outputs.len(), 2);
@@ -838,12 +840,12 @@ fn test_normalizations_store_a_rotary_epilogue_read_through_slices_and_a_transpo
         ],
     };
     let group = ElementGroup::input(DataType::F32, x.layout());
-    let lowered = normalization_with_epilogue(
+    let lowered = normalization(
         Operation::RmsNorm,
         &attributes,
         &group,
         &[(DataType::F32, weight.layout())],
-        &epilogue,
+        Some(&epilogue),
     )
     .unwrap();
     assert_lowered_matches(&lowered, &[x, weight, cos, sin], &expected, 1e-5);

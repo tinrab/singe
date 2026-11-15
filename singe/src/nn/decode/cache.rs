@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, iter};
 
 use crate::{
     data_type::DataType,
@@ -26,6 +26,10 @@ pub trait DecodeCache: TensorGroup {
 
     // Returns a cache of this one's kind over `tensors`, as many as this one names, in its order.
     fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self>;
+
+    fn keep_trail(&self, _row: usize) -> Result<()> {
+        Ok(())
+    }
 }
 
 // How much a decoder's caches hold: `pages` pages of `page_size` slots, shared by `sequences` sequences of up to `capacity` tokens each.
@@ -35,6 +39,7 @@ pub struct CacheSize {
     pub page_size: i64,
     pub sequences: i64,
     pub capacity: i64,
+    pub trail: i64,
 }
 
 // Names `caches`' tensors as the inputs of a compiled step.
@@ -314,17 +319,47 @@ pub struct StateCacheSpec {
     pub value_dim: i64,
 }
 
-input_group! {
-    // One linear-attention layer's state for each sequence row: the convolution's last inputs, `[S, channels, width − 1]`, and the recurrent state, `[S, heads, key_dim, value_dim]`, in F32.
-    //
-    // A row's state is not paged: a step reads and writes it by the row's index, and starts from zero for a row whose first token is at position zero.
-    pub struct StateCache {
-        convolution,
-        recurrent,
+// One linear-attention layer's state for each sequence row: the convolution's last inputs, `[S, channels, width − 1]`, and the recurrent state, `[S, heads, key_dim, value_dim]`, in F32.
+//
+// A row's state is not paged: a step reads and writes it by the row's index, and starts from zero for a row whose first token is at position zero.
+#[derive(Debug, Clone)]
+pub struct StateCache {
+    convolution: Tensor,
+    recurrent: Tensor,
+    trail: Option<[Tensor; 2]>,
+}
+
+impl TensorGroup for StateCache {
+    fn named_tensors(&self) -> Vec<(String, Tensor)> {
+        let mut tensors = vec![
+            ("convolution".to_owned(), self.convolution.clone()),
+            ("recurrent".to_owned(), self.recurrent.clone()),
+        ];
+        if let Some([convolution, recurrent]) = &self.trail {
+            tensors.push(("trail_convolution".to_owned(), convolution.clone()));
+            tensors.push(("trail_recurrent".to_owned(), recurrent.clone()));
+        }
+        tensors
     }
 }
 
 impl StateCache {
+    #[must_use]
+    pub fn trail_rows(&self) -> i64 {
+        self.trail
+            .as_ref()
+            .map_or(0, |[convolution, _]| convolution.shape().dimensions()[0])
+    }
+
+    pub fn write_trail(&self, convolution: &Tensor, recurrent: &Tensor) -> Result<()> {
+        let [trail_convolution, trail_recurrent] = self
+            .trail
+            .as_ref()
+            .ok_or_else(|| Error::missing_input("a state cache's trail"))?;
+        trail_convolution.assign(convolution)?;
+        trail_recurrent.assign(recurrent)
+    }
+
     // Replaces the state with what a step leaves: the convolution's last inputs and the recurrent state, each of the cache's shape.
     pub fn write(&self, convolution: &Tensor, recurrent: &Tensor) -> Result<()> {
         self.convolution.assign(convolution)?;
@@ -348,7 +383,30 @@ impl DecodeCache for StateCache {
     type Spec = StateCacheSpec;
 
     fn rebuilt(&self, tensors: &[Tensor]) -> Result<Self> {
-        Self::from_tensors(tensors)
+        match tensors {
+            [convolution, recurrent] => Ok(Self {
+                convolution: convolution.clone(),
+                recurrent: recurrent.clone(),
+                trail: None,
+            }),
+            [convolution, recurrent, trail_convolution, trail_recurrent] => Ok(Self {
+                convolution: convolution.clone(),
+                recurrent: recurrent.clone(),
+                trail: Some([trail_convolution.clone(), trail_recurrent.clone()]),
+            }),
+            _ => Err(Error::missing_input("StateCache")),
+        }
+    }
+
+    fn keep_trail(&self, row: usize) -> Result<()> {
+        let Some([convolution, recurrent]) = &self.trail else {
+            return Err(Error::missing_input("a state cache's trail"));
+        };
+        let row = i64::try_from(row).map_err(|_| Error::out_of_range("trail row"))?;
+        self.convolution
+            .assign(&convolution.narrow(0, row, 1)?.squeeze(0)?)?;
+        self.recurrent
+            .assign(&recurrent.narrow(0, row, 1)?.squeeze(0)?)
     }
 
     fn create(
@@ -363,17 +421,23 @@ impl DecodeCache for StateCache {
             ));
         }
 
+        let convolution = [size.sequences, spec.channels, spec.width - 1];
+        let recurrent = [size.sequences, spec.heads, spec.key_dim, spec.value_dim];
+        let trail = (size.trail > 0)
+            .then(|| -> Result<[Tensor; 2]> {
+                let rows = |dimensions: &[i64]| {
+                    Shape::create(iter::once(size.trail).chain(dimensions.iter().copied()))
+                };
+                Ok([
+                    Tensor::zeroed_on(device, data_type, rows(&convolution)?)?,
+                    Tensor::zeroed_on(device, DataType::F32, rows(&recurrent)?)?,
+                ])
+            })
+            .transpose()?;
         Ok(Self {
-            convolution: Tensor::zeroed_on(
-                device,
-                data_type,
-                Shape::create([size.sequences, spec.channels, spec.width - 1])?,
-            )?,
-            recurrent: Tensor::zeroed_on(
-                device,
-                DataType::F32,
-                Shape::create([size.sequences, spec.heads, spec.key_dim, spec.value_dim])?,
-            )?,
+            convolution: Tensor::zeroed_on(device, data_type, Shape::create(convolution)?)?,
+            recurrent: Tensor::zeroed_on(device, DataType::F32, Shape::create(recurrent)?)?,
+            trail,
         })
     }
 }
@@ -425,6 +489,13 @@ impl DecodeCache for HybridCache {
             Self::Attention(cache) => Self::Attention(cache.rebuilt(tensors)?),
             Self::State(cache) => Self::State(cache.rebuilt(tensors)?),
         })
+    }
+
+    fn keep_trail(&self, row: usize) -> Result<()> {
+        match self {
+            Self::Attention(cache) => cache.keep_trail(row),
+            Self::State(cache) => cache.keep_trail(row),
+        }
     }
 }
 
@@ -652,6 +723,7 @@ mod tests {
             page_size,
             sequences: 1,
             capacity: pages * page_size,
+            trail: 0,
         }
     }
 

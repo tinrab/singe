@@ -12,6 +12,7 @@ use crate::{
                     CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
                     EMBEDDED_VALUE_BYTES, LIBRARY_VERSION, LIBRARY_VERSIONS, ProgramFiles,
                     Renderer, cudnn::TABLE_KNOBS_HELPER, fill_template, steps::StepOutput,
+                    tokenizer::tokenizer_file,
                 },
             },
             kernel_plan::value_type,
@@ -417,11 +418,18 @@ impl Renderer<'_> {
         );
         let manifest = self.manifest(&libraries, out.needs, &buffers)?;
         let generate = self.generation_loop(buffers.weights.len())?;
+        let tokenizer = self
+            .program
+            .decoding
+            .as_ref()
+            .and_then(|decoding| decoding.tokenizer.as_ref())
+            .map(tokenizer_file);
         let run = self.runner(buffers.weights.len())?;
         let forced = self.forced.take();
         Ok(ProgramFiles {
             header: self.header()?,
             generate,
+            tokenizer,
             run,
             source,
             weights: buffers.weights,

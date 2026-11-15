@@ -11,7 +11,7 @@ use crate::{
     backend::{
         cuda::kernel_plan::source::{
             KernelInput, KernelPlan,
-            paged_attention::{PagedSequence, report_index_error},
+            paging::{PagedSequence, report_index_error},
             writer::KernelWriter,
         },
         kernel_lowering::element_type,

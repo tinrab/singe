@@ -765,8 +765,7 @@ fn signature_name(name: &Ident) -> Ident {
             let mut chars = part.chars();
             chars
                 .next()
-                .map(|first| first.to_uppercase().to_string() + chars.as_str())
-                .unwrap_or_default()
+                .map_or_default(|first| first.to_uppercase().to_string() + chars.as_str())
         })
         .collect::<String>();
     format_ident!("{}Signature", name, span = span)
@@ -986,7 +985,7 @@ fn generate_methods(kernel: &KernelMetadata) -> TokenStream {
         let (leading, trailing) = if matches!(suffix, "_record" | "_node" | "_set_node_params") {
             (quote! { #extra_args #configuration }, quote! {})
         } else {
-            (configuration, extra_args.clone())
+            (configuration, extra_args)
         };
         methods.push(quote! {
             #[doc = #description]
@@ -1354,8 +1353,7 @@ fn parse_source_kernel(
     let params = declarator
         .child_by_field_name("parameters")
         .or_else(|| find_descendant_kind(declarator, "parameter_list"))
-        .map(|parameters| parse_source_parameters(source, parameters, aliases))
-        .unwrap_or_default();
+        .map_or_default(|parameters| parse_source_parameters(source, parameters, aliases));
 
     Some(SourceKernel {
         exported_name: name.clone(),

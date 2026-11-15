@@ -142,7 +142,11 @@ pub fn plan_kernel_result(
         operation.opcode(),
         Some(Operation::GatedDeltaRuleOutput | Operation::GatedDeltaRuleState)
     ) {
-        return KernelPlan::state_recurrence(Operation::GatedDeltaRule, inputs);
+        return KernelPlan::state_recurrence(
+            Operation::GatedDeltaRule,
+            inputs,
+            planner.has_tensor_cores(),
+        );
     }
 
     let attention = attributes

@@ -4,6 +4,7 @@ use crate::{
     data_type::DataType,
     device::Device,
     error::{Error, Result},
+    generation::DraftingModel,
     nn::{
         AttentionInput, CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer, Embedding,
         GatedMlp, Layer, Linear, ModelState, PositionCache, PreNormBlock, RmsNorm, RotaryAngles,
@@ -25,9 +26,35 @@ pub struct CausalLmParts<B: DecodingLayer, N = RmsNorm> {
     pub caches: Vec<<B::Cache as DecodeCache>::Spec>,
 }
 
-// A causal language model: an embedding, rotary blocks over one cache each, a final norm, and an output head on each sequence's last token.
+pub struct MultiTokenPrediction<B: DecodingLayer, N = RmsNorm> {
+    pub embedding_norm: N,
+    pub hidden_norm: N,
+    pub projection: Linear,
+    pub block: B,
+    pub cache: <B::Cache as DecodeCache>::Spec,
+    pub norm: N,
+    pub width: i64,
+}
+
+impl<B: DecodingLayer, N: Debug> Debug for MultiTokenPrediction<B, N> {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> FmtResult {
+        formatter
+            .debug_struct("MultiTokenPrediction")
+            .field("embedding_norm", &self.embedding_norm)
+            .field("hidden_norm", &self.hidden_norm)
+            .field("projection", &self.projection)
+            .field("block", &self.block)
+            .field("cache", &self.cache)
+            .field("norm", &self.norm)
+            .field("width", &self.width)
+            .finish()
+    }
+}
+
+// A causal language model: an embedding, rotary blocks over one cache each, a final norm, and an output head on each sequence's last token, with a layer that drafts the tokens after it if it has one.
 pub struct CausalLm<B: DecodingLayer, N = RmsNorm> {
     parts: CausalLmParts<B, N>,
+    draft: Option<MultiTokenPrediction<B, N>>,
 }
 
 // The usual decoder: attention `A` and feed-forward `F` in pre-norm blocks, with norm `N`.
@@ -36,7 +63,13 @@ pub type Decoder<A, F = GatedMlp, N = RmsNorm> = CausalLm<PreNormBlock<A, F, N>,
 impl<B: DecodingLayer, N> CausalLm<B, N> {
     #[must_use]
     pub const fn new(parts: CausalLmParts<B, N>) -> Self {
-        Self { parts }
+        Self { parts, draft: None }
+    }
+
+    #[must_use]
+    pub fn with_draft_layer(mut self, draft: MultiTokenPrediction<B, N>) -> Self {
+        self.draft = Some(draft);
+        self
     }
 }
 
@@ -53,6 +86,7 @@ impl<B: DecodingLayer, N: Debug> Debug for CausalLm<B, N> {
             .field("norm", &parts.norm)
             .field("head", &parts.head)
             .field("caches", &parts.caches)
+            .field("draft", &self.draft)
             .finish()
     }
 }
@@ -134,6 +168,19 @@ where
     pub fn forward_rotated(
         &self,
         step: &DecodeStep,
+        hidden: Tensor,
+        angles: &RotaryAngles,
+        caches: &[B::Cache],
+        state: &ModelState,
+    ) -> Result<Tensor> {
+        self.hidden_rotated(step, hidden, angles, caches, state)?
+            .index_select(0, step.last_rows())?
+            .apply(&self.parts.head, state)
+    }
+
+    fn hidden_rotated(
+        &self,
+        step: &DecodeStep,
         mut hidden: Tensor,
         angles: &RotaryAngles,
         caches: &[B::Cache],
@@ -151,12 +198,100 @@ where
                 state,
             )?;
         }
-        hidden
-            .apply(&parts.norm, state)?
-            .index_select(0, step.last_rows())?
-            .apply(&parts.head, state)
+        hidden.apply(&parts.norm, state)
+    }
+
+    fn draft_layer(&self) -> Result<&MultiTokenPrediction<B, N>> {
+        self.draft
+            .as_ref()
+            .ok_or_else(|| Error::missing_input("a decoder's draft layer"))
     }
 }
+
+impl<B, N> DraftingModel for CausalLm<B, N>
+where
+    B: DecodingLayer,
+    N: Layer + 'static,
+{
+    fn hidden_width(&self) -> i64 {
+        self.draft.as_ref().map_or(0, |draft| draft.width)
+    }
+
+    fn forward_rows(
+        &self,
+        step: &DecodeStep,
+        tables: &RotaryTable,
+        caches: &[B::Cache],
+        state: &ModelState,
+    ) -> Result<(Tensor, Tensor)> {
+        let angles = tables.angles(step.positions())?;
+        let hidden = self.hidden_rotated(step, self.embed(step, state)?, &angles, caches, state)?;
+        Ok((hidden.apply(&self.parts.head, state)?, hidden))
+    }
+
+    fn draft_cache(
+        &self,
+        data_type: DataType,
+        device: Device,
+        size: CacheSize,
+    ) -> Result<B::Cache> {
+        B::Cache::create(device, data_type, size, self.draft_layer()?.cache)
+    }
+
+    fn draft(
+        &self,
+        step: &DecodeStep,
+        hidden: &Tensor,
+        tables: &RotaryTable,
+        cache: &B::Cache,
+        state: &ModelState,
+    ) -> Result<(Tensor, Tensor)> {
+        let draft = self.draft_layer()?;
+        let joined = Tensor::concat(
+            &[
+                self.embed(step, state)?
+                    .apply(&draft.embedding_norm, state)?,
+                hidden.apply(&draft.hidden_norm, state)?,
+            ],
+            1,
+        )?
+        .apply(&draft.projection, state)?;
+        let angles = tables.angles(step.positions())?;
+        let hidden = draft
+            .block
+            .decode(
+                &AttentionInput {
+                    hidden: &joined,
+                    step,
+                    angles: Some(&angles),
+                    cache,
+                },
+                state,
+            )?
+            .apply(&draft.norm, state)?;
+        let logits = match state.named_tensor(DRAFT_HEAD) {
+            Some(head) => {
+                self.parts
+                    .head
+                    .forward_with(&hidden.cast(head.data_type())?, head, state)?
+            }
+            None => hidden.apply(&self.parts.head, state)?,
+        };
+        Ok((logits, hidden))
+    }
+
+    fn draft_buffers(&self, state: &ModelState) -> Result<Vec<(String, Tensor)>> {
+        // A draft only proposes, and the check decides in the weights' own type, so an F32 head drafts from a BF16 copy, which reads half as much.
+        let head = state.tensor(self.parts.head.weight())?;
+        if head.data_type() != DataType::F32 {
+            return Ok(Vec::new());
+        }
+
+        Ok(vec![(DRAFT_HEAD.to_owned(), head.cast(DataType::Bf16)?)])
+    }
+}
+
+const DRAFT_HEAD: &str = "draft_head";
 
 // A causal language model whose prompts read sources in place of a placeholder token, as Qwen3-ASR's prompt reads audio features in place of its audio tokens.
 //

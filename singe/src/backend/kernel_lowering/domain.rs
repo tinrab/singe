@@ -10,10 +10,13 @@ use singe_codegen::{
 };
 
 use crate::{
-    backend::kernel_lowering::{
-        element_type,
-        expression::{ElementValue, Expressions},
-        group::ElementGroup,
+    backend::{
+        kernel_lowering::{
+            element_type,
+            expression::{ElementValue, Expressions},
+            group::ElementGroup,
+        },
+        registry::Operation,
     },
     error::{Error, Result},
     utility::to_u64,
@@ -444,4 +447,26 @@ pub fn strided_access(
         indirect: Vec::new(),
         strides,
     }
+}
+
+/// Returns `singe_` followed by the operation's name, after `fused_` and the names of the group's steps when it has any.
+pub fn kernel_name(operation: Operation, group: &ElementGroup<'_>) -> String {
+    let mut name = String::from("singe_kernel_");
+    if !group.steps.is_empty() {
+        name.push_str("fused_");
+        for step in group.steps {
+            name.push_str(step.operation.name());
+            name.push('_');
+        }
+    }
+    name + operation.name()
+}
+
+/// Returns the strides of each of `group`'s inputs broadcast to its shape.
+pub fn group_strides(group: &ElementGroup<'_>) -> Result<Vec<Vec<i64>>> {
+    group
+        .inputs
+        .iter()
+        .map(|(_, layout)| Ok(layout.expand(&group.shape)?.strides().to_vec()))
+        .collect()
 }

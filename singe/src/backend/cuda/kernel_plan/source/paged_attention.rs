@@ -2,19 +2,17 @@
 // Each block takes 64 rows of one sequence's queries for one key and value head: the query heads that share it, a token's heads consecutive, so the block reads each key page once for them all.
 // The grid covers every sequence's longest possible run of rows, and blocks past their sequence's rows return at once.
 
-use std::f32::consts::LOG2_E;
-
 use singe_codegen::emit::cuda_c::spelling::{compute_type, load_expression, store_expression};
 
 use crate::{
     backend::{
         cuda::{
             codegen::CompileRequirements,
-            cudnn_backend::{CudnnPaging, cudnn_takes_attention},
             kernel_plan::source::{
                 KernelInput, KernelPlan, KernelPlanner,
                 attention::PAD,
                 paged_general::{GeneralPaged, ScoreTerm, general_paged},
+                paging::{PagedSequence, paged_indices, report_index_error},
                 parameters::{AttentionParameters, has_tcgen05, parameter_key},
                 rotary_cache::RotationNorm,
                 tcgen05_attention::{EngineAttention, engine_attention},
@@ -26,7 +24,7 @@ use crate::{
                 writer::{KernelWriter, value_type},
             },
         },
-        kernel_lowering::{STATUS_INDEX_OUT_OF_BOUNDS, element_type},
+        kernel_lowering::element_type,
         registry::{Operation, ScaledDotProductAttentionAttributes},
         spec,
     },
@@ -37,23 +35,6 @@ use crate::{
     value::ValueSpec,
 };
 
-// The part of a paged kernel's body that reads one sequence's paging values, reporting and returning when any would address outside the kernel's buffers.
-pub struct PagedSequence<'a> {
-    pub query_offsets: &'a str,
-    pub page_offsets: &'a str,
-    pub last_page_lengths: &'a str,
-    pub tokens: usize,
-    pub page_table: usize,
-    pub page_size: usize,
-    pub rows_per_query: usize,
-}
-
-// The statement that reports an index out of range through the status word, which is null under stream capture.
-pub fn report_index_error() -> String {
-    format!("if (status != nullptr) atomicCAS(status, 0U, {STATUS_INDEX_OUT_OF_BOUNDS}U);")
-}
-
-// The extents of paged attention, as its planning reads them.
 #[derive(Clone, Copy)]
 struct PagedShape {
     tokens: usize,
@@ -78,64 +59,38 @@ fn engine_paged_attention(
         page_size,
         sequences,
     } = shape;
-    let [
-        query,
-        key_cache,
-        _,
-        query_offsets,
-        page_offsets,
-        pages,
-        last_page_lengths,
-    ] = inputs
-    else {
+    let Some(query) = inputs.first() else {
         return Err(Error::missing_input("cuda paged attention"));
     };
     let data_type = query.data_type;
     let groups = heads / kv_heads;
     let tiles = (groups * tokens).div_ceil(128).max(1);
     let blocks = (sequences * kv_heads * tiles).max(1);
-    let page_total = to_usize(
-        key_cache.layout.shape().dimensions()[0],
-        "cuda paged attention pages",
-    )?;
+    let page_total = cache_pages(inputs)?;
     let causal = if attention.causal { "true" } else { "false" };
     let windowed = attention.window.map_or_else(
         || "false".to_owned(),
         |window| format!("static_cast<long long>(key) + {window}LL <= position"),
     );
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "head dimensions are at most 128"
-    )]
-    let scale = attention.scale.unwrap_or_else(|| 1.0 / (dim as f32).sqrt());
+    let scale = attention.scale.unwrap_or_else(|| default_scale(dim));
     let score =
         scaled_score_expression(scale, attention.softcap).replace("scores[j][r]", "scores[column]");
     let stored = store_expression(element_type(data_type)?, "value");
     let report = report_index_error();
     let mut writer = KernelWriter::new();
-    let qs = writer.input(data_type, "query_rows")?;
-    let ks = writer.input(data_type, "key_cache")?;
-    let vs = writer.input(data_type, "value_cache")?;
-    let qo = writer.input(query_offsets.data_type, "query_offsets")?;
-    let po = writer.input(page_offsets.data_type, "page_offsets")?;
-    let pg = writer.input(pages.data_type, "pages")?;
-    let lp = writer.input(last_page_lengths.data_type, "last_page_lengths")?;
+    let PagedInputs {
+        qs,
+        ks,
+        vs,
+        qo,
+        po,
+        pg,
+        lp,
+    } = paged_inputs(&mut writer, inputs)?;
     let os = writer.output(data_type, "output")?;
     let ls = writer.output(DataType::F32, "lse")?;
     writer.status();
-    let sequence_values = PagedSequence {
-        query_offsets: &qo,
-        page_offsets: &po,
-        last_page_lengths: &lp,
-        tokens,
-        page_table: to_usize(
-            pages.layout.shape().dimensions()[0],
-            "cuda paged attention page table",
-        )?,
-        page_size,
-        rows_per_query: groups,
-    }
-    .source();
+    let sequence_values = paged_sequence([&qo, &po, &lp], inputs, tokens, page_size, groups)?;
     let cache_source = |cache: &str| {
         format!(
             "const unsigned int key = first_key + r;
@@ -202,297 +157,6 @@ const long long delta = static_cast<long long>(keys) - static_cast<long long>(qu
                 ])?,
             ),
         ],
-        inputs,
-        &[Operation::PagedAttention],
-    ))
-}
-
-impl PagedSequence<'_> {
-    // Reads `sequence`'s offsets and last page length, reporting and returning when any would address outside the kernel's buffers.
-    fn checked_bounds(&self) -> String {
-        let Self {
-            query_offsets: qo,
-            page_offsets: po,
-            last_page_lengths: lp,
-            tokens,
-            page_table,
-            page_size,
-            ..
-        } = self;
-        let report = report_index_error();
-        format!(
-            "const long long query_start = static_cast<long long>({qo}[sequence]);
-const long long query_end = static_cast<long long>({qo}[sequence + 1]);
-const long long page_start = static_cast<long long>({po}[sequence]);
-const long long page_end = static_cast<long long>({po}[sequence + 1]);
-const long long last_length = static_cast<long long>({lp}[sequence]);
-if (query_start < 0LL || query_end < query_start || query_end > {tokens}LL
-    || page_start < 0LL || page_end < page_start || page_end > {page_table}LL
-    || (page_end > page_start && (last_length < 0LL || last_length > {page_size}LL))) {{
-    {report}
-    return;
-}}"
-        )
-    }
-
-    // The checked values of `sequence`, for code that goes on to other sequences rather than returning at the first rows past this one's.
-    pub fn checked_values(&self) -> String {
-        format!(
-            "{}
-const long long keys = page_end > page_start ? (page_end - page_start - 1LL) * {page_size}LL + last_length : 0LL;",
-            self.checked_bounds(),
-            page_size = self.page_size,
-        )
-    }
-
-    // The checked values of `sequence`, for a block that takes a tile of its rows from `first_row`, and returns past them.
-    pub fn source(&self) -> String {
-        format!(
-            "{}
-const unsigned int queries = static_cast<unsigned int>(query_end - query_start);
-const unsigned int packed = queries * {rows_per_query}U;
-if (first_row >= packed) return;
-const unsigned int page_count = static_cast<unsigned int>(page_end - page_start);
-const unsigned int keys = page_count == 0U ? 0U : (page_count - 1U) * {page_size}U + static_cast<unsigned int>(last_length);",
-            self.checked_bounds(),
-            rows_per_query = self.rows_per_query,
-            page_size = self.page_size,
-        )
-    }
-}
-
-// The shape and type of each paging operand, as `spec`'s problems read them.
-pub fn paged_indices(operands: [&KernelInput; 4]) -> [(&Shape, DataType); 4] {
-    operands.map(|input| (input.layout.shape(), input.data_type))
-}
-
-// What cuDNN needs to run paged attention of `inputs`, the operands of `paged_attention`, or `None` when it cannot.
-pub fn cudnn_paging(
-    inputs: &[KernelInput],
-    attention: &ScaledDotProductAttentionAttributes,
-) -> Result<Option<CudnnPaging>> {
-    let [
-        query,
-        key_cache,
-        value_cache,
-        query_offsets,
-        page_offsets,
-        pages,
-        last_page_lengths,
-    ] = inputs
-    else {
-        return Ok(None);
-    };
-    let head_dimension = query.layout.dimensions().last().copied().unwrap_or(0);
-    if !cudnn_takes_attention(query.data_type, head_dimension, attention)
-        || key_cache.data_type != query.data_type
-        || value_cache.data_type != query.data_type
-        || inputs.iter().any(|input| !input.layout.is_contiguous())
-    {
-        return Ok(None);
-    }
-
-    let problem = spec::paged_attention_problem(
-        query.layout.shape(),
-        key_cache.layout.shape(),
-        value_cache.layout.shape(),
-        paged_indices([query_offsets, page_offsets, pages, last_page_lengths]),
-        "cuda paged attention",
-    )?;
-    let table = pages.layout.dimensions()[0];
-    let cache_pages = key_cache.layout.dimensions()[0];
-    // cuDNN only takes pages of a power of two.
-    if problem.tokens == 0
-        || problem.sequences == 0
-        || table == 0
-        || cache_pages == 0
-        || problem.page_size.count_ones() != 1
-    {
-        return Ok(None);
-    }
-    Ok(Some(CudnnPaging {
-        sequences: problem.sequences,
-        tokens: problem.tokens,
-        heads: problem.heads,
-        kv_heads: problem.kv_heads,
-        dim: problem.head_dim,
-        page_size: problem.page_size,
-        cache_pages,
-        table,
-    }))
-}
-
-// Plans the kernel that turns `indices`, the query offsets, page offsets, pages, and last page lengths, into cuDNN's packed offsets, query lengths, key lengths, and page table.
-// It refuses what the generated kernels refuse, and what it writes stays inside every buffer even then, since a graph runs on until it reads the status.
-pub fn plan_cudnn_paging_indices(
-    paging: &CudnnPaging,
-    indices: &[KernelInput],
-) -> Result<KernelPlan> {
-    let [query_offsets, page_offsets, pages, last_page_lengths] = indices else {
-        return Err(Error::missing_input("cudnn paging indices"));
-    };
-    let extent = |value: i64| to_usize(value, "cudnn paging indices");
-    let (sequences, tokens, table) = (
-        extent(paging.sequences)?,
-        extent(paging.tokens)?,
-        extent(paging.table)?,
-    );
-    let (page_size, cache_pages, rows_per_query, row) = (
-        extent(paging.page_size)?,
-        extent(paging.cache_pages)?,
-        extent(paging.heads)?,
-        extent(paging.query_elements())?,
-    );
-    let mut writer = KernelWriter::new();
-    let qo = writer.input(query_offsets.data_type, "query_offsets")?;
-    let po = writer.input(page_offsets.data_type, "page_offsets")?;
-    let table_in = writer.input(pages.data_type, "pages")?;
-    let lp = writer.input(last_page_lengths.data_type, "last_page_lengths")?;
-    let offsets = writer.output(DataType::I32, "packed_offsets")?;
-    let query_lengths = writer.output(DataType::I32, "query_lengths")?;
-    let key_lengths = writer.output(DataType::I32, "key_lengths")?;
-    let page_table = writer.output(DataType::I32, "page_table")?;
-    writer.status();
-    let launch = writer.elements(sequences * table);
-    let report = report_index_error();
-    let sequence_values = PagedSequence {
-        query_offsets: &qo,
-        page_offsets: &po,
-        last_page_lengths: &lp,
-        tokens,
-        page_table: table,
-        page_size,
-        rows_per_query,
-    }
-    .checked_values();
-    writer.lines(&format!(
-        "
-const unsigned long long sequence = index / {table}ULL, entry = index % {table}ULL;
-{page_table}[index] = 0;
-if (entry == 0ULL) {{
-    long long running = 0LL, sequence_start = 0LL;
-    for (unsigned long long other = 0; other <= sequence + 1ULL; ++other) {{
-        long long offset = static_cast<long long>({qo}[other]);
-        offset = offset < 0LL ? 0LL : (offset > {tokens}LL ? {tokens}LL : offset);
-        if (offset > running) running = offset;
-        if (other == sequence) sequence_start = running;
-    }}
-    {offsets}[sequence] = static_cast<int>(sequence_start * {row}LL);
-    if (sequence + 1ULL == {sequences}ULL) {offsets}[sequence + 1ULL] = static_cast<int>(running * {row}LL);
-    {query_lengths}[sequence] = static_cast<int>(running - sequence_start);
-    {key_lengths}[sequence] = 0;
-}}
-{sequence_values}
-if (entry == 0ULL) {key_lengths}[sequence] = static_cast<int>(keys);
-const long long table_entry = page_start + static_cast<long long>(entry);
-if (table_entry < page_end) {{
-    const long long page = static_cast<long long>({table_in}[table_entry]);
-    if (page < 0LL || page >= {cache_pages}LL) {{
-        {report}
-        return;
-    }}
-    {page_table}[index] = static_cast<int>(page);
-}}"
-    ));
-    let (offsets_dimensions, _) = paging.offsets_shape();
-    let output = |dimensions: Vec<i64>| -> Result<ValueSpec> {
-        Ok(ValueSpec::new(DataType::I32, Shape::create(dimensions)?))
-    };
-    let specs = vec![
-        output(vec![offsets_dimensions[0]])?,
-        output(vec![paging.sequences])?,
-        output(vec![paging.sequences])?,
-        output(vec![paging.sequences * paging.table])?,
-    ];
-    Ok(writer.finish(
-        "paged_cudnn_indices",
-        launch,
-        specs,
-        indices,
-        &[Operation::PagedAttention],
-    ))
-}
-
-// Plans the kernel that writes the query lengths cuDNN reads with dense attention's key lengths, `batch` of them, each `queries`.
-// A program writes them each run, since it holds no constants of its own making.
-pub fn plan_cudnn_query_lengths(batch: i64, queries: i64) -> Result<KernelPlan> {
-    let count = to_usize(batch, "cudnn query lengths")?;
-    let queries =
-        i32::try_from(queries).map_err(|_| Error::out_of_range("cudnn attention queries"))?;
-    let mut writer = KernelWriter::new();
-    let lengths = writer.output(DataType::I32, "lengths")?;
-    let launch = writer.elements(count);
-    writer.lines(&format!("{lengths}[index] = {queries};"));
-    Ok(writer.finish(
-        "cudnn_query_lengths",
-        launch,
-        vec![ValueSpec::new(DataType::I32, Shape::create([batch])?)],
-        &[],
-        &[Operation::ScaledDotProductAttention],
-    ))
-}
-
-// Plans the kernel that follows cuDNN: `inputs` are the query offsets, page offsets, last page lengths, and cuDNN's statistics `[B, H, S]`.
-// Each row's natural-log statistic becomes a base-two `lse`, and a row that belongs to no sequence or sees no key gets the zero output and infinite `lse` that generated kernels give it, since cuDNN leaves those rows alone.
-pub fn plan_cudnn_paging_results(
-    paging: &CudnnPaging,
-    attention: &ScaledDotProductAttentionAttributes,
-    data_type: DataType,
-    inputs: &[KernelInput],
-) -> Result<KernelPlan> {
-    let [query_offsets, page_offsets, last_page_lengths, stats] = inputs else {
-        return Err(Error::missing_input("cudnn paging results"));
-    };
-    let extent = |value: i64| to_usize(value, "cudnn paging results");
-    let (sequences, tokens, heads, dim, page_size) = (
-        extent(paging.sequences)?,
-        extent(paging.tokens)?,
-        extent(paging.heads)?,
-        extent(paging.dim)?,
-        extent(paging.page_size)?,
-    );
-    let mut writer = KernelWriter::new();
-    let qo = writer.input(query_offsets.data_type, "query_offsets")?;
-    let po = writer.input(page_offsets.data_type, "page_offsets")?;
-    let lp = writer.input(last_page_lengths.data_type, "last_page_lengths")?;
-    let statistics = writer.input(stats.data_type, "statistics")?;
-    let output = writer.output(data_type, "output")?;
-    let lse = writer.output(DataType::F32, "lse")?;
-    let launch = writer.elements(tokens * heads);
-    let zero = store_expression(element_type(data_type)?, "0.0f");
-    let causal = attention.causal;
-    writer.lines(&format!(
-        "
-const long long token = static_cast<long long>(index / {heads}ULL);
-const unsigned long long head = index % {heads}ULL;
-for (unsigned long long sequence = 0; sequence < {sequences}ULL; ++sequence) {{
-    const long long query_start = static_cast<long long>({qo}[sequence]);
-    const long long query_end = static_cast<long long>({qo}[sequence + 1ULL]);
-    if (query_start < 0LL || token < query_start || token >= query_end) continue;
-    const long long page_start = static_cast<long long>({po}[sequence]);
-    const long long page_end = static_cast<long long>({po}[sequence + 1ULL]);
-    const long long keys = page_end > page_start ? (page_end - page_start - 1LL) * {page_size}LL + static_cast<long long>({lp}[sequence]) : 0LL;
-    const long long position = keys - (query_end - query_start) + (token - query_start);
-    if (keys > 0LL && (!{causal} || position >= 0LL)) {{
-        {lse}[index] = {statistics}[((sequence * {heads}ULL + head) * {tokens}ULL) + static_cast<unsigned long long>(token - query_start)] * {LOG2_E:?}f;
-        return;
-    }}
-    break;
-}}
-for (unsigned long long d = 0; d < {dim}ULL; ++d) {output}[index * {dim}ULL + d] = {zero};
-{lse}[index] = -__uint_as_float(0x7f800000U);"
-    ));
-    let specs = vec![
-        ValueSpec::new(
-            data_type,
-            Shape::create([paging.tokens, paging.heads, paging.dim])?,
-        ),
-        ValueSpec::new(DataType::F32, Shape::create([paging.tokens, paging.heads])?),
-    ];
-    Ok(writer.finish(
-        "paged_cudnn_results",
-        launch,
-        specs,
         inputs,
         &[Operation::PagedAttention],
     ))
@@ -654,11 +318,7 @@ impl KernelPlanner {
         // Every sequence's rows fit in this many tiles, since no sequence has more queries than all of them.
         let tiles = (groups * tokens).div_ceil(query_rows).max(1);
         let blocks = (sequences * kv_heads * tiles).max(1);
-        #[expect(
-            clippy::cast_precision_loss,
-            reason = "head dimensions are at most 128"
-        )]
-        let scale = attention.scale.unwrap_or_else(|| 1.0 / (dim as f32).sqrt());
+        let scale = attention.scale.unwrap_or_else(|| default_scale(dim));
         let scaled = scaled_score_expression(scale, attention.softcap);
         let window = attention.window;
         let windowed = window.map_or_else(
@@ -684,13 +344,15 @@ impl KernelPlanner {
         let mut writer = KernelWriter::new();
         writer.require(CompileRequirements::TENSOR_CORES);
         writer.min_blocks(min_blocks);
-        let qs = writer.input(data_type, "query_rows")?;
-        let ks = writer.input(data_type, "key_cache")?;
-        let vs = writer.input(data_type, "value_cache")?;
-        let qo = writer.input(query_offsets.data_type, "query_offsets")?;
-        let po = writer.input(page_offsets.data_type, "page_offsets")?;
-        let pg = writer.input(pages.data_type, "pages")?;
-        let lp = writer.input(last_page_lengths.data_type, "last_page_lengths")?;
+        let PagedInputs {
+            qs,
+            ks,
+            vs,
+            qo,
+            po,
+            pg,
+            lp,
+        } = paged_inputs(&mut writer, inputs)?;
         let os = writer.output(data_type, "output")?;
         // A fused kernel's module is what nothing reads the log-sum-exp of, so it goes to scratch.
         let ls = if rotation.is_some() {
@@ -716,23 +378,8 @@ impl KernelPlanner {
         let mut launch = writer.blocks(blocks, threads);
         launch.shared_bytes = tile_launch_bytes(parameters, row)?;
         let report = report_index_error();
-        let page_total = to_usize(
-            key_cache.layout.shape().dimensions()[0],
-            "cuda paged attention pages",
-        )?;
-        let sequence_values = PagedSequence {
-            query_offsets: &qo,
-            page_offsets: &po,
-            last_page_lengths: &lp,
-            tokens,
-            page_table: to_usize(
-                pages.layout.shape().dimensions()[0],
-                "cuda paged attention page table",
-            )?,
-            page_size,
-            rows_per_query: groups,
-        }
-        .source();
+        let page_total = cache_pages(inputs)?;
+        let sequence_values = paged_sequence([&qo, &po, &lp], inputs, tokens, page_size, groups)?;
         let page_type = value_type(pages.data_type)?;
         writer.declare(&tensor_core_helpers(kind));
         writer.declare(&format!(
@@ -974,4 +621,83 @@ __syncthreads();",
         store_first = store_expression(element, "first"),
         store_second = store_expression(element, "second"),
     ))
+}
+
+struct PagedInputs {
+    qs: String,
+    ks: String,
+    vs: String,
+    qo: String,
+    po: String,
+    pg: String,
+    lp: String,
+}
+
+fn paged_inputs(writer: &mut KernelWriter, inputs: &[KernelInput]) -> Result<PagedInputs> {
+    // Both kernels read the queries, the caches, and the paging values first, in this order.
+    let [
+        query,
+        _,
+        _,
+        query_offsets,
+        page_offsets,
+        pages,
+        last_page_lengths,
+        ..,
+    ] = inputs
+    else {
+        return Err(Error::missing_input("cuda paged attention"));
+    };
+    Ok(PagedInputs {
+        qs: writer.input(query.data_type, "query_rows")?,
+        ks: writer.input(query.data_type, "key_cache")?,
+        vs: writer.input(query.data_type, "value_cache")?,
+        qo: writer.input(query_offsets.data_type, "query_offsets")?,
+        po: writer.input(page_offsets.data_type, "page_offsets")?,
+        pg: writer.input(pages.data_type, "pages")?,
+        lp: writer.input(last_page_lengths.data_type, "last_page_lengths")?,
+    })
+}
+
+fn paged_sequence(
+    [query_offsets, page_offsets, last_page_lengths]: [&str; 3],
+    inputs: &[KernelInput],
+    tokens: usize,
+    page_size: usize,
+    rows_per_query: usize,
+) -> Result<String> {
+    let pages = inputs
+        .get(5)
+        .ok_or_else(|| Error::missing_input("cuda paged attention pages"))?;
+    Ok(PagedSequence {
+        query_offsets,
+        page_offsets,
+        last_page_lengths,
+        tokens,
+        page_table: to_usize(
+            pages.layout.shape().dimensions()[0],
+            "cuda paged attention page table",
+        )?,
+        page_size,
+        rows_per_query,
+    }
+    .source())
+}
+
+fn cache_pages(inputs: &[KernelInput]) -> Result<usize> {
+    let key_cache = inputs
+        .get(1)
+        .ok_or_else(|| Error::missing_input("cuda paged attention key cache"))?;
+    to_usize(
+        key_cache.layout.shape().dimensions()[0],
+        "cuda paged attention pages",
+    )
+}
+
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "head dimensions are at most 128"
+)]
+fn default_scale(dim: usize) -> f32 {
+    1.0 / (dim as f32).sqrt()
 }

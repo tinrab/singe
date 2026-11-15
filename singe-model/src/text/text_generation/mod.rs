@@ -40,7 +40,7 @@ pub fn load_decoder(
         "gpt2" => assembly::decoder(&gpt2::load(snapshot, device, data_type)?, options, compile),
         "llama" => assembly::decoder(&llama::load(snapshot, device, data_type)?, options, compile),
         "qwen3" => assembly::decoder(&qwen3::load(snapshot, device, data_type)?, options, compile),
-        "qwen3_5" | "qwen3_5_text" => assembly::decoder(
+        "qwen3_5" | "qwen3_5_text" | "qwen3_5_moe" | "qwen3_5_moe_text" => assembly::decoder(
             &qwen3_5::load(snapshot, device, data_type)?,
             options,
             compile,

@@ -2,18 +2,14 @@ mod cases;
 mod validation;
 
 use super::*;
-use crate::{
-    backend::cuda::graph_value::CudaGraphValue,
-    graph::{GraphCudaOptions, ir::ValueId},
-};
+use crate::graph::{GraphCudaOptions, ir::ValueId};
 
 #[derive(Clone, Copy)]
 struct SliceAliasCase<'a> {
     dim: i64,
     start: i64,
     length: i64,
-    expected_strides: &'a [i64],
-    expected_storage_offset: usize,
+    expected: &'a [i64],
 }
 
 fn cuda_device() -> Device {
@@ -68,8 +64,7 @@ fn assert_i64_slice_alias(
 
     assert_eq!(outputs[0].data_type(), DataType::I64);
     assert_eq!(outputs[0].shape().dimensions(), output_dimensions);
-    assert_eq!(outputs[0].layout().strides(), case.expected_strides);
-    assert_eq!(outputs[0].storage_offset(), case.expected_storage_offset);
+    assert_eq!(outputs[0].to_vec::<i64>().unwrap(), case.expected);
 }
 
 fn run_i64_slice_alias(
@@ -77,7 +72,7 @@ fn run_i64_slice_alias(
     output_dimensions: &[i64],
     input_values: Vec<i64>,
     case: SliceAliasCase<'_>,
-) -> Option<Vec<CudaGraphValue>> {
+) -> Option<Vec<Tensor>> {
     let shape = contiguous_shape(input_dimensions);
     let output_shape = contiguous_shape(output_dimensions);
     let input = maybe_i64_tensor(&shape, input_values)?;
@@ -92,5 +87,5 @@ fn run_i64_slice_alias(
     let mut compiled = cuda::compile_graph(&graph, &GraphCudaOptions::default()).unwrap();
     let inputs = HashMap::from([("x".to_string(), input)]);
 
-    Some(compiled.run_graph_owned_outputs(&inputs).unwrap())
+    Some(compiled.run(&inputs).unwrap())
 }

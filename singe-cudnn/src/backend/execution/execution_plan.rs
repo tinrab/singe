@@ -238,7 +238,7 @@ impl ExecutionPlan {
         Ok(Self {
             inner: Arc::new(GraphRetainedResource::new(ExecutionPlanOwner {
                 descriptor,
-                engine_config: retained_config.map(OnceLock::from).unwrap_or_default(),
+                engine_config: retained_config.map_or_default(OnceLock::from),
                 workspace_size: OnceLock::new(),
                 restored_kernel_cache: None,
                 _restored_device_properties: None,
@@ -307,7 +307,7 @@ impl ExecutionPlan {
         Ok(Self {
             inner: Arc::new(GraphRetainedResource::new(ExecutionPlanOwner {
                 descriptor,
-                engine_config: retained_config.map(OnceLock::from).unwrap_or_default(),
+                engine_config: retained_config.map_or_default(OnceLock::from),
                 workspace_size: OnceLock::new(),
                 restored_kernel_cache: kernel_cache.map(Arc::new),
                 _restored_device_properties: device_properties.map(Arc::new),

@@ -566,6 +566,10 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
             )?;
             Some(vec![ids, weights])
         }
+        "softmax_topk_routing" => {
+            let (ids, weights) = inputs[0].softmax_topk_routing(integer("top_k"))?;
+            Some(vec![ids, weights])
+        }
         _ => None,
     };
     if let Some(outputs) = several {
@@ -573,6 +577,7 @@ fn composite(name: &str, arguments: &Value, inputs: &[Tensor]) -> Result<Vec<Ten
     }
     let result = match name {
         "flip" => inputs[0].flip(&integer_list("dims"))?,
+        "moe" => inputs[0].moe(&inputs[1], &inputs[2], &inputs[3], &inputs[4])?,
         "gather" => inputs[0].gather(integer("dim"), &inputs[1])?,
         "scatter" => inputs[0].scatter(integer("dim"), &inputs[1], &inputs[2])?,
         "scatter_add" => inputs[0].scatter_add(integer("dim"), &inputs[1], &inputs[2])?,

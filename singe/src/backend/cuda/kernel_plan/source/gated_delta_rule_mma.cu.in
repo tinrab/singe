@@ -1,0 +1,225 @@
+const unsigned long long sequence = blockIdx.x, head = blockIdx.y;
+const unsigned long long column0 = static_cast<unsigned long long>(blockIdx.z) * @columns@ULL;
+const unsigned int warp = lane / 32U, g = (lane % 32U) >> 2, t = lane & 3U;
+const long long start = static_cast<long long>(@offsets@[sequence]);
+const long long count = static_cast<long long>(@real@[sequence]);
+const bool fresh = count > 0 && static_cast<long long>(@positions@[start]) == 0;
+const unsigned long long state_base = (sequence * @heads@ULL + head) * @key_dim@ULL * @value_dim@ULL;
+__shared__ float state[@key_dim@][@columns@ + 4];
+__shared__ unsigned short keys[@chunk@][@key_dim@ + 8];
+__shared__ unsigned short queries[@chunk@][@key_dim@ + 8];
+__shared__ unsigned short values[@chunk@][@columns@ + 8];
+__shared__ float reads[@chunk@][@key_dim@ + 4];
+__shared__ float targets[@chunk@][@columns@ + 4];
+__shared__ float corrected[@chunk@][@columns@ + 4];
+__shared__ float key_products[@chunk@][@chunk@ + 1];
+__shared__ float query_products[@chunk@][@chunk@ + 1];
+__shared__ float solved[@chunk@][@chunk@ + 1];
+__shared__ float scores[@chunk@][@chunk@ + 1];
+__shared__ float read_weights[@chunk@][@chunk@ + 1];
+__shared__ float value_weights[@chunk@][@chunk@ + 1];
+__shared__ float decayed[@chunk@];
+__shared__ float chunk_strength[@chunk@];
+__shared__ float risen[@chunk@];
+__shared__ float remaining[@chunk@];
+for (unsigned int e = lane; e < @key_dim@U * @columns@U; e += blockDim.x) {
+    const unsigned int d = e / @columns@U, c = e % @columns@U;
+    const unsigned long long column = column0 + c;
+    state[d][c] = !fresh && column < @value_dim@ULL ? @held@[state_base + d * @value_dim@ULL + column] : 0.0F;
+}
+for (long long first = start; first < start + count; first += @chunk@LL) {
+    const long long n = start + count - first < @chunk@LL ? start + count - first : @chunk@LL;
+    for (unsigned int e = lane; e < @chunk@U * @key_dim@U; e += blockDim.x) {
+        const unsigned int i = e / @key_dim@U, d = e % @key_dim@U;
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * @heads@ULL + head;
+        keys[i][d] = i < n ? @key@[r * @key_dim@ULL + d] : static_cast<unsigned short>(0);
+        queries[i][d] = i < n ? @query@[r * @key_dim@ULL + d] : static_cast<unsigned short>(0);
+    }
+    for (unsigned int e = lane; e < @chunk@U * @columns@U; e += blockDim.x) {
+        const unsigned int i = e / @columns@U, c = e % @columns@U;
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * @heads@ULL + head;
+        const unsigned long long column = column0 + c;
+        values[i][c] = i < n && column < @value_dim@ULL ? @value@[r * @value_dim@ULL + column] : static_cast<unsigned short>(0);
+    }
+    if (lane < @chunk@U) {
+        const unsigned int i = lane;
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * @heads@ULL + head;
+        decayed[i] = i < n ? @load_decay@ : 0.0F;
+        chunk_strength[i] = i < n ? @load_strength@ : 0.0F;
+    }
+    __syncthreads();
+    // Four warps take the products of keys with keys and queries with keys, two column tiles each, while one lane sums the decays in order.
+    if (warp < 4U) {
+        const unsigned short (*rows)[@key_dim@ + 8] = warp < 2U ? keys : queries;
+        const unsigned int n0 = (warp & 1U) * 8U;
+        float accumulator[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+        for (unsigned int k0 = 0; k0 < @key_dim@U; k0 += 16U) {
+            unsigned int a[4], b[2];
+            singe_rule_a_exact(a, [&](unsigned int i, unsigned int d) { return rows[i][d]; }, 0U, k0, g, t);
+            singe_rule_b_exact(b, [&](unsigned int d, unsigned int j) { return keys[j][d]; }, k0, n0, g, t);
+            singe_mma(accumulator, a, b);
+        }
+        float (*products)[@chunk@ + 1] = warp < 2U ? key_products : query_products;
+        products[g][n0 + 2U * t] = accumulator[0];
+        products[g][n0 + 2U * t + 1U] = accumulator[1];
+        products[g + 8U][n0 + 2U * t] = accumulator[2];
+        products[g + 8U][n0 + 2U * t + 1U] = accumulator[3];
+    } else if (lane == 128U) {
+        float sum = 0.0F;
+        for (unsigned int i = 0; i < @chunk@U; ++i) {
+            sum += decayed[i];
+            decayed[i] = sum;
+        }
+    }
+    __syncthreads();
+    // `A` is the strictly lower `−β_i (k_i · k_j) e^(g_i − g_j)`, and the scores `(q_i · k_j) e^(g_i − g_j)` for `j ≤ i`.
+    for (unsigned int e = lane; e < @chunk@U * @chunk@U; e += blockDim.x) {
+        const unsigned int i = e / @chunk@U, j = e % @chunk@U;
+        const float fall = j <= i ? expf(decayed[i] - decayed[j]) : 0.0F;
+        solved[i][j] = j < i ? -chunk_strength[i] * key_products[i][j] * fall : 0.0F;
+        scores[i][j] = query_products[i][j] * fall;
+    }
+    if (lane < @chunk@U) {
+        risen[lane] = expf(decayed[lane]);
+        remaining[lane] = expf(decayed[@chunk@ - 1] - decayed[lane]);
+    }
+    __syncthreads();
+    // One warp solves `(I − A) T = I` by forward substitution, a row at a time.
+    if (warp == 0U) {
+        for (unsigned int i = 1; i < @chunk@U; ++i) {
+            float entry = 0.0F;
+            if (lane < i) {
+                entry = solved[i][lane];
+                for (unsigned int m = lane + 1U; m < i; ++m) entry += solved[i][m] * solved[m][lane];
+            }
+            __syncwarp();
+            if (lane < i) solved[i][lane] = entry;
+            __syncwarp();
+        }
+    }
+    __syncthreads();
+    // `T diag(β e^g)`, which reads the chunk's keys into `W`, and `T diag(β)`, which reads its values into `u`.
+    for (unsigned int e = lane; e < @chunk@U * @chunk@U; e += blockDim.x) {
+        const unsigned int i = e / @chunk@U, j = e % @chunk@U;
+        const float entry = j == i ? 1.0F : (j < i ? solved[i][j] : 0.0F);
+        read_weights[i][j] = entry * chunk_strength[j] * risen[j];
+        value_weights[i][j] = entry * chunk_strength[j];
+    }
+    __syncthreads();
+    // Every warp takes two tiles of `W = T diag(β e^g) K`, and the first warps a tile of `u = T diag(β) v` each.
+    for (unsigned int n0 = warp * 16U; n0 < @key_dim@U; n0 += 128U) {
+        for (unsigned int half = 0; half < 2U && n0 + half * 8U < @key_dim@U; ++half) {
+            const unsigned int column = n0 + half * 8U;
+            unsigned int high[4], low[4], b[2];
+            singe_rule_a_split(high, low, [&](unsigned int i, unsigned int j) { return read_weights[i][j]; }, 0U, 0U, g, t);
+            singe_rule_b_exact(b, [&](unsigned int i, unsigned int d) { return keys[i][d]; }, 0U, column, g, t);
+            float accumulator[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+            singe_mma(accumulator, high, b);
+            singe_mma(accumulator, low, b);
+            reads[g][column + 2U * t] = accumulator[0];
+            reads[g][column + 2U * t + 1U] = accumulator[1];
+            reads[g + 8U][column + 2U * t] = accumulator[2];
+            reads[g + 8U][column + 2U * t + 1U] = accumulator[3];
+        }
+    }
+    if (warp * 8U < @columns@U) {
+        const unsigned int n0 = warp * 8U;
+        unsigned int high[4], low[4], b[2];
+        singe_rule_a_split(high, low, [&](unsigned int i, unsigned int j) { return value_weights[i][j]; }, 0U, 0U, g, t);
+        singe_rule_b_exact(b, [&](unsigned int i, unsigned int c) { return values[i][c]; }, 0U, n0, g, t);
+        float accumulator[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+        singe_mma(accumulator, high, b);
+        singe_mma(accumulator, low, b);
+        targets[g][n0 + 2U * t] = accumulator[0];
+        targets[g][n0 + 2U * t + 1U] = accumulator[1];
+        targets[g + 8U][n0 + 2U * t] = accumulator[2];
+        targets[g + 8U][n0 + 2U * t + 1U] = accumulator[3];
+    }
+    __syncthreads();
+    // Half the warps take `v' = u − W S` a column tile each, and the other half `q S`, which they keep for the output.
+    const unsigned int tiles = @columns@U / 8U;
+    float query_state[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    const bool reads_state = warp < tiles;
+    const bool queries_state = warp >= 4U && warp - 4U < tiles;
+    if (reads_state || queries_state) {
+        const unsigned int n0 = (reads_state ? warp : warp - 4U) * 8U;
+        float accumulator[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+        for (unsigned int k0 = 0; k0 < @key_dim@U; k0 += 16U) {
+            unsigned int state_high[2], state_low[2];
+            singe_rule_b_split(state_high, state_low, [&](unsigned int d, unsigned int c) { return state[d][c]; }, k0, n0, g, t);
+            if (reads_state) {
+                unsigned int high[4], low[4];
+                singe_rule_a_split(high, low, [&](unsigned int i, unsigned int d) { return reads[i][d]; }, 0U, k0, g, t);
+                singe_mma(accumulator, high, state_high);
+                singe_mma(accumulator, high, state_low);
+                singe_mma(accumulator, low, state_high);
+            } else {
+                unsigned int a[4];
+                singe_rule_a_exact(a, [&](unsigned int i, unsigned int d) { return queries[i][d]; }, 0U, k0, g, t);
+                singe_mma(accumulator, a, state_high);
+                singe_mma(accumulator, a, state_low);
+            }
+        }
+        if (reads_state) {
+            corrected[g][n0 + 2U * t] = targets[g][n0 + 2U * t] - accumulator[0];
+            corrected[g][n0 + 2U * t + 1U] = targets[g][n0 + 2U * t + 1U] - accumulator[1];
+            corrected[g + 8U][n0 + 2U * t] = targets[g + 8U][n0 + 2U * t] - accumulator[2];
+            corrected[g + 8U][n0 + 2U * t + 1U] = targets[g + 8U][n0 + 2U * t + 1U] - accumulator[3];
+        } else {
+            for (unsigned int k = 0; k < 4U; ++k) query_state[k] = accumulator[k];
+        }
+    }
+    __syncthreads();
+    // The query warps write each row's `e^(g_i) q_i S + Σ_(j ≤ i) scores_ij v'_j`.
+    if (queries_state) {
+        const unsigned int n0 = (warp - 4U) * 8U;
+        float accumulator[4] = {risen[g] * query_state[0], risen[g] * query_state[1], risen[g + 8U] * query_state[2], risen[g + 8U] * query_state[3]};
+        unsigned int high[4], low[4], value_high[2], value_low[2];
+        singe_rule_a_split(high, low, [&](unsigned int i, unsigned int j) { return scores[i][j]; }, 0U, 0U, g, t);
+        singe_rule_b_split(value_high, value_low, [&](unsigned int j, unsigned int c) { return corrected[j][c]; }, 0U, n0, g, t);
+        singe_mma(accumulator, high, value_high);
+        singe_mma(accumulator, high, value_low);
+        singe_mma(accumulator, low, value_high);
+        for (unsigned int k = 0; k < 4U; ++k) {
+            const unsigned int i = g + (k >> 1) * 8U, c = n0 + 2U * t + (k & 1U);
+            const unsigned long long column = column0 + c;
+            const float out = accumulator[k];
+            if (i < n && column < @value_dim@ULL) @output@[(static_cast<unsigned long long>(first + i) * @heads@ULL + head) * @value_dim@ULL + column] = @stored@;
+        }
+    }
+    // Every warp takes tiles of the state the chunk leaves, `S e^(g_C) + Σ_i k_i e^(g_C − g_i) v'_i`.
+    const float last = risen[@chunk@ - 1];
+    for (unsigned int tile = warp; tile < (@key_dim@U / 16U) * tiles; tile += blockDim.x / 32U) {
+        const unsigned int m0 = (tile / tiles) * 16U, n0 = (tile % tiles) * 8U;
+        float accumulator[4] = {
+            state[m0 + g][n0 + 2U * t] * last,
+            state[m0 + g][n0 + 2U * t + 1U] * last,
+            state[m0 + g + 8U][n0 + 2U * t] * last,
+            state[m0 + g + 8U][n0 + 2U * t + 1U] * last,
+        };
+        unsigned int a[4], value_high[2], value_low[2];
+        singe_rule_a_exact(a, [&](unsigned int d, unsigned int i) { return keys[i][d]; }, m0, 0U, g, t);
+        singe_rule_b_split(value_high, value_low, [&](unsigned int i, unsigned int c) { return corrected[i][c] * remaining[i]; }, 0U, n0, g, t);
+        singe_mma(accumulator, a, value_high);
+        singe_mma(accumulator, a, value_low);
+        state[m0 + g][n0 + 2U * t] = accumulator[0];
+        state[m0 + g][n0 + 2U * t + 1U] = accumulator[1];
+        state[m0 + g + 8U][n0 + 2U * t] = accumulator[2];
+        state[m0 + g + 8U][n0 + 2U * t + 1U] = accumulator[3];
+    }
+    __syncthreads();
+}
+for (unsigned int e = lane; e < @key_dim@U * @columns@U; e += blockDim.x) {
+    const unsigned int d = e / @columns@U, c = e % @columns@U;
+    const unsigned long long column = column0 + c;
+    if (column < @value_dim@ULL) @left@[state_base + d * @value_dim@ULL + column] = state[d][c];
+}
+// Rows that are not real are zero: those after a sequence's real rows up to the next sequence's or the step's end, and any before the first sequence.
+if (lane < @columns@U && column0 + lane < @value_dim@ULL) {
+    const unsigned long long column = column0 + lane;
+    const long long end = sequence + 1 == @sequences@ULL ? @tokens@LL : static_cast<long long>(@offsets@[sequence + 1]);
+    for (long long row = start + count; row < end; ++row) @output@[(static_cast<unsigned long long>(row) * @heads@ULL + head) * @value_dim@ULL + column] = @zero@;
+    if (sequence == 0) {
+        for (long long row = 0; row < start; ++row) @output@[(static_cast<unsigned long long>(row) * @heads@ULL + head) * @value_dim@ULL + column] = @zero@;
+    }
+}

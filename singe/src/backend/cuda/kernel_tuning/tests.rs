@@ -26,6 +26,7 @@ fn rms_norm(rows: i64, width: i64) -> LoweredKernel {
         },
         &ElementGroup::input(DataType::Bf16, &input),
         &[(DataType::Bf16, &weight)],
+        None,
     )
     .unwrap()
 }

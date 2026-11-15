@@ -14,6 +14,12 @@ use crate::{
 };
 
 impl KernelPlanner {
+    pub fn has_tensor_cores(&self) -> bool {
+        self.context
+            .target
+            .is_none_or(|target| target.compute_capability() >= (8, 0))
+    }
+
     // Whether a tensor-core kernel can run on `operands`: contiguous, aligned half-precision floats of one type, on a target with `sm_80`'s `mma.sync`.
     pub fn takes_tensor_cores(&self, operands: &[&KernelInput]) -> bool {
         let Some(first) = operands.first() else {

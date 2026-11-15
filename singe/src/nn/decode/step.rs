@@ -4,48 +4,117 @@ use crate::{
     data_type::DataType,
     device::Device,
     error::{Error, Result},
+    graph::capture,
     index::TensorIndex,
-    nn::{CacheSize, decode::input_group},
+    nn::{CacheSize, TensorGroup},
     shape::Shape,
     tensor::{Paging, SequenceSpans, Tensor},
 };
 
-input_group! {
-    // One decode step's tokens, and where they fall in a paged cache.
-    //
-    // Everything that changes between steps is a tensor rather than an attribute, so one captured step serves every position.
-    pub struct DecodeStep {
-        tokens,
-        positions,
-        write_pages,
-        write_slots,
-        query_offsets,
-        page_offsets,
-        pages,
-        last_page_lengths,
-        last_rows,
-        real_tokens,
-        sequence_ids,
+// One decode step's tokens, and where they fall in a paged cache.
+//
+// Everything that changes between steps is a tensor rather than an attribute, so one captured step serves every position.
+// The parts are views of one `I64` tensor, `packed`, so a step reaches the device in one copy and a compiled step reads one input; `PACKED_ORDER` is their order in it.
+#[derive(Debug, Clone)]
+pub struct DecodeStep {
+    packed: Tensor,
+    tokens: Tensor,
+    positions: Tensor,
+    write_pages: Tensor,
+    write_slots: Tensor,
+    query_offsets: Tensor,
+    page_offsets: Tensor,
+    pages: Tensor,
+    last_page_lengths: Tensor,
+    last_rows: Tensor,
+    real_tokens: Tensor,
+    sequence_ids: Tensor,
+}
+
+pub const PACKED_ORDER: [&str; 11] = [
+    "tokens",
+    "positions",
+    "write_pages",
+    "write_slots",
+    "query_offsets",
+    "page_offsets",
+    "pages",
+    "last_page_lengths",
+    "last_rows",
+    "real_tokens",
+    "sequence_ids",
+];
+
+impl TensorGroup for DecodeStep {
+    fn named_tensors(&self) -> Vec<(String, Tensor)> {
+        vec![("step".to_owned(), self.packed.clone())]
     }
 }
 
 impl DecodeStep {
+    const fn packed_length(tokens: i64, sequences: i64, table: i64) -> i64 {
+        5 * tokens + 2 * (sequences + 1) + 3 * sequences + table
+    }
+
+    pub fn unpack(packed: &Tensor, tokens: i64, sequences: i64, table: i64) -> Result<Self> {
+        if packed.shape().dimensions() != [Self::packed_length(tokens, sequences, table)] {
+            return Err(Error::invalid_argument(
+                "a packed decode step's length differs from its parts'",
+            ));
+        }
+
+        let mut start = 0;
+        let mut part = |length: i64| {
+            let view = packed.narrow(0, start, length);
+            start += length;
+            view
+        };
+        Ok(Self {
+            tokens: part(tokens)?,
+            positions: part(tokens)?,
+            write_pages: part(tokens)?,
+            write_slots: part(tokens)?,
+            query_offsets: part(sequences + 1)?,
+            page_offsets: part(sequences + 1)?,
+            pages: part(table)?,
+            last_page_lengths: part(sequences)?,
+            last_rows: part(sequences)?,
+            real_tokens: part(sequences)?,
+            sequence_ids: part(tokens)?,
+            packed: packed.clone(),
+        })
+    }
+
     // Returns a step of `tokens` tokens over `sequences` sequences and a page table of `table` entries, carrying shapes and no values, for capturing a program.
     pub fn meta(tokens: i64, sequences: i64, table: i64) -> Result<Self> {
-        let vector =
-            |length: i64| Tensor::zeroed_on(Device::Meta, DataType::I64, Shape::create([length])?);
+        let length = Self::packed_length(tokens, sequences, table);
+        let packed = Tensor::zeroed_on(Device::Meta, DataType::I64, Shape::create([length])?)?;
+        Self::unpack(&packed, tokens, sequences, table)
+    }
+
+    pub fn repacked(&self, packed: &Tensor) -> Result<Self> {
+        let length = |part: &Tensor| part.shape().dimensions()[0];
+        Self::unpack(
+            packed,
+            length(&self.tokens),
+            length(&self.last_rows),
+            length(&self.pages),
+        )
+    }
+
+    pub fn follow(&self, previous: &Tensor) -> Result<Self> {
+        // A negative token stands for the one its sequence chose in the step before, which stays on the device.
+        let zero = capture::literal(self.tokens.device(), |device| {
+            Tensor::from_vec(device, Shape::create([1])?, vec![0_i64])
+        })?;
+        let tokens = Tensor::where_select(
+            &self.tokens.less(&zero)?,
+            &previous.index_select(0, &self.sequence_ids)?,
+            &self.tokens,
+        )?;
         Ok(Self {
-            tokens: vector(tokens)?,
-            positions: vector(tokens)?,
-            write_pages: vector(tokens)?,
-            write_slots: vector(tokens)?,
-            query_offsets: vector(sequences + 1)?,
-            page_offsets: vector(sequences + 1)?,
-            pages: vector(table)?,
-            last_page_lengths: vector(sequences)?,
-            last_rows: vector(sequences)?,
-            real_tokens: vector(sequences)?,
-            sequence_ids: vector(tokens)?,
+            tokens,
+            ..self.clone()
         })
     }
 
@@ -238,6 +307,23 @@ impl PageTable {
         Ok(())
     }
 
+    pub fn truncate(&mut self, sequence: usize, length: i64) -> Result<()> {
+        let page_size = self.page_size;
+        let sequence = self
+            .sequences
+            .get_mut(sequence)
+            .ok_or_else(|| Error::out_of_range("decoder sequence"))?;
+        if length < 0 || length > sequence.length {
+            return Err(Error::out_of_range("decoder sequence length"));
+        }
+
+        let kept = usize::try_from((length + page_size - 1) / page_size)
+            .map_err(|_| Error::out_of_range("decoder cache pages"))?;
+        self.free.extend(sequence.pages.drain(kept..).rev());
+        sequence.length = length;
+        Ok(())
+    }
+
     // Returns the pages no sequence holds.
     #[must_use]
     pub const fn free_pages(&self) -> usize {
@@ -258,6 +344,7 @@ impl PageTable {
             sequences: i64::try_from(self.sequences.len())
                 .map_err(|_| Error::out_of_range("sequences"))?,
             capacity: self.capacity,
+            trail: 0,
         })
     }
 
@@ -458,24 +545,27 @@ impl PageTable {
             usize::try_from(self.table_length()?).map_err(|_| Error::out_of_range("page table"))?,
             0,
         );
-        let vector = |values: Vec<i64>| {
-            let length =
-                i64::try_from(values.len()).map_err(|_| Error::out_of_range("step tensor"))?;
-            Tensor::from_vec(device, Shape::create([length])?, values)
+        let rows = |values: &[i64]| {
+            i64::try_from(values.len()).map_err(|_| Error::out_of_range("step tensor"))
         };
-        Ok(DecodeStep {
-            tokens: vector(flat)?,
-            positions: vector(positions)?,
-            write_pages: vector(write_pages)?,
-            write_slots: vector(write_slots)?,
-            query_offsets: vector(query_offsets)?,
-            page_offsets: vector(page_offsets)?,
-            pages: vector(pages)?,
-            last_page_lengths: vector(last_page_lengths)?,
-            last_rows: vector(last_rows)?,
-            real_tokens: vector(real_tokens)?,
-            sequence_ids: vector(sequence_ids)?,
-        })
+        let (tokens, sequences, table) = (rows(&flat)?, rows(&last_rows)?, rows(&pages)?);
+        let packed = [
+            flat,
+            positions,
+            write_pages,
+            write_slots,
+            query_offsets,
+            page_offsets,
+            pages,
+            last_page_lengths,
+            last_rows,
+            real_tokens,
+            sequence_ids,
+        ]
+        .concat();
+        let length = rows(&packed)?;
+        let packed = Tensor::from_vec(device, Shape::create([length])?, packed)?;
+        DecodeStep::unpack(&packed, tokens, sequences, table)
     }
 }
 

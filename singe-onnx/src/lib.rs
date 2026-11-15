@@ -22,7 +22,8 @@ pub mod proto {
         clippy::doc_lazy_continuation,
         clippy::doc_overindented_list_items,
         clippy::useless_conversion,
-        reason = "protobuf docs preserve upstream layout and generated adapters use uniform conversions"
+        clippy::used_underscore_items,
+        reason = "protobuf docs preserve upstream layout, generated adapters use uniform conversions, and generated enums name their protobuf values, which start with an underscore"
     )]
     #[allow(missing_docs)]
     #[allow(unused_qualifications)]

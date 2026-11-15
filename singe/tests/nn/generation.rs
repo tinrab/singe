@@ -152,6 +152,7 @@ fn generate_compiled(model: &Model<TinyDecoder>, generation: &GenerationOptions)
         &PROMPTS,
         generation,
         Some(&Generator::new(SEED)),
+        |_, _, _| Ok(()),
         |_, _| Ok(()),
     )
     .unwrap()
@@ -199,6 +200,7 @@ fn test_an_exported_loop_generates_what_a_running_batch_generates() {
         .with_decoding(Decoding {
             layout: step.layout,
             stop_tokens: generation.stop_tokens,
+            tokenizer: None,
         })
         .export_steps(&[("decode", &step.graph), ("prompt", &prompt.graph)])
         .unwrap();

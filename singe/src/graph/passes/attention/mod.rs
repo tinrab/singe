@@ -262,7 +262,7 @@ pub fn decompose_scaled_dot_product_attention(
                 };
                 let kind = NodeKind::operation_invocation(
                     Operation::ScaledDotProductAttention,
-                    node.attributes().clone(),
+                    node.attributes(),
                     [query, key, value]
                         .into_iter()
                         .chain(rest)

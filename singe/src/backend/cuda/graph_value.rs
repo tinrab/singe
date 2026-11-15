@@ -310,28 +310,3 @@ unsafe impl CudaTensorSource for CudaGraphValue {
         self.region()
     }
 }
-
-/// Borrowed graph output destinations with caller-established exclusive access.
-#[derive(Debug, Clone, Copy)]
-pub struct GraphOutputBuffers<'a> {
-    values: &'a [CudaGraphValue],
-}
-
-impl<'a> GraphOutputBuffers<'a> {
-    /// Supplies raw destinations for one replay submission.
-    ///
-    /// # Safety
-    /// Until the submission completes, no alias may access a destination in a conflicting way.
-    /// Destinations must not overlap one another, graph-private storage, or replay inputs.
-    /// The request retains allocation owners, but does not grant access permission to otherwise aliased tensors.
-    #[must_use]
-    pub unsafe fn create(values: &'a [CudaGraphValue]) -> Self {
-        Self { values }
-    }
-
-    /// Returns the output destinations in replay output order.
-    #[must_use]
-    pub fn values(self) -> &'a [CudaGraphValue] {
-        self.values
-    }
-}

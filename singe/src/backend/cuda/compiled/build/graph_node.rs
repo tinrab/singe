@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use singe_cuda::{
     graph::{
@@ -10,7 +10,7 @@ use singe_cuda::{
 use crate::{
     backend::cuda::{
         compiled::{build::state::GraphLoweringState, executable::CudaCompiledGraphStats},
-        graph_binding::{push_unique_cuda_graph_dependency, validate_graph_input_value_tensor},
+        graph_binding::validate_graph_input_value_tensor,
         graph_value::CudaGraphValue,
         utility::device_ptr,
     },
@@ -112,10 +112,19 @@ pub fn add_input_write_nodes(ir: &Graph, state: &mut GraphLoweringState) -> Resu
         .filter(|(id, _)| state.private.inputs_in_place.contains_key(id))
         .map(|(id, name)| (name.to_owned(), id))
         .collect::<HashMap<_, _>>();
-    let mut dependencies = Vec::new();
-    for node in state.native_nodes.values() {
-        push_unique_cuda_graph_dependency(&mut dependencies, node.clone());
-    }
+    // The copies wait on the graph's sinks, which every other node precedes, rather than on each node, which would add an edge per node to a graph that hangs past about 4,096 of them.
+    let waited = state
+        .native_graph
+        .edges()?
+        .into_iter()
+        .map(|edge| edge.from.as_raw() as usize)
+        .collect::<HashSet<_>>();
+    let mut dependencies = state
+        .native_graph
+        .nodes()?
+        .into_iter()
+        .filter(|node| !waited.contains(&(node.as_raw() as usize)))
+        .collect::<Vec<_>>();
 
     for (position, (name, &source)) in names.iter().zip(&outputs[visible..]).enumerate() {
         let Some(target) = bound.get(name).and_then(|id| state.values.get(id)).cloned() else {

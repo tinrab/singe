@@ -104,7 +104,6 @@ impl Options {
 }
 
 /// Run the scanner from an existing xtask command dispatcher.
-#[must_use]
 pub fn run(args: &[OsString]) -> ExitCode {
     let options = match Options::parse(args) {
         Ok(options) => options,
@@ -219,8 +218,7 @@ fn write_text(report: &Report) -> Result<()> {
     for failure in &report.failures {
         let location = failure
             .position
-            .map(|p| format!(":{}:{}", p.line, p.column))
-            .unwrap_or_default();
+            .map_or_default(|p| format!(":{}:{}", p.line, p.column));
         writeln!(
             output,
             "{}{location}: scan error: {}",

@@ -8,7 +8,7 @@ use crate::{
             CudaCompiledGraph,
             replay::{ReplayOutputTarget, ReplaySubmission},
         },
-        graph_value::{CudaGraphValue, GraphOutputBuffers},
+        graph_value::CudaGraphValue,
         nvtx::CudaNvtxRange,
         runtime::runtime_for_device,
         stream::CudaStream,
@@ -69,49 +69,26 @@ impl CudaCompiledGraph {
         self.enqueue_on_with_output_target(inputs, stream, ReplayOutputTarget::Allocate)
     }
 
-    /// Enqueues replay and copies logical outputs into caller-provided buffers.
-    ///
-    /// # Safety
-    /// Exclude conflicting access through every destination alias until replay completes.
-    /// Destinations must not overlap inputs or graph-private storage.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if stream or input validation fails, required graph values are missing, output buffers are incompatible, a cache or executable mutex is poisoned, or parameter updates, copies, graph launch, or completion tracking fails.
-    pub unsafe fn enqueue_on_into(
-        &mut self,
-        inputs: &HashMap<String, Tensor>,
-        outputs: &[CudaGraphValue],
-        stream: &CudaStream,
-    ) -> Result<()> {
-        // SAFETY: caller establishes the destination request's access contract.
-        let outputs = unsafe { GraphOutputBuffers::create(outputs) };
-        self.enqueue_on_with_output_target(inputs, stream, ReplayOutputTarget::CallerOwned(outputs))
-            .map(|_| ())
-    }
-
-    /// Enqueues replay and returns retained graph-owned regions without copy-out.
-    ///
-    /// Values expose no initialized reads.
-    /// Later replay may overwrite their contents.
-    /// Raw access requires caller-established completion and ordering.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if stream or input validation fails, required graph values are missing, output buffers are incompatible, a cache or executable mutex is poisoned, or parameter updates, copies, graph launch, or completion tracking fails.
-    pub fn enqueue_on_graph_owned_outputs(
+    pub(crate) fn enqueue_ordered(
         &mut self,
         inputs: &HashMap<String, Tensor>,
         stream: &CudaStream,
-    ) -> Result<Vec<CudaGraphValue>> {
-        self.enqueue_on_with_output_target(inputs, stream, ReplayOutputTarget::GraphOwned)
+    ) -> Result<Vec<Tensor>> {
+        let outputs =
+            self.enqueue_on_with_output_target(inputs, stream, ReplayOutputTarget::Ordered)?;
+        let outputs = outputs
+            .into_iter()
+            // SAFETY: each output is a fresh allocation in `stream`'s order, which the replay copies into on `stream` and does not retain, so work ordered after `stream` reads it whole, as it reads eager results.
+            .map(|output| unsafe { output.assume_init() })
+            .collect::<Result<Vec<_>>>()?;
+        narrow_counted(self.ir.counted_outputs(), outputs)
     }
 
     pub(crate) fn enqueue_on_with_output_target(
         &mut self,
         inputs: &HashMap<String, Tensor>,
         stream: &CudaStream,
-        output_target: ReplayOutputTarget<'_>,
+        output_target: ReplayOutputTarget,
     ) -> Result<Vec<CudaGraphValue>> {
         self.replay_stats.asynchronous_runs = self.replay_stats.asynchronous_runs.saturating_add(1);
         let _replay_range = CudaNvtxRange::create("singe cuda graph replay");
@@ -145,7 +122,7 @@ pub fn run_replay_submission(
     graph: &mut CudaCompiledGraph,
     inputs: &HashMap<String, Tensor>,
     stream: &CudaStream,
-    output_target: ReplayOutputTarget<'_>,
+    output_target: ReplayOutputTarget,
     submission: &mut ReplaySubmission,
 ) -> Result<Vec<CudaGraphValue>> {
     let cache = {
@@ -201,12 +178,11 @@ pub fn run_replay_submission(
         let _output_range = CudaNvtxRange::create("singe cuda graph replay copy outputs");
         match output_target {
             ReplayOutputTarget::Allocate => {
-                graph.copy_outputs_for_run(&cache, stream, submission)?
+                graph.copy_outputs_for_run(&cache, stream, submission, true)?
             }
-            ReplayOutputTarget::CallerOwned(outputs) => {
-                graph.copy_outputs_into(&cache, outputs, stream, submission)?
+            ReplayOutputTarget::Ordered => {
+                graph.copy_outputs_for_run(&cache, stream, submission, false)?
             }
-            ReplayOutputTarget::GraphOwned => graph.graph_owned_outputs(&cache)?,
         }
     };
     graph.finish_replay_submission(submission, stream)?;

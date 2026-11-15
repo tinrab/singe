@@ -1,17 +1,20 @@
 // Writes any snapshot this crate loads as CUDA C++ programs, with what runs them with nothing of Singe: a generation loop for a model that generates, and a runner for one that maps inputs to outputs.
 
+mod tokenizer;
+
 use std::path::Path;
 
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Shape, Tensor,
-    backend::cuda::export::{CudaExport, Decoding, GpuArchitecture, Library},
-    generation::{CachedDecoder, DecoderOptions, DecoderStepGraph, GenerationOptions},
+    backend::cuda::export::{CudaExport, Decoding, GpuArchitecture, Library, LoopTokenizer},
+    generation::{CachedDecoder, DecoderOptions, GenerationOptions},
     graph::Graph,
     nn::{DecoderModel, Model, TokenBatch},
     random::Generator,
     tensor::SamplingOptions,
 };
 
+pub use self::tokenizer::{PromptTemplate, loop_tokenizer};
 use crate::{
     audio::automatic_speech_recognition::{
         TranscriberModel, load_transcriber, whisper::generation_options,
@@ -49,10 +52,9 @@ pub struct ExportOptions {
     pub audio_seconds: i64,
     // The tokens a sentence embedder's sequence holds.
     pub sequence_length: i64,
-    // The side of a square image an autoencoder reads, and the height of the image Qwen3.5's encode step reads.
+    // The side of a square image an autoencoder reads.
     pub image_size: i64,
-    // The width of the image Qwen3.5's encode step reads, `image_size` for `None`.
-    pub image_width: Option<i64>,
+    pub image_patches: Option<i64>,
 }
 
 impl ExportOptions {
@@ -70,7 +72,7 @@ impl ExportOptions {
             audio_seconds: 30,
             sequence_length: 128,
             image_size: 256,
-            image_width: None,
+            image_patches: None,
         }
     }
 
@@ -108,45 +110,46 @@ pub fn export_snapshot(
         "deepseek_v3" => decoder(
             &deepseek_v3::load(snapshot, device, data_type)?,
             &files,
+            None,
             directory,
             options,
         )?,
         "gemma2" => decoder(
             &gemma2::load(snapshot, device, data_type)?,
             &files,
+            None,
             directory,
             options,
         )?,
         "gpt2" => decoder(
             &gpt2::load(snapshot, device, data_type)?,
             &files,
+            None,
             directory,
             options,
         )?,
         "llama" => decoder(
             &llama::load(snapshot, device, data_type)?,
             &files,
+            None,
             directory,
             options,
         )?,
         "qwen3" => decoder(
             &qwen3::load(snapshot, device, data_type)?,
             &files,
+            Some(PromptTemplate::qwen_chat("", None)),
             directory,
             options,
         )?,
-        "qwen3_5"
-            if files
-                .config::<serde_json::Value>()?
-                .get("vision_config")
-                .is_some() =>
-        {
+        "qwen3_5" | "qwen3_5_moe" if options.image_patches.is_some() => {
             image_decoder(snapshot, directory, options)?;
         }
-        "qwen3_5" | "qwen3_5_text" => {
+        "qwen3_5" | "qwen3_5_text" | "qwen3_5_moe" | "qwen3_5_moe_text" => {
             decoder(
                 &qwen3_5::load(snapshot, device, data_type)?,
                 &files,
+                Some(PromptTemplate::qwen_chat("", None)),
                 directory,
                 options,
             )?;
@@ -194,12 +197,15 @@ fn choices(files: &Snapshot, options: &ExportOptions) -> Result<GenerationOption
     })
 }
 
-// A decoder's choosing steps: one token per row, and with `prompt_rows`, a prompt step of that many more.
-fn choosing_steps<L: DecoderModel>(
+fn write_generator<L: DecoderModel>(
     decoder: &CachedDecoder<L>,
+    encode: Option<&Graph>,
     generation: &GenerationOptions,
     prompt_rows: Option<usize>,
-) -> Result<(DecoderStepGraph, Option<DecoderStepGraph>)> {
+    tokenizer: Option<LoopTokenizer>,
+    directory: &Path,
+    options: &ExportOptions,
+) -> Result<()> {
     // The loop seeds the draws, so the generator's own seed is never read.
     let generator = Generator::new(0);
     let step = decoder.choosing_step_graph(0, generation, Some(&generator))?;
@@ -208,40 +214,49 @@ fn choosing_steps<L: DecoderModel>(
             decoder.choosing_step_graph(rows.saturating_sub(1).max(1), generation, Some(&generator))
         })
         .transpose()?;
-    Ok((step, prompt))
+    let steps = encode
+        .map(|encode| ("encode", encode))
+        .into_iter()
+        .chain([("decode", &step.graph)])
+        .chain(prompt.as_ref().map(|prompt| ("prompt", &prompt.graph)))
+        .collect::<Vec<_>>();
+    options
+        .export()
+        .with_decoding(Decoding {
+            layout: step.layout,
+            stop_tokens: generation.stop_tokens.clone(),
+            tokenizer,
+        })
+        .export_steps(&steps)?
+        .write_to(directory, "model")?;
+    Ok(())
 }
 
-fn decoding(step: &DecoderStepGraph, generation: &GenerationOptions) -> Decoding {
-    Decoding {
-        layout: step.layout,
-        stop_tokens: generation.stop_tokens.clone(),
-    }
-}
-
-// A decoder's one-token step and a prompt step of `prompt_rows` more rows as one set, with its generation loop.
+// A decoder's one-token step and a prompt step of `prompt_rows` more rows as one set, with its generation loop, which reads prompts inside `template` if one is given.
 fn decoder<L: DecoderModel>(
     model: &Model<L>,
     files: &Snapshot,
+    template: Option<PromptTemplate>,
     directory: &Path,
     options: &ExportOptions,
 ) -> Result<()> {
-    let generation = choices(files, options)?;
     let decoder =
         CachedDecoder::create(model, DecoderOptions::new(options.rows, options.capacity))?;
-    let (step, prompt) = choosing_steps(&decoder, &generation, Some(options.prompt_rows))?;
-    let prompt = prompt.ok_or_else(|| SingeError::missing_output("prompt step"))?;
-    options
-        .export()
-        .with_decoding(decoding(&step, &generation))
-        .export_steps(&[("decode", &step.graph), ("prompt", &prompt.graph)])?
-        .write_to(directory, "model")?;
-    Ok(())
+    write_generator(
+        &decoder,
+        None,
+        &choices(files, options)?,
+        Some(options.prompt_rows),
+        loop_tokenizer(files, template)?,
+        directory,
+        options,
+    )
 }
 
 // A transcriber's encode step, which reads samples, beside its decoder's steps, as one set with its generation loop of one sequence.
 fn transcriber(snapshot: &Path, directory: &Path, options: &ExportOptions) -> Result<()> {
     let transcriber = load_transcriber(snapshot, options.device, options.data_type)?;
-    let export = options.export();
+    let files = Snapshot::new(snapshot);
     match transcriber.model() {
         TranscriberModel::Whisper(model) => {
             // Whisper's generation config suppresses tokens, which its steps never choose.
@@ -257,54 +272,58 @@ fn transcriber(snapshot: &Path, directory: &Path, options: &ExportOptions) -> Re
                 Shape::create([model.samples()])?,
             )?;
             let (encode, _) = model.encode_step_graph(&decoder, &samples)?;
-            let (step, _) = choosing_steps(&decoder, &generation, None)?;
-            export
-                .with_decoding(decoding(&step, &generation))
-                .export_steps(&[("encode", &encode), ("decode", &step.graph)])?
-                .write_to(directory, "model")?;
+            write_generator(
+                &decoder,
+                Some(&encode),
+                &generation,
+                None,
+                loop_tokenizer(&files, None)?,
+                directory,
+                options,
+            )
         }
         TranscriberModel::Qwen3Asr(model) => {
-            let generation = choices(&Snapshot::new(snapshot), options)?;
             let chunks = options.audio_seconds.max(1);
             let rows = chunks * model.config().audio_config.max_position_embeddings;
             // The encode step writes a row for every position of its chunks after the prompt's start, which the cache must hold beside the transcription.
             let capacity = options.capacity.max(rows + 64);
             let decoder = CachedDecoder::create(model.decoder(), DecoderOptions::new(1, capacity))?;
             let (encode, _) = model.encode_step_graph(&decoder, chunks)?;
-            let (step, prompt) = choosing_steps(&decoder, &generation, Some(options.prompt_rows))?;
-            let prompt = prompt.ok_or_else(|| SingeError::missing_output("prompt step"))?;
-            export
-                .with_decoding(decoding(&step, &generation))
-                .export_steps(&[
-                    ("encode", &encode),
-                    ("decode", &step.graph),
-                    ("prompt", &prompt.graph),
-                ])?
-                .write_to(directory, "model")?;
+            write_generator(
+                &decoder,
+                Some(&encode),
+                &choices(&files, options)?,
+                Some(options.prompt_rows),
+                loop_tokenizer(&files, None)?,
+                directory,
+                options,
+            )
         }
     }
-    Ok(())
 }
 
-// Qwen3.5 reading an image of `options.image_size` by `options.image_width` pixels: its encode step, which reads the image's patches, beside the decoder's steps, as one set with its generation loop of one sequence.
+// Qwen3.5 reading an image of up to `options.image_patches` patches: its encode step, which reads the image's grid and patches, beside the decoder's steps, as one set with its generation loop of one sequence.
 fn image_decoder(snapshot: &Path, directory: &Path, options: &ExportOptions) -> Result<()> {
     let model = load_vision_language(snapshot, options.device, options.data_type)?;
-    let generation = choices(&Snapshot::new(snapshot), options)?;
+    let files = Snapshot::new(snapshot);
     let decoder = CachedDecoder::create(model.decoder(), DecoderOptions::new(1, options.capacity))?;
-    let width = options.image_width.unwrap_or(options.image_size);
-    let (encode, _) = model.encode_step_graph(&decoder, options.image_size, width)?;
-    let (step, prompt) = choosing_steps(&decoder, &generation, Some(options.prompt_rows))?;
-    let prompt = prompt.ok_or_else(|| SingeError::missing_output("prompt step"))?;
-    options
-        .export()
-        .with_decoding(decoding(&step, &generation))
-        .export_steps(&[
-            ("encode", &encode),
-            ("decode", &step.graph),
-            ("prompt", &prompt.graph),
-        ])?
-        .write_to(directory, "model")?;
-    Ok(())
+    let patches = options
+        .image_patches
+        .ok_or_else(|| SingeError::missing_input("the most patches of an image"))?;
+    let (encode, _) = model.encode_step_graph(&decoder, patches)?;
+    // A prompt asks about the image, whose tokens stand where the template's image token does.
+    let image = model.config().image_token_id;
+    let template =
+        PromptTemplate::qwen_chat("<|vision_start|><|image_pad|><|vision_end|>", Some(image));
+    write_generator(
+        &decoder,
+        Some(&encode),
+        &choices(&files, options)?,
+        Some(options.prompt_rows),
+        loop_tokenizer(&files, Some(template))?,
+        directory,
+        options,
+    )
 }
 
 // An autoencoder's halves, each a program with its runner: `encoder` from images, and `decoder` from the latents it gives.

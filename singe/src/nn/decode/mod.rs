@@ -12,7 +12,7 @@ pub use self::{
         SourceCache, SourceCacheSpec, SourcedCache, SourcedCacheSpec, StateCache, StateCacheSpec,
         caches_from_inputs, named_cache_inputs,
     },
-    step::{DecodeStep, PageLayout, PageTable},
+    step::{DecodeStep, PACKED_ORDER, PageLayout, PageTable},
 };
 use crate::{
     data_type::DataType,

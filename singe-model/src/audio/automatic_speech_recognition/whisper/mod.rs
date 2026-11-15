@@ -1,23 +1,23 @@
-use std::{collections::HashMap, iter, path::Path, slice};
+use std::{collections::HashMap, path::Path, slice};
 
 use serde::Deserialize;
 use singe::{
     DataType, Device, Error as SingeError, Result as SingeResult, Tensor,
-    generation::{CachedDecoder, DecoderOptions, GenerationOptions, PromptChunks, RunningBatch},
+    generation::{CachedDecoder, DecoderOptions, GenerationOptions, PromptChunks, generate_batch},
     graph::Graph,
     nn::{
         Activation, AttentionInput, CacheSize, Conv1d, Conv1dConfig, CrossAttention, DecodeCache,
         DecodeStep, DecoderModel, DecodingLayer, DenseAttentionInput, Embedding,
         EncoderDecoderBlock, EncoderDecoderCache, EncoderDecoderCacheSpec, EncoderDecoderParts,
         GroupedQueryAttention, GroupedQueryLayers, HeadProjection, Layer, LayerNorm, Linear, Mlp,
-        Model, ModelState, PreNormBlock, SelfAttention, StateBuilder, StateKey, caches_from_inputs,
-        named_cache_inputs,
+        Model, ModelState, StateBuilder, StateKey,
     },
     signal::{LogMelOptions, LogMelSpectrogram},
 };
 
 use crate::{
-    assembly::{causal, load_weights},
+    BatchOptions,
+    assembly::{EncoderBlock, EncoderSpec, causal, encoder_block, load_weights},
     config::{Snapshot, unsupported},
     error::Result,
     schema::Schema,
@@ -63,8 +63,6 @@ impl WhisperConfig {
         2 * self.max_source_positions
     }
 }
-
-type EncoderBlock = PreNormBlock<SelfAttention, Mlp, LayerNorm>;
 
 // Whisper's encoder: two convolutions with GELU, the second halving the frames, learned positions for every frame, and pre-norm blocks of attention without a mask.
 // It turns log-mel features, `[B, mels, 2F]`, into `[B, F, D]`.
@@ -178,38 +176,6 @@ impl DecoderModel for WhisperDecoderLayers {
     }
 }
 
-// How `Whisper::transcribe_batch` generates: what to generate and when to stop, how many sequences run at once, and whether its steps are compiled.
-#[derive(Debug, Clone, Default)]
-pub struct TranscribeOptions {
-    pub generation: GenerationOptions,
-    pub rows: usize,
-    pub compile: bool,
-}
-
-impl TranscribeOptions {
-    // Generates eagerly, one sequence at a time.
-    #[must_use]
-    pub const fn new(generation: GenerationOptions) -> Self {
-        Self {
-            generation,
-            rows: 1,
-            compile: false,
-        }
-    }
-
-    #[must_use]
-    pub const fn with_rows(mut self, rows: usize) -> Self {
-        self.rows = rows;
-        self
-    }
-
-    #[must_use]
-    pub const fn with_compile(mut self, compile: bool) -> Self {
-        self.compile = compile;
-        self
-    }
-}
-
 // Whisper: its log-mel front end, its encoder, and its decoder, each half with state of its own.
 #[derive(Debug, Clone)]
 pub struct Whisper {
@@ -283,23 +249,19 @@ impl Whisper {
         decoder: &CachedDecoder<WhisperDecoderLayers>,
         samples: &Tensor,
     ) -> SingeResult<(Graph, HashMap<String, Tensor>)> {
-        let (encoder, layers) = (&self.encoder, self.decoder.layer());
-        let caches = named_cache_inputs(decoder.caches());
-        let inputs = iter::once(("samples".to_owned(), samples.clone()))
-            .chain(caches)
-            .collect::<Vec<_>>();
-        let bindings = encoder
-            .state()
-            .capture_bindings()?
-            .merged(self.decoder.state().capture_bindings()?);
-        let (graph, _) = Graph::capture_with_bindings(inputs.clone(), bindings, |tensors| {
-            let (samples, captured) = tensors.split_at(1);
-            let caches = caches_from_inputs(decoder.caches(), captured)?;
-            let sources = encoder.forward(&self.features(&samples[0])?)?.squeeze(0)?;
-            layers.write_sources(&sources, 0, &caches, self.decoder.state())?;
-            Ok(vec![sources])
-        })?;
-        Ok((graph, inputs.into_iter().collect()))
+        let layers = self.decoder.layer();
+        decoder.encode_step_graph(
+            self.encoder.state(),
+            vec![("samples".to_owned(), samples.clone())],
+            |inputs, caches| {
+                let sources = self
+                    .encoder
+                    .forward(&self.features(&inputs[0])?)?
+                    .squeeze(0)?;
+                layers.write_sources(&sources, 0, caches, self.decoder.state())?;
+                Ok(vec![sources])
+            },
+        )
     }
 
     // Transcribes one clip of 16 kHz samples, `[N]`, as `transcribe_batch` does a batch of one.
@@ -307,7 +269,7 @@ impl Whisper {
         &self,
         samples: &Tensor,
         prefix: &[i64],
-        options: &TranscribeOptions,
+        options: &BatchOptions,
     ) -> SingeResult<Vec<i64>> {
         self.transcribe_batch(slice::from_ref(samples), prefix, options)?
             .pop()
@@ -320,7 +282,7 @@ impl Whisper {
         &self,
         clips: &[Tensor],
         prefix: &[i64],
-        options: &TranscribeOptions,
+        options: &BatchOptions,
     ) -> SingeResult<Vec<Vec<i64>>> {
         if clips.is_empty() || options.rows == 0 {
             return Ok(vec![Vec::new(); clips.len()]);
@@ -344,36 +306,18 @@ impl Whisper {
             decoder.compile()?;
         }
 
-        let mut tokens = vec![Vec::new(); clips.len()];
-        let mut next = 0;
-        let mut batch = RunningBatch::create(&mut decoder, options.generation.clone())?;
-        loop {
-            while next < clips.len() {
-                let encoding = encoded
-                    .narrow(
-                        0,
-                        i64::try_from(next).map_err(|_| SingeError::out_of_range("clips"))?,
-                        1,
-                    )?
-                    .squeeze(0)?;
-                let joined = batch.join_with(prefix, |decoder, row| {
-                    self.write_sources(decoder, row, &encoding)
-                })?;
-                if joined.is_none() {
-                    break;
-                }
-
-                next += 1;
-            }
-
-            if batch.is_empty() {
-                return Ok(tokens);
-            }
-
-            for generated in batch.advance(None)? {
-                tokens[generated.sequence].push(generated.token);
-            }
-        }
+        let prompts = vec![prefix; clips.len()];
+        generate_batch(
+            &mut decoder,
+            &prompts,
+            &options.generation,
+            None,
+            |decoder, row, clip| {
+                let clip = i64::try_from(clip).map_err(|_| SingeError::out_of_range("clips"))?;
+                self.write_sources(decoder, row, &encoded.narrow(0, clip, 1)?.squeeze(0)?)
+            },
+            |_, _| Ok(()),
+        )
     }
 }
 
@@ -398,30 +342,6 @@ fn projections(schema: &mut Schema<'_>, width: i64) -> SingeResult<[Linear; 4]> 
         schema.linear("v_proj", width, width, true)?,
         schema.linear("out_proj", width, width, true)?,
     ])
-}
-
-fn encoder_block(schema: &mut Schema<'_>, config: &WhisperConfig) -> SingeResult<EncoderBlock> {
-    let width = config.d_model;
-    let [query, key, value, output] = projections(&mut schema.scope("self_attn"), width)?;
-    let attention = SelfAttention::create(
-        query,
-        key,
-        value,
-        output,
-        config.encoder_attention_heads,
-        width,
-    )?;
-    Ok(PreNormBlock::new(
-        schema.layer_norm("self_attn_layer_norm", width, LAYER_NORM_EPS)?,
-        attention,
-        schema.layer_norm("final_layer_norm", width, LAYER_NORM_EPS)?,
-        mlp(
-            schema,
-            width,
-            config.encoder_ffn_dim,
-            config.activation_function,
-        )?,
-    ))
 }
 
 fn decoder_block(
@@ -494,8 +414,15 @@ fn encoder_schema(
             "embed_positions.weight",
             [config.max_source_positions, width],
         )?;
+        let spec = EncoderSpec {
+            width: config.d_model,
+            heads: config.encoder_attention_heads,
+            inner: config.encoder_ffn_dim,
+            activation: config.activation_function,
+            key_bias: false,
+        };
         let blocks = (0..config.encoder_layers)
-            .map(|layer| encoder_block(&mut model.scope(format!("layers.{layer}")), config))
+            .map(|layer| encoder_block(&mut model.scope(format!("layers.{layer}")), &spec))
             .collect::<SingeResult<Vec<_>>>()?;
         let norm = model.layer_norm("layer_norm", width, LAYER_NORM_EPS)?;
         WhisperEncoderLayers {

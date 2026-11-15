@@ -2,10 +2,7 @@ use singe_core::ErrorChain;
 use singe_cuda::submission::{Completion, Execution, Resources};
 
 use crate::{
-    backend::cuda::{
-        graph_value::{CudaGraphValue, GraphOutputBuffers},
-        stream::CudaStream,
-    },
+    backend::cuda::{graph_value::CudaGraphValue, stream::CudaStream},
     error::Result,
     tensor::Tensor,
 };
@@ -170,19 +167,6 @@ impl PendingRuns {
         Ok(())
     }
 
-    pub fn synchronize_on(&mut self, stream: &CudaStream) -> Result<()> {
-        let mut index = 0;
-        while index < self.runs.len() {
-            if self.runs[index].completion.stream() == stream.raw() {
-                self.runs[index].completion.wait()?;
-                self.runs.swap_remove(index);
-            } else {
-                index += 1;
-            }
-        }
-        Ok(())
-    }
-
     pub fn synchronize(&mut self) -> Result<()> {
         for run in &self.runs {
             run.completion.wait()?;
@@ -208,10 +192,9 @@ pub struct ReplaySubmission {
 }
 
 #[derive(Clone, Copy)]
-pub enum ReplayOutputTarget<'a> {
+pub enum ReplayOutputTarget {
     Allocate,
-    CallerOwned(GraphOutputBuffers<'a>),
-    GraphOwned,
+    Ordered,
 }
 
 impl ReplaySubmission {
@@ -262,6 +245,10 @@ impl ReplaySubmission {
     pub(crate) fn record_output_copy(&mut self, output: CudaGraphValue) {
         self.output_copies += 1;
         self.outputs.push(output);
+    }
+
+    pub(crate) const fn count_output_copy(&mut self) {
+        self.output_copies += 1;
     }
 
     pub(crate) fn record_native_launch(&mut self) {

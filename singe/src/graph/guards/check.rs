@@ -95,25 +95,23 @@ impl GraphGuards {
             .required_value_name(value)?
             .unwrap_or("input")
             .to_string();
-        let dimension_guards = symbols
-            .map(|symbols| {
-                symbols
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(axis, symbol)| {
-                        symbol.as_ref().map(|symbol| {
-                            InputDimensionGuard::new(
-                                name.clone(),
-                                axis,
-                                symbol.name(),
-                                symbol.min(),
-                                symbol.max(),
-                            )
-                        })
+        let dimension_guards = symbols.map_or_default(|symbols| {
+            symbols
+                .iter()
+                .enumerate()
+                .filter_map(|(axis, symbol)| {
+                    symbol.as_ref().map(|symbol| {
+                        InputDimensionGuard::new(
+                            name.clone(),
+                            axis,
+                            symbol.name(),
+                            symbol.min(),
+                            symbol.max(),
+                        )
                     })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+                })
+                .collect::<Vec<_>>()
+        });
         let data_type = ir.required_value_data_type(value)?;
         let layout = ir.required_value_layout(value)?;
         let device = ir.required_value(value)?.device();

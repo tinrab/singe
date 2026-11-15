@@ -7,7 +7,14 @@ use singe_codegen::emit::cuda_c::spelling::{load_expression, store_expression};
 
 use crate::{
     backend::{
-        cuda::kernel_plan::source::{KernelInput, KernelPlan, writer::KernelWriter},
+        cuda::{
+            codegen::CompileRequirements,
+            kernel_plan::source::{
+                KernelInput, KernelPlan,
+                tensor_core::{operand_kind, tensor_core_helpers},
+                writer::KernelWriter,
+            },
+        },
         kernel_lowering::element_type,
         registry::Operation,
     },
@@ -32,6 +39,56 @@ const DELTA_RULE_CHUNK: usize = 16;
 // The shared bytes a chunk's keys, queries, and reads may take.
 const CHUNK_SHARED_BYTES: usize = 40 << 10;
 
+const MMA_KEY_DIM: usize = 128;
+
+const MMA_COLUMNS: usize = 32;
+
+fn rule_fragment_helpers(data_type: DataType) -> String {
+    let to_float = if data_type == DataType::F16 {
+        "float value;\n    asm(\"cvt.f32.f16 %0, %1;\" : \"=f\"(value) : \"h\"(bits));\n    return value;"
+    } else {
+        "return __uint_as_float(static_cast<unsigned int>(bits) << 16);"
+    };
+    format!(
+        "
+__device__ __forceinline__ float singe_rule_float(unsigned short bits) {{
+    {to_float}
+}}
+__device__ __forceinline__ unsigned int singe_rule_pair(unsigned short low, unsigned short high) {{
+    return static_cast<unsigned int>(low) | (static_cast<unsigned int>(high) << 16);
+}}
+// `high` rounds two values to the operand type and `low` rounds what that leaves, so a product of each with a raw operand keeps about twice the operand type's bits.
+__device__ __forceinline__ void singe_rule_split(float a, float b, unsigned int& high, unsigned int& low) {{
+    high = singe_pack(a, b);
+    low = singe_pack(a - singe_rule_float(static_cast<unsigned short>(high & 0xffffU)), b - singe_rule_float(static_cast<unsigned short>(high >> 16)));
+}}
+template <typename Get>
+__device__ __forceinline__ void singe_rule_a_exact(unsigned int* a, Get get, unsigned int r0, unsigned int k0, unsigned int g, unsigned int t) {{
+    a[0] = singe_rule_pair(get(r0 + g, k0 + 2U * t), get(r0 + g, k0 + 2U * t + 1U));
+    a[1] = singe_rule_pair(get(r0 + g + 8U, k0 + 2U * t), get(r0 + g + 8U, k0 + 2U * t + 1U));
+    a[2] = singe_rule_pair(get(r0 + g, k0 + 2U * t + 8U), get(r0 + g, k0 + 2U * t + 9U));
+    a[3] = singe_rule_pair(get(r0 + g + 8U, k0 + 2U * t + 8U), get(r0 + g + 8U, k0 + 2U * t + 9U));
+}}
+template <typename Get>
+__device__ __forceinline__ void singe_rule_a_split(unsigned int* high, unsigned int* low, Get get, unsigned int r0, unsigned int k0, unsigned int g, unsigned int t) {{
+    singe_rule_split(get(r0 + g, k0 + 2U * t), get(r0 + g, k0 + 2U * t + 1U), high[0], low[0]);
+    singe_rule_split(get(r0 + g + 8U, k0 + 2U * t), get(r0 + g + 8U, k0 + 2U * t + 1U), high[1], low[1]);
+    singe_rule_split(get(r0 + g, k0 + 2U * t + 8U), get(r0 + g, k0 + 2U * t + 9U), high[2], low[2]);
+    singe_rule_split(get(r0 + g + 8U, k0 + 2U * t + 8U), get(r0 + g + 8U, k0 + 2U * t + 9U), high[3], low[3]);
+}}
+template <typename Get>
+__device__ __forceinline__ void singe_rule_b_exact(unsigned int* b, Get get, unsigned int k0, unsigned int n0, unsigned int g, unsigned int t) {{
+    b[0] = singe_rule_pair(get(k0 + 2U * t, n0 + g), get(k0 + 2U * t + 1U, n0 + g));
+    b[1] = singe_rule_pair(get(k0 + 2U * t + 8U, n0 + g), get(k0 + 2U * t + 9U, n0 + g));
+}}
+template <typename Get>
+__device__ __forceinline__ void singe_rule_b_split(unsigned int* high, unsigned int* low, Get get, unsigned int k0, unsigned int n0, unsigned int g, unsigned int t) {{
+    singe_rule_split(get(k0 + 2U * t, n0 + g), get(k0 + 2U * t + 1U, n0 + g), high[0], low[0]);
+    singe_rule_split(get(k0 + 2U * t + 8U, n0 + g), get(k0 + 2U * t + 9U, n0 + g), high[1], low[1]);
+}}"
+    )
+}
+
 // The type a kernel computes `data_type` values in.
 const fn accumulator(data_type: DataType) -> &'static str {
     if matches!(data_type, DataType::F64) {
@@ -54,8 +111,12 @@ fn extents<const N: usize>(input: &KernelInput, label: &'static str) -> Result<[
 }
 
 impl KernelPlan {
-    // Plans one of the causal convolution, its state, the gated delta rule, and its state, on contiguous inputs.
-    pub(crate) fn state_recurrence(operation: Operation, inputs: &[KernelInput]) -> Result<Self> {
+    // Plans one of the causal convolution, its state, the gated delta rule, and its state, on contiguous inputs, with `mma.sync` where `tensor_cores` says the target has it.
+    pub(crate) fn state_recurrence(
+        operation: Operation,
+        inputs: &[KernelInput],
+        tensor_cores: bool,
+    ) -> Result<Self> {
         if inputs.iter().any(|input| !input.layout.is_contiguous()) {
             return Err(Error::unsupported_operation(
                 "cuda state recurrence of strided inputs",
@@ -80,7 +141,7 @@ impl KernelPlan {
                 | Operation::GatedDeltaRuleOutput
                 | Operation::GatedDeltaRuleState,
                 [_, _, _, _, _, _, _, _, _],
-            ) => Self::gated_delta_rule(inputs),
+            ) => Self::gated_delta_rule(inputs, tensor_cores),
             _ => Err(Error::missing_input("cuda state recurrence operands")),
         }
     }
@@ -200,8 +261,8 @@ if (w >= {history}LL) {{
 
     // One block per sequence, head, and slice of value features, writing the output and the state the step leaves.
     // Each value feature's column of the state, `Dk` values, is split across `parts` lanes, which sum what they read with shuffles.
-    // A step of single rows runs one warp per block, token by token; a step that reads prompts runs each sequence's rows in chunks, as `transformers`' `torch_chunk_gated_delta_rule` does, with four warps sharing each chunk's work on its keys.
-    fn gated_delta_rule(inputs: &[KernelInput]) -> Result<Self> {
+    // A step of single rows runs one warp per block, token by token; a step that reads prompts runs each sequence's rows in chunks, as `transformers`' `torch_chunk_gated_delta_rule` does, with eight warps sharing each chunk's work on its keys, or for half-precision operands on tensor cores, as `gated_delta_rule_mma.cu.in` writes it.
+    fn gated_delta_rule(inputs: &[KernelInput], tensor_cores: bool) -> Result<Self> {
         let [query, key, value, decay, strength, state, ..] = inputs else {
             return Err(Error::missing_input("cuda gated delta rule operands"));
         };
@@ -253,6 +314,69 @@ if (w >= {history}LL) {{
             1
         };
         let prompt = tokens > sequences;
+        // A prompt of half-precision rows runs each chunk's products on tensor cores, where the target has them and the keys are a whole number of 16-wide fragments that fit shared memory.
+        if prompt
+            && tensor_cores
+            && matches!(data_type, DataType::F16 | DataType::Bf16)
+            && query.data_type == data_type
+            && key.data_type == data_type
+            && key_dim.is_multiple_of(16)
+            && key_dim <= MMA_KEY_DIM
+        {
+            let load = |name: &str, input: &KernelInput| -> Result<String> {
+                Ok(format!(
+                    "static_cast<float>({})",
+                    load_expression(element_type(input.data_type)?, &format!("{name}[r]"))
+                ))
+            };
+            let launch = writer.grid(
+                [sequences, heads, value_dim.div_ceil(MMA_COLUMNS)],
+                u32::try_from(CHUNK_WARPS * WARP)
+                    .map_err(|_| Error::out_of_range("cuda gated delta rule threads"))?,
+            )?;
+            writer.require(CompileRequirements::TENSOR_CORES);
+            writer.declare(&tensor_core_helpers(operand_kind(data_type)));
+            writer.declare(&rule_fragment_helpers(data_type));
+            let fill = [
+                ("columns", MMA_COLUMNS.to_string()),
+                ("chunk", DELTA_RULE_CHUNK.to_string()),
+                ("key_dim", key_dim.to_string()),
+                ("value_dim", value_dim.to_string()),
+                ("heads", heads.to_string()),
+                ("sequences", sequences.to_string()),
+                ("tokens", tokens.to_string()),
+                ("offsets", offsets),
+                ("real", real),
+                ("positions", positions),
+                ("held", held),
+                ("key", keys),
+                ("query", queries),
+                ("value", values),
+                ("load_decay", load(&decays, decay)?),
+                ("load_strength", load(&strengths, strength)?),
+                ("output", output),
+                ("left", left),
+                ("stored", store_expression(element, "out")),
+                ("zero", store_expression(element, "0.0F")),
+            ];
+            let mut body = include_str!("gated_delta_rule_mma.cu.in").to_owned();
+            for (name, value) in fill {
+                body = body.replace(&format!("@{name}@"), &value);
+            }
+
+            writer.lines(&body);
+            return Ok(writer.finish(
+                "gated_delta_rule",
+                launch,
+                vec![
+                    ValueSpec::new(data_type, value.layout.shape().clone()),
+                    ValueSpec::new(DataType::F32, state.layout.shape().clone()),
+                ],
+                inputs,
+                &[Operation::GatedDeltaRule],
+            ));
+        }
+
         let threads = if prompt { CHUNK_WARPS * WARP } else { WARP };
         let columns = threads / parts;
         let launch = writer.grid(
@@ -344,17 +468,27 @@ for (long long first = start; first < start + count; first += {chunk}LL) {{
         chunk_key[i][d] = i < n ? {load_key} : static_cast<{ty}>(0);
         chunk_query[i][d] = i < n ? {load_query} : static_cast<{ty}>(0);
     }}
+    // The chunk's decays and strengths load at once, one row per lane, before one lane sums the decays in order.
+    if (lane < {chunk}U) {{
+        const unsigned int i = lane;
+        const unsigned long long r = static_cast<unsigned long long>(first + i) * {heads}ULL + head;
+        decayed[i] = i < n ? {load_decay} : static_cast<{ty}>(0);
+        chunk_strength[i] = i < n ? {load_strength} : static_cast<{ty}>(0);
+    }}
+    __syncthreads();
     if (lane == 0) {{
         {ty} sum = 0;
         for (unsigned int i = 0; i < {chunk}U; ++i) {{
-            const unsigned long long r = static_cast<unsigned long long>(first + i) * {heads}ULL + head;
-            sum += i < n ? {load_decay} : static_cast<{ty}>(0);
+            sum += decayed[i];
             decayed[i] = sum;
-            chunk_strength[i] = i < n ? {load_strength} : static_cast<{ty}>(0);
-            risen[i] = exp(sum);
-            weight[i] = chunk_strength[i] * risen[i];
         }}
-        for (unsigned int i = 0; i < {chunk}U; ++i) remaining[i] = exp(sum - decayed[i]);
+    }}
+    __syncthreads();
+    if (lane < {chunk}U) {{
+        const unsigned int i = lane;
+        risen[i] = exp(decayed[i]);
+        weight[i] = chunk_strength[i] * risen[i];
+        remaining[i] = exp(decayed[{chunk} - 1] - decayed[i]);
     }}
     __syncthreads();
     for (unsigned int e = lane; e < {chunk}U * {chunk}U; e += blockDim.x) {{

@@ -13,9 +13,9 @@ pub use self::{
     decode::{
         CacheSize, DecodeCache, DecodeStep, DecoderModel, DecodingLayer, EncoderDecoderCache,
         EncoderDecoderCacheSpec, HybridCache, HybridCacheSpec, InputGroup, KvCache, KvCacheSpec,
-        LatentKvCache, LatentKvCacheSpec, PageLayout, PageTable, PositionCache, SourceCache,
-        SourceCacheSpec, SourcedCache, SourcedCacheSpec, StateCache, StateCacheSpec, TensorGroup,
-        caches_from_inputs, named_cache_inputs,
+        LatentKvCache, LatentKvCacheSpec, PACKED_ORDER, PageLayout, PageTable, PositionCache,
+        SourceCache, SourceCacheSpec, SourcedCache, SourcedCacheSpec, StateCache, StateCacheSpec,
+        TensorGroup, caches_from_inputs, named_cache_inputs,
     },
     encode::TokenBatch,
     layers::*,

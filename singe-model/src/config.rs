@@ -110,7 +110,8 @@ impl RotaryConfig {
 pub struct DecoderConfig {
     pub vocab_size: i64,
     pub hidden_size: i64,
-    pub intermediate_size: i64,
+    #[serde(default)]
+    pub intermediate_size: Option<i64>,
     pub num_hidden_layers: i64,
     pub num_attention_heads: i64,
     // As many as there are query heads when absent.

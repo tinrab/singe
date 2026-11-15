@@ -5,16 +5,17 @@ use std::path::Path;
 use singe::{
     DataType, Device, Result as SingeResult,
     nn::{
-        CheckpointOptions, Decoder, DecoderFeedForward, GatedMlp, LatentKvCacheSpec, LatentQuery,
-        MixtureOfExperts, Model, MoeLayers, MoeRouting, MultiHeadLatentAttention,
-        MultiHeadLatentLayers, StatePiece,
+        Decoder, DecoderFeedForward, GatedMlp, LatentKvCacheSpec, LatentQuery, MixtureOfExperts,
+        Model, MoeLayers, MoeRouting, MultiHeadLatentAttention, MultiHeadLatentLayers,
     },
     tensor::AttentionOptions,
 };
 
 pub use self::config::DeepseekV3Config;
 use crate::{
-    assembly::{DecoderSpec, causal, causal_lm, gated_mlp, pre_norm_block_with},
+    assembly::{
+        DecoderSpec, causal, causal_lm, gated_mlp, load_expert_weights, pre_norm_block_with,
+    },
     config::Snapshot,
     error::Result,
     schema::Schema,
@@ -109,35 +110,19 @@ fn mixture_of_experts(
     Ok(MixtureOfExperts::new(
         MoeLayers {
             router,
-            router_bias,
             gate_up,
             down,
             shared,
+            shared_gate: None,
         },
-        MoeRouting {
+        MoeRouting::Grouped {
+            bias: router_bias,
             groups: config.n_group,
             kept_groups: config.topk_group,
             top_k: config.num_experts_per_tok,
             scale: config.routed_scaling_factor,
         },
     ))
-}
-
-// Where a real checkpoint's per-expert tensor belongs in the packed state: `model.layers.{l}.mlp.experts.{e}.{gate,up,down}_proj.weight`.
-fn expert_piece(name: &str, inner: i64) -> Option<StatePiece> {
-    let (prefix, rest) = name.split_once(".mlp.experts.")?;
-    let (expert, projection) = rest.split_once('.')?;
-    let expert = expert.parse::<i64>().ok()?;
-    let (packed, row) = match projection {
-        "gate_proj.weight" => ("gate_up_proj", 0),
-        "up_proj.weight" => ("gate_up_proj", inner),
-        "down_proj.weight" => ("down_proj", 0),
-        _ => return None,
-    };
-    Some(StatePiece {
-        state: format!("{prefix}.mlp.experts.{packed}"),
-        origin: vec![expert, row, 0],
-    })
 }
 
 fn schema(config: &DeepseekV3Config, data_type: DataType) -> Result<DeepseekV3> {
@@ -176,17 +161,11 @@ fn schema(config: &DeepseekV3Config, data_type: DataType) -> Result<DeepseekV3> 
 pub fn load(snapshot: impl AsRef<Path>, device: Device, data_type: DataType) -> Result<DeepseekV3> {
     let config: DeepseekV3Config = Snapshot::new(&snapshot).config()?;
     config.validate()?;
-    let schema = schema(&config, data_type)?;
-    let inner = config.moe_intermediate_size;
-    let pieces = move |name: &str| expert_piece(name, inner);
-    let state = schema.state().load_checkpoint(
+    load_expert_weights(
+        &schema(&config, data_type)?,
         snapshot,
-        &CheckpointOptions {
-            device: Some(device),
-            convert: true,
-            names: None,
-            pieces: Some(&pieces),
-        },
-    )?;
-    Ok(schema.with_state(state)?)
+        device,
+        &|name| Some(name.to_owned()),
+        config.moe_intermediate_size,
+    )
 }

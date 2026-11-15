@@ -96,15 +96,12 @@ pub fn compile_report_operation(
             .decision(id)
             .map(compile_report_realized_provider_decision),
         selected_algorithm: compile_report_selected_algorithm(realized_lowering.decision(id)),
-        provider_failures: provider_failures
-            .get(&id)
-            .map(|failures| {
-                failures
-                    .as_slice()
-                    .iter()
-                    .map(|(provider, reason)| GraphCompileProviderFailure::new(*provider, reason))
-                    .collect()
-            })
-            .unwrap_or_default(),
+        provider_failures: provider_failures.get(&id).map_or_default(|failures| {
+            failures
+                .as_slice()
+                .iter()
+                .map(|(provider, reason)| GraphCompileProviderFailure::new(*provider, reason))
+                .collect()
+        }),
     }))
 }

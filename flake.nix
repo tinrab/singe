@@ -474,6 +474,10 @@
             pkgs.rust-bindgen
             pkgs.cmake
             pkgs.pkg-config
+
+            pkgs.cudaPackages.nsight_systems
+            pkgs.cudaPackages.nsight_compute
+            pkgs.nvtopPackages.nvidia
           ]
           ++ cudaLibs;
 

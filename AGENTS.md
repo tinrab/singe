@@ -57,6 +57,7 @@ Use `uv` for Python helpers.
 - `singe-kernel`: reusable CPU and CUDA kernels; generated cuTile kernels live under `src/-generated/`.
 - `singe-codegen`: the kernel IR, its schedules, an interpreter, and the CUDA C and Tile emitters.
 - `singe-model`: model configs and architecture definitions built on `singe`, whose layers, caches, checkpoints, and generation loop live in `singe`.
+  Its README gives the steps for adding a model.
 - `singe-testing`: how tests compare with PyTorch's references, and the benchmark runner; see its README.
 - `singe-onnx`: ONNX model utilities.
 - `singe-ptx`: a PTX parser and a CPU emulator that runs PTX kernels without a GPU.
@@ -74,16 +75,24 @@ Use `uv` for Python helpers.
 - Operations and dispatch: operation metadata and inference in `singe/src/backend/registry/`, dispatch keys, kernels, autocast, and custom operations in `singe/src/dispatch/`, and backend kernel registration in `singe/src/backend/kernels.rs`.
 - Backends: `singe/src/backend/`, with `cpu/` and `cuda/` implementations; graphs live in `singe/src/graph/` and ONNX import in `singe/src/onnx/`.
   Eager CUDA operations plan each kernel once per operation and input layouts, in `backend/cuda/kernel_plan/eager_plans.rs`, and enqueue on one eager stream per device without waiting, libraries included; a host read waits for that stream, and every other stream joins it before its work, through `CudaRuntime::order_after_eager`.
-  Checkpoints load a tensor at a time from where it lies in its file, through page-locked staging buffers, `backend/cuda/upload.rs`.
-- Generation: `singe/src/generation/` has the loop and `CachedDecoder`, whose compiled steps are the one-token step and the prompt chunks `DecoderOptions::prompt_chunks` names; a step pads to the smallest compiled step that holds it, and a larger one is an error.
-  `generate_batch` and `RunningBatch` run more prompts than rows, each joining as a row frees, and `choose` picks each row's token, greedy or sampled, as a choosing step graph does in a program.
-- Decoder caches: `singe/src/nn/decode/` has `DecodeStep` and the caches, one per block from its own spec: paged `KvCache`s, a per-sequence `StateCache` for linear attention, and `HybridCache` for models that mix them.
+  A small upload from the host returns before its copy runs, through the allocator's page-locked staging buffers, and `GraphExecutor::enqueue` replays a compiled graph on the eager stream without waiting.
+  A compiled graph drops every dependency another implies before it is instantiated, `compiled/build/reduction.rs`, since one of more than about 4,096 edges never finishes on the device.
+  Checkpoints load a tensor at a time from where it lies in its file, through page-locked staging buffers, `backend/cuda/upload.rs`; a tensor stored as another type uploads as stored and casts on the device.
+- Generation: `singe/src/generation/` has the `Decoder` trait and `generate_batch` (`decoder.rs`), `RunningBatch` (`batch.rs`), `choose` (`choosing.rs`), and `CachedDecoder` (`cached.rs`), whose compiled steps are the one-token step and the prompt chunks `DecoderOptions::prompt_chunks` names, each twice the last; a step pads to the smallest compiled step that holds it, and a larger one is an error.
+  `generate_batch` and `RunningBatch` run more prompts than rows, each joining as a row frees, after a `prepare` that writes the row's sources for an encoder-decoder, and `choose` picks each row's token, greedy or sampled, as a choosing step graph does in a program.
+  A batch enqueues each step before reading the tokens the step before chose: a step's graph takes them as its `previous` input, and a negative token in a row reads that row's, `DecodeStep::follow`, so a sequence that stops leaves one step's row unread.
+  `SpeculativeDecoder` decodes one sequence greedily with a `DraftingModel`'s draft layer, such as Qwen3.5's multi-token prediction layer on `CausalLm::with_draft_layer`: the drafts stay on the device, a step checks them, the host reads the drafts and the check's choices once a round, a draft of an F32 model reads a BF16 copy of the output head, `DraftingModel::draft_buffers`, and a rejection keeps the trail row the accepted tokens left, `DecodeCache::keep_trail`, and truncates the pages, so it gives what greedy decoding gives.
+  Both decoders compile and run their steps through `generation/compiled.rs`'s `CompiledSteps`, which captures a decode step through `capture_step`, as `CachedDecoder`'s step graphs for tuning and export do; `CachedDecoder::encode_step_graph` captures an encoder's step that writes the decoder's caches.
+- Decoder caches: `singe/src/nn/decode/` has `DecodeStep`, one packed `I64` tensor whose parts are views in `PACKED_ORDER`, and the caches, one per block from its own spec: paged `KvCache`s, a per-sequence `StateCache` for linear attention, and `HybridCache` for models that mix them.
+  A `StateCache` sized with a `CacheSize::trail` also keeps the state after each of a step's first rows, which a check of drafted tokens rolls back to.
   A layer carrying a state reads only each sequence's real tokens, `DecodeStep::real_tokens`, so padding and held rows leave it as it was.
   `SourcedCausalLm` adds a `SourceCache` whose rows a prompt's placeholder tokens read in place of their embeddings, as Qwen3-ASR's audio tokens and Qwen3.5's image tokens do, and with M-RoPE sections a `PositionCache` of each position's rotary offsets on three axes.
 - Programs: `singe/src/backend/cuda/export/` turns graphs into CUDA C++ programs, and several graphs into a set sharing weights.
-  A set exported with `with_decoding` writes a generation loop that fills every `DecodeStep` input, reads prompts through a `prompt` step, and runs an `encode` step on a source file; any other program writes a runner from input files to output files.
-  Its steps end in choosing a token, sampling from the set's generator seeded by `--seed`, and the loop stops a sequence at the export's stop tokens and runs the rows a step was exported for over a `--prompts` file, as `RunningBatch` does.
-  An encode step writes whatever the decoder's caches need for its source, as Qwen3-ASR's writes audio rows and Qwen3.5's writes an image's rows and M-RoPE offsets, for an image of the size exported.
+  A set exported with `with_decoding` writes a generation loop that packs each `DecodeStep` in one upload, reads prompts through a `prompt` step, and runs an `encode` step on a source file; any other program writes a runner from input files to output files.
+  The loop is `writer/generate.cu.in` with its parts in their own templates beside it: graph replay, the tokenizer, prompt reading, and the paged step writer.
+  Its steps end in choosing a token, sampling from the set's generator seeded by `--seed`, and the loop stops a sequence at the export's stop tokens and runs the rows a step was exported for over a `--prompts` file, as `RunningBatch` does, enqueueing each step before reading the one before it; steps that do not sample replay as CUDA graphs after their first run.
+  With a `LoopTokenizer`, which `singe_model::export::loop_tokenizer` reads from a snapshot, the loop decodes tokens into text and, for Qwen's tokenizers, encodes text prompts inside the export's template, as `tokenizers` does, from a `.tokenizer` file the export writes.
+  An encode step writes whatever the decoder's caches need for its source, as Qwen3-ASR's writes audio rows and Qwen3.5's writes an image's rows and M-RoPE offsets, for an image of any size up to the patches exported, whose grid starts its source file.
   Inputs whose length varies pad to a fixed size with their length as a tensor input, so one graph serves the eager, compiled, and program paths.
   `singe_model::export::export_snapshot`, run by `singe-model`'s `export` example, exports any snapshot its loaders know.
 - CUDA wrappers: `singe-cuda/src/context.rs`, `device.rs`, `stream/`, `event.rs`, `memory/`, `module/`, `kernel/`, `graph/`, `submission/`, `nvrtc/`, and `jit.rs`.
@@ -92,7 +101,7 @@ Use `uv` for Python helpers.
 
 ## Tests and references
 
-- Tests cover `singe`'s core components, its operations, blocks, and modules, for correctness, as few as that takes; models have no tests, and `singe-model`'s examples show them working.
+- Tests cover `singe`'s core components, its operations, blocks, and modules, for correctness, as few as that takes; models have no tests, and `singe-model`'s examples show them working, as `scripts/check_generation.py` compares a text model's greedy tokens with `transformers`'.
 - `singe/tests` has five targets, `tensor`, `graph`, `kernels`, `nn`, and `onnx`, each a `main.rs` with a module per subject.
 - A test that compares with PyTorch reads a reference with `singe_testing::reference!` and compares with `assert_matches` under a named `Tolerance`.
 - References live under `singe/tests/references`, as `tensors.safetensors` and `reference.json`, and are generated, never edited by hand.

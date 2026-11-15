@@ -26,8 +26,7 @@ fn test_cuda_compiled_graph_rejects_slice_alias_with_negative_start() {
                 dim: 0,
                 start: -1,
                 length: 3,
-                expected_strides: &[],
-                expected_storage_offset: 0,
+                expected: &[],
             },
         ),
         Err(Error::InvalidArgument { name }) if name == "graph slice start"

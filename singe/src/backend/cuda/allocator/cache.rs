@@ -7,7 +7,11 @@ use std::{
     },
 };
 
-use singe_cuda::{context::Context as CudaContext, event::Event, memory::DeviceMemory};
+use singe_cuda::{
+    context::Context as CudaContext,
+    event::Event,
+    memory::{DeviceMemory, PinnedHostMemory},
+};
 
 use crate::{device::Device, storage::cuda::CudaMemoryRecycler};
 
@@ -24,6 +28,13 @@ pub struct CudaCachingAllocatorCache {
     pub(crate) cache_hit_count: AtomicUsize,
     /// Cap on active plus cached bytes, or zero for no cap.
     pub(crate) memory_limit: AtomicUsize,
+    pub(crate) staging: Mutex<Vec<StagingBuffer>>,
+}
+
+#[derive(Debug)]
+pub struct StagingBuffer {
+    pub(crate) memory: PinnedHostMemory<u8>,
+    pub(crate) copied: Event,
 }
 
 #[derive(Debug)]

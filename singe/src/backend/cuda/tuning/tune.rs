@@ -32,22 +32,23 @@ use crate::{
                     merged_projections_key, schedule_key, way_key,
                 },
                 measure::{
-                    Evaluated, Measurer, WholeGraphRunner, evaluate, listed_library_choices,
-                    remove_abandoned_candidates, restore_written, subgraph, whole_graph,
+                    Measurer, WholeGraphRunner, listed_library_choices, remove_abandoned_candidates,
                 },
                 plan::{
                     Alternative, Candidate, ChoicePoint, MeasureError, Plan, PlanLimits,
                     PlanRunner, PlanSearchOptions, check_plan, confirm, decide, decide_in_two,
-                    plan_records, search_plans,
+                    nanoseconds, plan_records, search_plans,
                 },
                 records::{
                     Measurement, TunedChoice, TunedRecord, TunedWay, TuningEnvironment,
                     TuningRecords,
                 },
+                reference::{Evaluated, evaluate},
                 report::{
                     CandidateFailure, CandidateOutcome, CandidateReport, ChoiceReport,
                     ComparisonReport, FailureStage, SelfComparison, TuningReport,
                 },
+                small_graph::{restore_written, subgraph, whole_graph},
             },
         },
         registry::Operation,
@@ -115,7 +116,7 @@ impl Default for GraphTuneOptions {
 }
 
 // A record of `choice` no timing has decided yet.
-fn held_record(choice: &TunedChoice) -> TunedRecord {
+pub fn held_record(choice: &TunedChoice) -> TunedRecord {
     TunedRecord {
         choice: choice.clone(),
         default_ns: None,
@@ -124,21 +125,19 @@ fn held_record(choice: &TunedChoice) -> TunedRecord {
     }
 }
 
+fn holding(mut records: TuningRecords, choices: &[(String, TunedChoice)]) -> TuningRecords {
+    for (key, choice) in choices {
+        records.insert(key.clone(), held_record(choice));
+    }
+    records
+}
+
 // The records that force `candidate`.
 pub fn forced_records(candidate: &Candidate, environment: &TuningEnvironment) -> TuningRecords {
-    let mut forced = TuningRecords::new(Some(environment.clone()));
-    for (key, choice) in &candidate.choices {
-        forced.insert(
-            key.clone(),
-            TunedRecord {
-                choice: choice.clone(),
-                default_ns: None,
-                best_ns: 0,
-                bytes: 0,
-            },
-        );
-    }
-    forced
+    holding(
+        TuningRecords::new(Some(environment.clone())),
+        &candidate.choices,
+    )
 }
 
 // Which libraries' own configurations a choice point lists, and the key their records go under.
@@ -207,13 +206,7 @@ impl Found<'_, '_> {
             };
             let listed = listed_library_choices(
                 &small,
-                &{
-                    let mut records = forced_records(&way, self.environment);
-                    for (key, choice) in &self.assumed {
-                        records.insert(key.clone(), held_record(choice));
-                    }
-                    records
-                },
+                &holding(forced_records(&way, self.environment), &self.assumed),
                 self.device,
                 self.options,
                 &key,
@@ -239,11 +232,7 @@ impl Found<'_, '_> {
         };
         let environment = self.environment;
         let records_of = |candidate: &Candidate| {
-            let mut records = forced_records(&assumed, environment);
-            for (key, choice) in &candidate.choices {
-                records.insert(key.clone(), held_record(choice));
-            }
-            records
+            holding(forced_records(&assumed, environment), &candidate.choices)
         };
         let all_records = candidates.iter().map(&records_of).collect::<Vec<_>>();
         self.measurer.build_ahead(&small, &all_records);
@@ -651,13 +640,7 @@ pub fn tune_graph<S: BuildHasher>(
             },
         ];
         // Each is one decision of two whole plans, and a budget meant for many small graphs would skip the second on a large model.
-        let records_of = |candidate: &Candidate| {
-            let mut records = base.clone();
-            for (key, choice) in &candidate.choices {
-                records.insert(key.clone(), held_record(choice));
-            }
-            records
-        };
+        let records_of = |candidate: &Candidate| holding(base.clone(), &candidate.choices);
         let (mut point, mut choice) = decide(key, &candidates, Duration::MAX, |candidate| {
             runner
                 .run(&records_of(candidate), None)
@@ -771,20 +754,20 @@ pub fn tune_graph<S: BuildHasher>(
                 second_reference: None,
             });
             if result.best != result.default {
-                let nanoseconds = |schedule| {
-                    result.timing(schedule).map_or(0, |timing| {
-                        u64::try_from(timing.median.as_nanos()).unwrap_or(u64::MAX)
-                    })
+                let median_ns = |schedule| {
+                    result
+                        .timing(schedule)
+                        .map_or(0, |timing| nanoseconds(timing.median))
                 };
                 points.push(ChoicePoint {
                     key: key.clone(),
-                    default_ns: Some(nanoseconds(result.default)),
+                    default_ns: Some(median_ns(result.default)),
                     default_bytes: None,
                     alternatives: vec![Alternative {
                         candidate: Candidate {
                             choices: vec![(key, TunedChoice::Schedule(result.best))],
                         },
-                        median_ns: nanoseconds(result.best),
+                        median_ns: median_ns(result.best),
                         bytes: 0,
                     }],
                     chosen: Some(0),
@@ -838,7 +821,7 @@ pub fn tune_graph<S: BuildHasher>(
     let mut records = plan_records(&points, &plan, Some(&environment));
     report.spent.add(measurer.spent());
     report.spent.add(runner.spent());
-    report.spent.total_ns = u64::try_from(tuning_started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+    report.spent.total_ns = nanoseconds(tuning_started.elapsed());
     records.set_report(report);
     Ok(records)
 }
@@ -846,7 +829,7 @@ pub fn tune_graph<S: BuildHasher>(
 fn schedule_outcome(outcome: &Outcome) -> CandidateOutcome {
     match outcome {
         Outcome::Timed(timing) => CandidateOutcome::Timed {
-            median_ns: u64::try_from(timing.median.as_nanos()).unwrap_or(u64::MAX),
+            median_ns: nanoseconds(timing.median),
             bytes: 0,
         },
         Outcome::Failed(failure) => CandidateOutcome::Failed(failure.clone()),

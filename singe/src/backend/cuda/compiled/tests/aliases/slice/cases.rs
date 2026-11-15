@@ -14,8 +14,7 @@ fn test_cuda_compiled_graph_accepts_slice_alias_with_offset_for_non_f32_dtype() 
             dim: 1,
             start: 1,
             length: 2,
-            expected_strides: &[3, 1],
-            expected_storage_offset: 1,
+            expected: &[2, 3, 5, 6],
         },
     );
 }
@@ -34,8 +33,7 @@ fn test_cuda_compiled_graph_accepts_slice_alias_with_negative_dim_for_non_f32_dt
             dim: -1,
             start: 0,
             length: 1,
-            expected_strides: &[2, 1],
-            expected_storage_offset: 0,
+            expected: &[10, 30, 50],
         },
     );
 }
@@ -54,8 +52,7 @@ fn test_cuda_compiled_graph_accepts_slice_alias_at_end_with_zero_length() {
             dim: 1,
             start: 2,
             length: 0,
-            expected_strides: &[2, 1],
-            expected_storage_offset: 2,
+            expected: &[],
         },
     );
     let Some(outputs) = outputs else {

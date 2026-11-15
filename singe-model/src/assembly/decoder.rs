@@ -1,13 +1,14 @@
 // What decoder definitions share: Hugging Face's Llama-family names and the shape of a causal model.
 
 use singe::{
-    DataType, Device, Result as SingeResult,
+    DataType, Device, Error as SingeError, Result as SingeResult,
     generation::{CachedDecoder, Decoder as GenerationDecoder, DecoderOptions},
     nn::{
         Activation, CacheSize, CausalLm, CausalLmParts, DecodeCache, Decoder, DecoderModel,
         DecodingLayer, Embedding, GatedMlp, GroupedQueryAttention, GroupedQueryLayers,
-        HeadProjection, KvCache, KvCacheSpec, Layer, Linear, Model, ModelState, PreNormBlock,
-        RotaryFrequencies, RotaryLayout, RotarySpec, StateBuilder,
+        HeadProjection, KvCache, KvCacheSpec, Layer, Linear, Model, ModelState,
+        MultiTokenPrediction, PreNormBlock, RotaryFrequencies, RotaryLayout, RotarySpec,
+        StateBuilder,
     },
     tensor::AttentionOptions,
 };
@@ -27,8 +28,7 @@ pub struct DecoderSpec {
     pub data_type: DataType,
     pub vocab_size: i64,
     pub width: i64,
-    // The feed-forward layer's width.
-    pub inner: i64,
+    pub inner: Option<i64>,
     pub layers: i64,
     pub heads: i64,
     pub kv_heads: i64,
@@ -89,7 +89,10 @@ pub fn grouped_decoder(
 
 // Registers `mlp`'s `gate_proj`, `up_proj`, and `down_proj`.
 pub fn gated_mlp(schema: &mut Schema<'_>, spec: &DecoderSpec) -> SingeResult<GatedMlp> {
-    let (width, inner, bias) = (spec.width, spec.inner, spec.mlp_bias);
+    let (width, bias) = (spec.width, spec.mlp_bias);
+    let inner = spec
+        .inner
+        .ok_or_else(|| SingeError::missing_input("a dense feed-forward layer's width"))?;
     let mut schema = schema.scope("mlp");
     Ok(GatedMlp::new(
         schema.linear("gate_proj", width, inner, bias)?,
@@ -178,10 +181,13 @@ where
     B: DecodingLayer,
     N: SchemaNorm + Layer,
 {
-    causal_lm_in("model", spec, rotary, cache, embedding_scale, block)
+    causal_lm_in("model", spec, rotary, cache, embedding_scale, block, None)
 }
 
-// Builds a causal model as `causal_lm` does, with its embedding, layers, and norm under `scope` rather than `model`.
+pub type DraftLayer<'a, B, N> =
+    &'a dyn Fn(&mut StateBuilder) -> SingeResult<MultiTokenPrediction<B, N>>;
+
+// Builds a causal model as `causal_lm` does, with its embedding, layers, and norm under `scope` rather than `model`, and the draft layer `draft` registers, if given.
 pub fn causal_lm_in<B, N>(
     scope: &str,
     spec: &DecoderSpec,
@@ -189,6 +195,7 @@ pub fn causal_lm_in<B, N>(
     cache: impl Fn(usize) -> <B::Cache as DecodeCache>::Spec,
     embedding_scale: Option<f32>,
     block: impl Fn(&mut Schema<'_>, usize) -> SingeResult<B>,
+    draft: Option<DraftLayer<'_, B, N>>,
 ) -> SingeResult<(CausalLm<B, N>, ModelState)>
 where
     B: DecodingLayer,
@@ -212,18 +219,20 @@ where
     } else {
         Schema::root(&mut builder, spec.data_type).parameter("lm_head.weight", table)?
     };
-    Ok((
-        CausalLm::new(CausalLmParts {
-            embedding: Embedding::new(embedding),
-            embedding_scale,
-            rotary,
-            blocks,
-            norm,
-            head: Linear::new(head, None),
-            caches,
-        }),
-        builder.finish()?,
-    ))
+    let mut model = CausalLm::new(CausalLmParts {
+        embedding: Embedding::new(embedding),
+        embedding_scale,
+        rotary,
+        blocks,
+        norm,
+        head: Linear::new(head, None),
+        caches,
+    });
+    if let Some(draft) = draft {
+        model = model.with_draft_layer(draft(&mut builder)?);
+    }
+
+    Ok((model, builder.finish()?))
 }
 
 // Returns a decoder over `model`, compiled if asked.

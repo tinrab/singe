@@ -1,4 +1,4 @@
-// Describes an image with a Qwen3.5 snapshot: `--image FILE`, `--prompt TEXT` for other than a request for one sentence, `--max-new-tokens N`, `--type f32|f16` for other than BF16, `--eager` for eager decoder steps, `--tokens` to print the token ids too, and `--source FILE` to write the image's patches where an exported loop reads them, and print the prompt that loop takes.
+// Describes an image with a Qwen3.5 snapshot: `--image FILE`, `--prompt TEXT` for other than a request for one sentence, `--max-new-tokens N`, `--type f32|f16` for other than BF16, `--eager` for eager decoder steps, `--tokens` to print the token ids too, and `--source FILE` to write the image's grid of patches, as two little-endian `I64`s, and its patches where an exported loop reads them, and print the prompt that loop takes.
 //
 // The image is resized as `transformers`' processor sizes it, bicubically when that changes its size, so an image already at such a size reads exactly as `transformers` reads it.
 
@@ -11,9 +11,7 @@ use singe::{DataType, generation::GenerationOptions};
 use singe_model::{
     config::Snapshot,
     tokenization::TextTokenizer,
-    vision::image_text_to_text::qwen3_5::{
-        ImageGenerationOptions, ImagePrompt, load, smart_resize,
-    },
+    vision::image_text_to_text::qwen3_5::{ImagePrompt, load, smart_resize},
 };
 
 use crate::support::{Arguments, read_image_sized};
@@ -61,7 +59,13 @@ fn main() -> Result<()> {
     }
 
     if let Some(path) = arguments.value("source") {
-        fs::write(path, image.patches.to_bytes()?)?;
+        let mut source = image
+            .grid
+            .iter()
+            .flat_map(|side| side.to_le_bytes())
+            .collect::<Vec<_>>();
+        source.extend(image.patches.to_bytes()?);
+        fs::write(path, source)?;
         let first = tokens.iter().position(|&token| token == image_token);
         let prompt = tokens
             .iter()
@@ -81,7 +85,7 @@ fn main() -> Result<()> {
 
     let generated = model.generate(
         &[ImagePrompt { tokens, rows, grid }],
-        &ImageGenerationOptions {
+        &singe_model::BatchOptions {
             generation: GenerationOptions {
                 max_new_tokens,
                 stop_tokens: Snapshot::new(&arguments.snapshot).stop_tokens()?,

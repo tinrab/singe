@@ -97,7 +97,7 @@ pub struct ChoicePoint {
 // Which alternative each choice point runs, or none for the path with no record.
 pub type Plan = Vec<Option<usize>>;
 
-fn nanoseconds(time: Duration) -> u64 {
+pub fn nanoseconds(time: Duration) -> u64 {
     u64::try_from(time.as_nanos()).unwrap_or(u64::MAX)
 }
 

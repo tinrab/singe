@@ -57,10 +57,10 @@ impl GraphGuards {
                     name: name.to_string(),
                     data_type,
                     device,
-                    layout: layout.clone(),
-                    initializer,
                     #[cfg(test)]
                     storage_span_bytes: storage_span_bytes(&layout, data_type)?,
+                    layout,
+                    initializer,
                     is_static_initializer,
                     static_storage,
                     dimension_guards: ir.input_dimension_guards_for_input(name).cloned().collect(),

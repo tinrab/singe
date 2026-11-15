@@ -17,12 +17,11 @@ default = ["cudnn_9_27"]
 
 cudnn_9_27 = ["singe-cudnn-sys/cudnn_9_27"]
 
-testing = ["dep:lazy_static", "singe-cuda/testing"]
+testing = ["singe-cuda/testing"]
 
 [dependencies]
 singe-core.workspace = true
 singe-cuda.workspace = true
-singe-cuda-find.workspace = true
 singe-cudnn-sys.workspace = true
 thiserror.workspace = true
 num-rational.workspace = true
@@ -35,8 +34,6 @@ serde_json = { workspace = true, features = ["float_roundtrip"] }
 bomboni_serde.workspace = true
 sha2.workspace = true
 hex.workspace = true
-
-lazy_static = { workspace = true, optional = true }
 
 [dev-dependencies]
 singe-cublas.workspace = true

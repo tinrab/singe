@@ -9,7 +9,7 @@ use crate::{
     backend::{
         cuda::kernel_plan::source::{
             KernelInput, KernelPlan, KernelPlanner,
-            paged_attention::report_index_error,
+            paging::report_index_error,
             parameters::{KernelParameters, RotaryCacheParameters, parameter_key},
             writer::KernelWriter,
         },

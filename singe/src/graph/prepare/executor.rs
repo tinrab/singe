@@ -174,10 +174,22 @@ impl GraphExecutor {
     ///
     /// Returns an error if runtime inputs fail signature guards, specializing or preparing an uncached plan fails, backend execution or native graph replay fails, or synchronizing work or copying output snapshots fails.
     pub fn run(&mut self, inputs: &HashMap<String, Tensor>) -> Result<Vec<Tensor>> {
+        self.execute(inputs, true)
+    }
+
+    pub fn enqueue(&mut self, inputs: &HashMap<String, Tensor>) -> Result<Vec<Tensor>> {
+        self.execute(inputs, false)
+    }
+
+    fn execute(&mut self, inputs: &HashMap<String, Tensor>, waits: bool) -> Result<Vec<Tensor>> {
+        #[cfg(not(feature = "cuda"))]
+        let _: bool = waits;
         let _numerics = NumericalScope::enter(self.options.numerics);
         let inputs = with_generator_states(&self.program.logical_graph().generators, inputs)?;
         let inputs = inputs.as_ref();
         self.select_plan(inputs)?;
+        #[cfg(feature = "cuda")]
+        let device = self.device();
         let outputs = match &mut self.active.backend {
             PreparedBackend::Cpu => {
                 let (outputs, stats) = self.active.compiled.run_with_stats(inputs)?;
@@ -196,7 +208,11 @@ impl GraphExecutor {
             }
             #[cfg(feature = "cuda")]
             PreparedBackend::Cuda { graph, stream } => {
-                run_cuda(&self.active.compiled, graph, inputs, stream, |_| Ok(()))?.0
+                if waits {
+                    run_cuda(&self.active.compiled, graph, inputs, stream, |_| Ok(()))?.0
+                } else {
+                    enqueue_cuda(&self.active.compiled, graph, inputs, device)?
+                }
             }
         };
         self.runs = self.runs.saturating_add(1);
@@ -587,6 +603,34 @@ fn run_cuda(
     stream: &CudaStream,
     enqueued: impl FnOnce(&CudaStream) -> Result<()>,
 ) -> Result<(Vec<Tensor>, Duration)> {
+    write_back(compiled, graph, inputs, |graph, live| {
+        graph.run_on_then(live, stream, enqueued)
+    })
+}
+
+#[cfg(feature = "cuda")]
+fn enqueue_cuda(
+    compiled: &CompiledGraph,
+    graph: &mut CudaCompiledGraph,
+    inputs: &HashMap<String, Tensor>,
+    device: Device,
+) -> Result<Vec<Tensor>> {
+    let stream = cuda::runtime::runtime_for_device(device)?
+        .eager_stream()?
+        .clone();
+    write_back(compiled, graph, inputs, |graph, live| {
+        graph.enqueue_ordered(live, &stream)
+    })
+    .map(|(outputs, _)| outputs)
+}
+
+#[cfg(feature = "cuda")]
+fn write_back(
+    compiled: &CompiledGraph,
+    graph: &mut CudaCompiledGraph,
+    inputs: &HashMap<String, Tensor>,
+    replay: impl FnOnce(&mut CudaCompiledGraph, &HashMap<String, Tensor>) -> Result<Vec<Tensor>>,
+) -> Result<(Vec<Tensor>, Duration)> {
     let resolved = compiled.signature().resolve(inputs)?;
     let targets = write_targets(compiled.ir().input_writes(), &resolved)?;
     let live = graph
@@ -596,7 +640,7 @@ fn run_cuda(
         .map(|(name, tensor)| (name.clone(), tensor.clone()))
         .collect();
     // Trailing outputs hold the values written into inputs; the graph copies them into inputs it reads in place, and device copies write the others back.
-    let mut outputs = graph.run_on_then(&live, stream, enqueued)?;
+    let mut outputs = replay(graph, &live)?;
     let copied_back = compiled
         .ir()
         .input_writes()

@@ -1,7 +1,8 @@
 // Generates text after each `--prompt` in one batch, printing it as it is generated.
 //
 // Runs any model `singe_model::text::text_generation::load_decoder` knows on plain text prompts; chat templates are left to the caller, who can write one into `--prompt`.
-// `--max-new-tokens N`, `--type f16|f32` for other than BF16, `--eager`, `--sample`, and `--report` for what the compiled steps prepared.
+// `--max-new-tokens N`, `--type f16|f32` for other than BF16, `--eager`, `--sample`, `--report` for what the compiled steps prepared, and `--tokens` to print each prompt's token ids after its text.
+// `--drafts N` decodes one prompt of a Qwen3.5 snapshot greedily with its multi-token prediction layer drafting `N` tokens before each step, and says how many the decoder kept.
 
 mod support;
 
@@ -13,13 +14,13 @@ use std::{
 use anyhow::{Result, bail};
 use singe::{
     DataType,
-    generation::{DecoderOptions, GenerationOptions, generate_batch},
+    generation::{DecoderOptions, GenerationOptions, SpeculativeDecoder, generate_batch},
     random::Generator,
     tensor::SamplingOptions,
 };
 use singe_model::{
     config::Snapshot,
-    text::text_generation::load_decoder,
+    text::text_generation::{load_decoder, qwen3_5},
     tokenization::{TextStream, TextTokenizer},
 };
 
@@ -71,7 +72,7 @@ impl Printer<'_> {
 }
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse(&["eager", "sample", "report"])?;
+    let arguments = Arguments::parse(&["eager", "sample", "report", "tokens"])?;
     let texts = match arguments.values("prompt") {
         texts if texts.is_empty() => vec!["What is the capital of France?"],
         texts => texts,
@@ -92,6 +93,19 @@ fn main() -> Result<()> {
         .map(|text| tokenizer.encode(text, false))
         .collect::<singe_model::Result<Vec<_>>>()?;
     let longest = prompts.iter().map(Vec::len).max().unwrap_or(0);
+    if let Some(drafts) = arguments.value("drafts") {
+        let [prompt] = prompts.as_slice() else {
+            bail!("--drafts decodes one prompt");
+        };
+        return speculate(
+            &arguments,
+            &tokenizer,
+            prompt,
+            max_new_tokens,
+            data_type,
+            drafts.parse()?,
+        );
+    }
 
     let started = Instant::now();
     let capacity = i64::try_from(longest + max_new_tokens)?;
@@ -131,6 +145,7 @@ fn main() -> Result<()> {
         &rows,
         &options,
         Some(&generator),
+        |_, _, _| Ok(()),
         |sequence, token| {
             first_token.get_or_insert_with(|| started.elapsed());
             if printing.is_ok() {
@@ -142,6 +157,11 @@ fn main() -> Result<()> {
     let total = started.elapsed();
     printing?;
     printer.finish()?;
+    if arguments.flag("tokens") {
+        for sequence in &tokens {
+            println!("{sequence:?}");
+        }
+    }
 
     if arguments.flag("report")
         && let Some(report) = decoder.report()?
@@ -159,6 +179,45 @@ fn main() -> Result<()> {
             rate(generated, total)
         );
     }
+    Ok(())
+}
+
+fn speculate(
+    arguments: &Arguments,
+    tokenizer: &TextTokenizer,
+    prompt: &[i64],
+    max_new_tokens: usize,
+    data_type: DataType,
+    drafts: usize,
+) -> Result<()> {
+    let started = Instant::now();
+    let model = qwen3_5::load_drafting(&arguments.snapshot, arguments.device, data_type)?;
+    // A check writes its drafts past the last token it keeps.
+    let capacity = i64::try_from(prompt.len() + max_new_tokens + drafts)?;
+    let mut decoder = SpeculativeDecoder::create(&model, DecoderOptions::new(1, capacity), drafts)?;
+    if !arguments.flag("eager") {
+        decoder.compile()?;
+    }
+
+    eprintln!("load and prepare: {:?}", started.elapsed());
+    let options = GenerationOptions {
+        max_new_tokens,
+        stop_tokens: Snapshot::new(&arguments.snapshot).stop_tokens()?,
+        ..GenerationOptions::default()
+    };
+    let started = Instant::now();
+    let speculation = decoder.generate(prompt, &options)?;
+    let elapsed = started.elapsed();
+    println!("{}", tokenizer.decode(&speculation.tokens, true)?);
+    let later = speculation.tokens.len().saturating_sub(1);
+    eprintln!(
+        "tokens: {}; steps after the prompt: {}, drafts kept: {}, {:.2} tokens per step; {:.1} tokens per second",
+        speculation.tokens.len(),
+        speculation.steps,
+        speculation.accepted,
+        f64::from(u32::try_from(later)?) / f64::from(u32::try_from(speculation.steps.max(1))?),
+        rate(speculation.tokens.len(), elapsed)
+    );
     Ok(())
 }
 

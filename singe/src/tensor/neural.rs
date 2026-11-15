@@ -702,6 +702,13 @@ impl Tensor {
         Ok((ids, chosen.div(&total)?.mul_scalar(scale)?))
     }
 
+    pub fn softmax_topk_routing(&self, top_k: i64) -> Result<(Self, Self)> {
+        let probabilities = self.cast(DataType::F32)?.softmax(-1)?;
+        let (chosen, ids) = probabilities.topk(top_k, 1, true, true)?;
+        let total = chosen.sum(&[1], true)?;
+        Ok((ids, chosen.div(&total)?))
+    }
+
     // Block-scaled values, as DeepSeek stores FP8 weights and activations: each `block.0` by `block.1` block of this tensor's last two axes times its scale, whose last two axes count the blocks, in `F32`.
     pub fn dequantize_blocks(&self, scales: &Self, block: (i64, i64)) -> Result<Self> {
         let dimensions = self.shape().dimensions();

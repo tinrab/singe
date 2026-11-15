@@ -36,6 +36,7 @@ fn size(sequences: i64) -> CacheSize {
         page_size: PAGE_SIZE,
         sequences,
         capacity: PAGES * PAGE_SIZE,
+        trail: 0,
     }
 }
 

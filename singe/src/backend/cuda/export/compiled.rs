@@ -164,8 +164,7 @@ fn compiler_version() -> &'static str {
         Command::new("nvcc")
             .arg("--version")
             .output()
-            .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
-            .unwrap_or_default()
+            .map_or_default(|output| String::from_utf8_lossy(&output.stdout).into_owned())
     })
 }
 

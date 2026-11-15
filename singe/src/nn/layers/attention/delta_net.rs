@@ -1,11 +1,13 @@
 use crate::{
     data_type::DataType,
     error::{Error, Result},
+    graph::capture,
     nn::{
         AttentionInput, DecodingLayer, Layer, Linear, ModelState, RmsNorm, StateCache,
         StateCacheSpec, StateKey,
     },
-    tensor::Tensor,
+    shape::Shape,
+    tensor::{SequenceSpans, Tensor},
 };
 
 // The sizes of a [`GatedDeltaNet`]: `key_heads` heads of `key_dim` for queries and keys, `value_heads` heads of `value_dim` for values, and a convolution of `kernel` taps.
@@ -62,6 +64,7 @@ pub struct GatedDeltaNetLayers {
 // Linear attention through the gated delta rule, as Qwen3-Next and Qwen3.5 write it, reading and extending a [`StateCache`].
 //
 // Queries, keys, and values pass through a depthwise causal convolution and SiLU; queries and keys are L2-normalized in `F32`, and queries scaled by one over the root of their dimension.
+// The rule reads them in the model's type, as `transformers` hands its chunked rule the model's tensors, so a half-precision model's prompts take the rule's tensor cores.
 // The rule decays each value head's state by `exp(g)`, where `g = −exp(A_log) · softplus(a + dt_bias)`, and writes `sigmoid(b) · (v − read)` at the key.
 #[derive(Debug, Clone)]
 pub struct GatedDeltaNet {
@@ -141,10 +144,12 @@ impl DecodingLayer for GatedDeltaNet {
         };
         let query = repeated(
             unit(&heads(0, spec.key_heads, spec.key_dim)?)?
-                .mul_scalar((spec.key_dim as f64).sqrt().recip())?,
+                .mul_scalar((spec.key_dim as f64).sqrt().recip())?
+                .cast(data_type)?,
         )?;
-        let key = repeated(unit(&heads(key_width, spec.key_heads, spec.key_dim)?)?)?;
-        let value = heads(2 * key_width, spec.value_heads, spec.value_dim)?.cast(DataType::F32)?;
+        let key =
+            repeated(unit(&heads(key_width, spec.key_heads, spec.key_dim)?)?.cast(data_type)?)?;
+        let value = heads(2 * key_width, spec.value_heads, spec.value_dim)?;
         let strength = hidden
             .apply(&layers.strength, state)?
             .sigmoid()?
@@ -160,10 +165,42 @@ impl DecodingLayer for GatedDeltaNet {
             .add(&state.tensor(&layers.decay_bias)?.cast(DataType::F32)?)?
             .softplus(1.0)?
             .mul(&rate)?;
-        let recurrent = cache.recurrent();
-        let (attended, recurrent) =
-            query.gated_delta_rule(&key, &value, &decay, &strength, recurrent, spans)?;
-        cache.write(&convolution, &recurrent)?;
+        let (attended, left) =
+            query.gated_delta_rule(&key, &value, &decay, &strength, cache.recurrent(), spans)?;
+        // Each trail row runs the rule and the convolution's state again over a sequence's first rows alone, so a check of drafted tokens keeps the state its accepted rows leave.
+        let trail = cache.trail_rows();
+        if trail > 0 {
+            let mut convolutions = Vec::new();
+            let mut states = Vec::new();
+            for rows in 1..=trail {
+                let real = spans
+                    .real_tokens
+                    .minimum(&capture::literal(hidden.device(), |device| {
+                        Tensor::from_vec(device, Shape::create([1])?, vec![rows])
+                    })?)?;
+                let first = SequenceSpans {
+                    real_tokens: &real,
+                    ..spans
+                };
+                convolutions.push(mixed.causal_conv1d_state(cache.convolution(), first)?);
+                let (_, state) = query.gated_delta_rule(
+                    &key,
+                    &value,
+                    &decay,
+                    &strength,
+                    cache.recurrent(),
+                    first,
+                )?;
+                states.push(state);
+            }
+
+            cache.write_trail(
+                &Tensor::stack(&convolutions, 0)?,
+                &Tensor::stack(&states, 0)?,
+            )?;
+        }
+
+        cache.write(&convolution, &left)?;
         let head_shape = [
             tokens.clone(),
             spec.value_heads.into(),

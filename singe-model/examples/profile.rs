@@ -1,4 +1,4 @@
-// Profiles a text-generation snapshot's decoding step on the GPU through CUPTI, and prints each kernel's share of the GPU's time, the largest first: `--snapshot DIR`, `--steps N`, `--type f16|f32` in place of BF16, and `--eager` for the step the model runs without compiling.
+// Profiles a text-generation snapshot's decoding step on the GPU through CUPTI, and prints each kernel's share of the GPU's time, the largest first: `--snapshot DIR`, `--steps N`, `--type f16|f32` in place of BF16, `--eager` for the step the model runs without compiling, `--tune` to compile it with the records tuning that step gives, `--library NAME` for each library it may call, every one if none is named, both for Qwen3 and Qwen3.5, and `--prompt N` to profile a prompt of `N` tokens from an empty cache in place of a one-token step.
 
 mod support;
 
@@ -11,13 +11,23 @@ use std::{
 use anyhow::Result;
 use singe::{
     DataType, Tensor,
-    generation::{Decoder, DecoderOptions},
+    backend::cuda::{
+        LoweringPolicy,
+        export::Library,
+        tuning::{GraphTuneOptions, tune_graph},
+    },
+    generation::{CachedDecoder, Decoder, DecoderOptions},
+    graph::GraphCudaOptions,
+    nn::{DecoderModel, Model},
 };
 use singe_cupti::{
     activity::{ActivityBufferCallbackConfig, ActivityCollector},
     types::{ActivityFlushFlag, ActivityKind},
 };
-use singe_model::text::text_generation::load_decoder;
+use singe_model::{
+    config::Snapshot,
+    text::text_generation::{load_decoder, qwen3, qwen3_5},
+};
 
 use crate::support::Arguments;
 
@@ -29,12 +39,51 @@ fn wait(logits: &Tensor) -> Result<()> {
     Ok(())
 }
 
-fn step(decoder: &mut dyn Decoder) -> Result<()> {
-    wait(&decoder.step(&[&[1]])?)
+fn step(decoder: &mut dyn Decoder, prompt: Option<&[i64]>) -> Result<()> {
+    match prompt {
+        Some(prompt) => {
+            decoder.reset();
+            wait(&decoder.step(&[prompt], None)?)
+        }
+        None => wait(&decoder.step(&[&[1]], None)?),
+    }
+}
+
+fn compiled<L: DecoderModel>(
+    model: &Model<L>,
+    tokens: usize,
+    libraries: &[Library],
+    tune: bool,
+) -> Result<Box<dyn Decoder>> {
+    let options = DecoderOptions::new(1, 512);
+    let mut decoder = CachedDecoder::create(model, options)?;
+    // The step a run of `tokens` tokens pads to.
+    let chunk = options
+        .chunk_sizes()
+        .into_iter()
+        .find(|&chunk| chunk + 1 >= tokens)
+        .filter(|_| tokens > 1)
+        .unwrap_or(0);
+    let policy = LoweringPolicy::default().with_libraries(libraries.iter().copied());
+    let mut cuda = GraphCudaOptions::new().with_lowering_policy(policy.clone());
+    if tune {
+        let step = decoder.chunk_step_graph(chunk)?;
+        let device = model.state().device()?;
+        let options = GraphTuneOptions {
+            policy,
+            ..GraphTuneOptions::default()
+        };
+        let records = tune_graph(&step.graph, &step.inputs, device, &options)?;
+        eprintln!("tuned {} choices", records.len());
+        cuda = cuda.with_tuning_records(records);
+    }
+
+    decoder.compile_with(cuda)?;
+    Ok(Box::new(decoder))
 }
 
 fn main() -> Result<()> {
-    let arguments = Arguments::parse(&["eager"])?;
+    let arguments = Arguments::parse(&["eager", "tune"])?;
     let steps = arguments
         .value("steps")
         .map_or(Ok(100), str::parse::<u32>)?;
@@ -43,24 +92,62 @@ fn main() -> Result<()> {
         Some("f32") => DataType::F32,
         _ => DataType::Bf16,
     };
-    let mut decoder = load_decoder(
-        &arguments.snapshot,
-        arguments.device,
-        data_type,
-        DecoderOptions::new(1, 512),
-        !arguments.flag("eager"),
-    )?;
+    let tokens = arguments
+        .value("prompt")
+        .map_or(Ok(1), str::parse::<usize>)?;
+    let libraries = arguments.values("library");
+    let mut decoder = if arguments.flag("tune") || !libraries.is_empty() {
+        let libraries = if libraries.is_empty() {
+            Library::ALL.to_vec()
+        } else {
+            libraries
+                .into_iter()
+                .map(str::parse)
+                .collect::<Result<Vec<Library>, _>>()?
+        };
+        let tune = arguments.flag("tune");
+        let (snapshot, device) = (&arguments.snapshot, arguments.device);
+        match Snapshot::new(snapshot).model_type()?.as_str() {
+            "qwen3" => compiled(
+                &qwen3::load(snapshot, device, data_type)?,
+                tokens,
+                &libraries,
+                tune,
+            )?,
+            "qwen3_5" | "qwen3_5_text" => compiled(
+                &qwen3_5::load(snapshot, device, data_type)?,
+                tokens,
+                &libraries,
+                tune,
+            )?,
+            other => anyhow::bail!("--tune and --library take Qwen3 or Qwen3.5, not {other}"),
+        }
+    } else {
+        load_decoder(
+            &arguments.snapshot,
+            arguments.device,
+            data_type,
+            DecoderOptions::new(1, 512),
+            !arguments.flag("eager"),
+        )?
+    };
+    let profiled = arguments
+        .value("prompt")
+        .map(str::parse::<i64>)
+        .transpose()?
+        .map(|length| (1..=length).collect::<Vec<i64>>());
+    let profiled = profiled.as_deref();
     let prompt = (1..=16).collect::<Vec<i64>>();
-    wait(&decoder.step(&[&prompt])?)?;
+    wait(&decoder.step(&[&prompt], None)?)?;
     for _ in 0..10 {
-        step(decoder.as_mut())?;
+        step(decoder.as_mut(), profiled)?;
     }
 
     let collector = ActivityCollector::create(ActivityBufferCallbackConfig::new(8 << 20))?;
     collector.enable(ActivityKind::ConcurrentKernel)?;
     let started = Instant::now();
     for _ in 0..steps {
-        step(decoder.as_mut())?;
+        step(decoder.as_mut(), profiled)?;
     }
 
     let wall = started.elapsed();

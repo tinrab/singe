@@ -3,16 +3,15 @@ use std::{collections::HashMap, fs, path::PathBuf, process, time::Duration};
 use singe_cudnn::backend::{engine::EngineIndex, execution::EngineChoice};
 
 use super::{
-    measure::{
-        Expected, Measurer, SmallGraph, WholeGraphRunner, agrees, evaluate, export_program,
-        listed_library_choices, subgraph, whole_graph,
-    },
+    measure::{Measurer, WholeGraphRunner, export_program, listed_library_choices},
     plan::{
         Alternative, Candidate, ChoicePoint, MeasureError, Measured, PlanLimits, PlanRunner,
         check_plan, plan_records,
     },
+    reference::{Expected, agrees, evaluate},
     report::{CandidateOutcome, DropReason, SecondReference},
-    tune::forced_records,
+    small_graph::{SmallGraph, subgraph, whole_graph},
+    tune::{forced_records, held_record},
 };
 use crate::{
     backend::{
@@ -70,15 +69,6 @@ fn tensor(dimensions: &[i64], data_type: DataType, seed: u32) -> Tensor {
         .unwrap()
         .cast(data_type)
         .unwrap()
-}
-
-fn record(choice: TunedChoice) -> TunedRecord {
-    TunedRecord {
-        choice,
-        default_ns: None,
-        best_ns: 0,
-        bytes: 0,
-    }
 }
 
 // A decoder step's shapes in small: a matmul of a few rows and attention, which each have several ways to run.
@@ -173,7 +163,7 @@ fn test_a_record_chooses_how_a_node_runs_and_one_that_cannot_hold_is_an_error() 
     let key = way_key(ir, attention).unwrap();
     let with_way = |way| {
         let mut records = TuningRecords::new(None);
-        records.insert(key.clone(), record(TunedChoice::Way(way)));
+        records.insert(key.clone(), held_record(&TunedChoice::Way(way)));
         records
     };
     let (_, report) = run_with(&graph, &inputs, with_way(TunedWay::Generated));
@@ -202,19 +192,6 @@ fn test_a_record_chooses_how_a_node_runs_and_one_that_cannot_hold_is_an_error() 
         .unwrap()
         .to_string();
     assert!(error.contains("tuning records chose"), "{error}");
-    // Records made under another environment are an error too, saying what differs.
-    let elsewhere = TuningEnvironment::current(DEVICE, Measurement::Program).unwrap();
-    let mut records = TuningRecords::new(Some(elsewhere));
-    records.insert(key.clone(), record(TunedChoice::Way(TunedWay::Generated)));
-    let error = graph
-        .prepare(
-            GraphPrepareOptions::new(DEVICE)
-                .with_cuda_options(GraphCudaOptions::new().with_tuning_records(records)),
-        )
-        .err()
-        .unwrap()
-        .to_string();
-    assert!(error.contains("measured as Program"), "{error}");
 }
 
 #[test]
@@ -275,7 +252,7 @@ fn test_a_tuned_graph_reads_back_from_its_file_and_exports_only_its_winners() {
             let id = operation.result_values().next().unwrap();
             generated.insert(
                 way_key(compiled.ir(), id).unwrap(),
-                record(TunedChoice::Way(TunedWay::Generated)),
+                held_record(&TunedChoice::Way(TunedWay::Generated)),
             );
         }
     }
@@ -325,7 +302,7 @@ fn test_a_record_can_keep_a_fusion_group_apart() {
     let mut records = TuningRecords::new(None);
     records.insert(
         group_key(compiled.ir(), &members).unwrap(),
-        record(TunedChoice::Way(TunedWay::Separate)),
+        held_record(&TunedChoice::Way(TunedWay::Separate)),
     );
     let (actual, report) = run_with(&graph, &named_inputs, records);
     assert!(report.contains("reads used"), "{report}");
@@ -349,7 +326,7 @@ fn test_records_are_read_only_where_they_were_measured() {
         let mut records = TuningRecords::new(Some(environment));
         records.insert(
             "unused".to_owned(),
-            record(TunedChoice::Way(TunedWay::Generated)),
+            held_record(&TunedChoice::Way(TunedWay::Generated)),
         );
         records
     };
@@ -755,10 +732,10 @@ fn check_library_choices(
         let mut records = TuningRecords::new(Some(environment));
         records.insert(
             way_key(&ir, id).unwrap(),
-            record(TunedChoice::Way(TunedWay::Library(provider))),
+            held_record(&TunedChoice::Way(TunedWay::Library(provider))),
         );
         if let Some(choice) = choice {
-            records.insert(library_key(&ir, id).unwrap(), record(choice));
+            records.insert(library_key(&ir, id).unwrap(), held_record(&choice));
         }
         records
     };
@@ -984,7 +961,7 @@ fn test_merged_projections_are_a_choice_for_a_whole_graph() {
         let mut records = TuningRecords::new(Some(environment));
         records.insert(
             merged_projections_key(),
-            record(TunedChoice::MergedProjections),
+            held_record(&TunedChoice::MergedProjections),
         );
         let options = GraphTuneOptions {
             measurement,

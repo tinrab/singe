@@ -5,6 +5,7 @@ use singe_cuda::graph::Graph as NativeCudaGraph;
 use crate::{
     backend::cuda::{
         compiled::{
+            build::reduction::drop_implied_dependencies,
             executable::{
                 CudaCompiledGraph, CudaCompiledGraphParts, CudaCompiledGraphStats, CudnnGraphStep,
                 CutensorGraphStep, GraphPrivateBuffers, LibraryResource,
@@ -55,6 +56,10 @@ pub fn finalize_cuda_graph_compile(mut input: GraphFinalizeInput<'_>) -> Result<
     input.memory_planner.record_stats(&mut input.stats)?;
     let reusable_buffers = input.memory_planner.reusable_buffer_summaries()?;
     let reusable_buffer_allocations = input.memory_planner.reusable_buffer_allocations()?;
+    if input.has_native_nodes {
+        drop_implied_dependencies(&mut input.native_graph)?;
+    }
+
     let (executable, report) = {
         let _instantiate_range = CudaNvtxRange::create("singe cuda graph compile instantiate");
         let executable = input

@@ -157,7 +157,7 @@ pub fn run(call: &KernelCall<'_>) -> Result<Tensor> {
         let lowered = if let Some(batch) = attributes.batch_normalization() {
             batch_norm_kernel(batch, &operands)?
         } else if let Some(normalization) = attributes.layer_normalization() {
-            normalization_kernel(operation, normalization, &group, parameters)?
+            normalization_kernel(operation, normalization, &group, parameters, None)?
         } else {
             let dim = attributes
                 .dimension()

@@ -8,14 +8,14 @@ use crate::{
             compiled::executable::{CudaCompiledGraph, replay::ReplaySubmission},
             context::CudaExecutionContext,
             graph_binding::copy_cuda_tensor_data_on,
-            graph_value::{CudaGraphValue, GraphOutputBuffers},
+            graph_value::CudaGraphValue,
             kernel_plan::{self, KernelInput, KernelPlanner},
             stream::CudaStream,
             tensor_region::CudaTensorRegion,
         },
         registry::{Operation, OperationAttributes},
     },
-    error::{Error, Result},
+    error::Result,
     graph::ir::ValueId,
     layout::Layout,
     shape::Shape,
@@ -27,6 +27,7 @@ impl CudaCompiledGraph {
         cache: &HashMap<ValueId, CudaGraphValue>,
         stream: &CudaStream,
         submission: &mut ReplaySubmission,
+        retained: bool,
     ) -> Result<Vec<CudaGraphValue>> {
         let context = CudaExecutionContext::create_with_stream(self.device, Some(stream.clone()))?;
         let mut outputs = Vec::with_capacity(self.outputs.len());
@@ -42,11 +43,16 @@ impl CudaCompiledGraph {
                 .allocate_uninit_with_shape(output.data_type(), &shape)?;
             let copied =
                 CudaGraphValue::create(storage, output.data_type(), Layout::new(shape, 0))?;
-            // Retain before submission, including native errors and unwinding.
-            submission.record_output_copy(copied.clone());
             let mut resources = output.submission_resources(AccessMode::Read)?;
-            resources.extend(copied.submission_resources(AccessMode::Write)?);
-            // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
+            // Retain before submission, including native errors and unwinding, unless the copy is allocated in the stream's order, which orders its reuse after the copy.
+            if retained {
+                submission.record_output_copy(copied.clone());
+                resources.extend(copied.submission_resources(AccessMode::Write)?);
+            } else {
+                submission.count_output_copy();
+            }
+
+            // SAFETY: the declared resources retain every buffer but an unretained copy, whose allocation the stream orders, and the stream orders all access to them.
             unsafe {
                 submission.enqueue(resources, || {
                     if output.is_contiguous() {
@@ -63,63 +69,6 @@ impl CudaCompiledGraph {
             outputs.push(copied);
         }
         Ok(outputs)
-    }
-
-    pub(crate) fn copy_outputs_into(
-        &self,
-        cache: &HashMap<ValueId, CudaGraphValue>,
-        outputs: GraphOutputBuffers<'_>,
-        stream: &CudaStream,
-        submission: &mut ReplaySubmission,
-    ) -> Result<Vec<CudaGraphValue>> {
-        let outputs = outputs.values();
-        if outputs.len() != self.outputs.len() {
-            return Err(Error::length_mismatch(
-                "cuda graph output buffers",
-                self.outputs.len(),
-                outputs.len(),
-            ));
-        }
-
-        let context = CudaExecutionContext::create_with_stream(self.device, Some(stream.clone()))?;
-        let mut copied = Vec::with_capacity(outputs.len());
-        for (source, output) in self.output_tensors(cache)?.into_iter().zip(outputs) {
-            if source.data_type() != output.data_type()
-                || source.shape().dimensions() != output.shape().dimensions()
-            {
-                return Err(Error::invalid_argument("cuda graph output buffer metadata"));
-            }
-
-            if !output.is_contiguous() {
-                return Err(Error::ContiguousRequired);
-            }
-
-            submission.record_output_copy(output.clone());
-            let mut resources = source.submission_resources(AccessMode::Read)?;
-            resources.extend(output.submission_resources(AccessMode::Write)?);
-            // SAFETY: the declared resources retain every buffer and the stream orders all access to them.
-            unsafe {
-                submission.enqueue(resources, || {
-                    if source.is_contiguous() {
-                        // SAFETY: the destination request establishes exclusivity; replay retains allocations and orders source production before this copy.
-                        copy_cuda_tensor_data_on(output, source, stream)?;
-                    } else if source.element_count() != 0 {
-                        copy_strided(&context, source, output.region()?)?;
-                    }
-                    Ok(())
-                })?;
-            }
-
-            copied.push(output.clone());
-        }
-        Ok(copied)
-    }
-
-    pub(crate) fn graph_owned_outputs(
-        &self,
-        cache: &HashMap<ValueId, CudaGraphValue>,
-    ) -> Result<Vec<CudaGraphValue>> {
-        Ok(self.output_tensors(cache)?.into_iter().cloned().collect())
     }
 
     fn output_tensors<'a>(

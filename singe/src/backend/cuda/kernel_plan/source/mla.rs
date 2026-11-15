@@ -11,8 +11,8 @@ use crate::{
             codegen::CompileRequirements,
             kernel_plan::source::{
                 KernelInput, KernelPlan, KernelPlanner,
-                paged_attention::{PagedSequence, paged_indices, report_index_error},
                 paged_general::{GeneralPaged, ScoreTerm, general_paged},
+                paging::{PagedSequence, paged_indices, report_index_error},
                 parameters::{KernelParameters, MlaParameters, parameter_key},
                 tensor_core::{operand_kind, row_accumulators, tensor_core_helpers},
                 writer::KernelWriter,

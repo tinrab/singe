@@ -1012,7 +1012,7 @@ impl DocEntry {
                 continue;
             }
 
-            exact_members.insert(name.clone(), member_doc.clone());
+            exact_members.insert(name.clone(), member_doc);
             exact_member_deprecated.insert(name, member.deprecated);
         }
 

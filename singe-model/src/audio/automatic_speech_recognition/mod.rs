@@ -10,9 +10,9 @@ use singe::{DataType, Device, Tensor};
 pub use self::qwen3_asr::Transcription;
 use self::{
     qwen3_asr::{Qwen3Asr, parse_transcription},
-    whisper::{TranscribeOptions, Whisper, WhisperTask, generation_options, prompt},
+    whisper::{Whisper, WhisperTask, generation_options, prompt},
 };
-use crate::{Error, Result, config::Snapshot, tokenization::TextTokenizer};
+use crate::{BatchOptions, Error, Result, config::Snapshot, tokenization::TextTokenizer};
 
 // The model a [`Transcriber`] runs.
 #[derive(Debug, Clone)]
@@ -46,7 +46,7 @@ impl Transcriber {
         compile: bool,
     ) -> Result<Transcription> {
         let generation = generation_options(self.snapshot.directory(), max_new_tokens)?;
-        let options = TranscribeOptions::new(generation).with_compile(compile);
+        let options = BatchOptions::new(generation).with_compile(compile);
         match &self.model {
             TranscriberModel::Whisper(model) => {
                 let language = language.unwrap_or("en");

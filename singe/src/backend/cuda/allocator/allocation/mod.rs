@@ -1,6 +1,7 @@
 mod accounting;
 mod block;
 mod interface;
+mod staging;
 
 use std::{
     mem::MaybeUninit,
@@ -51,6 +52,11 @@ impl CudaCachingAllocator {
                     self.stream.synchronize()?;
                 }
             }
+            // Eager work after it runs in order on the eager stream, and a host read waits for that stream.
+            Initialization::Bytes(bytes) if self.eager && bytes.len() <= staging::STAGED_BYTES => {
+                // The copy runs after this returns, from page-locked staging; a larger upload waits for its copy, so staging stays small.
+                self.copy_staged(memory.as_mut_ptr().cast(), bytes)?;
+            }
             Initialization::Bytes(bytes) => {
                 // SAFETY: cache reuse dependencies and this producer use the allocator's stream.
                 let region = unsafe { memory.region().with_stream(&self.stream)? };
@@ -63,7 +69,7 @@ impl CudaCachingAllocator {
             }
         }
 
-        // SAFETY: the producer initialized and completed the entire byte range.
+        // SAFETY: the producer initialized the entire byte range, completely or in the eager stream's order.
         let memory = unsafe { memory.assume_init() };
         // SAFETY: zero initialization or validated input bytes establish the datatype's value validity.
         unsafe {

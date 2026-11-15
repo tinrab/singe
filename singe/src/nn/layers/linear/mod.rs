@@ -46,9 +46,18 @@ impl Linear {
     }
 }
 
-impl Layer for Linear {
-    fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
-        let weight = state.tensor(&self.weight)?;
+impl Linear {
+    #[must_use]
+    pub const fn weight(&self) -> &StateKey {
+        &self.weight
+    }
+
+    pub fn forward_with(
+        &self,
+        input: &Tensor,
+        weight: &Tensor,
+        state: &ModelState,
+    ) -> Result<Tensor> {
         let mut weight = if self.input_first {
             weight.clone()
         } else {
@@ -67,6 +76,12 @@ impl Layer for Linear {
             Some((first, count)) => output.add(&bias.narrow(0, first, count)?),
             None => output.add(bias),
         }
+    }
+}
+
+impl Layer for Linear {
+    fn forward(&self, input: &Tensor, state: &ModelState) -> Result<Tensor> {
+        self.forward_with(input, state.tensor(&self.weight)?, state)
     }
 }
 

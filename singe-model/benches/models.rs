@@ -37,7 +37,7 @@ fn wait(tensor: &Tensor) {
 fn step(decoder: &mut dyn Decoder) {
     let rows = vec![[1_i64]; decoder.sequences()];
     let tokens = rows.iter().map(<[i64; 1]>::as_slice).collect::<Vec<_>>();
-    wait(&decoder.step(&tokens).unwrap());
+    wait(&decoder.step(&tokens, None).unwrap());
 }
 
 fn minilm(benches: &mut Benches) {
@@ -99,14 +99,14 @@ fn whisper(benches: &mut Benches) {
         let sources = encoded.squeeze(0).unwrap();
         model.write_sources(&decoder, 0, &sources).unwrap();
         decoder.compile().unwrap();
-        decoder.step(&[&prefix]).unwrap();
+        decoder.step(&[&prefix], None).unwrap();
         // A step past the model's positions fails, so the decoder starts over when it is full.
         let mut held = prefix.len();
         benches.run(&decode, || {
             if held + 1 >= usize::try_from(model.config().max_target_positions).unwrap() {
                 decoder.reset();
                 model.write_sources(&decoder, 0, &sources).unwrap();
-                decoder.step(&[&prefix]).unwrap();
+                decoder.step(&[&prefix], None).unwrap();
                 held = prefix.len();
             }
 
@@ -143,12 +143,12 @@ fn text_decoder<L: DecoderModel>(
         }
 
         let prompt = [1, 2, 3, 4];
-        decoder.step(&[&prompt]).unwrap();
+        decoder.step(&[&prompt], None).unwrap();
         let mut held = prompt.len();
         benches.run(&step_name, || {
             if held + 1 >= usize::try_from(capacity).unwrap() {
                 decoder.reset();
-                decoder.step(&[&prompt]).unwrap();
+                decoder.step(&[&prompt], None).unwrap();
                 held = prompt.len();
             }
 
@@ -157,7 +157,7 @@ fn text_decoder<L: DecoderModel>(
         });
         benches.run(&chunk_name, || {
             decoder.reset();
-            wait(&decoder.step(&[&chunk]).unwrap());
+            wait(&decoder.step(&[&chunk], None).unwrap());
         });
     }
 }

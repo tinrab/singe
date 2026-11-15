@@ -9,6 +9,7 @@ use crate::{
             CONFIGURATION_REFUSED, CUBLAS_BASE, CUDNN_BASE, CUFFT_BASE, CUTENSOR_BASE,
             LIBRARY_VERSION, ProgramFiles, Renderer,
             generate::{LoopStep, LoopSteps, generation_loop_source},
+            tokenizer::tokenizer_file,
         },
     },
     error::{Error, Result},
@@ -217,6 +218,10 @@ impl CudaProgramSet {
                     weights.len(),
                 )?;
                 files.push((format!("{prefix}_generate.cu"), source));
+                if let Some(tokenizer) = &decoding.tokenizer {
+                    files.push((format!("{prefix}.tokenizer"), tokenizer_file(tokenizer)));
+                }
+
                 links.sort_unstable();
                 links.dedup();
                 Result::Ok(json!({
