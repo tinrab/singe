@@ -5,9 +5,7 @@ use crate::{
     context::StreamContext,
     error::{Error, Result},
     image::{
-        color_descriptors::{
-            validate_rgb_destination_planes, validate_rgb_source_planes, validate_same_size,
-        },
+        color_descriptors::{validate_rgb_destination_planes, validate_rgb_source_planes},
         video::{
             VideoFormat, VideoOutputView, VideoView, rgb_16f_to_uyvp_10u_p3c3r,
             uyvp_10u_to_rgb_16f_c3c3r, uyvp_10u_to_rgba_16f_c3ac4r,

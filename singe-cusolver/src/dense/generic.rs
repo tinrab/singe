@@ -8,15 +8,14 @@ use singe_cuda::{
 use crate::{
     context::Context,
     dense::validation::{
-        require_host_workspace, require_info_buffer, require_pivot64_buffer,
-        require_workspace_bytes, validate_x_matrix, validate_xlarft_inputs,
+        require_info_buffer, require_pivot64_buffer, validate_x_matrix, validate_xlarft_inputs,
     },
     error::{Error, Result},
     layout::{ByteWorkspaceMut, MatrixLayout, MatrixMut, MatrixRef, VectorRef, WorkspaceSizes},
     params::Params,
     sys, try_ffi,
     types::{DiagonalType, DirectMode, FillMode, Operation, StorevMode},
-    utility::{to_i64, to_usize},
+    utility::{require_workspace_bytes, to_i64, to_usize},
 };
 
 /// Queries device and host workspace capacities in bytes for Cholesky factorization.
@@ -134,7 +133,7 @@ pub unsafe fn xpotrf<TA: DataTypeLike>(
     let workspace_sizes =
         xpotrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXpotrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXpotrf(
@@ -348,7 +347,7 @@ pub unsafe fn xtrtri<TA: DataTypeLike>(
     let workspace_sizes =
         xtrtri_buffer_size::<TA>(context, fill_mode, diagonal_type, n, a.layout())?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXtrtri` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXtrtri(
@@ -494,7 +493,7 @@ pub unsafe fn xgetrf<TA: DataTypeLike>(
     let workspace_sizes =
         xgetrf_buffer_size::<TA>(context, params, m, n, a.layout(), compute_type)?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXgetrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXgetrf(
@@ -734,7 +733,7 @@ pub unsafe fn xsytrs<TA: DataTypeLike, TB: DataTypeLike>(
     let workspace_sizes =
         xsytrs_buffer_size::<TA, TB>(context, fill_mode, n, nrhs, a.layout(), b.layout())?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXsytrs` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXsytrs(
@@ -897,7 +896,7 @@ pub unsafe fn xlarft<TV: DataTypeLike, TTau: DataTypeLike, TT: DataTypeLike>(
         compute_type,
     )?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXlarft` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXlarft(
@@ -1016,7 +1015,7 @@ pub unsafe fn xsytrf<TA: DataTypeLike>(
     let workspace_sizes =
         xsytrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXsytrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXsytrf(
@@ -1130,7 +1129,7 @@ pub unsafe fn xhetrf<TA: DataTypeLike>(
     let workspace_sizes =
         xhetrf_buffer_size::<TA>(context, params, fill_mode, n, a.layout(), compute_type)?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXhetrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXhetrf(
@@ -1255,7 +1254,7 @@ pub unsafe fn xhetrs<TA: DataTypeLike, TB: DataTypeLike>(
     let workspace_sizes =
         xhetrs_buffer_size::<TA, TB>(context, params, fill_mode, n, nrhs, a.layout(), b.layout())?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXhetrs` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cusolverDnXhetrs(

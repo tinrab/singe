@@ -25,7 +25,7 @@ macro_rules! impl_rgb_to_gray {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -73,7 +73,7 @@ macro_rules! impl_color_to_gray {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
             unsafe {
@@ -279,7 +279,7 @@ macro_rules! impl_gradient_color_to_gray {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

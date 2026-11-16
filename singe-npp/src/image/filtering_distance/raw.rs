@@ -7,7 +7,6 @@ use crate::{
     image::{
         filtering_validation::{
             optional_image_output, validate_distance_transform_outputs, validate_positive_size,
-            validate_same_size,
         },
         view::{C1, C2, ImageOutputView, ImageView},
     },
@@ -99,7 +98,7 @@ macro_rules! impl_distance_transform_pba_u16 {
                     destination_voronoi_manhattan_size,
                     destination_transform_size,
                 )?;
-                validate_same_size(source.size(), roi)?;
+                $crate::utility::validate_same_size(source.size(), roi)?;
                 let required_bytes = distance_transform_pba_buffer_size(roi)?;
                 let scratch = DeviceMemory::<u8>::create_uninit(
                     stream_context.cuda_context(),
@@ -217,7 +216,7 @@ macro_rules! impl_distance_transform_pba_f64 {
                     destination_voronoi_manhattan_size,
                     destination_transform_size,
                 )?;
-                validate_same_size(source.size(), roi)?;
+                $crate::utility::validate_same_size(source.size(), roi)?;
                 let required_bytes = distance_transform_pba_buffer_size(roi)?;
                 let scratch = DeviceMemory::<u8>::create_uninit(
                     stream_context.cuda_context(),
@@ -336,7 +335,7 @@ macro_rules! impl_distance_transform_pba_f64_antialiasing {
                     destination_voronoi_manhattan_size,
                     destination_transform_size,
                 )?;
-                validate_same_size(source.size(), roi)?;
+                $crate::utility::validate_same_size(source.size(), roi)?;
                 let required_bytes = distance_transform_pba_buffer_size(roi)?;
                 let antialiasing_required_bytes =
                     distance_transform_pba_antialiasing_buffer_size(roi)?;
@@ -460,7 +459,7 @@ macro_rules! impl_signed_distance_transform_pba_f32 {
                     destination_voronoi_manhattan_size,
                     destination_transform_size,
                 )?;
-                validate_same_size(source.size(), roi)?;
+                $crate::utility::validate_same_size(source.size(), roi)?;
                 let required_bytes = signed_distance_transform_pba_buffer_size(roi)?;
                 let scratch = DeviceMemory::<u8>::create_uninit(
                     stream_context.cuda_context(),
@@ -580,7 +579,7 @@ macro_rules! impl_signed_distance_transform_pba_f64 {
                     destination_voronoi_manhattan_size,
                     destination_transform_size,
                 )?;
-                validate_same_size(source.size(), roi)?;
+                $crate::utility::validate_same_size(source.size(), roi)?;
                 let required_bytes = signed_distance_transform_pba_64f_buffer_size(roi)?;
                 let scratch = DeviceMemory::<u8>::create_uninit(
                     stream_context.cuda_context(),
@@ -701,7 +700,7 @@ macro_rules! impl_signed_distance_transform_pba_f64_antialiasing {
                     destination_voronoi_manhattan_size,
                     destination_transform_size,
                 )?;
-                validate_same_size(source.size(), roi)?;
+                $crate::utility::validate_same_size(source.size(), roi)?;
                 let required_bytes = signed_distance_transform_pba_64f_buffer_size(roi)?;
                 let antialiasing_required_bytes =
                     signed_distance_transform_pba_antialiasing_buffer_size(roi)?;

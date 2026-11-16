@@ -1373,31 +1373,6 @@ unsafe impl<T: DeviceRepr> DeviceOutput<T> for DeviceMemory<MaybeUninit<T>> {
     }
 }
 
-fn checked_bytes<T>(len: usize) -> Result<usize> {
-    let size = size_of::<T>();
-    if size == 0 {
-        return if len == 0 {
-            Ok(0)
-        } else {
-            Err(Error::InvalidMemoryAllocationRequest)
-        };
-    }
-    len.checked_mul(size)
-        .ok_or(Error::InvalidMemoryAllocationRequest)
-}
-
-fn checked_len(width: usize, height: usize) -> Result<usize> {
-    width
-        .checked_mul(height)
-        .ok_or(Error::InvalidMemoryAllocationRequest)
-}
-
-fn checked_volume(width: usize, height: usize, depth: usize) -> Result<usize> {
-    checked_len(width, height)?
-        .checked_mul(depth)
-        .ok_or(Error::InvalidMemoryAllocationRequest)
-}
-
 fn dangling_or_non_null<T>(ptr: *mut T, len: usize) -> Result<NonNull<T>> {
     if len == 0 {
         Ok(NonNull::dangling())

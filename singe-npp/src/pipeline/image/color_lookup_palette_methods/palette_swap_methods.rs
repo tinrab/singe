@@ -2,7 +2,7 @@ use singe_cuda::memory::DeviceMemory;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         Image, SupportedImage,
         view::{C3, C4, ImageOutputView, ImageView},
@@ -10,6 +10,7 @@ use crate::{
     pipeline::image::{
         ImageBacking, ImagePipeline, color_lookup_dispatch::PaletteLookupTableSwapImage,
     },
+    utility::checked_into,
 };
 
 impl<T> ImagePipeline<'_, T, C3>
@@ -83,7 +84,7 @@ where
         bit_size: i32,
     ) -> Result<ImagePipeline<'a, T, C4>> {
         self.ensure_eager()?;
-        T::try_from(alpha).map_err(|_| Error::out_of_range("alpha"))?;
+        checked_into::<T, _>(alpha, "alpha")?;
 
         let mut destination =
             Image::<T, C4>::create_uninit(self.stream_context.cuda_context(), self.size())?;

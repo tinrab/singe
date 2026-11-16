@@ -11,17 +11,17 @@ use std::{
 use crate::{
     context::Context,
     error::{Error, Result},
+    memory::{
+        CudaHostSlice, HostRegisterFlags, HostRegistration, RegisteredAllocation,
+        RegisteredHostMemory, RegisteredHostSlice, RegisteredHostVec, dangling_or_non_null,
+    },
     submission::{Access, AccessMode},
     types::DevicePtr,
+    utility::checked_bytes,
     view::{
         AnyBitPatternDeviceRepr, DeviceOutputView, DeviceRepr, DeviceView, DeviceViewMut,
         NoUninitDeviceRepr,
     },
-};
-
-use super::{
-    CudaHostSlice, HostRegisterFlags, HostRegistration, RegisteredAllocation, RegisteredHostMemory,
-    RegisteredHostSlice, RegisteredHostVec, checked_bytes, dangling_or_non_null,
 };
 
 impl<'a, T: DeviceRepr> RegisteredHostMemory<'a, T> {

@@ -143,7 +143,7 @@ macro_rules! impl_dot_prod {
             stream_context.validate_region(output)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source_1.size(), source_2.size())?;
+            $crate::utility::validate_same_size(source_1.size(), source_2.size())?;
             validate_statistic_output(output, $channels)?;
             let required_bytes = $buffer_size_name(stream_context, source_1.size())?;
             let scratch =
@@ -196,7 +196,7 @@ macro_rules! impl_every_statistic_in_place {
             stream_context.validate_region(source)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -1381,7 +1381,7 @@ macro_rules! impl_error_metric {
             stream_context.validate_region(output)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source_1.size(), source_2.size())?;
+            $crate::utility::validate_same_size(source_1.size(), source_2.size())?;
             validate_statistic_output(output, $output_channels)?;
             let required_bytes = $buffer_size_name(stream_context, source_1.size())?;
             let scratch =
@@ -1469,7 +1469,7 @@ macro_rules! impl_quality_index {
             stream_context.validate_region(output)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source_1.size(), source_2.size())?;
+            $crate::utility::validate_same_size(source_1.size(), source_2.size())?;
             validate_metric_output(output, 1, $output_channels)?;
             let required_bytes = $buffer_size_name(stream_context, source_1.size())?;
             let scratch =
@@ -1560,7 +1560,7 @@ macro_rules! impl_error_metric_masked {
             stream_context.validate_region(output)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source_1.size(), source_2.size())?;
+            $crate::utility::validate_same_size(source_1.size(), source_2.size())?;
             validate_mask_size(source_1.size(), mask.size())?;
             validate_statistic_output(output, 1)?;
             let required_bytes = $buffer_size_name(stream_context, source_1.size())?;
@@ -1654,7 +1654,7 @@ macro_rules! impl_error_metric_masked {
             stream_context.stream().ensure_not_capturing()?;
 
             let coi = validate_coi(channel, 3)?;
-            validate_same_size(source_1.size(), source_2.size())?;
+            $crate::utility::validate_same_size(source_1.size(), source_2.size())?;
             validate_mask_size(source_1.size(), mask.size())?;
             validate_statistic_output(output, 1)?;
             let required_bytes = $buffer_size_name(stream_context, source_1.size())?;

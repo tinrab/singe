@@ -76,8 +76,9 @@ type Approximate<T> = for<'a> unsafe fn(
 ) -> Result<()>;
 
 mod private {
-    use super::{
-        Approximate, ApproximateQuery, Batched, BatchedQuery, Jacobi, JacobiQuery, SolverElement,
+    use crate::{
+        data_type::SolverElement,
+        svd::scalar::{Approximate, ApproximateQuery, Batched, BatchedQuery, Jacobi, JacobiQuery},
     };
 
     pub trait Sealed: SolverElement {

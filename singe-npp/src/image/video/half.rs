@@ -3,12 +3,11 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::Result,
+    error::{Error, Result},
     image::{
         Image, exchange,
         video::{
-            Frame, VideoFormat, VideoOutputView, VideoView, invalid, prepare_conversion,
-            validate_conversion,
+            Frame, VideoFormat, VideoOutputView, VideoView, prepare_conversion, validate_conversion,
         },
         view::{C1, C3, C4, ImageOutputView, ImageView},
     },
@@ -117,7 +116,7 @@ pub fn encode(
         .iter()
         .any(|plane| plane.step() != source.planes()[0].step())
     {
-        return Err(invalid("converted RGB pitch"));
+        return Err(Error::out_of_range("converted RGB pitch"));
     }
     context.sync_scope(|| {
         // SAFETY: integer conversion initialized every stored source sample, and this
@@ -161,7 +160,7 @@ pub fn encode(
                         context.as_raw(),
                     ))
                 }
-                _ => Err(invalid("half RGB source format")),
+                _ => Err(Error::out_of_range("half RGB source format")),
             }
         }
     })
@@ -223,7 +222,7 @@ pub fn decode(
                     Size::new(
                         size.width
                             .checked_mul(3)
-                            .ok_or_else(|| invalid("half RGB width"))?,
+                            .ok_or_else(|| Error::out_of_range("half RGB width"))?,
                         size.height,
                     ),
                     plane.step(),
@@ -282,7 +281,7 @@ pub fn decode(
                     // SAFETY: all three same-sized native allocations have identical checked
                     // pitches, and their owners survive the completed packed-to-planar copy.
                     if red_out.step() != green_out.step() || red_out.step() != blue_out.step() {
-                        return Err(invalid("half planar pitch"));
+                        return Err(Error::out_of_range("half planar pitch"));
                     }
                     // SAFETY: `nppiCopy_16u_C3P3R_Ctx` receives live handles owned by the wrappers and pointers into buffers borrowed for the call.
                     unsafe {
@@ -309,7 +308,7 @@ pub fn decode(
             }
             Ok(())
         }
-        _ => Err(invalid("half RGB destination format")),
+        _ => Err(Error::out_of_range("half RGB destination format")),
     }
 }
 

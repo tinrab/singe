@@ -19,9 +19,9 @@ use singe_cublas_sys as sys;
 use singe_cuda::types::LibraryProperty;
 
 use crate::{
-    error::{Error, Result},
+    error::Result,
     try_ffi,
-    utility::{to_u64, to_usize},
+    utility::{to_size_t, to_u64, to_usize},
 };
 
 /// Native cuBLASLt logging callback signature.
@@ -91,9 +91,7 @@ pub fn heuristics_cache_capacity() -> Result<usize> {
 ///
 /// Returns an error if `capacity` cannot be represented by the cuBLASLt integer type or if cuBLASLt rejects the update.
 pub fn set_heuristics_cache_capacity(capacity: usize) -> Result<()> {
-    let capacity = capacity
-        .try_into()
-        .map_err(|_| Error::out_of_range("heuristics cache capacity"))?;
+    let capacity = to_size_t(capacity, "heuristics cache capacity")?;
     // SAFETY: `cublasLtHeuristicsCacheSetCapacity` receives only plain values.
     unsafe {
         try_ffi!(sys::cublasLtHeuristicsCacheSetCapacity(capacity))?;

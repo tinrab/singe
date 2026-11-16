@@ -9,18 +9,20 @@ use std::{
 
 use singe_cuda_sys::{driver, runtime};
 
-use super::{
-    ExecutableGraph, Graph, GraphBuffer, GraphDebugDotFlags, GraphEdge, GraphEdgeAttributes,
-    GraphId, GraphInner, GraphInstantiateFlags, GraphNode, GraphTopologySummary,
-    MemoryAllocationNodeInfo, MemoryAllocationNodeParams, MemorySetNodeParams, RawGraphParts,
-    RetainedResources,
-    raw::{MemoryCopy1DNodeParams, MemoryCopy3DNodeParams},
-};
 use crate::{
     context::Context,
     error::{Error, Result},
     event::Event,
-    graph::raw::{HostNodeParams, MemoryCopyFromSymbolNodeParams, MemoryCopyToSymbolNodeParams},
+    graph::{
+        ExecutableGraph, Graph, GraphBuffer, GraphDebugDotFlags, GraphEdge, GraphEdgeAttributes,
+        GraphId, GraphInner, GraphInstantiateFlags, GraphNode, GraphTopologySummary,
+        MemoryAllocationNodeInfo, MemoryAllocationNodeParams, MemorySetNodeParams, RawGraphParts,
+        RetainedResources,
+        raw::{
+            HostNodeParams, MemoryCopy1DNodeParams, MemoryCopy3DNodeParams,
+            MemoryCopyFromSymbolNodeParams, MemoryCopyToSymbolNodeParams,
+        },
+    },
     memory::{DeviceMemory, MemoryCopyKind},
     module::{KernelLaunchArgs, LaunchConfig, Module},
     try_ffi,

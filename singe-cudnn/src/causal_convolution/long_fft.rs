@@ -15,7 +15,7 @@ use crate::{
     causal_convolution::{CausalScalar, Config, aligned, require},
     error::{Error, Result},
     try_ffi,
-    utility::to_usize,
+    utility::{to_size_t, to_usize},
 };
 
 /// Required device storage for long FFT forward and backward.
@@ -109,10 +109,8 @@ pub unsafe fn long_fft_forward<T: CausalScalar>(
     aligned(y)?;
     aligned(buffers.workspace)?;
     aligned(buffers.reserve)?;
-    let workspace_bytes = sys::size_t::try_from(buffers.workspace.len())
-        .map_err(|_| Error::out_of_range("workspace bytes"))?;
-    let reserve_bytes = sys::size_t::try_from(buffers.reserve.len())
-        .map_err(|_| Error::out_of_range("reserve bytes"))?;
+    let workspace_bytes = to_size_t(buffers.workspace.len(), "workspace bytes")?;
+    let reserve_bytes = to_size_t(buffers.reserve.len(), "reserve bytes")?;
     // SAFETY: `cudnnLongFFTCausalConv1dForward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cudnnLongFFTCausalConv1dForward(
@@ -175,10 +173,8 @@ pub unsafe fn long_fft_backward<T: CausalScalar>(
     aligned(dweight)?;
     aligned(buffers.workspace)?;
     aligned(buffers.reserve)?;
-    let workspace_bytes = sys::size_t::try_from(buffers.workspace.len())
-        .map_err(|_| Error::out_of_range("workspace bytes"))?;
-    let reserve_bytes = sys::size_t::try_from(buffers.reserve.len())
-        .map_err(|_| Error::out_of_range("reserve bytes"))?;
+    let workspace_bytes = to_size_t(buffers.workspace.len(), "workspace bytes")?;
+    let reserve_bytes = to_size_t(buffers.reserve.len(), "reserve bytes")?;
     // SAFETY: `cudnnLongFFTCausalConv1dBackward` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::cudnnLongFFTCausalConv1dBackward(

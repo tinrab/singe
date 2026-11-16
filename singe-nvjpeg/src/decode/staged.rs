@@ -5,12 +5,12 @@ use singe_nvjpeg_sys as sys;
 
 use crate::{
     context::{Context, JpegState},
-    decode::{DecodeOptions, Rectangle, to_positive_i32, validate_batch},
+    decode::{DecodeOptions, Rectangle, validate_batch},
     error::{Error, Result},
     image::Image,
     try_ffi,
     types::{ChromaSubsampling, ExifOrientation, OutputFormat, ScaleFactor},
-    utility::{to_i32, to_non_zero_u64, to_u64},
+    utility::{to_i32, to_non_zero_u64, to_positive_i32, to_u64},
 };
 
 /// Decode settings for nvJPEG's staged and batched decoding: output format, region, CMYK conversion, scaling, and EXIF orientation.

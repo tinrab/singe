@@ -23,7 +23,7 @@ use crate::{
     },
     memory::{Allocation, AllocationKind, RawAllocation},
     types::{ComplexI16, ComplexI32, DataTypeLike, Size},
-    utility::checked_len,
+    utility::{checked_len, to_usize},
 };
 
 /// RAII owner for pitched image memory allocated by NPP.
@@ -84,10 +84,8 @@ where
         step: i32,
     ) -> Result<Self> {
         let bounds = (|| {
-            let pitch =
-                usize::try_from(step).map_err(|_| Error::out_of_range("image allocation size"))?;
-            let height = usize::try_from(size.height)
-                .map_err(|_| Error::out_of_range("image allocation height"))?;
+            let pitch = to_usize(step, "image allocation size")?;
+            let height = to_usize(size.height, "image allocation height")?;
             let bytes = pitch
                 .checked_mul(height)
                 .ok_or_else(|| Error::out_of_range("image allocation size"))?;

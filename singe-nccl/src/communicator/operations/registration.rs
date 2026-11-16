@@ -1,12 +1,13 @@
-use std::{marker::PhantomData, mem::size_of, ptr};
+use std::{marker::PhantomData, ptr};
 
 use singe_cuda::view::{DeviceRepr, DeviceViewMut};
 
 use crate::{
-    communicator::{Communicator, RegisteredBuffer, Window, buffer_byte_len},
+    communicator::{Communicator, RegisteredBuffer, Window},
     error::Result,
     sys, try_ffi,
     types::WindowFlags,
+    utility::buffer_byte_len,
 };
 
 impl Communicator {
@@ -25,7 +26,7 @@ impl Communicator {
         self.bind()?;
 
         let mut handle = ptr::null_mut();
-        let size = buffer_byte_len(buffer.len(), "registered buffer size", size_of::<T>())?;
+        let size = buffer_byte_len::<T>(buffer.len(), "registered buffer size")?;
         // SAFETY: `ncclCommRegister` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::ncclCommRegister(
@@ -67,7 +68,7 @@ impl Communicator {
         self.bind()?;
 
         let mut handle = ptr::null_mut();
-        let size = buffer_byte_len(buffer.len(), "window size", size_of::<T>())?;
+        let size = buffer_byte_len::<T>(buffer.len(), "window size")?;
         // SAFETY: `ncclCommWindowRegister` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
         unsafe {
             try_ffi!(sys::ncclCommWindowRegister(

@@ -1,4 +1,4 @@
-use singe_core::checked_conversions;
+use singe_core::{checked_arithmetic, checked_conversions};
 
 use crate::error::{Error, Result};
 
@@ -7,6 +7,8 @@ checked_conversions!(Error {
     to_i64 -> i64,
     to_usize -> usize,
 });
+
+checked_arithmetic!(Error { checked_byte_len });
 
 pub fn to_i32_vec<T: TryInto<i32> + Copy>(values: &[T], name: &str) -> Result<Vec<i32>> {
     values

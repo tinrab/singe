@@ -15,10 +15,10 @@ use crate::{
     error::{Error, Result},
     layout::{ByteWorkspaceMut, MatrixMut, MatrixOutput, WorkspaceSizes},
     params::Params,
-    svd::validation::{require_host_workspace, require_workspace_bytes, validate_x_matrix},
+    svd::validation::validate_x_matrix,
     sys, try_ffi,
     types::{EigenMode, SvdMode, TruncatedSvdMode},
-    utility::{to_i64, to_usize},
+    utility::{require_workspace_bytes, to_i64, to_usize},
 };
 
 /// Column-major leading dimensions for an allocation-free SVD workspace query.
@@ -256,7 +256,7 @@ pub unsafe fn xgesvd<T: SolverElement>(
     )?;
     validate_outputs(s, m.min(n), dev_info)?;
     require_workspace_bytes(workspace.device.len(), sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), sizes.host_bytes)?;
     let (left, right) = classic_modes(m, n, job_u, job_vt)?;
     let (u_ptr, ldu) = output_parts(
         u,
@@ -408,7 +408,7 @@ pub unsafe fn xgesvdp<T: SolverElement>(
     )?;
     validate_outputs(s, m.min(n), dev_info)?;
     require_workspace_bytes(workspace.device.len(), sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), sizes.host_bytes)?;
     let vectors = matches!(jobz, EigenMode::Vector);
     let (u_ptr, ldu) = output_parts(u, m, m, vectors)?;
     let (v_ptr, ldv) = output_parts(v, n, n, vectors)?;
@@ -557,7 +557,7 @@ pub unsafe fn xgesvdr<T: SolverElement>(
     )?;
     validate_outputs(s, m.min(n), dev_info)?;
     require_workspace_bytes(workspace.device.len(), sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), sizes.host_bytes)?;
     let (u_ptr, ldu) = output_parts(u, m, m, matches!(job_u, TruncatedSvdMode::Some))?;
     let (v_ptr, ldv) = output_parts(v, n, n, matches!(job_v, TruncatedSvdMode::Some))?;
     // SAFETY: the caller retains the checked resources through completed execution.

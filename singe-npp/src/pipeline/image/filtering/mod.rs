@@ -14,6 +14,7 @@ use crate::{
     image::{Image, SupportedImage, filtering, view::ChannelLayout},
     pipeline::{ImageBacking, image::ImagePipeline},
     types::{BorderType, MaskSize, Point, PointPolar, Size},
+    utility::to_i32,
 };
 
 /// Selects the orientation of a one-dimensional image filter.
@@ -26,7 +27,7 @@ pub enum FilterAxis {
 
 impl FilterAxis {
     pub(crate) fn geometry(self, taps: usize, anchor: i32) -> Result<(Size, Point)> {
-        let taps = i32::try_from(taps).map_err(|_| Error::out_of_range("filter taps"))?;
+        let taps = to_i32(taps, "filter taps")?;
         if !(0..taps).contains(&anchor) {
             return Err(Error::out_of_range("filter anchor"));
         }
@@ -43,7 +44,7 @@ impl FilterAxis {
 ///
 /// Returns an error if `taps` is zero, even, or cannot fit `i32`.
 pub fn gaussian_geometry(taps: usize) -> Result<(Size, Point)> {
-    let taps = i32::try_from(taps).map_err(|_| Error::out_of_range("gaussian taps"))?;
+    let taps = to_i32(taps, "gaussian taps")?;
     if taps <= 0 || taps % 2 == 0 {
         return Err(Error::out_of_range("gaussian taps"));
     }

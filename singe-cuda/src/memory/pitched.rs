@@ -2,17 +2,17 @@ use std::{marker::PhantomData, mem::MaybeUninit, ptr, result::Result as StdResul
 
 use singe_cuda_sys::runtime;
 
-use super::{
-    DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryCopyKind, PitchedDeviceMemory,
-    PitchedDeviceVolume, checked_bytes, checked_len, checked_volume,
-};
 use crate::{
     context::Context,
     error::{Error, Result},
+    memory::{
+        DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryCopyKind, PitchedDeviceMemory,
+        PitchedDeviceVolume,
+    },
     stream::{StreamBinding, StreamScope},
     submission::{Access, AccessMode},
     types::DevicePtr,
-    utility::to_usize,
+    utility::{checked_bytes, checked_len, checked_volume, to_usize},
     view::{
         AllocationId, AnyBitPatternDeviceRepr, DeviceRegion, DeviceRegionProvider, DeviceRepr,
         DeviceView, DeviceViewMut, NoUninitDeviceRepr, ZeroableDeviceRepr,

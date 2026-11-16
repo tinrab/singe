@@ -4,11 +4,12 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        exchange_validation::{validate_channel_index, validate_same_size},
+        exchange_validation::validate_channel_index,
         view::{AC4, C1, C2, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,
     types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 /// Copies the zero-based source `channel` into the single-channel destination.
@@ -1037,7 +1038,7 @@ macro_rules! impl_duplicate_channel {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

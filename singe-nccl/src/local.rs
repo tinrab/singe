@@ -17,7 +17,7 @@ use crate::{
     group::Group,
     sys,
     types::{CommunicatorState, DataTypeLike, ReductionOperator},
-    utility::{to_i32, to_usize},
+    utility::{checked_mul, to_i32, to_usize},
 };
 
 /// A nonnegative communicator rank identifier.
@@ -490,9 +490,11 @@ impl LocalCommunicatorGroup {
         self.ensure_rank_vec(send, "all_gather send")?;
         self.ensure_rank_vec(recv, "all_gather recv")?;
         Self::ensure_same_len(send, "all_gather send")?;
-        let expected_recv_len = Self::first_len(send, "all_gather send")?
-            .checked_mul(self.rank_count())
-            .ok_or_else(|| Error::out_of_range("all_gather recv"))?;
+        let expected_recv_len = checked_mul(
+            Self::first_len(send, "all_gather send")?,
+            self.rank_count(),
+            "all_gather recv",
+        )?;
         Self::ensure_all_len(recv, expected_recv_len, "all_gather recv")?;
         self.with_completed_group(|| {
             // SAFETY: all views remain borrowed until the completed group drains.
@@ -525,9 +527,11 @@ impl LocalCommunicatorGroup {
         self.ensure_root(root)?;
         self.ensure_rank_vec(send, "gather send")?;
         Self::ensure_same_len(send, "gather send")?;
-        let expected_recv_len = Self::first_len(send, "gather send")?
-            .checked_mul(self.rank_count())
-            .ok_or_else(|| Error::out_of_range("gather recv"))?;
+        let expected_recv_len = checked_mul(
+            Self::first_len(send, "gather send")?,
+            self.rank_count(),
+            "gather recv",
+        )?;
         if root_recv.len() != expected_recv_len {
             return Err(Error::LengthMismatch {
                 name: "gather recv".into(),
@@ -582,9 +586,7 @@ impl LocalCommunicatorGroup {
                     name: "scatter recv".into(),
                 })?;
         Self::ensure_all_len(recv, recv_len, "scatter recv")?;
-        let expected_send_len = recv_len
-            .checked_mul(self.rank_count())
-            .ok_or_else(|| Error::out_of_range("scatter send"))?;
+        let expected_send_len = checked_mul(recv_len, self.rank_count(), "scatter send")?;
         if root_send.len() != expected_send_len {
             return Err(Error::LengthMismatch {
                 name: "scatter send".into(),
@@ -623,7 +625,7 @@ impl LocalCommunicatorGroup {
         self.ensure_rank_vec(recv, "all_to_all recv")?;
         Self::ensure_all_len(
             recv,
-            partitioned_len(elements_per_rank, self.rank_count(), "all_to_all recv")?,
+            checked_mul(elements_per_rank, self.rank_count(), "all_to_all recv")?,
             "all_to_all recv",
         )?;
         self.with_completed_group(|| {
@@ -700,7 +702,7 @@ impl LocalCommunicatorGroup {
         name: &str,
     ) -> Result<()> {
         self.ensure_rank_vec(values, name)?;
-        let expected = partitioned_len(elements_per_rank, self.rank_count(), name)?;
+        let expected = checked_mul(elements_per_rank, self.rank_count(), name)?;
         ensure_lengths(values.iter().map(DeviceView::len), expected, name)
     }
 
@@ -808,12 +810,6 @@ impl LocalCommunicatorGroup {
         })?;
         result.expect("stream scope ran")
     }
-}
-
-fn partitioned_len(elements_per_rank: usize, rank_count: usize, name: &str) -> Result<usize> {
-    elements_per_rank
-        .checked_mul(rank_count)
-        .ok_or_else(|| Error::out_of_range(name.to_owned()))
 }
 
 impl LocalRank {

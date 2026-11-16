@@ -19,7 +19,9 @@ use crate::{
 };
 
 mod sealed {
-    use super::{AnyBitPatternDeviceRepr, Result, sys};
+    use singe_cuda_sys::driver as sys;
+
+    use crate::{error::Result, view::AnyBitPatternDeviceRepr};
 
     pub trait Pattern: AnyBitPatternDeviceRepr {
         unsafe fn enqueue(

@@ -157,12 +157,12 @@ fn host_buffer_len(planes: &[ImagePlaneInfo]) -> Result<usize> {
 }
 
 fn host_plane_len(index: usize, plane: ImagePlaneInfo) -> Result<usize> {
-    let width = usize::try_from(plane.width())
-        .map_err(|_| Error::out_of_range(format!("planes[{index}].width")))?;
-    let height = usize::try_from(plane.height())
-        .map_err(|_| Error::out_of_range(format!("planes[{index}].height")))?;
-    let channels = usize::try_from(plane.num_channels())
-        .map_err(|_| Error::out_of_range(format!("planes[{index}].num_channels")))?;
+    let width = to_usize(plane.width(), &format!("planes[{index}].width"))?;
+    let height = to_usize(plane.height(), &format!("planes[{index}].height"))?;
+    let channels = to_usize(
+        plane.num_channels(),
+        &format!("planes[{index}].num_channels"),
+    )?;
     if width == 0 || height == 0 || channels == 0 {
         return Err(Error::Empty {
             name: format!("planes[{index}]").into(),
@@ -179,8 +179,7 @@ fn host_plane_len(index: usize, plane: ImagePlaneInfo) -> Result<usize> {
         .checked_mul(channels)
         .and_then(|value| value.checked_mul(sample_bytes))
         .ok_or_else(|| Error::out_of_range(format!("planes[{index}].row_bytes")))?;
-    let row_stride = usize::try_from(plane.row_stride())
-        .map_err(|_| Error::out_of_range(format!("planes[{index}].row_stride")))?;
+    let row_stride = to_usize(plane.row_stride(), &format!("planes[{index}].row_stride"))?;
     if row_stride < row_bytes {
         return Err(Error::LengthMismatch {
             name: format!("planes[{index}].row_stride").into(),

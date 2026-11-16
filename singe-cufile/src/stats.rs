@@ -1,8 +1,4 @@
-use crate::{
-    error::{Error, Result},
-    sys, try_ffi,
-    types::StatisticsLevel,
-};
+use crate::{error::Result, sys, try_ffi, types::StatisticsLevel, utility::to_statistics_level};
 
 /// Successful and failed operation counts.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -370,7 +366,7 @@ pub fn level() -> Result<StatisticsLevel> {
     unsafe {
         try_ffi!(sys::cuFileGetStatsLevel(&raw mut level))?;
     }
-    StatisticsLevel::try_from(level).map_err(|_| Error::out_of_range("level"))
+    to_statistics_level(level, "level")
 }
 
 /// Starts cuFile statistics collection.

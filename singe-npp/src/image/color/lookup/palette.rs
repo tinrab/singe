@@ -7,7 +7,7 @@ use crate::{
     image::{
         color_descriptors::{
             validate_lookup_table_palette, validate_lookup_table_palette_channels,
-            validate_lookup_table_palette_entries, validate_same_size,
+            validate_lookup_table_palette_entries,
         },
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
@@ -31,7 +31,7 @@ macro_rules! impl_lookup_table_palette_c1 {
             stream_context.validate_region(destination)?;
             stream_context.validate_region(table)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let bit_size = validate_lookup_table_palette(table.len(), bit_size, $max_bits)?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -67,7 +67,7 @@ macro_rules! impl_lookup_table_palette_packed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let bit_size = validate_lookup_table_palette_channels(tables, bit_size, $max_bits)?;
             let mut table_pointers = tables.map(DeviceMemory::as_ptr);
 
@@ -105,7 +105,7 @@ macro_rules! impl_lookup_table_palette_swap {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let bit_size = validate_lookup_table_palette_channels(tables, bit_size, $max_bits)?;
             let mut table_pointers = tables.map(DeviceMemory::as_ptr);
 
@@ -153,7 +153,7 @@ macro_rules! impl_lookup_table_palette_c1_to {
             stream_context.validate_region(destination)?;
             stream_context.validate_region(table)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let bit_size = validate_lookup_table_palette_entries(
                 table.len(),
                 bit_size,

@@ -5,8 +5,7 @@ use crate::{
     error::Result,
     image::{
         statistics_validation::{
-            validate_same_size, validate_template_full_destination_size,
-            validate_template_valid_destination_size,
+            validate_template_full_destination_size, validate_template_valid_destination_size,
         },
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },

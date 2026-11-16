@@ -7,12 +7,13 @@ use crate::{
     image::{
         color_descriptors::{
             lookup_table_channel_descriptors, lookup_table_channel_descriptors_f32,
-            validate_lookup_table, validate_same_size,
+            validate_lookup_table,
         },
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,
     types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 /// Converts color samples through lookup values and levels without interpolation.

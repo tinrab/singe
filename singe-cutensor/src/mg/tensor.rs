@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     mg::context::{Context, ContextRef},
     sys, try_ffi,
-    utility::{to_i64_vec, to_u32},
+    utility::{collect_optional_mode_values, to_i64_vec, to_u32},
 };
 
 /// A GPU or host-memory location used by a multi-GPU tensor descriptor.
@@ -367,24 +367,4 @@ fn validate_optional_rank_i32(values: Option<&[i32]>, rank: usize, name: &str) -
         });
     }
     Ok(())
-}
-
-fn collect_optional_mode_values(
-    modes: &[TensorMode],
-    name: &str,
-    value: impl Fn(&TensorMode) -> Option<u64>,
-) -> Result<Option<Vec<u64>>> {
-    let values = modes.iter().filter_map(value).collect::<Vec<_>>();
-    if values.is_empty() {
-        return Ok(None);
-    }
-
-    if values.len() != modes.len() {
-        return Err(Error::LengthMismatch {
-            name: name.to_owned().into(),
-            expected: modes.len(),
-            actual: values.len(),
-        });
-    }
-    Ok(Some(values))
 }

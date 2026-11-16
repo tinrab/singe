@@ -4,7 +4,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        exchange_validation::{validate_same_size, validate_scale_range},
+        exchange_validation::validate_scale_range,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,

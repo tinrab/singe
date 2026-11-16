@@ -12,7 +12,7 @@ use crate::{
         ConfigParameter, FactorizationAlgorithm, MatchingAlgorithm, PivotEpsilonAlgorithm,
         PivotType, ReorderingAlgorithm, SolveAlgorithm,
     },
-    utility::{ensure_exact_size, to_size_t, to_usize},
+    utility::{ensure_exact_size, to_i32, to_size_t, to_usize},
 };
 
 /// Solver configuration settings for a cuDSS solve.
@@ -300,11 +300,9 @@ impl Config {
     ///
     /// Returns an error if cuDSS rejects either setting.
     pub fn set_device_indices(&mut self, devices: &[i32]) -> Result<()> {
+        let count = to_i32(devices.len(), "device count")?;
         // SAFETY: this named setting supplies its documented native scalar or array ABI.
         unsafe {
-            let count = i32::try_from(devices.len()).map_err(|_| Error::OutOfRange {
-                name: "device count".into(),
-            })?;
             self.set_raw(ConfigParameter::DeviceCount, &count)?;
             self.set_raw_slice(ConfigParameter::DeviceIndices, devices)
         }

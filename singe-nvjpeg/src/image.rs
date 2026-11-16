@@ -815,7 +815,7 @@ fn validate_plane_capacity(
 }
 
 fn validate_plane_pitch(size: Size, pitch: usize, element_size: usize) -> Result<()> {
-    let row_bytes = row_bytes(size, element_size)?;
+    let row_bytes = checked_row_bytes(size, element_size)?;
     if pitch < row_bytes {
         return Err(Error::OutOfRange {
             name: "pitch".into(),
@@ -837,17 +837,9 @@ fn required_plane_bytes(size: Size, pitch: usize, element_size: usize) -> Result
             name: "pitch".into(),
         })?;
     prefix_bytes
-        .checked_add(row_bytes(size, element_size)?)
+        .checked_add(checked_row_bytes(size, element_size)?)
         .ok_or(Error::OutOfRange {
             name: "plane byte length".into(),
-        })
-}
-
-fn row_bytes(size: Size, element_size: usize) -> Result<usize> {
-    (size.width as usize)
-        .checked_mul(element_size)
-        .ok_or(Error::OutOfRange {
-            name: "row byte length".into(),
         })
 }
 

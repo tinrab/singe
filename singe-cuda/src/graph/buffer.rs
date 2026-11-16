@@ -3,14 +3,13 @@ use std::{mem::MaybeUninit, result::Result as StdResult, sync::Arc};
 use crate::{
     context::Context,
     error::Result,
+    graph::{GraphBuffer, RetainedAllocation},
     memory::{DeviceAllocation, DeviceMemory, transfer},
     view::{
         AnyBitPatternDeviceRepr, DeviceOutputView, DeviceRepr, DeviceSlice, DeviceView,
         DeviceViewMut, NoUninitDeviceRepr,
     },
 };
-
-use super::{GraphBuffer, RetainedAllocation};
 
 impl<T> GraphBuffer<T>
 where

@@ -4,11 +4,12 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        filtering_validation::{validate_border_roi, validate_positive_size},
+        filtering_validation::validate_positive_size,
         view::{C1, ImageOutputView, ImageView},
     },
     try_ffi,
     types::{BorderType, DataTypeLike, Point, Rectangle, Size},
+    utility::validate_border_roi,
 };
 
 /// Thresholds each source pixel against its local box mean minus `delta`.

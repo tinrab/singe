@@ -3,7 +3,7 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         raw::statistics::{
             cross_correlation_full_norm_level_f32_c1_buffer_size,
@@ -53,14 +53,13 @@ use crate::{
             cross_correlation_valid_norm_level_u16_to_f32_c4_buffer_size,
         },
         statistics_validation::{
-            validate_same_size, validate_template_full_destination_size,
-            validate_template_valid_destination_size,
+            validate_template_full_destination_size, validate_template_valid_destination_size,
         },
         view::{C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,
     types::{DataTypeLike, Size},
-    utility::to_usize,
+    utility::{to_i32, to_usize},
 };
 
 impl_advanced_template_match_buffer_size!(

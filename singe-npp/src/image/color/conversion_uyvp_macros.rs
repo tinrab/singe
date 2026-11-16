@@ -37,7 +37,7 @@ macro_rules! impl_rgb_to_uyvp_packed {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -166,7 +166,7 @@ macro_rules! impl_rgb_planar_to_uyvp_packed {
             }
 
             let roi = validate_rgb_source_planes(source_0, source_1, source_2)?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             let source_planes = [
                 source_0.as_ptr().cast(),
@@ -306,7 +306,7 @@ macro_rules! impl_uyvp_to_rgb_packed {
             }
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -367,7 +367,7 @@ macro_rules! impl_uyvp_to_rgb_packed_constant_alpha {
             }
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

@@ -11,7 +11,7 @@ use crate::{
             subsampled_color_batch_advanced_descriptors, subsampled_color_batch_descriptors,
             validate_jpeg_subsampled_destination_planes, validate_jpeg_subsampled_source_planes,
             validate_nv12_destination_planes, validate_nv12_source_planes,
-            validate_rgb_destination_planes, validate_rgb_source_planes, validate_same_size,
+            validate_rgb_destination_planes, validate_rgb_source_planes,
             validate_subsampled_p2_destination_planes, validate_subsampled_p2_source_planes,
         },
         view::{

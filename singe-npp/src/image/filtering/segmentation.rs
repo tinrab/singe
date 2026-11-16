@@ -5,7 +5,7 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         filtering_labels::{
             compress_marker_labels_uf_batch_u32_c1_in_place,
@@ -14,7 +14,7 @@ use crate::{
             compressed_marker_labels_uf_info_list_size_u32_c1,
             compressed_marker_labels_uf_info_u32_c1,
         },
-        filtering_validation::{validate_label_marker_step, validate_same_size},
+        filtering_validation::validate_label_marker_step,
         view::{C1, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,
@@ -22,7 +22,7 @@ use crate::{
         CompressedMarkerLabelsInfo, ContourPixelDirectionInfo, ContourTotalsInfo, DataTypeLike,
         ImageNormalization, Size, WatershedSegmentBoundaryType,
     },
-    utility::to_usize,
+    utility::{to_u32, to_usize, validate_same_size},
 };
 
 /// Returns the scratch capacity in bytes for watershed segmentation of `roi`.
@@ -382,7 +382,7 @@ pub unsafe fn compress_marker_labels_uf_u32_c1_in_place(
         ))
     })?;
 
-    u32::try_from(new_number).map_err(|_| Error::out_of_range("new number"))
+    to_u32(new_number, "new number")
 }
 
 /// Dispatches UF label compression and corresponding information queries.

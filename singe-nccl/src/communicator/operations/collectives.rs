@@ -11,7 +11,7 @@ use crate::{
     error::{Error, Result},
     sys, try_ffi,
     types::{DataTypeLike, ReductionOperator},
-    utility::{to_u64, to_usize},
+    utility::{checked_mul, to_u64, to_usize},
 };
 
 impl Communicator {
@@ -429,10 +429,7 @@ impl Communicator {
         self.ensure_buffer_context(send.context())?;
         self.ensure_buffer_context(recv.context())?;
         let rank_count = to_usize(self.rank_count()?, "rank_count")?;
-        let expected_len = send
-            .len()
-            .checked_mul(rank_count)
-            .ok_or_else(|| Error::out_of_range("all_gather recv length"))?;
+        let expected_len = checked_mul(send.len(), rank_count, "all_gather recv length")?;
         if recv.len() != expected_len {
             return Err(Error::LengthMismatch {
                 name: "all_gather recv buffer".into(),
@@ -597,10 +594,7 @@ impl Communicator {
         let mut recv = recv;
         if rank == root {
             let rank_count = to_usize(self.rank_count()?, "rank_count")?;
-            let expected_len = send
-                .len()
-                .checked_mul(rank_count)
-                .ok_or_else(|| Error::out_of_range("gather recv length"))?;
+            let expected_len = checked_mul(send.len(), rank_count, "gather recv length")?;
             let Some(ref recv_buffer) = recv else {
                 return Err(Error::LengthMismatch {
                     name: "gather recv buffer".into(),
@@ -691,10 +685,7 @@ impl Communicator {
         let rank = self.rank()?;
         if rank == root {
             let rank_count = to_usize(self.rank_count()?, "rank_count")?;
-            let expected_len = recv
-                .len()
-                .checked_mul(rank_count)
-                .ok_or_else(|| Error::out_of_range("scatter send length"))?;
+            let expected_len = checked_mul(recv.len(), rank_count, "scatter send length")?;
             let Some(send_buffer) = send else {
                 return Err(Error::LengthMismatch {
                     name: "scatter send buffer".into(),
@@ -776,10 +767,7 @@ impl Communicator {
         self.ensure_buffer_context(send.context())?;
         self.ensure_buffer_context(recv.context())?;
         let rank_count = to_usize(self.rank_count()?, "rank_count")?;
-        let expected_len = recv
-            .len()
-            .checked_mul(rank_count)
-            .ok_or_else(|| Error::out_of_range("reduce_scatter send length"))?;
+        let expected_len = checked_mul(recv.len(), rank_count, "reduce_scatter send length")?;
         if send.len() != expected_len {
             return Err(Error::LengthMismatch {
                 name: "reduce_scatter send buffer".into(),

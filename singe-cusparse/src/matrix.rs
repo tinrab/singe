@@ -16,8 +16,7 @@ use singe_cuda::{
 use crate::{
     context::Context,
     descriptor::{
-        RawDescriptor, checked_add, checked_mul, input_region, matrix_extent, output_region,
-        output_region_for, workspace,
+        RawDescriptor, input_region, matrix_extent, output_region, output_region_for, workspace,
     },
     error::{Error, Result},
     sys, try_ffi,
@@ -25,7 +24,7 @@ use crate::{
         Action, CsrToCscAlgorithm, DenseToSparseAlgorithm, DiagonalType, FillMode, Format,
         IndexBase, IndexTypeLike, MatrixType, Order, SparseMatrixAttribute, SparseToDenseAlgorithm,
     },
-    utility::{to_i32, to_i64, to_usize},
+    utility::{checked_add, checked_mul, to_i32, to_i64, to_u64, to_usize},
 };
 
 /// Logical matrix dimensions and stored sparse-entry count.
@@ -1176,8 +1175,7 @@ impl<'a> SparseMatrixDescriptor<'a> {
                 self.as_raw_const(),
                 attribute.into(),
                 ptr::from_mut(&mut value).cast(),
-                u64::try_from(size_of::<u32>())
-                    .map_err(|_| Error::out_of_range("attribute size"))?,
+                to_u64(size_of::<u32>(), "attribute size")?,
             ))?;
         }
         Ok(value)
@@ -1192,7 +1190,7 @@ impl<'a> SparseMatrixDescriptor<'a> {
                 self.as_raw(),
                 attribute.into(),
                 (&raw mut value).cast(),
-                u64::try_from(size_of::<T>()).map_err(|_| Error::out_of_range("attribute size"))?,
+                to_u64(size_of::<T>(), "attribute size")?,
             ))?;
         }
         Ok(())

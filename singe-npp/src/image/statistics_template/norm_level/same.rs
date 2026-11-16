@@ -4,10 +4,7 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        statistics_validation::validate_same_size,
-        view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
-    },
+    image::view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     try_ffi,
     types::{DataTypeLike, Size},
     utility::to_usize,

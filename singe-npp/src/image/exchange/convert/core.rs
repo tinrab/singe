@@ -8,11 +8,11 @@ use crate::{
         exchange::convert::extended::{
             convert_i8_to_i16_c1, convert_i8_to_u16_c1, convert_i16_to_u16_c1,
         },
-        exchange_validation::validate_same_size,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,
     types::{DataTypeLike, RoundMode},
+    utility::validate_same_size,
 };
 
 /// Converts source samples to the destination element type.

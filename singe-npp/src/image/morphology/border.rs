@@ -4,7 +4,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        morphology::{validate_border_roi, validate_mask, validate_mask_shape},
+        morphology::{validate_mask, validate_mask_shape},
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,
@@ -58,7 +58,7 @@ macro_rules! impl_morphology_mask_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_mask(mask, mask_size, anchor)?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -512,7 +512,7 @@ macro_rules! impl_gray_morphology_mask_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_mask_shape(mask, mask_size, anchor)?;
 
             // SAFETY: the caller upholds this function's safety contract.

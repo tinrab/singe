@@ -5,7 +5,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        arithmetic_validation::{device_constant_mut_ptr, validate_same_size},
+        arithmetic_validation::device_constant_mut_ptr,
         view::{C1, ImageOutputView, ImageView},
     },
     try_ffi,
@@ -40,7 +40,7 @@ macro_rules! impl_absolute_difference_constant {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -89,7 +89,7 @@ macro_rules! impl_absolute_difference_device_constant {
             stream_context.validate_region(constant)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let constant = device_constant_mut_ptr(constant, 1)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

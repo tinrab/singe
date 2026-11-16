@@ -13,19 +13,19 @@ use crate::{
     context::Context,
     device::DeviceAttribute,
     error::{Error, Result},
+    memory::{
+        DeviceAllocation, DeviceDeallocation, DeviceMemory, ManagedMemory, MemoryAttachFlags,
+        MemoryLocation, location_info,
+    },
     stream::{Stream, StreamBinding},
     try_ffi,
     types::{DevicePtr, MemoryAdvise},
+    utility::checked_bytes,
     view::{
         AnyBitPatternDeviceRepr, DeviceInput, DeviceOutputView, DeviceRegion, DeviceRegionProvider,
         DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView, DeviceViewMut, NoUninitDeviceRepr,
         ZeroableDeviceRepr, cast_length,
     },
-};
-
-use super::{
-    DeviceAllocation, DeviceDeallocation, DeviceMemory, ManagedMemory, MemoryAttachFlags,
-    MemoryLocation, checked_bytes, location_info,
 };
 
 impl<T: DeviceRepr> ManagedMemory<T> {
@@ -242,12 +242,7 @@ impl<T: DeviceRepr> ManagedMemory<T> {
     /// Allocation construction validates this size, so this condition cannot occur for a valid allocation.
     #[must_use]
     pub fn byte_len(&self) -> usize {
-        self.checked_byte_len()
-            .expect("managed memory byte length overflow")
-    }
-
-    fn checked_byte_len(&self) -> Result<usize> {
-        checked_bytes::<T>(self.length)
+        checked_bytes::<T>(self.length).expect("managed memory byte length overflow")
     }
 
     /// Returns the attachment policy recorded when the managed allocation was created.
@@ -388,7 +383,7 @@ impl<T: DeviceRepr> ManagedMemory<T> {
         DeviceMemory::<T>::prefetch_async(
             // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
             unsafe { DevicePtr::from_raw(self.ptr.cast::<()>()) },
-            self.checked_byte_len()?,
+            checked_bytes::<T>(self.length)?,
             location,
             stream,
         )
@@ -404,7 +399,7 @@ impl<T: DeviceRepr> ManagedMemory<T> {
         DeviceMemory::<T>::advise(
             // SAFETY: the address belongs to a live device allocation that stays borrowed for the operation that uses it.
             unsafe { DevicePtr::from_raw(self.ptr.cast::<()>()) },
-            self.checked_byte_len()?,
+            checked_bytes::<T>(self.length)?,
             advice,
             location,
         )
@@ -496,7 +491,7 @@ impl<T: DeviceRepr> ManagedMemory<T> {
             try_ffi!(runtime::cudaStreamAttachMemAsync(
                 stream.as_raw(),
                 self.ptr.cast(),
-                self.checked_byte_len()? as _,
+                checked_bytes::<T>(self.length)? as _,
                 flags.bits(),
             ))?;
         }
@@ -591,7 +586,7 @@ impl<T: DeviceRepr> ManagedMemory<T> {
         unsafe {
             location_info(
                 DevicePtr::from_raw(self.ptr.cast()),
-                self.checked_byte_len()?,
+                checked_bytes::<T>(self.length)?,
                 summary_granularity,
                 sampling_granularity,
             )

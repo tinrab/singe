@@ -21,7 +21,6 @@ use crate::{
             convert_u16_to_u8_ac4, convert_u16_to_u8_c1, convert_u16_to_u8_c3,
             convert_u16_to_u8_c4,
         },
-        exchange_validation::validate_same_size,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,

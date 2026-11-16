@@ -3,10 +3,7 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        filtering_validation::{validate_border_roi, validate_same_size},
-        view::{C1, ImageOutputView, ImageView},
-    },
+    image::view::{C1, ImageOutputView, ImageView},
     try_ffi,
     types::{BorderType, DataTypeLike, MaskSize, Point},
 };

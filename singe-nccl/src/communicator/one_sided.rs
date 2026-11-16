@@ -6,7 +6,7 @@ use crate::{
     communicator::{Communicator, Window},
     error::{Error, Result},
     sys, try_ffi,
-    utility::to_i32,
+    utility::{to_i32, to_usize},
 };
 
 /// Describes how many signal operations to wait for from a particular rank on a given signal index and context.
@@ -88,8 +88,7 @@ impl Window<'_> {
 
         self.communicator.validate_signal(peer, signal, context)?;
         self.communicator.ensure_stream(stream)?;
-        let start =
-            usize::try_from(source.start).map_err(|_| Error::out_of_range("window offset"))?;
+        let start = to_usize(source.start, "window offset")?;
         // SAFETY: `ncclPutSignal` receives live handles owned by the wrappers.
         unsafe {
             try_ffi!(sys::ncclPutSignal(

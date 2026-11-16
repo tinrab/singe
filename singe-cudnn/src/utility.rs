@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use singe_core::checked_conversions;
+use singe_core::{checked_arithmetic, checked_conversions};
 use singe_cuda::context::Context as CudaContext;
+use singe_cudnn_sys as sys;
 
 use crate::error::{Error, Result};
 
@@ -11,7 +12,10 @@ checked_conversions!(Error {
     to_u32 -> u32,
     to_i64 -> i64,
     to_u64 -> u64,
+    to_size_t -> sys::size_t,
 });
+
+checked_arithmetic!(Error { checked_byte_len });
 
 pub fn to_i32_vec<T: TryInto<i32> + Copy>(values: &[T], name: &str) -> Result<Vec<i32>> {
     values
@@ -19,6 +23,18 @@ pub fn to_i32_vec<T: TryInto<i32> + Copy>(values: &[T], name: &str) -> Result<Ve
         .copied()
         .map(|value| to_i32(value, name))
         .collect()
+}
+
+pub fn checked_element_count<T: TryInto<usize> + Copy>(dimensions: &[T]) -> Result<usize> {
+    dimensions
+        .iter()
+        .copied()
+        .try_fold(1usize, |count, dimension| {
+            let dimension: usize = dimension.try_into().map_err(|_| Error::InvalidDataShape)?;
+            count
+                .checked_mul(dimension)
+                .ok_or_else(|| Error::out_of_range("tensor shape"))
+        })
 }
 
 macro_rules! check_range {

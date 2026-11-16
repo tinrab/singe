@@ -29,7 +29,7 @@ macro_rules! impl_convert {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -80,7 +80,7 @@ macro_rules! impl_convert_round {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -133,7 +133,7 @@ macro_rules! impl_convert_scaled_round {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

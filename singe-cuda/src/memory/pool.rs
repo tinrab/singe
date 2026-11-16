@@ -2,16 +2,16 @@ use std::{ptr, result::Result as StdResult, sync::Arc};
 
 use singe_cuda_sys::driver;
 
-use super::{
-    MemoryAccessDescriptor, MemoryAccessFlag, MemoryAllocationType, MemoryLocation, MemoryPool,
-    MemoryPoolAttribute, MemoryPoolAttributeValue, MemoryPoolOwner, MemoryPoolProps,
-    PoolAttributeValue,
-};
 use crate::{
     context::Context,
     error::{Error, Result},
+    memory::{
+        MemoryAccessDescriptor, MemoryAccessFlag, MemoryAllocationType, MemoryLocation, MemoryPool,
+        MemoryPoolAttribute, MemoryPoolAttributeValue, MemoryPoolOwner, MemoryPoolProps,
+        PoolAttributeValue,
+    },
     try_ffi,
-    utility::usage_bits,
+    utility::{to_u32, usage_bits},
     virtual_memory::AllocationHandleTypes,
 };
 
@@ -401,8 +401,7 @@ impl MemoryPool {
             return Ok(None);
         }
 
-        let value = u32::try_from(value).map_err(|_| Error::out_of_range("locality domain id"))?;
-        Ok(Some(value))
+        Ok(Some(to_u32(value, "locality domain id")?))
     }
 
     /// Returns the allocation type of the memory pool.

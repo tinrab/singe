@@ -3,52 +3,20 @@
     clippy::similar_names,
     reason = "BLAS and factorization operand names follow the standard mathematical API"
 )]
-use singe_cuda::{
-    types::{Complex32, Complex64},
-    view::{DeviceOutputView, DeviceRepr},
-};
-
-use crate::{
-    context::Context,
-    dense::legacy::{
-        bidiagonal::{
-            cgebrd, cgebrd_buffer_size, cungbr, cungbr_buffer_size, dgebrd, dgebrd_buffer_size,
-            dorgbr, dorgbr_buffer_size, sgebrd, sgebrd_buffer_size, sorgbr, sorgbr_buffer_size,
-            zgebrd, zgebrd_buffer_size, zungbr, zungbr_buffer_size,
-        },
-        cholesky::{
-            cpotrf_batched, cpotri, cpotri_buffer_size, cpotrs_batched, dpotrf_batched, dpotri,
-            dpotri_buffer_size, dpotrs_batched, spotrf_batched, spotri, spotri_buffer_size,
-            spotrs_batched, zpotrf_batched, zpotri, zpotri_buffer_size, zpotrs_batched,
-        },
-        qr::{
-            cungqr, cungqr_buffer_size, cunmqr, cunmqr_buffer_size, dorgqr, dorgqr_buffer_size,
-            dormqr, dormqr_buffer_size, sorgqr, sorgqr_buffer_size, sormqr, sormqr_buffer_size,
-            zungqr, zungqr_buffer_size, zunmqr, zunmqr_buffer_size,
-        },
-        sytrf::{
-            csytrf, csytrf_buffer_size, dsytrf, dsytrf_buffer_size, ssytrf, ssytrf_buffer_size,
-            zsytrf, zsytrf_buffer_size,
-        },
-        tridiagonal::{
-            chetrd, chetrd_buffer_size, cungtr, cungtr_buffer_size, cunmtr, cunmtr_buffer_size,
-            dorgtr, dorgtr_buffer_size, dormtr, dormtr_buffer_size, dsytrd, dsytrd_buffer_size,
-            sorgtr, sorgtr_buffer_size, sormtr, sormtr_buffer_size, ssytrd, ssytrd_buffer_size,
-            zhetrd, zhetrd_buffer_size, zungtr, zungtr_buffer_size, zunmtr, zunmtr_buffer_size,
-        },
-    },
-    error::Result,
-    layout::{
-        BatchedMatrixRef, BatchedVectorRef, MatrixLayout, MatrixMut, MatrixRef, VectorOutput,
-        VectorRef,
-    },
-    types::{FillMode, Operation, SideMode},
-};
+use singe_cuda::types::{Complex32, Complex64};
 
 mod potrf_batched_scalar {
-    use super::{
-        BatchedMatrixRef, Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, FillMode,
-        Result, cpotrf_batched, dpotrf_batched, spotrf_batched, zpotrf_batched,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::cholesky::{cpotrf_batched, dpotrf_batched, spotrf_batched, zpotrf_batched},
+        error::Result,
+        layout::BatchedMatrixRef,
+        types::FillMode,
     };
 
     pub trait Sealed: DeviceRepr {
@@ -130,10 +98,17 @@ impl PotrfBatchedScalar for Complex32 {}
 impl PotrfBatchedScalar for Complex64 {}
 
 mod potrs_batched_scalar {
-    use super::{
-        BatchedMatrixRef, BatchedVectorRef, Complex32, Complex64, Context, DeviceOutputView,
-        DeviceRepr, FillMode, Result, cpotrs_batched, dpotrs_batched, spotrs_batched,
-        zpotrs_batched,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::cholesky::{cpotrs_batched, dpotrs_batched, spotrs_batched, zpotrs_batched},
+        error::Result,
+        layout::{BatchedMatrixRef, BatchedVectorRef},
+        types::FillMode,
     };
 
     pub trait Sealed: DeviceRepr {
@@ -220,10 +195,20 @@ impl PotrsBatchedScalar for Complex32 {}
 impl PotrsBatchedScalar for Complex64 {}
 
 mod potri_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, FillMode, MatrixLayout,
-        MatrixMut, Result, cpotri, cpotri_buffer_size, dpotri, dpotri_buffer_size, spotri,
-        spotri_buffer_size, zpotri, zpotri_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::cholesky::{
+            cpotri, cpotri_buffer_size, dpotri, dpotri_buffer_size, spotri, spotri_buffer_size,
+            zpotri, zpotri_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut},
+        types::FillMode,
     };
 
     pub trait Sealed: DeviceRepr {
@@ -395,10 +380,20 @@ impl PotriScalar for Complex32 {}
 impl PotriScalar for Complex64 {}
 
 mod ormqr_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, MatrixLayout, MatrixMut,
-        MatrixRef, Operation, Result, SideMode, VectorRef, cunmqr, cunmqr_buffer_size, dormqr,
-        dormqr_buffer_size, sormqr, sormqr_buffer_size, zunmqr, zunmqr_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::qr::{
+            cunmqr, cunmqr_buffer_size, dormqr, dormqr_buffer_size, sormqr, sormqr_buffer_size,
+            zunmqr, zunmqr_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut, MatrixRef, VectorRef},
+        types::{Operation, SideMode},
     };
 
     pub trait Sealed: DeviceRepr {
@@ -675,10 +670,19 @@ impl OrmqrScalar for Complex32 {}
 impl OrmqrScalar for Complex64 {}
 
 mod orgqr_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, MatrixLayout, MatrixMut,
-        Result, VectorRef, cungqr, cungqr_buffer_size, dorgqr, dorgqr_buffer_size, sorgqr,
-        sorgqr_buffer_size, zungqr, zungqr_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::qr::{
+            cungqr, cungqr_buffer_size, dorgqr, dorgqr_buffer_size, sorgqr, sorgqr_buffer_size,
+            zungqr, zungqr_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut, VectorRef},
     };
 
     pub trait Sealed: DeviceRepr {
@@ -873,10 +877,20 @@ impl OrgqrScalar for Complex32 {}
 impl OrgqrScalar for Complex64 {}
 
 mod sytrf_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, FillMode, MatrixLayout,
-        MatrixMut, Result, csytrf, csytrf_buffer_size, dsytrf, dsytrf_buffer_size, ssytrf,
-        ssytrf_buffer_size, zsytrf, zsytrf_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::sytrf::{
+            csytrf, csytrf_buffer_size, dsytrf, dsytrf_buffer_size, ssytrf, ssytrf_buffer_size,
+            zsytrf, zsytrf_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut},
+        types::FillMode,
     };
 
     pub trait Sealed: DeviceRepr {
@@ -1032,10 +1046,20 @@ impl SytrfScalar for Complex32 {}
 impl SytrfScalar for Complex64 {}
 
 mod sytrd_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, FillMode, MatrixLayout,
-        MatrixMut, Result, VectorOutput, chetrd, chetrd_buffer_size, dsytrd, dsytrd_buffer_size,
-        ssytrd, ssytrd_buffer_size, zhetrd, zhetrd_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::tridiagonal::{
+            chetrd, chetrd_buffer_size, dsytrd, dsytrd_buffer_size, ssytrd, ssytrd_buffer_size,
+            zhetrd, zhetrd_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut, VectorOutput},
+        types::FillMode,
     };
 
     pub trait Sealed: DeviceRepr {
@@ -1244,10 +1268,20 @@ impl SytrdScalar for Complex32 {}
 impl SytrdScalar for Complex64 {}
 
 mod orgtr_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, FillMode, MatrixLayout,
-        MatrixMut, Result, VectorRef, cungtr, cungtr_buffer_size, dorgtr, dorgtr_buffer_size,
-        sorgtr, sorgtr_buffer_size, zungtr, zungtr_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::tridiagonal::{
+            cungtr, cungtr_buffer_size, dorgtr, dorgtr_buffer_size, sorgtr, sorgtr_buffer_size,
+            zungtr, zungtr_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut, VectorRef},
+        types::FillMode,
     };
 
     pub trait Sealed: DeviceRepr {
@@ -1428,10 +1462,20 @@ impl OrgtrScalar for Complex32 {}
 impl OrgtrScalar for Complex64 {}
 
 mod ormtr_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, FillMode, MatrixLayout,
-        MatrixMut, MatrixRef, Operation, Result, SideMode, VectorRef, cunmtr, cunmtr_buffer_size,
-        dormtr, dormtr_buffer_size, sormtr, sormtr_buffer_size, zunmtr, zunmtr_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::tridiagonal::{
+            cunmtr, cunmtr_buffer_size, dormtr, dormtr_buffer_size, sormtr, sormtr_buffer_size,
+            zunmtr, zunmtr_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut, MatrixRef, VectorRef},
+        types::{FillMode, Operation, SideMode},
     };
 
     pub trait Sealed: DeviceRepr {
@@ -1708,10 +1752,19 @@ impl OrmtrScalar for Complex32 {}
 impl OrmtrScalar for Complex64 {}
 
 mod gebrd_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, MatrixMut, Result,
-        VectorOutput, cgebrd, cgebrd_buffer_size, dgebrd, dgebrd_buffer_size, sgebrd,
-        sgebrd_buffer_size, zgebrd, zgebrd_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::bidiagonal::{
+            cgebrd, cgebrd_buffer_size, dgebrd, dgebrd_buffer_size, sgebrd, sgebrd_buffer_size,
+            zgebrd, zgebrd_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixMut, VectorOutput},
     };
 
     pub trait Sealed: DeviceRepr {
@@ -1902,10 +1955,20 @@ impl GebrdScalar for Complex32 {}
 impl GebrdScalar for Complex64 {}
 
 mod orgbr_scalar {
-    use super::{
-        Complex32, Complex64, Context, DeviceOutputView, DeviceRepr, MatrixLayout, MatrixMut,
-        Result, SideMode, VectorRef, cungbr, cungbr_buffer_size, dorgbr, dorgbr_buffer_size,
-        sorgbr, sorgbr_buffer_size, zungbr, zungbr_buffer_size,
+    use singe_cuda::{
+        types::{Complex32, Complex64},
+        view::{DeviceOutputView, DeviceRepr},
+    };
+
+    use crate::{
+        context::Context,
+        dense::legacy::bidiagonal::{
+            cungbr, cungbr_buffer_size, dorgbr, dorgbr_buffer_size, sorgbr, sorgbr_buffer_size,
+            zungbr, zungbr_buffer_size,
+        },
+        error::Result,
+        layout::{MatrixLayout, MatrixMut, VectorRef},
+        types::SideMode,
     };
 
     pub trait Sealed: DeviceRepr {

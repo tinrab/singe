@@ -2,13 +2,10 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::Result,
+    error::{Error, Result},
     image::{
         Image, exchange,
-        video::{
-            VideoFormat, VideoOutputView, VideoView, invalid, prepare_conversion,
-            validate_conversion,
-        },
+        video::{VideoFormat, VideoOutputView, VideoView, prepare_conversion, validate_conversion},
         view::{C1, C3, C4, ImageOutputView},
     },
     try_ffi,
@@ -30,7 +27,7 @@ fn matrix(
         ColorSpace::Bt601Jpeg => (0.299, 0.114),
         ColorSpace::Bt709Hdtv => (0.2126, 0.0722),
         ColorSpace::Bt2020Hdtv => (0.2627, 0.0593),
-        ColorSpace::TranscodeOnly => return Err(invalid("RGB color space")),
+        ColorSpace::TranscodeOnly => return Err(Error::out_of_range("RGB color space")),
     };
     let kg = 1.0 - kr - kb;
     let scale = output_maximum / maximum;
@@ -57,7 +54,7 @@ fn output_samples<'a, T: DataTypeLike>(
     let samples = Size::new(
         size.width
             .checked_mul(channels)
-            .ok_or_else(|| invalid("video output width"))?,
+            .ok_or_else(|| Error::out_of_range("video output width"))?,
         size.height,
     );
     let plane = &mut destination.planes[0];
@@ -99,7 +96,7 @@ fn write_u8(
                 }
             })
         }
-        _ => Err(invalid("RGB destination format")),
+        _ => Err(Error::out_of_range("RGB destination format")),
     }
 }
 
@@ -159,7 +156,7 @@ fn decode_integer(
     let maximum = match source.format() {
         VideoFormat::P010 => 1023.0 * 64.0,
         VideoFormat::P016 => 65535.0,
-        _ => return Err(invalid("16-bit semiplanar format")),
+        _ => return Err(Error::out_of_range("16-bit semiplanar format")),
     };
     let twist = matrix(color_space, maximum, 32768.0, 65535.0, format)?;
     let mut colors = Image::<u16, C3>::create_uninit(context.cuda_context(), size)?;
@@ -270,6 +267,6 @@ pub fn decode_u16(
                 }
             })
         }
-        _ => Err(invalid("16-bit RGB destination format")),
+        _ => Err(Error::out_of_range("16-bit RGB destination format")),
     }
 }

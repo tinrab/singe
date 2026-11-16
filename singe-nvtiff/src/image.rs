@@ -20,7 +20,7 @@ use crate::{
         Compression, ImageGeometryType, ImageTypeFlags, OutputFormat, PhotometricInterpretation,
         PlanarConfig, SampleFormat,
     },
-    utility::{to_size_t, to_u32, to_usize},
+    utility::{checked_pixels, to_size_t, to_u32, to_usize},
 };
 
 /// Offset of an image file directory (IFD) in a TIFF file.
@@ -409,19 +409,6 @@ impl ImageGeometry {
     pub const fn striles_per_plane(&self) -> u32 {
         self.raw.num_striles_per_plane
     }
-}
-
-fn checked_pixels(width: u32, height: u32) -> Result<usize> {
-    if width == 0 || height == 0 {
-        return Err(Error::OutOfRange {
-            name: "image dimensions".into(),
-        });
-    }
-    (width as usize)
-        .checked_mul(height as usize)
-        .ok_or_else(|| Error::OutOfRange {
-            name: "image dimensions".into(),
-        })
 }
 
 impl<'a> Image<'a> {

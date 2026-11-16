@@ -1,20 +1,6 @@
 use singe_cuda::memory::DeviceMemory;
 
-use crate::{
-    error::{Error, Result},
-    types::Size,
-};
-
-pub fn validate_same_size(expected: Size, actual: Size) -> Result<()> {
-    if expected == actual {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected,
-        actual,
-    })
-}
+use crate::error::{Error, Result};
 
 pub fn validate_device_constant_len(actual: usize, expected: usize) -> Result<()> {
     if actual >= expected {

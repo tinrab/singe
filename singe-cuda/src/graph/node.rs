@@ -2,15 +2,15 @@ use std::{ffi::c_void, ptr, sync::Arc};
 
 use singe_cuda_sys::{driver, runtime};
 
-use super::{
-    BorrowedGraph, Graph, GraphDependency, GraphId, GraphInner, GraphKernelNodeAttribute,
-    GraphKernelNodeAttributeId, GraphNode, GraphNodeType, MemoryAllocationNodeInfo,
-    MemorySetNodeParams, raw::MemoryCopy1DNodeParams,
-};
 use crate::{
     context::Context,
     dim::Dim3,
     error::{Error, Result},
+    graph::{
+        BorrowedGraph, Graph, GraphDependency, GraphId, GraphInner, GraphKernelNodeAttribute,
+        GraphKernelNodeAttributeId, GraphNode, GraphNodeType, MemoryAllocationNodeInfo,
+        MemorySetNodeParams, raw::MemoryCopy1DNodeParams,
+    },
     module::LaunchAttribute,
     try_ffi,
     types::{ClusterSchedulingPolicy, DevicePtr, SharedMemoryMode},

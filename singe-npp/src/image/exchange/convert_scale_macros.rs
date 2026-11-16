@@ -295,7 +295,7 @@ macro_rules! impl_scale_to_higher {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -346,7 +346,7 @@ macro_rules! impl_scale_to_higher_range {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_scale_range(min, max)?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -398,7 +398,7 @@ macro_rules! impl_scale_to_lower_hint {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -450,7 +450,7 @@ macro_rules! impl_scale_to_lower_range {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_scale_range(min, max)?;
 
             // SAFETY: the caller upholds this function's safety contract.

@@ -1,7 +1,7 @@
 //! Completed and raw cuRAND generation with explicit device or host ownership.
 
 use std::{
-    mem::{ManuallyDrop, MaybeUninit, size_of},
+    mem::{ManuallyDrop, MaybeUninit},
     process, ptr,
     result::Result as StdResult,
     sync::Arc,
@@ -21,7 +21,7 @@ use crate::{
     error::{Error, Result},
     try_ffi,
     types::{Method, Ordering, RngType},
-    utility::{drain_stream, require_eager, to_size_t},
+    utility::{checked_byte_len, drain_stream, require_eager, to_size_t},
 };
 
 /// A stateful GPU generator retaining its actual context and selected stream.
@@ -548,10 +548,7 @@ impl HostGenerator {
             return call(self.as_raw(), output.as_mut_ptr(), length);
         }
 
-        let bytes = output
-            .len()
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| Error::out_of_range("output bytes"))?;
+        let bytes = checked_byte_len::<T>(output.len(), "output bytes")?;
         let mut scratch = Vec::new();
         scratch.resize_with(bytes.div_ceil(16), || HostBlock {
             _bytes: [MaybeUninit::uninit(); 16],

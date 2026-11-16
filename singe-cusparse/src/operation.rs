@@ -9,6 +9,7 @@ use crate::{
     matrix::{DenseMatrixDescriptor, SparseMatrixDescriptor},
     sys, try_ffi,
     types::{Operation, SpMmOpAlgorithm},
+    utility::to_usize,
 };
 
 /// Owns native analysis state for sparse-sparse matrix multiplication.
@@ -134,7 +135,7 @@ impl SpGemmDescriptor {
             ))?;
         }
 
-        usize::try_from(value).map_err(|_| Error::out_of_range("num_products"))
+        to_usize(value, "num_products")
     }
 
     /// Returns the native analysis descriptor without transferring ownership.
@@ -457,8 +458,7 @@ impl<'a> SpMmOpPlan<'a> {
                 .flatten()
                 .collect(),
         };
-        plan.workspace_size_bytes = usize::try_from(workspace_size)
-            .map_err(|_| Error::out_of_range("spmm op workspace size"))?;
+        plan.workspace_size_bytes = to_usize(workspace_size, "spmm op workspace size")?;
         Ok(plan)
     }
 

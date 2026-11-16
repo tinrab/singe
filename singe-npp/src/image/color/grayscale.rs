@@ -4,7 +4,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        color_descriptors::{validate_cfa_roi, validate_same_size},
+        color_descriptors::validate_cfa_roi,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,

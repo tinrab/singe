@@ -12,7 +12,10 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::video::{VideoFormat, VideoOutputView, VideoView, validate_conversion},
+    image::{
+        video::{VideoFormat, VideoOutputView, VideoView, validate_conversion},
+        view::{ImageOutputView, ImageView},
+    },
     try_ffi,
     types::{ColorSpace, Point, Size},
 };
@@ -588,11 +591,7 @@ pub unsafe fn nv12_8u_to_uyvp_10u_p2c3r(
         .iter()
         .map(|plane| plane.as_ptr().cast())
         .collect();
-    let source_steps: Vec<_> = source
-        .planes
-        .iter()
-        .map(super::super::view::ImageView::step)
-        .collect();
+    let source_steps: Vec<_> = source.planes.iter().map(ImageView::step).collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         try_ffi!(sys::nppiNV12_8u_ToUYVP_10u_P2C3R_Ctx(
@@ -747,7 +746,7 @@ pub unsafe fn uyvp_10u_to_nv16_8u_c3p2r(
     let destination_steps: Vec<_> = destination
         .planes
         .iter()
-        .map(super::super::view::ImageOutputView::step)
+        .map(ImageOutputView::step)
         .collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
@@ -895,11 +894,7 @@ pub unsafe fn nv16_8u_to_uyvp_10u_p2c3r(
         .iter()
         .map(|plane| plane.as_ptr().cast())
         .collect();
-    let source_steps: Vec<_> = source
-        .planes
-        .iter()
-        .map(super::super::view::ImageView::step)
-        .collect();
+    let source_steps: Vec<_> = source.planes.iter().map(ImageView::step).collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         try_ffi!(sys::nppiNV16_8u_ToUYVP_10u_P2C3R_Ctx(
@@ -1008,11 +1003,7 @@ pub unsafe fn p210_16u_to_uyvp_10u_p2c3r(
         .iter()
         .map(|plane| plane.as_ptr().cast())
         .collect();
-    let source_steps: Vec<_> = source
-        .planes
-        .iter()
-        .map(super::super::view::ImageView::step)
-        .collect();
+    let source_steps: Vec<_> = source.planes.iter().map(ImageView::step).collect();
     // SAFETY: the caller upholds this function's safety contract.
     unsafe {
         try_ffi!(sys::nppiP210_16u_ToUYVP_10u_P2C3R_Ctx(
@@ -2789,11 +2780,7 @@ pub unsafe fn yuv420_to_nv12_8u_p3p2r(
         .iter_mut()
         .map(|plane| plane.as_mut_ptr().cast())
         .collect();
-    let source_steps: Vec<_> = source
-        .planes
-        .iter()
-        .map(super::super::view::ImageView::step)
-        .collect();
+    let source_steps: Vec<_> = source.planes.iter().map(ImageView::step).collect();
     // SAFETY: `nppiYUV420ToNV12_8u_P3P2R_Ctx` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     unsafe {
         try_ffi!(sys::nppiYUV420ToNV12_8u_P3P2R_Ctx(

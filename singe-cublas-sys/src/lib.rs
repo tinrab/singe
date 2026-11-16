@@ -38,7 +38,7 @@ include!("sys_130800.rs");
 mod lt_bindings {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    use super::{
+    use crate::{
         cublasComputeType_t, cublasSetWorkspace_v2, cublasStatus_t, cudaDataType, cudaDataType_t,
         cudaStream_t, libraryPropertyType,
     };
@@ -53,7 +53,7 @@ pub use self::lt_bindings::*;
 mod xt_bindings {
     use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-    use super::{
+    use crate::{
         cuComplex, cuDoubleComplex, cublasDiagType_t, cublasFillMode_t, cublasOperation_t,
         cublasSideMode_t, cublasStatus_t,
     };
@@ -77,7 +77,7 @@ pub use singe_loader::LoadError;
 // This declaration passes the enum's 32-bit integer ABI, so no invalid Rust enum value is constructed, and the generated one stays intact.
 #[cfg(feature = "cublas_13_8")]
 pub mod flags {
-    use super::{cublasHandle_t, cublasStatus_t};
+    use crate::{cublasHandle_t, cublasStatus_t};
 
     singe_loader::functions! { crate::LIBRARY;
         pub fn cublasSetMathMode(handle: cublasHandle_t, mode: u32) -> cublasStatus_t;

@@ -3,10 +3,7 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        color_descriptors::validate_same_size,
-        view::{AC4, C3, ImageOutputView, ImageView, PlanarImageOutputView, PlanarImageView},
-    },
+    image::view::{AC4, C3, ImageOutputView, ImageView, PlanarImageOutputView, PlanarImageView},
     try_ffi,
     types::DataTypeLike,
 };

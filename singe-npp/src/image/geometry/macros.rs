@@ -29,7 +29,7 @@ macro_rules! impl_mirror {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -132,8 +132,7 @@ macro_rules! impl_mirror_batch {
 
             let (batch_size, roi, descriptors) =
                 mirror_batch_descriptors(stream_context.cuda_context(), sources, destinations)?;
-            let batch_size =
-                i32::try_from(batch_size).map_err(|_| Error::out_of_range("batch size"))?;
+            let batch_size = to_i32(batch_size, "batch size")?;
 
             // SAFETY: the caller upholds this function's safety contract.
             stream_context.sync_scope(|| unsafe {
@@ -186,8 +185,7 @@ macro_rules! impl_mirror_batch_in_place {
 
             let (batch_size, roi, descriptors) =
                 mirror_batch_in_place_descriptors(stream_context.cuda_context(), images)?;
-            let batch_size =
-                i32::try_from(batch_size).map_err(|_| Error::out_of_range("batch size"))?;
+            let batch_size = to_i32(batch_size, "batch size")?;
 
             // SAFETY: the caller upholds this function's safety contract.
             stream_context.sync_scope(|| unsafe {
@@ -883,8 +881,8 @@ macro_rules! impl_remap {
             stream_context.validate_region(y_map)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(x_map.size(), destination.size())?;
-            validate_same_size(y_map.size(), destination.size())?;
+            $crate::utility::validate_same_size(x_map.size(), destination.size())?;
+            $crate::utility::validate_same_size(y_map.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -953,9 +951,12 @@ macro_rules! impl_remap_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(x_map.size(), destination.planes()[0].size())?;
-            validate_same_size(y_map.size(), destination.planes()[0].size())?;
-            validate_same_size(source.planes()[0].size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(x_map.size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(y_map.size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(
+                source.planes()[0].size(),
+                destination.planes()[0].size(),
+            )?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
             let mut destination_planes = destination
@@ -1869,7 +1870,10 @@ macro_rules! impl_warp_affine_back_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(
+                source.planes()[0].size(),
+                destination.planes()[0].size(),
+            )?;
 
             let mut source_planes = source.planes().map(|plane| plane.as_ptr());
             let mut destination_planes = destination

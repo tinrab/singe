@@ -35,7 +35,7 @@ macro_rules! impl_lookup_table_c1 {
             stream_context.validate_region(values)?;
             stream_context.validate_region(levels)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let level_count = validate_lookup_table(values.len(), levels.len())?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -346,7 +346,7 @@ macro_rules! impl_lookup_table_packed {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let (mut value_pointers, mut level_pointers, mut level_counts) =
                 lookup_table_channel_descriptors(values, levels)?;
 
@@ -463,7 +463,7 @@ macro_rules! impl_lookup_table_packed_f32 {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let (mut value_pointers, mut level_pointers, mut level_counts) =
                 lookup_table_channel_descriptors_f32(values, levels)?;
 

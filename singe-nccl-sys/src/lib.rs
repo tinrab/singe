@@ -45,7 +45,7 @@ pub use singe_loader::LoadError;
 // This declaration passes the C enum's ABI as an integer, so no invalid Rust enum value is constructed.
 #[cfg(feature = "nccl_2_32")]
 pub mod dynamic {
-    use super::{ncclComm_t, ncclResult_t};
+    use crate::{ncclComm_t, ncclResult_t};
 
     singe_loader::functions! { crate::LIBRARY;
         pub fn ncclRedOpDestroy(op: i32, comm: ncclComm_t) -> ncclResult_t;

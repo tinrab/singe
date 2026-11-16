@@ -3,10 +3,7 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        arithmetic_validation::validate_same_size,
-        view::{AC4, C1, C3, C4, ImageOutputView, ImageView, ImageViewMut},
-    },
+    image::view::{AC4, C1, C3, C4, ImageOutputView, ImageView, ImageViewMut},
     try_ffi,
     types::{AlphaOperation, DataTypeLike},
 };
@@ -45,8 +42,8 @@ macro_rules! impl_alpha_comp_constant {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -172,8 +169,8 @@ macro_rules! impl_alpha_comp {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -249,8 +246,8 @@ macro_rules! impl_comp_color_key_scalar {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -302,8 +299,8 @@ macro_rules! impl_comp_color_key_array {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             let mut color_key = color_key;
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
@@ -360,8 +357,8 @@ macro_rules! impl_alpha_comp_color_key {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             let mut color_key = color_key;
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
@@ -427,7 +424,7 @@ macro_rules! impl_alpha_premultiply_constant {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -516,7 +513,7 @@ macro_rules! impl_alpha_premultiply {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

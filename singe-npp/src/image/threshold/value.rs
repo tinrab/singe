@@ -3,10 +3,7 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        threshold::validate_same_size,
-        view::{AC4, C1, C3, ImageOutputView, ImageView, ImageViewMut},
-    },
+    image::view::{AC4, C1, C3, ImageOutputView, ImageView, ImageViewMut},
     try_ffi,
     types::{ComparisonOperation, DataTypeLike},
 };

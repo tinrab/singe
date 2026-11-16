@@ -1,6 +1,6 @@
 use std::{process, sync::Arc};
 
-use singe_core::checked_conversions;
+use singe_core::{checked_arithmetic, checked_conversions};
 use singe_cuda::{
     context::Context,
     error::{Error as CudaError, Status},
@@ -27,6 +27,8 @@ pub fn require_eager(stream: &Stream) -> Result<()> {
 checked_conversions!(Error {
     to_size_t -> sys::size_t,
 });
+
+checked_arithmetic!(Error { checked_byte_len });
 
 /// # Safety
 /// The stream must be live and belong to the retained context.

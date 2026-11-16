@@ -11,10 +11,10 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::view::{AC4, C1, C3, C4, ImageView, MaskOutputView},
     try_ffi,
-    types::{ComparisonOperation, DataTypeLike, Size},
+    types::{ComparisonOperation, DataTypeLike},
 };
 
 macro_rules! impl_generic_compare {
@@ -594,8 +594,8 @@ macro_rules! impl_compare_c1 {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -657,8 +657,8 @@ macro_rules! impl_compare_packed {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -763,7 +763,7 @@ macro_rules! impl_compare_constant_c1 {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -824,7 +824,7 @@ macro_rules! impl_compare_constant_packed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
             unsafe {
@@ -1017,8 +1017,8 @@ macro_rules! impl_compare_equal_epsilon {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -1128,7 +1128,7 @@ macro_rules! impl_compare_equal_epsilon_constant_c1 {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -1182,7 +1182,7 @@ macro_rules! impl_compare_equal_epsilon_constant_packed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
             unsafe {
@@ -1262,14 +1262,3 @@ impl_generic_compare_equal_epsilon_constant_array!(
     3,
     [f32 => compare_equal_epsilon_constant_f32_ac4]
 );
-
-fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}

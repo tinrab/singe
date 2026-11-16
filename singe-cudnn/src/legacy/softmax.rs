@@ -12,9 +12,9 @@ use crate::{
     backend::tensor::TensorDescriptor,
     context::Context,
     data_type::FloatingElement,
-    error::{Error, Result},
+    error::Result,
     try_ffi,
-    utility::check_range,
+    utility::{check_range, checked_byte_len},
 };
 
 /// Selects the softmax implementation used by [`softmax_forward`] and [`softmax_backward`].
@@ -63,9 +63,7 @@ impl_enum_display!(SoftmaxMode, {
 });
 
 fn require_capacity<T>(descriptor: &TensorDescriptor<T>, length: usize) -> Result<()> {
-    let bytes = length
-        .checked_mul(size_of::<T>())
-        .ok_or_else(|| Error::out_of_range("softmax buffer bytes"))?;
+    let bytes = checked_byte_len::<T>(length, "softmax buffer bytes")?;
     check_range!(
         "softmax descriptor storage span",
         bytes >= descriptor.byte_len()?

@@ -4,7 +4,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        filtering_validation::{validate_bilateral_gauss_parameters, validate_border_roi},
+        filtering_validation::validate_bilateral_gauss_parameters,
         view::{C1, C3, ChannelLayout, ImageOutputView, ImageView},
     },
     try_ffi,

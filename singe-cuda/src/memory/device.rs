@@ -8,20 +8,20 @@ use std::{
 
 use singe_cuda_sys::runtime;
 
-use super::{
-    DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryAttachFlags, MemoryCopyKind,
-    MemoryCopyOperation, MemoryLocation, MemorySetOperation, PinnedHostSlice, PinnedHostSliceMut,
-    PointerAttributes, checked_bytes, checked_len, checked_volume, transfer,
-};
 use crate::{
     context::Context,
     error::{Error, Result},
     ipc::IpcMemoryHandle,
+    memory::{
+        DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryAttachFlags, MemoryCopyKind,
+        MemoryCopyOperation, MemoryLocation, MemorySetOperation, PinnedHostSlice,
+        PinnedHostSliceMut, PointerAttributes, transfer,
+    },
     stream::{Stream, StreamBinding, StreamScope},
     submission::{Access, AccessMode},
     try_ffi,
     types::{DevicePtr, MemoryAdvise},
-    utility::to_usize,
+    utility::{checked_bytes, checked_len, checked_volume, to_usize},
     view::{
         AllocationId, AnyBitPatternDeviceRepr, DeviceRegionProvider, DeviceRepr, DeviceSlice,
         HostSlice, NoUninitDeviceRepr, ZeroableDeviceRepr, cast_length,

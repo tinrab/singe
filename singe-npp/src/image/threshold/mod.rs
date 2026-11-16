@@ -10,10 +10,11 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::view::{AC4, C1, C2, C3, C4, ChannelLayout, ImageOutputView, ImageView, ImageViewMut},
     try_ffi,
-    types::{DataType, ImageChannels, Size},
+    types::{DataType, ImageChannels},
+    utility::validate_same_size,
 };
 
 /// Declares the native element representation used by fused absolute-difference thresholding.
@@ -234,14 +235,3 @@ pub use self::fixed_value::*;
 mod range_value;
 
 pub use self::range_value::*;
-
-fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}

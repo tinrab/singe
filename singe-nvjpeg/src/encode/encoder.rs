@@ -8,9 +8,9 @@ use crate::{
     encode::{
         EncodeInput, EncodeOptions, EncodeParams, EncodedDeviceBitstream, EncoderState, Quality,
     },
-    error::{Error, Result},
+    error::Result,
     types::{Backend, ChromaSubsampling, CreateFlags, EncoderBackend, JpegEncoding},
-    utility::complete,
+    utility::{complete, to_quality},
 };
 
 /// Encoder for one image at a time.
@@ -114,9 +114,7 @@ impl Encoder {
         quality: impl TryInto<Quality>,
         stream: &CudaStream,
     ) -> Result<&mut Self> {
-        let quality = quality.try_into().map_err(|_| Error::OutOfRange {
-            name: "quality".into(),
-        })?;
+        let quality = to_quality(quality, "quality")?;
         self.params.set_quality(quality, stream)?;
         self.options.quality = Some(quality);
         Ok(self)

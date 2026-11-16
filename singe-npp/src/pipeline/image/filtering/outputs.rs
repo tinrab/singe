@@ -6,6 +6,7 @@ use crate::{
     error::{Error, Result},
     image::{memory::Image, view::C1},
     types::PointPolar,
+    utility::{to_i32, to_usize},
 };
 
 /// Owned Hough output containing the initialized detected-line prefix and device count.
@@ -33,9 +34,11 @@ impl HoughLinesOutput {
     ///
     /// Returns an error if `max_line_count` is zero or does not fit `i32`, allocation-size arithmetic fails, or either device allocation fails.
     pub fn create(context: &Arc<CudaContext>, max_line_count: usize) -> Result<Self> {
-        if max_line_count == 0 || i32::try_from(max_line_count).is_err() {
+        if max_line_count == 0 {
             return Err(Error::out_of_range("max line count"));
         }
+
+        to_i32(max_line_count, "max line count")?;
         Ok(Self {
             lines: DeviceMemory::<PointPolar>::create_uninit(context, max_line_count)?,
             line_count: DeviceMemory::<i32>::create_uninit(context, 1)?,
@@ -65,8 +68,7 @@ impl HoughLinesOutput {
 
         // SAFETY: the producer initialized the sole count and completed its write.
         let line_count = unsafe { self.line_count.assume_init() };
-        let count = usize::try_from(line_count.copy_to_host_vec()?[0])
-            .map_err(|_| Error::out_of_range("produced line count"))?;
+        let count = to_usize(line_count.copy_to_host_vec()?[0], "produced line count")?;
         if count > self.lines.len() {
             return Err(Error::out_of_range("produced line count"));
         }

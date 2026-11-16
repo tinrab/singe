@@ -8,43 +8,14 @@ use crate::{
     error::{Error, Result},
     layout::{BatchedMatrixRef, BatchedVectorRef},
     types::{SideMode, StorevMode},
+    utility::validate_matrix,
 };
 
 pub fn validate_square_matrix(n: usize, len: usize, lda: usize) -> Result<()> {
     validate_matrix(n, n, len, lda)
 }
 
-pub fn validate_matrix(rows: usize, cols: usize, len: usize, lda: usize) -> Result<()> {
-    if rows == 0 || cols == 0 {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    if lda < rows {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    let required = lda.checked_mul(cols).ok_or(Error::InvalidMatrixShape)?;
-    if len < required {
-        return Err(Error::InvalidMatrixShape);
-    }
-    Ok(())
-}
-
 pub fn require_workspace(actual: usize, required: usize) -> Result<()> {
-    if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
-    }
-    Ok(())
-}
-
-pub fn require_workspace_bytes(actual: usize, required: usize) -> Result<()> {
-    if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
-    }
-    Ok(())
-}
-
-pub fn require_host_workspace(actual: usize, required: usize) -> Result<()> {
     if actual < required {
         return Err(Error::InsufficientWorkspaceSize { required, actual });
     }

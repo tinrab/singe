@@ -166,7 +166,7 @@ macro_rules! impl_nv12_color_twist_packed_inverse {
             stream_context.validate_region(destination)?;
 
             let roi = validate_nv12_source_planes(source_y, source_uv)?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             let source_planes = [source_y.as_ptr().cast(), source_uv.as_ptr().cast()];
             let mut source_steps = [source_y.step(), source_uv.step()];
@@ -222,7 +222,7 @@ macro_rules! impl_nv12_packed_inverse {
             stream_context.validate_region(destination)?;
 
             let roi = validate_nv12_source_planes(source_y, source_uv)?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             let source_planes = [source_y.as_ptr().cast(), source_uv.as_ptr().cast()];
 

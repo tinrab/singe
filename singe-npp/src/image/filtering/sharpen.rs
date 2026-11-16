@@ -5,9 +5,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        filtering_validation::{
-            validate_border_roi, validate_same_size, validate_unsharp_parameters,
-        },
+        filtering_validation::validate_unsharp_parameters,
         view::{AC4, C1, C3, C4, ChannelLayout, ImageOutputView, ImageView},
     },
     try_ffi,

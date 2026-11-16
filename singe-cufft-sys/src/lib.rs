@@ -32,7 +32,7 @@ include!("sys_12400.rs");
 /// Experimental device FFT description and code-generation interface.
 #[cfg(feature = "cufft_12_4")]
 pub mod device {
-    use super::{cufftResult, cufftResult_t};
+    use crate::{cufftResult, cufftResult_t};
 
     include!("device_12400.rs");
 }
@@ -45,7 +45,7 @@ pub mod xt {
         runtime::cudaStream_t,
     };
 
-    use super::{cufftHandle, cufftResult, cufftResult_t};
+    use crate::{cufftHandle, cufftResult, cufftResult_t};
 
     include!("xt_12400.rs");
 }

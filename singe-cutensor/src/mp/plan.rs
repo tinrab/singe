@@ -21,7 +21,7 @@ use crate::{
     operation::ComputeDescriptor,
     try_ffi,
     types::{Mode, Operator},
-    utility::modes_to_i32_vec,
+    utility::{modes_to_i32_vec, to_i32},
 };
 
 /// Owns a distributed operation and optional checked local-shard signature.
@@ -867,7 +867,7 @@ impl<'comm> OperationDescriptor<'comm> {
 
         let indices = indices
             .iter()
-            .map(|&i| i32::try_from(i).map_err(|_| Error::out_of_range("mode index")))
+            .map(|&i| to_i32(i, "mode index"))
             .collect::<Result<Vec<_>>>()?;
         let sizes = [
             i64::try_from(groups.rows.len()).expect("matrix group rank fits native i64"),

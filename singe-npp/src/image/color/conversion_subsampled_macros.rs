@@ -381,7 +381,7 @@ macro_rules! impl_subsampled_p3_to_c2 {
                 $source_horizontal_subsampling,
                 $source_vertical_subsampling,
             )?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             let source_planes = [
                 source_y.as_ptr().cast(),
@@ -555,7 +555,7 @@ macro_rules! impl_subsampled_p2_to_c2 {
                 $source_horizontal_subsampling,
                 $source_vertical_subsampling,
             )?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

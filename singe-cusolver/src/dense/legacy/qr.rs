@@ -13,8 +13,7 @@ use singe_cuda::{
 use crate::{
     context::Context,
     dense::validation::{
-        qr_rows, require_host_workspace, require_info_buffer, require_tau_buffer,
-        require_workspace, require_workspace_bytes, validate_matrix, validate_x_matrix,
+        qr_rows, require_info_buffer, require_tau_buffer, require_workspace, validate_x_matrix,
         validate_x_vector,
     },
     error::Result,
@@ -22,7 +21,7 @@ use crate::{
     params::Params,
     sys, try_ffi,
     types::{Operation, SideMode},
-    utility::{to_i32, to_i64, to_usize},
+    utility::{require_workspace_bytes, to_i32, to_i64, to_usize, validate_matrix},
 };
 
 /// Queries device workspace capacity in elements for `f32` generation of orthogonal QR factors.
@@ -917,7 +916,7 @@ pub unsafe fn xgeqrf<TA: DataTypeLike, TTau: DataTypeLike>(
     let workspace_sizes =
         xgeqrf_buffer_size::<TA, TTau>(context, params, m, n, a.layout(), compute_type)?;
     require_workspace_bytes(workspace.device.len(), workspace_sizes.device_bytes)?;
-    require_host_workspace(workspace.host.len(), workspace_sizes.host_bytes)?;
+    require_workspace_bytes(workspace.host.len(), workspace_sizes.host_bytes)?;
     // SAFETY: `cusolverDnXgeqrf` receives live handles owned by the wrappers and valid output locations.
     unsafe {
         try_ffi!(sys::cusolverDnXgeqrf(

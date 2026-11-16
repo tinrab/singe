@@ -13,10 +13,10 @@ use crate::{
     buffer::{IoBuffer, IoBufferMut},
     driver::Driver,
     error::{Error, Result},
-    file::{FileHandle, checked_io_size, io_pointer, operation_result, prepare_buffer},
+    file::{FileHandle, io_pointer, operation_result, prepare_buffer},
     try_ffi,
     types::StreamRegisterFlags,
-    utility::{to_i64, to_u64},
+    utility::{checked_io_size, to_i64, to_u64},
 };
 
 /// A cuFile stream registration retaining its stream binding and driver session.

@@ -1,6 +1,6 @@
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         Image, SupportedImage,
         view::{ChannelLayout, ImageOutputView, ImageWindow},
@@ -9,6 +9,7 @@ use crate::{
         ImageBacking, ImagePipeline,
         filtering::{FilterAxis, SumWindowFilterImage},
     },
+    utility::to_usize,
 };
 
 impl<T, L> ImagePipeline<'_, T, L>
@@ -141,10 +142,7 @@ where
         filter: SumWindowFilterCallback<L, T>,
     ) -> Result<ImagePipeline<'a, f32, L>> {
         self.ensure_eager()?;
-        let (mask, origin) = axis.geometry(
-            usize::try_from(mask_size).map_err(|_| Error::out_of_range("filter taps"))?,
-            anchor,
-        )?;
+        let (mask, origin) = axis.geometry(to_usize(mask_size, "filter taps")?, anchor)?;
         let source = self.view()?.valid_window(mask, origin)?;
         let mut destination =
             Image::<f32, L>::create_uninit(self.stream_context.cuda_context(), source.size())?;

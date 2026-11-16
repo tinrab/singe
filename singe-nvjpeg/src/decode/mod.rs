@@ -431,14 +431,6 @@ fn validate_batch(expected: usize, actual: usize, name: &'static str) -> Result<
     }
 }
 
-fn to_positive_i32(value: impl TryInto<i32>, name: &'static str) -> Result<i32> {
-    let value = to_i32(value, name)?;
-    if value <= 0 {
-        return Err(Error::OutOfRange { name: name.into() });
-    }
-    Ok(value)
-}
-
 fn image_descriptors_from_views<T, const C: usize>(
     destinations: &mut [&mut ImageViewMut<'_, T, C>],
 ) -> Result<Vec<Image>> {

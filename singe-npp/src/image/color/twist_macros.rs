@@ -28,7 +28,7 @@ macro_rules! impl_color_twist {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -537,7 +537,7 @@ macro_rules! impl_color_twist_different_layout {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -705,7 +705,7 @@ macro_rules! impl_color_twist_with_constants {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -970,7 +970,10 @@ macro_rules! impl_color_twist_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(
+                source.planes()[0].size(),
+                destination.planes()[0].size(),
+            )?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
             let destination_planes = destination
@@ -1075,7 +1078,7 @@ macro_rules! impl_gamma_packed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -1321,7 +1324,10 @@ macro_rules! impl_gamma_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(
+                source.planes()[0].size(),
+                destination.planes()[0].size(),
+            )?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
             let mut destination_planes = destination

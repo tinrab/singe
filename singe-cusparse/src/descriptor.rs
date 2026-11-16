@@ -107,17 +107,6 @@ pub(crate) fn matrix_extent(rows: usize, cols: usize, ld: usize, row_major: bool
         .ok_or_else(|| Error::out_of_range("matrix extent"))
 }
 
-pub(crate) fn checked_add(value: usize, extra: usize, name: &str) -> Result<usize> {
-    value
-        .checked_add(extra)
-        .ok_or_else(|| Error::out_of_range(name.to_owned()))
-}
-
-pub(crate) fn checked_mul(left: usize, right: usize, name: &str) -> Result<usize> {
-    left.checked_mul(right)
-        .ok_or_else(|| Error::out_of_range(name.to_owned()))
-}
-
 pub(crate) fn workspace<'a>(
     context: &Context,
     buffer: Option<DeviceOutputView<'a, u8>>,

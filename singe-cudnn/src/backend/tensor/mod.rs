@@ -38,7 +38,7 @@ use crate::{
     frontend::error::Error as FrontendError,
     scalar::{ScalarStorage, ScalarValue},
     try_ffi,
-    utility::{check_range, to_i32, to_i64, to_usize},
+    utility::{check_range, checked_element_count, to_i32, to_i64, to_usize},
 };
 
 /// Predefined tensor layout used by [`TensorDescriptor`] constructors.
@@ -591,7 +591,7 @@ impl<T> TensorDescriptor<T> {
     ///
     /// Returns an error if a dimension is nonpositive or cannot be represented as `usize`, or the dimension product overflows `usize`.
     pub fn element_count(&self) -> Result<usize> {
-        checked_element_count_i32(&self.dimensions)
+        checked_element_count(&self.dimensions)
     }
 
     /// Returns the byte length of the tensor in memory for this descriptor.
@@ -973,30 +973,6 @@ fn validate_dimensions(dimensions: &[i64]) -> Result<()> {
         return Err(Error::InvalidDataShape);
     }
     Ok(())
-}
-
-fn checked_element_count_i32(dimensions: &[i32]) -> Result<usize> {
-    dimensions
-        .iter()
-        .copied()
-        .try_fold(1usize, |count, dimension| {
-            let dimension = usize::try_from(dimension).map_err(|_| Error::InvalidDataShape)?;
-            count
-                .checked_mul(dimension)
-                .ok_or_else(|| Error::out_of_range("tensor shape"))
-        })
-}
-
-fn checked_element_count(dimensions: &[i64]) -> Result<usize> {
-    dimensions
-        .iter()
-        .copied()
-        .try_fold(1usize, |count, dimension| {
-            let dimension = usize::try_from(dimension).map_err(|_| Error::InvalidDataShape)?;
-            count
-                .checked_mul(dimension)
-                .ok_or_else(|| Error::out_of_range("tensor shape"))
-        })
 }
 
 fn tensor_logical_element_count(shape: &Shape, lanes: i64) -> Result<usize> {
@@ -2229,9 +2205,10 @@ fn tensor_storage_bit_len(shape: &Shape, data_type: DataType, lanes: u128) -> Re
 }
 
 mod workspace_data_serde {
-    use super::{
-        Arc, Deserialize, Deserializer, GraphHostBuffer, Serialize, Serializer, StdResult,
-    };
+    use std::{result::Result as StdResult, sync::Arc};
+
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use singe_cuda::graph::GraphHostBuffer;
 
     pub fn serialize<S: Serializer>(
         data: &Arc<GraphHostBuffer>,

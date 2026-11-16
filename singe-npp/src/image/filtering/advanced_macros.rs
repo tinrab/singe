@@ -60,7 +60,7 @@ macro_rules! impl_filter_box_border_advanced {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             let required_bytes = $buffer_size_name(destination.size())?;
             let scratch =
@@ -122,7 +122,7 @@ macro_rules! impl_filter_advanced {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_advanced_filter_kernel(kernel)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -132,8 +132,7 @@ macro_rules! impl_filter_advanced {
                     destination.as_mut_ptr().cast(),
                     destination.step(),
                     source.size().into(),
-                    i32::try_from(kernel.len())
-                        .map_err(|_| Error::out_of_range("kernel length"))?,
+                    to_i32(kernel.len(), "kernel length")?,
                     kernel.as_ptr().cast(),
                     stream_context.as_raw(),
                 ))?;
@@ -188,7 +187,7 @@ macro_rules! impl_filter_advanced_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_advanced_filter_kernel(kernel)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -200,8 +199,7 @@ macro_rules! impl_filter_advanced_border {
                     destination.as_mut_ptr().cast(),
                     destination.step(),
                     destination.size().into(),
-                    i32::try_from(kernel.len())
-                        .map_err(|_| Error::out_of_range("kernel length"))?,
+                    to_i32(kernel.len(), "kernel length")?,
                     kernel.as_ptr().cast(),
                     border_type.into(),
                     stream_context.as_raw(),
@@ -272,8 +270,7 @@ macro_rules! impl_filter_gauss_pyramid_border {
                     destination.step(),
                     destination.size().into(),
                     rate,
-                    i32::try_from(kernel.len())
-                        .map_err(|_| Error::out_of_range("kernel length"))?,
+                    to_i32(kernel.len(), "kernel length")?,
                     kernel.as_ptr().cast(),
                     border_type.into(),
                     stream_context.as_raw(),
@@ -332,7 +329,7 @@ macro_rules! impl_filter_bilateral_gauss_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_bilateral_gauss_parameters(
                 radius,
                 step_between_source_pixels,

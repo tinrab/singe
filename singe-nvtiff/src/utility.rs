@@ -29,3 +29,16 @@ pub fn cleanup_stream(stream: &CudaStream) -> BorrowedStream {
     // either directly or by the stream's capture cleanup.
     unsafe { BorrowedStream::from_raw(stream.as_raw(), Arc::clone(stream.context())) }
 }
+
+pub fn checked_pixels(width: u32, height: u32) -> Result<usize> {
+    if width == 0 || height == 0 {
+        return Err(Error::OutOfRange {
+            name: "image dimensions".into(),
+        });
+    }
+    (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| Error::OutOfRange {
+            name: "image dimensions".into(),
+        })
+}

@@ -283,7 +283,7 @@ impl ScalarValue {
 mod nibble {
     use serde::{Deserialize, Deserializer, Serializer};
 
-    use super::PACKED_SCALAR_MASK;
+    use crate::scalar::PACKED_SCALAR_MASK;
 
     #[expect(
         clippy::trivially_copy_pass_by_ref,

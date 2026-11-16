@@ -3,12 +3,10 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        exchange_validation::validate_same_size,
-        view::{C3, C4, ImageOutputView, ImageView, PlanarImageOutputView, PlanarImageView},
-    },
+    image::view::{C3, C4, ImageOutputView, ImageView, PlanarImageOutputView, PlanarImageView},
     try_ffi,
     types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 /// Deinterleaves the packed source image into one destination plane per channel.

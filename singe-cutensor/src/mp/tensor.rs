@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     mp::context::{Context, ContextRef},
     sys, try_ffi,
-    utility::{to_i64_vec, to_u32},
+    utility::{checked_byte_len, collect_optional_mode_values, to_i64_vec, to_u32},
 };
 
 /// Global extent and optional rank-local element and block strides for one tensor mode.
@@ -372,26 +372,6 @@ impl TensorMode {
     }
 }
 
-fn collect_optional_mode_values(
-    modes: &[TensorMode],
-    name: &str,
-    value: impl Fn(&TensorMode) -> Option<u64>,
-) -> Result<Option<Vec<u64>>> {
-    let values = modes.iter().filter_map(value).collect::<Vec<_>>();
-    if values.is_empty() {
-        return Ok(None);
-    }
-
-    if values.len() != modes.len() {
-        return Err(Error::LengthMismatch {
-            name: name.to_owned().into(),
-            expected: modes.len(),
-            actual: values.len(),
-        });
-    }
-    Ok(Some(values))
-}
-
 /// Realized layout of this rank's shard.
 /// Strides and block sizes are in elements.
 ///
@@ -441,10 +421,7 @@ impl TensorDescriptor<'_> {
 
         let array = |attribute| -> Result<Vec<i64>> {
             let mut values = vec![0i64; modes as usize];
-            let bytes = values
-                .len()
-                .checked_mul(size_of::<i64>())
-                .ok_or_else(|| Error::out_of_range("local layout"))?;
+            let bytes = checked_byte_len::<i64>(values.len(), "local layout")?;
             // SAFETY: `cutensorMpTensorDescriptorGetAttribute` receives live handles owned by the wrappers and valid output locations.
             unsafe {
                 try_ffi!(sys::cutensorMpTensorDescriptorGetAttribute(

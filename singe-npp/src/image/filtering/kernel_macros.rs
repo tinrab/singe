@@ -47,7 +47,7 @@ macro_rules! impl_filter_wiener_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             if border_type != BorderType::Replicate {
                 return Err(Error::out_of_range("border type"));
@@ -107,7 +107,7 @@ macro_rules! impl_filter_masked_kernel {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -169,7 +169,7 @@ macro_rules! impl_filter_masked_kernel_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -221,7 +221,7 @@ macro_rules! impl_filter_masked_kernel_typed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -283,7 +283,7 @@ macro_rules! impl_filter_masked_kernel_typed_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -388,7 +388,7 @@ macro_rules! impl_gradient_vector_border {
                     destination_magnitude_size,
                     destination_angle_size,
                 )?;
-                validate_border_roi(source.size(), source_offset, roi)?;
+                $crate::utility::validate_border_roi(source.size(), source_offset, roi)?;
 
                 // SAFETY: the caller upholds this function's safety contract.
                 unsafe {

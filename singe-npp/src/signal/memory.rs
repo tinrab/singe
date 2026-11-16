@@ -20,7 +20,7 @@ use crate::{
     memory::{Allocation, AllocationKind, RawAllocation},
     signal::view::{SignalOutputView, SignalView, SignalViewMut},
     types::{ComplexI16, ComplexI32, ComplexI64, DataTypeLike},
-    utility::to_u64,
+    utility::{checked_byte_len, to_u64},
 };
 
 /// An initialized nonempty signal, or explicit `MaybeUninit<T>` output storage.
@@ -95,9 +95,7 @@ impl<T: SupportedSignal> Signal<T> {
             return Err(Error::out_of_range("signal length"));
         }
 
-        let bytes = length
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| Error::out_of_range("signal allocation size"))?;
+        let bytes = checked_byte_len::<T>(length, "signal allocation size")?;
         let native_length = to_u64(length, "signal length")?;
         context.bind()?;
         // SAFETY: native allocation receives a checked element count and writes no T values.
@@ -232,9 +230,7 @@ impl<T: DeviceRepr> Signal<T> {
         // SAFETY: the caller transfers a live, uniquely owned native allocation.
         let allocation = Arc::new(unsafe { Allocation::from_raw(parts)? });
         let () = T::LAYOUT;
-        let bytes = length
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| Error::out_of_range("signal allocation size"))?;
+        let bytes = checked_byte_len::<T>(length, "signal allocation size")?;
         if length == 0
             || bytes > allocation.byte_len()
             || allocation.kind() != AllocationKind::Signal

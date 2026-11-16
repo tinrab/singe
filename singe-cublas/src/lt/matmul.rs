@@ -34,7 +34,7 @@ use crate::{
     },
     try_ffi,
     types::{ComputeType, FillMode, Operation},
-    utility::{ensure_exact_size, to_i32, to_u64, to_usize},
+    utility::{ensure_exact_size, to_i32, to_size_t, to_u64, to_usize},
 };
 
 /// Describes the configuration for a cuBLASLt matrix multiplication operation.
@@ -1072,7 +1072,7 @@ pub unsafe fn matmul_raw(
     let (workspace_ptr, workspace_size) = workspace.map_or((ptr::null_mut(), 0), |workspace| {
         (workspace.as_mut_ptr().cast(), workspace.len())
     });
-    let workspace_size = to_u64(workspace_size, "workspace size")?;
+    let workspace_size = to_size_t(workspace_size, "workspace size")?;
 
     // SAFETY: `cublasLtMatmul` receives live handles owned by the wrappers.
     unsafe {

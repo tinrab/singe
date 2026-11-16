@@ -20,9 +20,8 @@ use singe_npp_sys as sys;
 pub use self::window::ImageWindow;
 use crate::{
     error::{Error, Result},
-    image::exchange_validation::validate_same_size,
     types::Size,
-    utility::{checked_step, ensure_positive, to_usize},
+    utility::{checked_step, ensure_positive, to_i32, to_usize, validate_same_size},
 };
 
 /// Physical component count and NPP channel-processing semantics of an interleaved pixel layout.
@@ -121,12 +120,11 @@ pub type MaskViewMut<'a> = ImageViewMut<'a, u8, C1>;
 pub type MaskOutputView<'a> = ImageOutputView<'a, u8, C1>;
 
 fn sample_size<L: ChannelLayout>(size: Size) -> Result<Size> {
-    let width =
-        usize::try_from(size.width).map_err(|_| Error::out_of_range("image sample width"))?;
+    let width = to_usize(size.width, "image sample width")?;
     let width = width
         .checked_mul(L::CHANNELS)
         .ok_or_else(|| Error::out_of_range("image sample width"))?;
-    let width = i32::try_from(width).map_err(|_| Error::out_of_range("image sample width"))?;
+    let width = to_i32(width, "image sample width")?;
     Ok(Size::new(width, size.height))
 }
 

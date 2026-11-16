@@ -28,7 +28,7 @@ macro_rules! impl_filter_directional {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -88,7 +88,7 @@ macro_rules! impl_filter_directional_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -138,7 +138,7 @@ macro_rules! impl_filter_directional_typed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(
@@ -198,7 +198,7 @@ macro_rules! impl_filter_directional_typed_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(

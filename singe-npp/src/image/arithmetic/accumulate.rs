@@ -4,10 +4,7 @@ use singe_npp_sys as sys;
 use crate::{
     context::StreamContext,
     error::Result,
-    image::{
-        arithmetic_validation::validate_same_size,
-        view::{C1, ImageView, ImageViewMut, MaskView},
-    },
+    image::view::{C1, ImageView, ImageViewMut, MaskView},
     try_ffi,
 };
 
@@ -41,7 +38,7 @@ macro_rules! impl_accumulate_square {
             stream_context.validate_region(source)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -91,8 +88,8 @@ macro_rules! impl_accumulate_square_masked {
             stream_context.validate_region(mask)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), mask.size())?;
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), mask.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -143,8 +140,8 @@ macro_rules! impl_accumulate_product {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -198,9 +195,9 @@ macro_rules! impl_accumulate_product_masked {
             stream_context.validate_region(mask)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), mask.size())?;
-            validate_same_size(source1.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), mask.size())?;
+            $crate::utility::validate_same_size(source1.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -252,7 +249,7 @@ macro_rules! impl_accumulate_weighted {
             stream_context.validate_region(source)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -304,8 +301,8 @@ macro_rules! impl_accumulate_weighted_masked {
             stream_context.validate_region(mask)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), mask.size())?;
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), mask.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(

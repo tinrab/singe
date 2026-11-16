@@ -15,7 +15,7 @@ use singe_cuda::{
 use crate::{
     error::{Error, Result},
     sys, try_ffi,
-    utility::to_i64,
+    utility::{checked_byte_len, to_i64},
 };
 
 #[derive(Clone, Copy)]
@@ -28,9 +28,7 @@ enum Direction {
 // Check those products before native integer arithmetic.
 fn check_byte_spans<T>(element_spans: &[usize]) -> Result<()> {
     for &elements in element_spans {
-        let bytes = elements
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| Error::out_of_range("copy byte span"))?;
+        let bytes = checked_byte_len::<T>(elements, "copy byte span")?;
         to_i64(bytes, "copy byte span")?;
     }
     Ok(())

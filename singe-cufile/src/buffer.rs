@@ -19,10 +19,10 @@ use singe_cufile_sys as sys;
 use crate::{
     driver::Driver,
     error::{Error, Result},
-    file::{checked_io_size, prepare_buffer},
+    file::prepare_buffer,
     try_ffi,
     types::BufferRegisterFlags,
-    utility::{checked_byte_len, to_u64},
+    utility::{checked_byte_len, checked_io_size, to_u64},
 };
 
 /// A live contiguous host or device storage range, without an initialization claim.

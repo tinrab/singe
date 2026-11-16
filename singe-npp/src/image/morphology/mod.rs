@@ -27,17 +27,6 @@ fn validate_positive_size(size: Size, name: &str) -> Result<()> {
     Err(Error::out_of_range(name.to_owned()))
 }
 
-fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}
-
 fn validate_mask(mask: &[u8], mask_size: Size, anchor: Point) -> Result<()> {
     validate_mask_shape(mask, mask_size, anchor)
 }
@@ -63,30 +52,5 @@ fn validate_mask_shape<T>(mask: &[T], mask_size: Size, anchor: Point) -> Result<
         name: "mask".into(),
         expected,
         actual: mask.len(),
-    })
-}
-
-fn validate_border_roi(source: Size, source_offset: Point, roi: Size) -> Result<()> {
-    if source_offset.x < 0 || source_offset.y < 0 {
-        return Err(Error::out_of_range("source offset"));
-    }
-
-    let right = source_offset
-        .x
-        .checked_add(roi.width)
-        .ok_or_else(|| Error::out_of_range("source offset"))?;
-    let bottom = source_offset
-        .y
-        .checked_add(roi.height)
-        .ok_or_else(|| Error::out_of_range("source offset"))?;
-
-    if right <= source.width && bottom <= source.height {
-        return Ok(());
-    }
-
-    Err(Error::SizeMismatch {
-        name: "border roi".into(),
-        expected: source,
-        actual: roi,
     })
 }

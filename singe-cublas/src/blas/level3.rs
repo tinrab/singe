@@ -19,7 +19,10 @@ use crate::{
     scalar::Scalar,
     sys, try_ffi,
     types::{ComputeType, DiagonalType, FillMode, GemmAlgorithm, Operation, PointerMode, SideMode},
-    utility::{required_matrix_len, required_vector_len, to_i32, to_i64, to_usize},
+    utility::{
+        required_matrix_len, required_packed_triangular_len, required_vector_len, to_i32, to_i64,
+        to_usize,
+    },
 };
 
 /// Supports the 64-bit integer interface.
@@ -2507,15 +2510,6 @@ fn validate_tpttr_shapes(n: usize, ap_len: usize, a_len: usize, lda: usize) -> R
     }
 
     Ok(())
-}
-
-fn required_packed_triangular_len(n: usize) -> Result<usize> {
-    n.checked_mul(
-        n.checked_add(1)
-            .ok_or_else(|| Error::out_of_range("packed triangular length"))?,
-    )
-    .and_then(|value| value.checked_div(2))
-    .ok_or_else(|| Error::out_of_range("packed triangular length"))
 }
 
 fn validate_symmetric_matrix_multiply_shapes(

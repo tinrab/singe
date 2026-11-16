@@ -19,7 +19,7 @@ use singe_cuda::{
 use crate::{
     error::{Error, Result},
     sys, try_ffi,
-    utility::{ensure_primary_context, to_u64},
+    utility::{checked_byte_len, ensure_primary_context, to_u64},
 };
 
 /// NCCL's native allocation owner, independent of typed initialization and access.
@@ -87,9 +87,7 @@ impl<T: DeviceRepr> Memory<T> {
     /// Returns an error if the allocation size overflows, the context is not the device primary CUDA context, CUDA context binding fails, or NCCL cannot allocate suitably aligned storage.
     pub fn create_uninit(context: &Arc<Context>, length: usize) -> Result<Memory<MaybeUninit<T>>> {
         let () = T::LAYOUT;
-        let bytes = length
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| Error::out_of_range("nccl allocation size"))?;
+        let bytes = checked_byte_len::<T>(length, "nccl allocation size")?;
         let native_bytes = to_u64(bytes, "nccl allocation size")?;
         ensure_primary_context(context)?;
         context.bind()?;
@@ -146,10 +144,7 @@ impl<T: DeviceRepr> Memory<T> {
     pub unsafe fn from_raw(parts: RawMemory<T>) -> Result<Self> {
         let () = T::LAYOUT;
         ensure_primary_context(&parts.context)?;
-        let bytes = parts
-            .length
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| Error::out_of_range("nccl allocation size"))?;
+        let bytes = checked_byte_len::<T>(parts.length, "nccl allocation size")?;
         if bytes > parts.allocation_bytes
             || parts.allocation_bytes != 0 && parts.pointer.is_null()
             || !parts.pointer.addr().is_multiple_of(align_of::<T>())

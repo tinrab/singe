@@ -27,17 +27,3 @@ pub fn validate_x_matrix(
     }
     Ok(())
 }
-
-pub fn require_workspace_bytes(actual: usize, required: usize) -> Result<()> {
-    if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
-    }
-    Ok(())
-}
-
-pub fn require_host_workspace(actual: usize, required: usize) -> Result<()> {
-    if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
-    }
-    Ok(())
-}

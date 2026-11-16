@@ -31,12 +31,12 @@ impl<'a, T, L: ChannelLayout> ImageView<'a, T, L> {
             .size
             .width
             .checked_sub(offset.x)
-            .ok_or_else(|| invalid("image window width"))?;
+            .ok_or_else(|| Error::out_of_range("image window width"))?;
         let height = self
             .size
             .height
             .checked_sub(offset.y)
-            .ok_or_else(|| invalid("image window height"))?;
+            .ok_or_else(|| Error::out_of_range("image window height"))?;
         self.window(Rectangle {
             x: offset.x,
             y: offset.y,
@@ -61,11 +61,11 @@ impl<'a, T, L: ChannelLayout> ImageView<'a, T, L> {
                     .and_then(|samples| samples.checked_mul(size_of::<T>()))
                     .and_then(|columns| rows.checked_add(columns))
             })
-            .ok_or_else(|| invalid("image window offset"))?;
+            .ok_or_else(|| Error::out_of_range("image window offset"))?;
         let bytes = image_byte_len::<T, L>(roi.size(), self.step)?;
         let end = offset
             .checked_add(bytes)
-            .ok_or_else(|| invalid("image window end"))?;
+            .ok_or_else(|| Error::out_of_range("image window end"))?;
         let pixels = ImageView {
             region: self.region.slice(offset..end)?,
             size: roi.size(),
@@ -92,13 +92,13 @@ impl<'a, T, L: ChannelLayout> ImageView<'a, T, L> {
             .width
             .checked_sub(mask.width)
             .and_then(|n| n.checked_add(1))
-            .ok_or_else(|| invalid("image window width"))?;
+            .ok_or_else(|| Error::out_of_range("image window width"))?;
         let height = self
             .size
             .height
             .checked_sub(mask.height)
             .and_then(|n| n.checked_add(1))
-            .ok_or_else(|| invalid("image window height"))?;
+            .ok_or_else(|| Error::out_of_range("image window height"))?;
         self.window(Rectangle {
             x: anchor.x,
             y: anchor.y,
@@ -155,22 +155,22 @@ impl<'a, T, L: ChannelLayout> ImageWindow<'a, T, L> {
             .roi
             .x
             .checked_sub(anchor.x)
-            .ok_or_else(|| invalid("image halo origin"))?;
+            .ok_or_else(|| Error::out_of_range("image halo origin"))?;
         let y = self
             .roi
             .y
             .checked_sub(anchor.y)
-            .ok_or_else(|| invalid("image halo origin"))?;
+            .ok_or_else(|| Error::out_of_range("image halo origin"))?;
         let width = self
             .roi
             .width
             .checked_add(mask.width - 1)
-            .ok_or_else(|| invalid("image halo width"))?;
+            .ok_or_else(|| Error::out_of_range("image halo width"))?;
         let height = self
             .roi
             .height
             .checked_add(mask.height - 1)
-            .ok_or_else(|| invalid("image halo height"))?;
+            .ok_or_else(|| Error::out_of_range("image halo height"))?;
         Rectangle {
             x,
             y,
@@ -192,11 +192,7 @@ unsafe impl<T, L> DeviceRegionProvider for ImageWindow<'_, T, L> {
 fn validate_anchor(mask: Size, anchor: Point) -> Result<()> {
     mask.validate()?;
     if anchor.x < 0 || anchor.y < 0 || anchor.x >= mask.width || anchor.y >= mask.height {
-        return Err(invalid("image mask anchor"));
+        return Err(Error::out_of_range("image mask anchor"));
     }
     Ok(())
-}
-
-fn invalid(name: &str) -> Error {
-    Error::out_of_range(name.to_owned())
 }

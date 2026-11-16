@@ -21,7 +21,7 @@ use crate::{
     error::{Error, Result, Status},
     stream::AsyncIo,
     try_ffi,
-    utility::{null_fs_ops, to_i64, to_u64, to_usize},
+    utility::{checked_io_size, null_fs_ops, to_i64, to_u64, to_usize},
 };
 
 /// A shared cuFile registration that retains its driver session and any owned file descriptor.
@@ -489,21 +489,6 @@ pub(crate) fn operation_result(result: i64) -> Result<usize> {
         return Err(io::Error::from_raw_os_error(code).into());
     }
     to_usize(result, "result")
-}
-
-pub(crate) fn checked_io_size(
-    buffer_size: usize,
-    size: usize,
-    buffer_offset: u64,
-) -> Result<usize> {
-    let offset = to_usize(buffer_offset, "buffer_offset")?;
-    let available = buffer_size
-        .checked_sub(offset)
-        .ok_or_else(|| Error::out_of_range("buffer_offset"))?;
-    if size > available {
-        return Err(Error::out_of_range("size"));
-    }
-    Ok(size)
 }
 
 pub(crate) fn prepare_buffer<B: IoBuffer + ?Sized>(

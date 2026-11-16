@@ -21,7 +21,7 @@ use crate::{
     error::{Error, Result, Status},
     sys, try_ffi,
     types::{CommunicatorState, Config, ShrinkFlags, SplitColor, UniqueId},
-    utility::{ensure_primary_context, to_i32, to_u64, to_usize},
+    utility::{ensure_primary_context, to_i32, to_usize},
 };
 
 /// A stateful NCCL communicator in a device primary CUDA context.
@@ -692,13 +692,6 @@ impl Communicator {
             state: self.state().name().into(),
         })
     }
-}
-
-fn buffer_byte_len(len: usize, name: &str, element_size: usize) -> Result<u64> {
-    let byte_len = len
-        .checked_mul(element_size)
-        .ok_or_else(|| Error::out_of_range(name.to_owned()))?;
-    to_u64(byte_len, name)
 }
 
 #[cfg(all(test, feature = "testing"))]

@@ -13,6 +13,7 @@ use crate::{
         ImagePipeline,
         statistics::{HistogramEvenImage, HistogramRangeImage, ImageStatistic},
     },
+    utility::{histogram_range_bins, to_usize},
 };
 
 impl<T, L> ImagePipeline<'_, T, L>
@@ -157,7 +158,7 @@ where
             return Err(Error::out_of_range("levels"));
         }
 
-        let bins = usize::try_from(levels - 1).map_err(|_| Error::out_of_range("levels"))?;
+        let bins = to_usize(levels - 1, "levels")?;
         let mut histogram =
             DeviceMemory::<i32>::create_uninit(self.stream_context.cuda_context(), bins)?;
         {
@@ -176,11 +177,4 @@ where
             histogram.assume_init()
         }))
     }
-}
-
-fn histogram_range_bins<Level>(levels: &[Level]) -> Result<usize> {
-    if levels.len() < 2 {
-        return Err(Error::out_of_range("levels"));
-    }
-    Ok(levels.len() - 1)
 }

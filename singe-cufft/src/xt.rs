@@ -26,7 +26,7 @@ use crate::{
     plan::Plan as BasePlan,
     try_ffi,
     types::Direction,
-    utility::{to_i32, to_usize},
+    utility::{checked_byte_len, to_i32, to_usize},
 };
 
 /// Layout of distributed FFT storage.
@@ -184,7 +184,7 @@ impl Layout {
             || self.batch <= 0
             || self.dimensions.iter().any(|&n| n <= 0)
         {
-            return Err(invalid("FFT dimensions"));
+            return Err(Error::out_of_range("FFT dimensions"));
         }
 
         let (ty, embedding, stride, distance) = if input {
@@ -216,7 +216,7 @@ impl Layout {
                 || distance <= 0
                 || embedding.iter().zip(&dimensions).any(|(e, n)| e < n)
             {
-                return Err(invalid("FFT strides"));
+                return Err(Error::out_of_range("FFT strides"));
             }
 
             let mut offset = 0i64;
@@ -224,7 +224,7 @@ impl Layout {
                 offset = offset
                     .checked_mul(embed)
                     .and_then(|v| v.checked_add(extent - 1))
-                    .ok_or_else(|| invalid("FFT span"))?;
+                    .ok_or_else(|| Error::out_of_range("FFT span"))?;
             }
             offset
                 .checked_mul(stride)
@@ -234,10 +234,11 @@ impl Layout {
                         .and_then(|b| v.checked_add(b))
                 })
                 .and_then(|v| v.checked_add(1))
-                .ok_or_else(|| invalid("FFT span"))?
+                .ok_or_else(|| Error::out_of_range("FFT span"))?
         } else {
             dimensions.iter().try_fold(self.batch, |a, &b| {
-                a.checked_mul(b).ok_or_else(|| invalid("FFT span"))
+                a.checked_mul(b)
+                    .ok_or_else(|| Error::out_of_range("FFT span"))
             })?
         };
         to_usize(elements, "FFT elements")
@@ -249,10 +250,6 @@ fn complex(ty: DataType) -> bool {
         ty,
         DataType::ComplexF16 | DataType::ComplexBf16 | DataType::ComplexF32 | DataType::ComplexF64
     )
-}
-
-fn invalid(name: &str) -> Error {
-    Error::out_of_range(name.to_owned())
 }
 
 #[derive(Debug)]
@@ -319,12 +316,12 @@ impl Plan {
         layout.required_elements(true)?;
         layout.required_elements(false)?;
         if !complex(layout.execution_type) {
-            return Err(invalid("execution data type"));
+            return Err(Error::out_of_range("execution data type"));
         }
 
         let mut devices = gpus.to_vec();
         if devices.len() == 1 || devices.len() > 64 {
-            return Err(invalid("GPU count"));
+            return Err(Error::out_of_range("GPU count"));
         }
 
         let base = Arc::new(PlanHandle {
@@ -345,7 +342,7 @@ impl Plan {
 
         if let Some((symbol, code, kind, caller_info)) = callback {
             if caller_info.len() != devices.len().max(1) {
-                return Err(invalid("callback caller-info count"));
+                return Err(Error::out_of_range("callback caller-info count"));
             }
 
             let metadata = CallbackMetadata {
@@ -511,7 +508,7 @@ impl Plan {
         self.ensure_unique()?;
         let _native = self.base.guard()?;
         if limits.len() != self.workspace_sizes.len() {
-            return Err(invalid("workspace limits"));
+            return Err(Error::out_of_range("workspace limits"));
         }
 
         self.base.base.bind()?;
@@ -541,7 +538,7 @@ impl Plan {
         self.ensure_unique()?;
         let _native = self.base.guard()?;
         if areas.len() != self.workspace_sizes.len() {
-            return Err(invalid("workspace pointer count"));
+            return Err(Error::out_of_range("workspace pointer count"));
         }
 
         self.base.base.bind()?;
@@ -564,7 +561,7 @@ impl Plan {
     /// Returns an error if fewer than two GPUs were selected, the stream is being captured, CUDA context operations or synchronization fail, cuFFT allocation fails, or the returned descriptor contains null, empty, overflowing, or inconsistent device-allocation metadata.
     pub fn allocate_uninit(&self, format: SubFormat) -> Result<DistributedMemory> {
         if self.gpus.len() < 2 {
-            return Err(invalid("distributed GPU count"));
+            return Err(Error::out_of_range("distributed GPU count"));
         }
 
         if let Some(stream) = &self.stream {
@@ -599,7 +596,7 @@ impl Plan {
         };
         allocation.describe_chunks()?;
         if allocation.byte_len == 0 {
-            return Err(invalid("distributed allocation bytes"));
+            return Err(Error::out_of_range("distributed allocation bytes"));
         }
 
         // Publish allocation metadata only after SDK allocation work is ready in its actual contexts.
@@ -634,7 +631,7 @@ impl Plan {
         direction: Direction,
     ) -> Result<()> {
         if self.gpus.len() > 1 {
-            return Err(invalid("single-GPU execution"));
+            return Err(Error::out_of_range("single-GPU execution"));
         }
 
         self.check_buffer::<I>(input.len(), true)?;
@@ -677,22 +674,22 @@ impl Plan {
         direction: Direction,
     ) -> Result<()> {
         if self.gpus.len() > 1 || T::data_type() != self.layout.input_type {
-            return Err(invalid("in-place input type or GPU count"));
+            return Err(Error::out_of_range("in-place input type or GPU count"));
         }
 
         let input = self
             .layout
             .required_elements(true)?
             .checked_mul(self.layout.input_type.size_of())
-            .ok_or_else(|| invalid("input bytes"))?;
+            .ok_or_else(|| Error::out_of_range("input bytes"))?;
         let output = self
             .layout
             .required_elements(false)?
             .checked_mul(self.layout.output_type.size_of())
-            .ok_or_else(|| invalid("output bytes"))?;
+            .ok_or_else(|| Error::out_of_range("output bytes"))?;
         let memory = memory.into_region();
         if memory.byte_len() < input.max(output) {
-            return Err(invalid("in-place storage"));
+            return Err(Error::out_of_range("in-place storage"));
         }
 
         let _native = self.base.guard()?;
@@ -735,7 +732,7 @@ impl Plan {
         if !Arc::ptr_eq(&self.base, &input.allocation.base)
             || !Arc::ptr_eq(&self.base, &output.allocation.base)
         {
-            return Err(invalid("distributed allocation plan"));
+            return Err(Error::out_of_range("distributed allocation plan"));
         }
 
         let _native = self.base.guard()?;
@@ -769,14 +766,14 @@ impl Plan {
         direction: Direction,
     ) -> Result<()> {
         if !Arc::ptr_eq(&self.base, &memory.allocation.base) {
-            return Err(invalid("distributed allocation plan"));
+            return Err(Error::out_of_range("distributed allocation plan"));
         }
 
         if !matches!(
             memory.format,
             SubFormat::InPlace | SubFormat::InPlaceShuffled
         ) {
-            return Err(invalid("in-place format"));
+            return Err(Error::out_of_range("in-place format"));
         }
 
         let _native = self.base.guard()?;
@@ -849,7 +846,7 @@ impl Plan {
         self.ensure_unique()?;
         let _native = self.base.guard()?;
         if callbacks.len() != self.workspace_sizes.len() || caller_info.len() != callbacks.len() {
-            return Err(invalid("callback count"));
+            return Err(Error::out_of_range("callback count"));
         }
 
         self.base.base.bind()?;
@@ -999,7 +996,7 @@ impl DistributedAllocation {
             .ok_or(Error::NullHandle)?;
         let count = to_usize(descriptor.nGPUs, "GPU count")?;
         if count == 0 || count > descriptor.data.len() {
-            return Err(invalid("GPU count"));
+            return Err(Error::out_of_range("GPU count"));
         }
 
         for index in 0..count {
@@ -1007,7 +1004,7 @@ impl DistributedAllocation {
             self.byte_len = self
                 .byte_len
                 .checked_add(bytes)
-                .ok_or_else(|| invalid("allocation bytes"))?;
+                .ok_or_else(|| Error::out_of_range("allocation bytes"))?;
             if bytes == 0 {
                 continue;
             }
@@ -1034,12 +1031,12 @@ impl DistributedAllocation {
                 let context =
                     CudaContext::retain_primary_for_device(Device::new(descriptor.GPUs[index]))?;
                 if context.as_raw() != raw_context {
-                    return Err(invalid("distributed allocation CUDA context"));
+                    return Err(Error::out_of_range("distributed allocation CUDA context"));
                 }
                 context
             };
             if context.device().id() != descriptor.GPUs[index] {
-                return Err(invalid("distributed allocation GPU"));
+                return Err(Error::out_of_range("distributed allocation GPU"));
             }
 
             let allocation_id = AllocationId::create();
@@ -1138,11 +1135,9 @@ impl DistributedMemory {
     }
 
     fn check_host_storage<T>(&self, len: usize) -> Result<()> {
-        let bytes = len
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| invalid("host storage bytes"))?;
+        let bytes = checked_byte_len::<T>(len, "host storage bytes")?;
         if bytes < self.byte_len() {
-            return Err(invalid("host storage bytes"));
+            return Err(Error::out_of_range("host storage bytes"));
         }
         Ok(())
     }
@@ -1205,11 +1200,10 @@ impl DistributedMemory {
         values: &'host mut [MaybeUninit<T>],
         initialized_elements: usize,
     ) -> Result<&'host mut [T]> {
-        let initialized_bytes = initialized_elements
-            .checked_mul(size_of::<T>())
-            .ok_or_else(|| invalid("initialized prefix bytes"))?;
+        let initialized_bytes =
+            checked_byte_len::<T>(initialized_elements, "initialized prefix bytes")?;
         if initialized_elements > values.len() || initialized_bytes > self.byte_len() {
-            return Err(invalid("initialized prefix"));
+            return Err(Error::out_of_range("initialized prefix"));
         }
 
         self.copy_to_host(values)?;
@@ -1225,11 +1219,11 @@ impl DistributedMemory {
     /// Returns an error if the source belongs to another native plan, the destination has fewer allocation bytes than the source, the stream is being captured, CUDA context operations or synchronization fail, or cuFFT cannot perform the copy.
     pub fn copy_from(&mut self, source: &Self) -> Result<()> {
         if !Arc::ptr_eq(&self.allocation.base, &source.allocation.base) {
-            return Err(invalid("distributed allocation plan"));
+            return Err(Error::out_of_range("distributed allocation plan"));
         }
 
         if self.byte_len() < source.byte_len() {
-            return Err(invalid("distributed destination bytes"));
+            return Err(Error::out_of_range("distributed destination bytes"));
         }
         self.allocation
             // SAFETY: `cufftXtMemcpy` receives live handles owned by the wrappers.
@@ -1280,7 +1274,7 @@ fn check_buffer<T: DataTypeLike>(layout: &Layout, len: usize, input: bool) -> Re
         layout.output_type
     };
     if T::data_type() != expected_type {
-        return Err(invalid("FFT buffer data type"));
+        return Err(Error::out_of_range("FFT buffer data type"));
     }
 
     let expected = layout.required_elements(input)?;

@@ -5,12 +5,12 @@ use crate::{
     context::StreamContext,
     error::{Error, Result},
     image::{
-        filtering_validation::{validate_border_roi, validate_positive_size},
+        filtering_validation::validate_positive_size,
         view::{C1, C3, ChannelLayout, ImageView},
     },
     try_ffi,
     types::{BorderType, DataTypeLike, HistogramOfGradientsConfig, Point, Size},
-    utility::to_usize,
+    utility::{to_i32, to_usize},
 };
 
 /// Returns the device scratch capacity in bytes for HOG descriptor extraction.
@@ -27,8 +27,7 @@ pub fn histogram_of_gradients_border_buffer_size(
     roi: Size,
 ) -> Result<usize> {
     validate_positive_size(roi)?;
-    let location_count =
-        i32::try_from(locations.len()).map_err(|_| Error::out_of_range("location count"))?;
+    let location_count = to_i32(locations.len(), "location count")?;
     let mut bytes = 0;
     // SAFETY: `nppiHistogramOfGradientsBorderGetBufferSize` receives valid output locations and pointers into buffers borrowed for the call.
     unsafe {
@@ -57,8 +56,7 @@ pub fn histogram_of_gradients_border_descriptors_size(
     config: HistogramOfGradientsConfig,
     location_count: usize,
 ) -> Result<usize> {
-    let location_count =
-        i32::try_from(location_count).map_err(|_| Error::out_of_range("location count"))?;
+    let location_count = to_i32(location_count, "location count")?;
     let mut bytes = 0;
     // SAFETY: `nppiHistogramOfGradientsBorderGetDescriptorsSize` receives valid output locations.
     unsafe {
@@ -128,7 +126,7 @@ macro_rules! impl_histogram_of_gradients_border {
             stream_context.validate_region(descriptors)?;
             stream_context.validate_region(scratch)?;
 
-            validate_border_roi(source.size(), source_offset, roi)?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, roi)?;
             let descriptor_bytes =
                 histogram_of_gradients_border_descriptors_size(config, locations.len())?;
             if descriptors.region().byte_len() < descriptor_bytes {
@@ -138,8 +136,7 @@ macro_rules! impl_histogram_of_gradients_border {
             if scratch.len() < scratch_bytes {
                 return Err(Error::out_of_range("scratch length"));
             }
-            let location_count = i32::try_from(locations.len())
-                .map_err(|_| Error::out_of_range("location count"))?;
+            let location_count = to_i32(locations.len(), "location count")?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi_name(

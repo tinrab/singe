@@ -26,24 +26,15 @@ use crate::{
         BorderType, CompressedMarkerLabelsInfo, ContourBlockSegment, ContourPixelGeometryInfo,
         MaskSize, Point, PointPolar, Size,
     },
-    utility::batch_size_i32,
+    utility::{
+        batch_size_i32, checked_byte_len, largest_size, smallest_size, to_i32, to_usize,
+        validate_same_size,
+    },
     workspace::{BufferDescriptors, create_buffer_descriptors, create_repeated_buffer_descriptors},
 };
 
-pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}
-
 pub fn validate_filter_kernel_any<T>(kernel: &[T], anchor: i32) -> Result<()> {
-    let mask_size =
-        i32::try_from(kernel.len()).map_err(|_| Error::out_of_range("kernel length"))?;
+    let mask_size = to_i32(kernel.len(), "kernel length")?;
     if mask_size <= 0 {
         return Err(Error::out_of_range("kernel length"));
     }
@@ -176,10 +167,8 @@ pub fn validate_filter_mask(mask_size: Size, anchor: Point) -> Result<()> {
 
 pub fn validate_filter_kernel_2d<T>(kernel: &[T], kernel_size: Size, anchor: Point) -> Result<()> {
     validate_filter_mask(kernel_size, anchor)?;
-    let width =
-        usize::try_from(kernel_size.width).map_err(|_| Error::out_of_range("kernel width"))?;
-    let height =
-        usize::try_from(kernel_size.height).map_err(|_| Error::out_of_range("kernel height"))?;
+    let width = to_usize(kernel_size.width, "kernel width")?;
+    let height = to_usize(kernel_size.height, "kernel height")?;
     let expected = width
         .checked_mul(height)
         .ok_or_else(|| Error::out_of_range("kernel length"))?;
@@ -188,31 +177,6 @@ pub fn validate_filter_kernel_2d<T>(kernel: &[T], kernel_size: Size, anchor: Poi
     }
 
     Err(Error::out_of_range("kernel length"))
-}
-
-pub fn validate_border_roi(source: Size, source_offset: Point, roi: Size) -> Result<()> {
-    if source_offset.x < 0 || source_offset.y < 0 {
-        return Err(Error::out_of_range("source offset"));
-    }
-
-    let right = source_offset
-        .x
-        .checked_add(roi.width)
-        .ok_or_else(|| Error::out_of_range("source offset"))?;
-    let bottom = source_offset
-        .y
-        .checked_add(roi.height)
-        .ok_or_else(|| Error::out_of_range("source offset"))?;
-
-    if right <= source.width && bottom <= source.height {
-        return Ok(());
-    }
-
-    Err(Error::SizeMismatch {
-        name: "border roi".into(),
-        expected: source,
-        actual: roi,
-    })
 }
 
 pub fn validate_canny_thresholds(low_threshold: i16, high_threshold: i16) -> Result<()> {
@@ -284,8 +248,7 @@ pub fn validate_hough_line_io(
         return Err(Error::StreamContextMismatch);
     }
 
-    let max_line_count =
-        i32::try_from(lines.len()).map_err(|_| Error::out_of_range("max line count"))?;
+    let max_line_count = to_i32(lines.len(), "max line count")?;
     validate_positive_size(roi)?;
     validate_hough_line_parameters(delta, max_line_count)?;
     if threshold <= 0 {
@@ -383,13 +346,9 @@ pub fn validate_label_marker_step(source_destination: &ImageViewMut<'_, u32, C1>
 }
 
 pub fn validate_u32_label_marker_step(size: Size, step: i32) -> Result<()> {
-    let width =
-        usize::try_from(size.width).map_err(|_| Error::out_of_range("source destination step"))?;
-    let expected = width
-        .checked_mul(size_of::<u32>())
-        .ok_or_else(|| Error::out_of_range("source destination step"))?;
-    let actual =
-        usize::try_from(step).map_err(|_| Error::out_of_range("source destination step"))?;
+    let width = to_usize(size.width, "source destination step")?;
+    let expected = checked_byte_len::<u32>(width, "source destination step")?;
+    let actual = to_usize(step, "source destination step")?;
 
     if actual == expected {
         return Ok(());
@@ -441,8 +400,7 @@ pub fn validate_u32_list_dev_output(
     max_marker_label_id: u32,
     name: &str,
 ) -> Result<()> {
-    let expected = usize::try_from(max_marker_label_id)
-        .map_err(|_| Error::out_of_range("max marker label id"))?;
+    let expected = to_usize(max_marker_label_id, "max marker label id")?;
     if output_dev.len() >= expected {
         return Ok(());
     }
@@ -455,7 +413,7 @@ pub fn validate_u32_list_dev_output(
 }
 
 pub fn validate_u32_list_host_output(output_host: &[u32], count: u32, name: &str) -> Result<()> {
-    let expected = usize::try_from(count).map_err(|_| Error::out_of_range(name.to_owned()))?;
+    let expected = to_usize(count, name)?;
     if output_host.len() >= expected {
         return Ok(());
     }
@@ -483,8 +441,7 @@ pub fn validate_u32_list_output(
     max_marker_label_id: u32,
     name: &str,
 ) -> Result<()> {
-    let expected = usize::try_from(max_marker_label_id)
-        .map_err(|_| Error::out_of_range("max marker label id"))?;
+    let expected = to_usize(max_marker_label_id, "max marker label id")?;
     if output_dev.len() < expected {
         return Err(Error::LengthMismatch {
             name: name.to_owned().into(),
@@ -504,8 +461,7 @@ pub fn validate_u32_list_output(
 }
 
 pub fn validate_typed_output_len(actual: usize, expected_count: u32, name: &str) -> Result<()> {
-    let expected =
-        usize::try_from(expected_count).map_err(|_| Error::out_of_range(name.to_owned()))?;
+    let expected = to_usize(expected_count, name)?;
     if actual == expected {
         return Ok(());
     }
@@ -567,12 +523,9 @@ pub fn validate_geometry_list_buffers(
 }
 
 pub fn validate_contours_geometry_image_host(output: &[u8], size: Size, step: i32) -> Result<()> {
-    let step =
-        usize::try_from(step).map_err(|_| Error::out_of_range("contours geometry image step"))?;
-    let width = usize::try_from(size.width)
-        .map_err(|_| Error::out_of_range("contours geometry image width"))?;
-    let height = usize::try_from(size.height)
-        .map_err(|_| Error::out_of_range("contours geometry image height"))?;
+    let step = to_usize(step, "contours geometry image step")?;
+    let width = to_usize(size.width, "contours geometry image width")?;
+    let height = to_usize(size.height, "contours geometry image height")?;
     let required = if height == 0 {
         0
     } else {
@@ -628,7 +581,7 @@ pub fn label_markers_uf_batch_descriptors<T>(
     DeviceMemory<sys::NppiImageDescriptor>,
     DeviceMemory<sys::NppiImageDescriptor>,
 )> {
-    let batch_size = label_markers_uf_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
 
     for (source, destination) in sources.iter().zip(destinations.iter_mut()) {
         validate_same_size(source.size(), destination.size())?;
@@ -665,7 +618,7 @@ pub fn label_markers_uf_batch_advanced_descriptors<T>(
     DeviceMemory<sys::NppiImageDescriptor>,
     DeviceMemory<sys::NppiImageDescriptor>,
 )> {
-    let batch_size = label_markers_uf_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
 
     for (source, destination) in sources.iter().zip(destinations.iter_mut()) {
         validate_same_size(source.size(), destination.size())?;
@@ -691,8 +644,7 @@ pub fn compress_marker_labels_uf_batch_descriptors(
     allocation_context: &Arc<CudaContext>,
     source_destinations: &mut [ImageViewMut<'_, u32, C1>],
 ) -> Result<(i32, Size, DeviceMemory<sys::NppiImageDescriptor>)> {
-    let batch_size =
-        label_markers_uf_batch_size(source_destinations.len(), source_destinations.len())?;
+    let batch_size = batch_size_i32(source_destinations.len(), source_destinations.len())?;
     let roi = validate_equal_size(source_destinations)?;
     for image in source_destinations.iter() {
         validate_label_marker_step(image)?;
@@ -710,8 +662,7 @@ pub fn compress_marker_labels_uf_batch_advanced_descriptors(
     allocation_context: &Arc<CudaContext>,
     source_destinations: &mut [ImageViewMut<'_, u32, C1>],
 ) -> Result<(i32, Size, DeviceMemory<sys::NppiImageDescriptor>)> {
-    let batch_size =
-        label_markers_uf_batch_size(source_destinations.len(), source_destinations.len())?;
+    let batch_size = batch_size_i32(source_destinations.len(), source_destinations.len())?;
     for image in source_destinations.iter() {
         validate_label_marker_step(image)?;
     }
@@ -771,30 +722,6 @@ pub fn roi_area(roi: Size) -> Result<i32> {
     roi.width
         .checked_mul(roi.height)
         .ok_or_else(|| Error::out_of_range("starting number"))
-}
-
-pub fn label_markers_uf_batch_size(source_len: usize, destination_len: usize) -> Result<i32> {
-    batch_size_i32(source_len, destination_len)
-}
-
-pub fn smallest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
-    sizes
-        .into_iter()
-        .reduce(|left, right| Size {
-            width: left.width.min(right.width),
-            height: left.height.min(right.height),
-        })
-        .ok_or_else(|| Error::out_of_range("batch size"))
-}
-
-pub fn largest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
-    sizes
-        .into_iter()
-        .reduce(|left, right| Size {
-            width: left.width.max(right.width),
-            height: left.height.max(right.height),
-        })
-        .ok_or_else(|| Error::out_of_range("batch size"))
 }
 
 pub type AdvancedMarkerBuffers = (usize, Vec<DeviceMemory<MaybeUninit<u8>>>, BufferDescriptors);

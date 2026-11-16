@@ -15,7 +15,7 @@ use crate::{
     layout::{MatrixMut, MatrixOutput, MatrixRef},
     sys, try_ffi,
     types::{IrsRefinement, PrecisionType},
-    utility::{to_i32, to_u64, to_usize},
+    utility::{require_workspace_bytes, to_i32, to_u64, to_usize, validate_matrix},
 };
 
 /// Owns iterative-refinement configuration and tracks its main and lowest precisions.
@@ -778,17 +778,12 @@ impl IrsInfos {
             .max_iterations()?
             .checked_add(1)
             .ok_or(Error::InvalidResidualHistory)
-            .and_then(|value| {
-                usize::try_from(value)
-                    .map_err(|_| Error::out_of_range("residual history leading dimension"))
-            })?;
+            .and_then(|value| to_usize(value, "residual history leading dimension"))?;
         let valid_rows = self
             .outer_niters()?
             .checked_add(1)
             .ok_or(Error::InvalidResidualHistory)
-            .and_then(|value| {
-                usize::try_from(value).map_err(|_| Error::out_of_range("residual history rows"))
-            })?;
+            .and_then(|value| to_usize(value, "residual history rows"))?;
 
         if valid_rows > leading_dimension {
             return Err(Error::InvalidResidualHistory);
@@ -1103,13 +1098,6 @@ fn require_info_buffer(dev_info: &impl DeviceOutput<i32>) -> Result<()> {
     Ok(())
 }
 
-fn require_workspace_bytes(actual: usize, required: usize) -> Result<()> {
-    if actual < required {
-        return Err(Error::InsufficientWorkspaceSize { required, actual });
-    }
-    Ok(())
-}
-
 unsafe fn copy_residual_history<T: Copy>(
     history: *const T,
     leading_dimension: usize,
@@ -1128,22 +1116,6 @@ unsafe fn copy_residual_history<T: Copy>(
         rows,
         leading_dimension,
     }
-}
-
-fn validate_matrix(rows: usize, cols: usize, len: usize, lda: usize) -> Result<()> {
-    if rows == 0 || cols == 0 {
-        return Err(Error::InvalidMatrixShape);
-    }
-
-    if lda < rows {
-        return Err(Error::InvalidLeadingDimension);
-    }
-
-    let required = lda.checked_mul(cols).ok_or(Error::InvalidMatrixShape)?;
-    if len < required {
-        return Err(Error::InvalidMatrixShape);
-    }
-    Ok(())
 }
 
 #[cfg(all(test, feature = "testing"))]

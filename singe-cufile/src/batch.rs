@@ -15,10 +15,10 @@ use crate::{
     buffer::{IoInput, IoOutput},
     driver::Driver,
     error::{Error, Result},
-    file::{FileHandle, checked_io_size, io_pointer, operation_result, prepare_buffer},
+    file::{FileHandle, io_pointer, operation_result, prepare_buffer},
     try_ffi,
     types::{BatchStatus, Operation},
-    utility::{to_i64, to_u32, to_u64},
+    utility::{checked_io_size, to_i64, to_u32, to_u64},
 };
 
 /// An owned cuFile batch queue retaining its driver session.

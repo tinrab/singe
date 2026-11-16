@@ -5,11 +5,12 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        exchange_validation::{validate_mask_size, validate_same_size},
+        exchange_validation::validate_mask_size,
         view::{AC4, C1, C2, C3, C4, ImageOutputView, ImageView, MaskView},
     },
     try_ffi,
     types::{ComplexI16, ComplexI32, DataTypeLike},
+    utility::validate_same_size,
 };
 
 /// Copies source pixels into the destination image.

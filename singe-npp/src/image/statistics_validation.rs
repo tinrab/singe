@@ -12,7 +12,9 @@ use crate::{
     error::{Error, Result},
     image::view::{ChannelLayout, ImageView, image_descriptors},
     types::{Point, ProfileStatistics, Rectangle, Size},
-    utility::batch_size_i32,
+    utility::{
+        batch_size_i32, largest_size, smallest_size, to_i32, to_u16, to_usize, validate_same_size,
+    },
     workspace::{BufferDescriptors, create_repeated_buffer_descriptors},
 };
 
@@ -29,7 +31,7 @@ pub fn pair_metric_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = pair_batch_size(source_0.len(), source_1.len())?;
+    let batch_size = batch_size_i32(source_0.len(), source_1.len())?;
 
     for (left, right) in source_0.iter().zip(source_1.iter()) {
         validate_same_size(left.size(), right.size())?;
@@ -67,7 +69,7 @@ pub fn pair_metric_batch_advanced_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = pair_batch_size(source_0.len(), source_1.len())?;
+    let batch_size = batch_size_i32(source_0.len(), source_1.len())?;
 
     for (left, right) in source_0.iter().zip(source_1.iter()) {
         validate_same_size(left.size(), right.size())?;
@@ -98,42 +100,6 @@ pub fn pair_metric_batch_buffers(
     bytes_per_image: usize,
 ) -> Result<(Vec<DeviceMemory<MaybeUninit<u8>>>, BufferDescriptors)> {
     create_repeated_buffer_descriptors(allocation_context, batch_size, bytes_per_image)
-}
-
-pub fn pair_batch_size(source_0_len: usize, source_1_len: usize) -> Result<i32> {
-    batch_size_i32(source_0_len, source_1_len)
-}
-
-pub fn smallest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
-    sizes
-        .into_iter()
-        .reduce(|left, right| Size {
-            width: left.width.min(right.width),
-            height: left.height.min(right.height),
-        })
-        .ok_or_else(|| Error::out_of_range("batch size"))
-}
-
-pub fn largest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
-    sizes
-        .into_iter()
-        .reduce(|left, right| Size {
-            width: left.width.max(right.width),
-            height: left.height.max(right.height),
-        })
-        .ok_or_else(|| Error::out_of_range("batch size"))
-}
-
-pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
 }
 
 pub fn validate_template_full_destination_size(
@@ -284,7 +250,7 @@ pub fn validate_profile_output(output: &[ProfileStatistics]) -> Result<u16> {
         });
     }
 
-    u16::try_from(output.len()).map_err(|_| Error::out_of_range("profile output length"))
+    to_u16(output.len(), "profile output length")
 }
 
 pub fn validate_index_output(output: &DeviceOutputView<'_, i32>, channels: usize) -> Result<()> {
@@ -324,7 +290,7 @@ pub fn validate_histogram_levels(levels: i32) -> Result<usize> {
     if levels < 2 {
         return Err(Error::out_of_range("levels"));
     }
-    usize::try_from(levels - 1).map_err(|_| Error::out_of_range("levels"))
+    to_usize(levels - 1, "levels")
 }
 
 pub fn validate_histogram_levels_array<const C: usize>(levels: &[i32; C]) -> Result<()> {
@@ -382,7 +348,7 @@ pub fn validate_histogram_range_levels<T>(levels: &[T]) -> Result<i32> {
     if levels.len() < 2 {
         return Err(Error::out_of_range("levels"));
     }
-    i32::try_from(levels.len()).map_err(|_| Error::out_of_range("levels"))
+    to_i32(levels.len(), "levels")
 }
 
 pub fn validate_histogram_range_level_arrays<T, const C: usize>(
@@ -443,7 +409,7 @@ pub fn validate_histogram_range_outputs<T, const C: usize>(
 
 pub fn validate_coi(channel: usize, channels: usize) -> Result<i32> {
     if channel < channels {
-        return i32::try_from(channel + 1).map_err(|_| Error::out_of_range("channel"));
+        return to_i32(channel + 1, "channel");
     }
 
     Err(Error::out_of_range("channel"))

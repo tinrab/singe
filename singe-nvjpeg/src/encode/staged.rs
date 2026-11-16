@@ -18,7 +18,7 @@ use crate::{
     stream::JpegStream,
     try_ffi,
     types::{ChromaSubsampling, EncoderBackend, JpegEncoding},
-    utility::{complete, to_positive_i32, to_u64, to_usize},
+    utility::{complete, to_positive_i32, to_quality, to_u64, to_usize},
 };
 
 /// State that an encoder keeps, including the intermediate buffers and the last encoded bitstream.
@@ -221,9 +221,7 @@ impl EncodeParams {
     ) -> Result<&mut Self> {
         self.handle.ensure_stream(stream)?;
 
-        let quality = quality.try_into().map_err(|_| Error::OutOfRange {
-            name: "quality".into(),
-        })?;
+        let quality = to_quality(quality, "quality")?;
         complete(stream, || {
             // SAFETY: `nvjpegEncoderParamsSetQuality` receives live handles owned by the wrappers.
             unsafe {

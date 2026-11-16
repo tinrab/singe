@@ -138,10 +138,13 @@ type General<T> = for<'a> unsafe fn(
 ) -> Result<()>;
 
 mod private {
-    use super::{
-        Batched, BatchedQuery, General, GeneralQuery, GeneralizedDivide, GeneralizedDivideQuery,
-        GeneralizedJacobi, GeneralizedJacobiQuery, GeneralizedSelected, GeneralizedSelectedQuery,
-        Jacobi, JacobiQuery, SolverElement,
+    use crate::{
+        data_type::SolverElement,
+        eigen::scalar::{
+            Batched, BatchedQuery, General, GeneralQuery, GeneralizedDivide,
+            GeneralizedDivideQuery, GeneralizedJacobi, GeneralizedJacobiQuery, GeneralizedSelected,
+            GeneralizedSelectedQuery, Jacobi, JacobiQuery,
+        },
     };
 
     pub trait Sealed: SolverElement {

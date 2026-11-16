@@ -13,7 +13,7 @@ use crate::{
         },
     },
     types::{ColorTwistBatchDescriptor, Rectangle, Size},
-    utility::batch_size_i32,
+    utility::{batch_size_i32, checked_into, to_i32, validate_same_size},
 };
 
 type SubsampledColorBatchDescriptors = (
@@ -31,18 +31,6 @@ type ColorPlanarBatchDescriptors<const C: usize> = (
     DeviceMemory<sys::NppiImageDescriptor>,
     [DeviceMemory<sys::NppiImageDescriptor>; C],
 );
-
-pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}
 
 pub fn validate_cfa_roi(source: Size, source_roi: Rectangle, destination: Size) -> Result<()> {
     if source_roi.x < 0 || source_roi.y < 0 || source_roi.width <= 0 || source_roi.height <= 0 {
@@ -87,7 +75,7 @@ pub fn validate_lookup_table(value_count: usize, level_count: usize) -> Result<i
     if level_count < 2 {
         return Err(Error::out_of_range("lookup table levels"));
     }
-    i32::try_from(level_count).map_err(|_| Error::out_of_range("lookup table levels"))
+    to_i32(level_count, "lookup table levels")
 }
 
 pub fn lookup_table_channel_descriptors<const C: usize>(
@@ -174,8 +162,7 @@ pub fn lookup_table_trilinear_descriptors(
             return Err(Error::out_of_range("lookup table trilinear levels"));
         }
 
-        level_counts[index] = i32::try_from(level.len())
-            .map_err(|_| Error::out_of_range("lookup table trilinear levels"))?;
+        level_counts[index] = to_i32(level.len(), "lookup table trilinear levels")?;
         expected_values = expected_values
             .checked_mul(level.len())
             .ok_or_else(|| Error::out_of_range("lookup table trilinear values"))?;
@@ -354,7 +341,7 @@ pub fn color_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
     for (source, destination) in sources.iter().zip(destinations.iter_mut()) {
         validate_same_size(source.size(), destination.size())?;
     }
@@ -388,7 +375,7 @@ pub fn color_batch_advanced_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
     for (source, destination) in sources.iter().zip(destinations.iter_mut()) {
         validate_same_size(source.size(), destination.size())?;
     }
@@ -409,10 +396,6 @@ where
     ))
 }
 
-pub fn color_batch_size(source_len: usize, destination_len: usize) -> Result<i32> {
-    batch_size_i32(source_len, destination_len)
-}
-
 pub fn subsampled_color_batch_descriptors<T, L>(
     allocation_context: &Arc<CudaContext>,
     source_plane_0: &[ImageView<'_, T, C1>],
@@ -425,7 +408,7 @@ pub fn subsampled_color_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(source_plane_0.len(), destinations.len())?;
+    let batch_size = batch_size_i32(source_plane_0.len(), destinations.len())?;
     if source_plane_1.len() != source_plane_0.len() {
         return Err(Error::LengthMismatch {
             name: "subsampled source plane 1 batch".into(),
@@ -520,7 +503,7 @@ pub fn subsampled_color_batch_advanced_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(source_plane_0.len(), destinations.len())?;
+    let batch_size = batch_size_i32(source_plane_0.len(), destinations.len())?;
     if source_plane_1.len() != source_plane_0.len() {
         return Err(Error::LengthMismatch {
             name: "subsampled source plane 1 batch".into(),
@@ -617,7 +600,7 @@ pub fn color_twist_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
     if twists.len() != sources.len() {
         return Err(Error::LengthMismatch {
             name: "twist batch".into(),
@@ -673,7 +656,7 @@ pub fn color_twist_batch_in_place_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(images.len(), images.len())?;
+    let batch_size = batch_size_i32(images.len(), images.len())?;
     if twists.len() != images.len() {
         return Err(Error::LengthMismatch {
             name: "twist batch".into(),
@@ -725,7 +708,7 @@ pub fn color_twist_batch_with_constants_descriptors<T>(
     DeviceMemory<ColorTwistBatchDescriptor>,
     DeviceMemory<f32>,
 )> {
-    let batch_size = color_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
     if twists.len() != sources.len() {
         return Err(Error::LengthMismatch {
             name: "twist batch".into(),
@@ -778,7 +761,7 @@ pub fn color_twist_batch_with_constants_in_place_descriptors<T>(
     DeviceMemory<ColorTwistBatchDescriptor>,
     DeviceMemory<f32>,
 )> {
-    let batch_size = color_batch_size(images.len(), images.len())?;
+    let batch_size = batch_size_i32(images.len(), images.len())?;
     if twists.len() != images.len() {
         return Err(Error::LengthMismatch {
             name: "twist batch".into(),
@@ -847,7 +830,7 @@ pub fn color_planar_batch_descriptors<T, L, const C: usize>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
     for (source, destination) in sources.iter().zip(destinations.iter_mut()) {
         validate_same_size(source.planes()[0].size(), destination.size())?;
     }
@@ -865,9 +848,7 @@ where
     }
 
     let source_descriptor_memory: [DeviceMemory<sys::NppiImageDescriptor>; C] =
-        source_descriptor_memory
-            .try_into()
-            .map_err(|_| Error::out_of_range("plane count"))?;
+        checked_into(source_descriptor_memory, "plane count")?;
     let source_batch_list = source_descriptor_memory
         .each_ref()
         .map(DeviceMemory::as_ptr);
@@ -893,7 +874,7 @@ pub fn color_planar_batch_advanced_descriptors<T, L, const C: usize>(
 where
     L: ChannelLayout,
 {
-    let batch_size = color_batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_i32(sources.len(), destinations.len())?;
     for (source, destination) in sources.iter().zip(destinations.iter_mut()) {
         validate_same_size(source.planes()[0].size(), destination.size())?;
     }
@@ -911,9 +892,7 @@ where
     }
 
     let source_descriptor_memory: [DeviceMemory<sys::NppiImageDescriptor>; C] =
-        source_descriptor_memory
-            .try_into()
-            .map_err(|_| Error::out_of_range("plane count"))?;
+        checked_into(source_descriptor_memory, "plane count")?;
     let source_batch_list = source_descriptor_memory
         .each_ref()
         .map(DeviceMemory::as_ptr);

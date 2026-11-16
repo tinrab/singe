@@ -7,6 +7,7 @@ use crate::{
     },
     pipeline::image::ImagePipeline,
     types::{Point32f, ProfileStatistics},
+    utility::to_u16,
 };
 
 impl ImagePipeline<'_, f32, C1> {
@@ -138,7 +139,7 @@ fn profile_buffer(samples: usize) -> Result<Vec<ProfileStatistics>> {
         });
     }
 
-    u16::try_from(samples).map_err(|_| Error::out_of_range("profile output length"))?;
+    to_u16(samples, "profile output length")?;
 
     Ok(vec![ProfileStatistics::default(); samples])
 }

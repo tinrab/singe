@@ -6,12 +6,12 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         filtering_validation::{
-            validate_border_roi, validate_canny_thresholds,
-            validate_harris_corners_border_parameters, validate_hough_line_destination_roi,
-            validate_hough_line_io, validate_hough_line_parameters, validate_positive_size,
+            validate_canny_thresholds, validate_harris_corners_border_parameters,
+            validate_hough_line_destination_roi, validate_hough_line_io,
+            validate_hough_line_parameters, validate_positive_size,
         },
         view::{C1, C3, ImageOutputView, ImageView},
     },
@@ -20,7 +20,7 @@ use crate::{
         BorderType, DataTypeLike, DifferentialKernel, ImageNormalization, MaskSize, Point,
         PointPolar, Rectangle, Size,
     },
-    utility::to_usize,
+    utility::{to_i32, to_usize, validate_border_roi},
 };
 
 /// Returns the scratch capacity in bytes for Canny edge detection.
@@ -419,8 +419,7 @@ pub unsafe fn filter_hough_line_u8_to_polar_c1(
         lines,
         line_count,
     )?;
-    let max_line_count =
-        i32::try_from(lines.len()).map_err(|_| Error::out_of_range("max line count"))?;
+    let max_line_count = to_i32(lines.len(), "max line count")?;
     let required_bytes = filter_hough_line_buffer_size(source.size(), delta, max_line_count)?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
 
@@ -491,8 +490,7 @@ pub unsafe fn filter_hough_line_region_u8_to_polar_c1(
         line_count,
     )?;
     validate_hough_line_destination_roi(destination_roi)?;
-    let max_line_count =
-        i32::try_from(lines.len()).map_err(|_| Error::out_of_range("max line count"))?;
+    let max_line_count = to_i32(lines.len(), "max line count")?;
     let required_bytes = filter_hough_line_buffer_size(source.size(), delta, max_line_count)?;
     let scratch = DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
     let mut destination_roi = destination_roi;

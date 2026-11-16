@@ -6,7 +6,6 @@ use crate::{
     error::Result,
     image::{
         color::{ColorTwistConstants4, ColorTwistMatrix, ColorTwistMatrix4},
-        color_descriptors::validate_same_size,
         view::{
             AC4, C1, C2, C3, C4, ImageOutputView, ImageView, ImageViewMut, PlanarImageOutputView,
             PlanarImageView, PlanarImageViewMut,

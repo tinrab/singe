@@ -79,7 +79,6 @@ use crate::{
             subtract_u16_c1, subtract_u16_c1_in_place, subtract_u16_c3, subtract_u16_c3_in_place,
             subtract_u16_c4, subtract_u16_c4_in_place,
         },
-        arithmetic_validation::validate_same_size,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,

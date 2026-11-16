@@ -4,9 +4,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        filtering_validation::{
-            optional_image_output, validate_border_roi, validate_gradient_vector_outputs,
-        },
+        filtering_validation::{optional_image_output, validate_gradient_vector_outputs},
         view::{C1, C3, ImageOutputView, ImageView},
     },
     try_ffi,

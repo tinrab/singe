@@ -26,6 +26,7 @@ use crate::{
     error::{Error, Result},
     image::view::{C1, ImageOutputView, ImageView, ImageViewMut},
     types::{ColorSpace, Point, Size},
+    utility::to_usize,
 };
 
 /// Pixel organization of a video frame.
@@ -270,7 +271,7 @@ impl<'a, T> VideoOutputView<'a, T> {
         self.planes
             .get_mut(index)
             .map(ImageOutputView::output)
-            .ok_or_else(|| invalid("video plane index"))
+            .ok_or_else(|| Error::out_of_range("video plane index"))
     }
 }
 
@@ -288,16 +289,12 @@ fn validate_contexts<'a>(contexts: impl Iterator<Item = &'a Arc<CudaContext>>) -
     Ok(())
 }
 
-fn invalid(name: &str) -> Error {
-    Error::out_of_range(name.to_owned())
-}
-
 fn plane_dimensions<T>(format: VideoFormat, size: Size) -> Result<Vec<(usize, usize)>> {
-    let width = usize::try_from(size.width).map_err(|_| invalid("video width"))?;
-    let height = usize::try_from(size.height).map_err(|_| invalid("video height"))?;
+    let width = to_usize(size.width, "video width")?;
+    let height = to_usize(size.height, "video height")?;
     let sample_size = size_of::<T>();
     if width == 0 || height == 0 || sample_size == 0 {
-        return Err(invalid("video size"));
+        return Err(Error::out_of_range("video size"));
     }
 
     let subsampled = matches!(
@@ -315,7 +312,7 @@ fn plane_dimensions<T>(format: VideoFormat, size: Size) -> Result<Vec<(usize, us
             | VideoFormat::V210
     );
     if subsampled && width % 2 != 0 {
-        return Err(invalid("video chroma width"));
+        return Err(Error::out_of_range("video chroma width"));
     }
 
     let vertical = matches!(
@@ -327,14 +324,14 @@ fn plane_dimensions<T>(format: VideoFormat, size: Size) -> Result<Vec<(usize, us
             | VideoFormat::P016
     );
     if vertical && height % 2 != 0 {
-        return Err(invalid("video chroma height"));
+        return Err(Error::out_of_range("video chroma height"));
     }
 
     let row = |samples: usize| {
         width
             .checked_mul(samples)
             .and_then(|value| value.checked_mul(sample_size))
-            .ok_or_else(|| invalid("video row size"))
+            .ok_or_else(|| Error::out_of_range("video row size"))
     };
     let dimensions = match format {
         VideoFormat::Rgb | VideoFormat::Bgr | VideoFormat::Yuv444 => vec![(row(3)?, height)],
@@ -350,24 +347,29 @@ fn plane_dimensions<T>(format: VideoFormat, size: Size) -> Result<Vec<(usize, us
         }
         VideoFormat::Nv16 | VideoFormat::P210 => vec![(row(1)?, height); 2],
         VideoFormat::Uyvp10 => vec![(
-            width.checked_mul(5).ok_or_else(|| invalid("uyvp row"))? / 2,
+            width
+                .checked_mul(5)
+                .ok_or_else(|| Error::out_of_range("uyvp row"))?
+                / 2,
             height,
         )],
         VideoFormat::Uyvy | VideoFormat::Uyvy16 => vec![(row(2)?, height)],
         VideoFormat::V210 => {
             if width % 6 != 0 {
-                return Err(invalid("v210 pixel group"));
+                return Err(Error::out_of_range("v210 pixel group"));
             }
             vec![(
                 width
                     .checked_div(6)
                     .and_then(|value| value.checked_mul(16))
-                    .ok_or_else(|| invalid("v210 row"))?,
+                    .ok_or_else(|| Error::out_of_range("v210 row"))?,
                 height,
             )]
         }
         VideoFormat::Y410 => vec![(
-            width.checked_mul(4).ok_or_else(|| invalid("y410 row"))?,
+            width
+                .checked_mul(4)
+                .ok_or_else(|| Error::out_of_range("y410 row"))?,
             height,
         )],
     };
@@ -391,16 +393,16 @@ fn validate_planes<T>(
     }
 
     for ((size, step), (row_bytes, rows)) in planes.into_iter().zip(dimensions) {
-        let width = usize::try_from(size.width).map_err(|_| invalid("plane row"))?;
+        let width = to_usize(size.width, "plane row")?;
         let capacity = width
             .checked_mul(sample_size)
-            .ok_or_else(|| invalid("plane row"))?;
+            .ok_or_else(|| Error::out_of_range("plane row"))?;
         if capacity < row_bytes
             || (size.height as usize) < rows
             || step < 0
             || (step as usize) < row_bytes
         {
-            return Err(invalid("video plane capacity"));
+            return Err(Error::out_of_range("video plane capacity"));
         }
     }
     Ok(())
@@ -432,7 +434,7 @@ fn validate_conversion<S, D>(
     destination_shared_step: bool,
 ) -> Result<()> {
     if source.format != source_format || destination.format != destination_format {
-        return Err(invalid("video format"));
+        return Err(Error::out_of_range("video format"));
     }
 
     if offset.x != 0
@@ -446,7 +448,7 @@ fn validate_conversion<S, D>(
             .checked_add(destination.size.height)
             .is_none_or(|bottom| bottom > source.size.height)
     {
-        return Err(invalid("video source region"));
+        return Err(Error::out_of_range("video source region"));
     }
 
     if source_shared_step
@@ -455,7 +457,7 @@ fn validate_conversion<S, D>(
             .iter()
             .any(|plane| plane.step() != source.planes[0].step())
     {
-        return Err(invalid("video source pitch"));
+        return Err(Error::out_of_range("video source pitch"));
     }
 
     if destination_shared_step
@@ -464,7 +466,7 @@ fn validate_conversion<S, D>(
             .iter()
             .any(|plane| plane.step() != destination.planes[0].step())
     {
-        return Err(invalid("video destination pitch"));
+        return Err(Error::out_of_range("video destination pitch"));
     }
     Ok(())
 }

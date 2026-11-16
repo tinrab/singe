@@ -6,6 +6,7 @@ use crate::{
     context::StreamContext,
     error::{Error, Result},
     pipeline::image::statistics_histogram_channel_methods::{ImageHistograms, ImageStatistic},
+    utility::{histogram_range_bins, to_usize},
 };
 
 pub fn histogram_buffers<const C: usize>(
@@ -52,14 +53,7 @@ fn histogram_bins(levels: i32) -> Result<usize> {
     if levels < 2 {
         return Err(Error::out_of_range("levels"));
     }
-    usize::try_from(levels - 1).map_err(|_| Error::out_of_range("levels"))
-}
-
-fn histogram_range_bins<Level>(levels: &[Level]) -> Result<usize> {
-    if levels.len() < 2 {
-        return Err(Error::out_of_range("levels"));
-    }
-    Ok(levels.len() - 1)
+    to_usize(levels - 1, "levels")
 }
 
 fn transpose_result<T, const C: usize>(results: [Result<T>; C]) -> Result<[T; C]> {

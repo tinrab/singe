@@ -17,17 +17,17 @@ use singe_cuda::{
     },
 };
 
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    utility::checked_byte_len,
+};
 
 fn checked_region<T>(
     region: DeviceRegion<'_>,
     length: usize,
 ) -> Result<(DeviceRegion<'_>, NonZeroUsize)> {
     let length = NonZeroUsize::new(length).ok_or_else(|| Error::out_of_range("signal length"))?;
-    let bytes = length
-        .get()
-        .checked_mul(size_of::<T>())
-        .ok_or_else(|| Error::out_of_range("signal byte length"))?;
+    let bytes = checked_byte_len::<T>(length.get(), "signal byte length")?;
     if !region.as_ptr().addr().is_multiple_of(align_of::<T>()) {
         return Err(Error::out_of_range("signal alignment"));
     }

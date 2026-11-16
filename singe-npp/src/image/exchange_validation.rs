@@ -4,18 +4,6 @@ use crate::{
     utility::to_i32,
 };
 
-pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}
-
 pub fn validate_mask_size(roi: Size, mask: Size) -> Result<()> {
     if roi == mask {
         return Ok(());

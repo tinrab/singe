@@ -5,7 +5,6 @@ use crate::{
     error::Result,
     image::{
         geometry::{Remap, Rotate},
-        geometry_helpers::validate_same_size,
         view::{
             AC4, C1, C3, C4, ChannelLayout, ImageOutputView, ImageView, PlanarImageOutputView,
             PlanarImageView,

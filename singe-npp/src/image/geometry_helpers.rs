@@ -17,7 +17,7 @@ use crate::{
         ResizeBatchDescriptor, ResizeBatchRoiAdvanced, Size, WarpAffineBatchDescriptor,
         WarpPerspectiveBatchDescriptor,
     },
-    utility::batch_size_u32,
+    utility::{batch_size_u32, smallest_size, to_u32, validate_same_size},
 };
 
 type ResizeBatchAdvancedDescriptors = (
@@ -28,17 +28,6 @@ type ResizeBatchAdvancedDescriptors = (
     DeviceMemory<sys::NppiImageDescriptor>,
     DeviceMemory<ResizeBatchRoiAdvanced>,
 );
-
-pub fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
-}
 
 pub fn rect_size(rectangle: Rectangle) -> Size {
     Size {
@@ -55,7 +44,7 @@ pub fn resize_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_u32(sources.len(), destinations.len())?;
     let smallest_source_size = smallest_size(sources.iter().map(ImageView::size))?;
     let smallest_destination_size = smallest_size(destinations.iter().map(ImageOutputView::size))?;
 
@@ -87,7 +76,7 @@ pub fn mirror_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_u32(sources.len(), destinations.len())?;
 
     for (source, destination) in sources.iter().zip(destinations.iter()) {
         validate_same_size(source.size(), destination.size())?;
@@ -122,7 +111,7 @@ where
         return Err(Error::out_of_range("batch size"));
     }
 
-    let batch_size = u32::try_from(images.len()).map_err(|_| Error::out_of_range("batch size"))?;
+    let batch_size = to_u32(images.len(), "batch size")?;
     let roi = smallest_size(images.iter().map(ImageViewMut::size))?;
     let descriptors = images
         .iter_mut()
@@ -149,7 +138,7 @@ pub fn resize_batch_advanced_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_u32(sources.len(), destinations.len())?;
     if sources.len() != rois.len() {
         return Err(Error::LengthMismatch {
             name: "batch roi".into(),
@@ -213,7 +202,7 @@ pub fn warp_affine_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_u32(sources.len(), destinations.len())?;
     if sources.len() != coefficients.len() {
         return Err(Error::LengthMismatch {
             name: "batch coefficients".into(),
@@ -262,7 +251,7 @@ pub fn warp_perspective_batch_descriptors<T, L>(
 where
     L: ChannelLayout,
 {
-    let batch_size = batch_size(sources.len(), destinations.len())?;
+    let batch_size = batch_size_u32(sources.len(), destinations.len())?;
     if sources.len() != coefficients.len() {
         return Err(Error::LengthMismatch {
             name: "batch coefficients".into(),
@@ -297,18 +286,4 @@ where
         unsafe { DeviceMemory::from_slice_unchecked(allocation_context, &descriptors) }?,
         coefficient_memory,
     ))
-}
-
-fn batch_size(source_len: usize, destination_len: usize) -> Result<u32> {
-    batch_size_u32(source_len, destination_len)
-}
-
-fn smallest_size(sizes: impl IntoIterator<Item = Size>) -> Result<Size> {
-    sizes
-        .into_iter()
-        .reduce(|left, right| Size {
-            width: left.width.min(right.width),
-            height: left.height.min(right.height),
-        })
-        .ok_or_else(|| Error::out_of_range("batch size"))
 }

@@ -2,7 +2,7 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         filtering_validation::{
             validate_advanced_filter_kernel, validate_gauss_pyramid_rate, validate_positive_size,
@@ -12,6 +12,7 @@ use crate::{
     },
     try_ffi,
     types::{BorderType, DataTypeLike, Point, Size},
+    utility::to_i32,
 };
 
 /// Returns the destination ROI for Gaussian-pyramid downsampling.

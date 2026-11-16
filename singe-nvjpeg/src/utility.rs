@@ -2,6 +2,7 @@ use singe_core::{checked_arithmetic, checked_conversions};
 use singe_cuda::stream::{Stream as CudaStream, StreamBinding};
 
 use crate::{
+    encode::Quality,
     error::{Error, Result},
     image::Size,
 };
@@ -11,6 +12,7 @@ checked_conversions!(Error {
     to_i32 -> i32,
     to_usize -> usize,
     to_u64 -> u64,
+    to_quality -> Quality,
 });
 
 pub fn to_positive_i32(value: impl TryInto<i32>, name: &str) -> Result<i32> {

@@ -6,7 +6,6 @@ use crate::{
     image::{
         color_descriptors::{
             validate_jpeg_subsampled_source_planes, validate_rgb_destination_planes,
-            validate_same_size,
         },
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },

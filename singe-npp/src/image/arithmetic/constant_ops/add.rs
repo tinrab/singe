@@ -8,7 +8,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        arithmetic_validation::{device_constant_ptr, validate_same_size},
+        arithmetic_validation::device_constant_ptr,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,

@@ -2,7 +2,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use singe_core::checked_conversions;
 
-use crate::error::Error;
+use crate::error::{Error, Result};
 
 // Keep typed driver enums and their native conversions/display generated from one list.
 macro_rules! driver_enum {
@@ -48,6 +48,31 @@ checked_conversions!(Error {
 });
 
 pub(crate) use driver_enum;
+
+pub fn checked_bytes<T>(len: usize) -> Result<usize> {
+    let size = size_of::<T>();
+    if size == 0 {
+        return if len == 0 {
+            Ok(0)
+        } else {
+            Err(Error::InvalidMemoryAllocationRequest)
+        };
+    }
+    len.checked_mul(size)
+        .ok_or(Error::InvalidMemoryAllocationRequest)
+}
+
+pub fn checked_len(width: usize, height: usize) -> Result<usize> {
+    width
+        .checked_mul(height)
+        .ok_or(Error::InvalidMemoryAllocationRequest)
+}
+
+pub fn checked_volume(width: usize, height: usize, depth: usize) -> Result<usize> {
+    checked_len(width, height)?
+        .checked_mul(depth)
+        .ok_or(Error::InvalidMemoryAllocationRequest)
+}
 
 /// Converts a native flag constant to the ABI's 16-bit usage field at compile time.
 ///

@@ -19,11 +19,7 @@ macro_rules! impl_sum_window_filter_image {
                 anchor: i32,
             ) -> Result<()> {
                 let (mask, origin) = $crate::pipeline::image::filtering::FilterAxis::Column
-                    .geometry(
-                        usize::try_from(mask_size)
-                            .map_err(|_| $crate::error::Error::out_of_range("filter taps"))?,
-                        anchor,
-                    )?;
+                    .geometry($crate::utility::to_usize(mask_size, "filter taps")?, anchor)?;
                 source.require_halo(mask, origin)?;
                 stream_context.stream().ensure_not_capturing()?;
                 stream_context.prepare_region(source)?;
@@ -47,11 +43,8 @@ macro_rules! impl_sum_window_filter_image {
                 mask_size: i32,
                 anchor: i32,
             ) -> Result<()> {
-                let (mask, origin) = $crate::pipeline::image::filtering::FilterAxis::Row.geometry(
-                    usize::try_from(mask_size)
-                        .map_err(|_| $crate::error::Error::out_of_range("filter taps"))?,
-                    anchor,
-                )?;
+                let (mask, origin) = $crate::pipeline::image::filtering::FilterAxis::Row
+                    .geometry($crate::utility::to_usize(mask_size, "filter taps")?, anchor)?;
                 source.require_halo(mask, origin)?;
                 stream_context.stream().ensure_not_capturing()?;
                 stream_context.prepare_region(source)?;

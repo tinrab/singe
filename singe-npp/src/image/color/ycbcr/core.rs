@@ -8,7 +8,7 @@ use crate::{
             color_batch_advanced_descriptors, color_batch_descriptors,
             color_planar_batch_advanced_descriptors, color_planar_batch_descriptors,
             subsampled_color_batch_advanced_descriptors, subsampled_color_batch_descriptors,
-            validate_equal_step, validate_same_size,
+            validate_equal_step,
         },
         view::{
             AC4, C1, C2, C3, C4, ImageOutputView, ImageView, PlanarImageOutputView, PlanarImageView,
@@ -16,6 +16,7 @@ use crate::{
     },
     try_ffi,
     types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 impl_color_convert_same_layout!(

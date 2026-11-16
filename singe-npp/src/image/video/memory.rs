@@ -11,6 +11,7 @@ use crate::{
         view::{C1, ImageViewMut},
     },
     types::Size,
+    utility::to_i32,
 };
 
 /// Owned video planes whose stored samples are distinct from the frame's pixel dimensions.
@@ -43,10 +44,8 @@ impl<T: SupportedImage<C1>> Frame<T> {
                 return Err(Error::out_of_range("video sample size"));
             }
 
-            let width = i32::try_from(row_bytes / size_of::<T>())
-                .map_err(|_| Error::out_of_range("video plane width"))?;
-            let height =
-                i32::try_from(height).map_err(|_| Error::out_of_range("video plane height"))?;
+            let width = to_i32(row_bytes / size_of::<T>(), "video plane width")?;
+            let height = to_i32(height, "video plane height")?;
             planes.push(Image::<T, C1>::create_uninit(
                 context,
                 Size::new(width, height),

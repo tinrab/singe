@@ -5,7 +5,7 @@ use crate::{
     error::{Error, Result},
     try_ffi,
     types::{DiagonalType, FillMode, Operation, SideMode},
-    utility::required_matrix_len,
+    utility::{required_matrix_len, required_packed_triangular_len},
     xt::context::Context,
 };
 
@@ -1063,15 +1063,6 @@ fn validate_three_matrices(
         return Err(Error::InvalidMatrixShape);
     }
     Ok(())
-}
-
-fn required_packed_triangular_len(n: usize) -> Result<usize> {
-    n.checked_mul(
-        n.checked_add(1)
-            .ok_or(Error::out_of_range("packed triangular length"))?,
-    )
-    .and_then(|value| value.checked_div(2))
-    .ok_or(Error::out_of_range("packed triangular length"))
 }
 
 fn side_dimension(side: SideMode, m: usize, n: usize) -> usize {

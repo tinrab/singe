@@ -13,7 +13,9 @@ use crate::{
     options::DecoderOptions,
     try_ffi,
     types::{MetadataFormat, MetadataKind, MetadataValueType, ProcessingStatus},
-    utility::{NativeStruct, collect_raw, to_i32, validate_batch, validate_processing_statuses},
+    utility::{
+        NativeStruct, collect_raw, to_i32, to_usize, validate_batch, validate_processing_statuses,
+    },
 };
 
 /// Settings for one decode call.
@@ -63,8 +65,7 @@ pub struct Metadata {
 
 impl Metadata {
     pub(crate) fn from_raw(raw: sys::nvimgcodecMetadata_t) -> Result<Self> {
-        let buffer_size = usize::try_from(raw.buffer_size)
-            .map_err(|_| Error::out_of_range("metadata.buffer_size"))?;
+        let buffer_size = to_usize(raw.buffer_size, "metadata.buffer_size")?;
         let buffer = if buffer_size == 0 {
             Vec::new()
         } else {

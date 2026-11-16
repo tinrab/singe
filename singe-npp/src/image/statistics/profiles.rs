@@ -2,13 +2,14 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         statistics_validation::validate_profile_output,
         view::{C1, ImageView},
     },
     try_ffi,
     types::{DataTypeLike, Point32f, ProfileStatistics},
+    utility::to_i32,
 };
 
 /// Fills a host slice with evenly distributed integer histogram level boundaries.
@@ -21,7 +22,7 @@ use crate::{
 ///
 /// Returns an error if the slice length cannot fit `i32` or NPP rejects the level count or boundary parameters.
 pub fn even_levels_i32(levels: &mut [i32], lower_level: i32, upper_level: i32) -> Result<()> {
-    let level_count = i32::try_from(levels.len()).map_err(|_| Error::out_of_range("levels"))?;
+    let level_count = to_i32(levels.len(), "levels")?;
     // SAFETY: `nppiEvenLevelsHost_32s` receives valid output locations.
     unsafe {
         try_ffi!(sys::nppiEvenLevelsHost_32s(

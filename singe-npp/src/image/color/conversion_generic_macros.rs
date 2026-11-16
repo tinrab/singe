@@ -28,7 +28,7 @@ macro_rules! impl_color_convert_same_layout {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -159,7 +159,7 @@ macro_rules! impl_color_convert_different_layout {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -208,7 +208,7 @@ macro_rules! impl_color_convert_different_layout_constant_alpha {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -665,7 +665,7 @@ macro_rules! impl_color_convert_packed_to_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(source.size(), destination.planes()[0].size())?;
 
             let mut destination_planes = destination
                 .planes_mut()
@@ -722,7 +722,7 @@ macro_rules! impl_color_convert_planar_to_packed {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.size())?;
+            $crate::utility::validate_same_size(source.planes()[0].size(), destination.size())?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
 
@@ -777,7 +777,7 @@ macro_rules! impl_color_convert_planar_to_packed_constant_alpha {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.size())?;
+            $crate::utility::validate_same_size(source.planes()[0].size(), destination.size())?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
 
@@ -834,7 +834,10 @@ macro_rules! impl_color_convert_planar_to_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(
+                source.planes()[0].size(),
+                destination.planes()[0].size(),
+            )?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
             let mut destination_planes = destination
@@ -894,7 +897,10 @@ macro_rules! impl_color_convert_planar_to_planar_different_planes {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(
+                source.planes()[0].size(),
+                destination.planes()[0].size(),
+            )?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
             let destination_planes = destination

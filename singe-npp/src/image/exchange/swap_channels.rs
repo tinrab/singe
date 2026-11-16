@@ -4,13 +4,12 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        exchange_validation::{
-            validate_channel_order, validate_channel_order_with_fill, validate_same_size,
-        },
+        exchange_validation::{validate_channel_order, validate_channel_order_with_fill},
         view::{AC4, C3, C4, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,
     types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 /// Reorders image channels using the zero-based source indices in `order`.

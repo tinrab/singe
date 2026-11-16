@@ -8,10 +8,11 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::view::{C1, ImageOutputView, ImageView},
     try_ffi,
-    types::{DataTypeLike, Size},
+    types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 /// Dispatches complex magnitude into a real-valued image.
@@ -248,15 +249,4 @@ unsafe impl MagnitudeSquaredC1 for Complex32 {
         // SAFETY: the caller upholds this function's safety contract.
         unsafe { magnitude_squared_f32_complex_c1(stream_context, source, destination) }
     }
-}
-
-fn validate_same_size(source: Size, destination: Size) -> Result<()> {
-    if source == destination {
-        return Ok(());
-    }
-    Err(Error::SizeMismatch {
-        name: "image size".into(),
-        expected: source,
-        actual: destination,
-    })
 }

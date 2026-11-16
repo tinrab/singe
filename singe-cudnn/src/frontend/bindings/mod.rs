@@ -27,6 +27,7 @@ use crate::{
     frontend::{
         error::Error as FrontendError,
         graph::{RuntimeShapeConstraints, TensorRecord},
+        operation::TensorAccess,
         plan::{BindingReplacement, CompiledGraph},
         workspace::WorkspaceLayout,
     },
@@ -501,10 +502,7 @@ impl<'a> Bindings<'a> {
         let Some(info) = self.memory_info.get(&binding_id) else {
             return Ok(());
         };
-        if info.access == BindingAccess::ReadOnly
-            && record
-                .access
-                .is_some_and(super::operation::TensorAccess::writes)
+        if info.access == BindingAccess::ReadOnly && record.access.is_some_and(TensorAccess::writes)
         {
             return Err(FrontendError::BindingReadOnly {
                 binding_id,

@@ -197,8 +197,7 @@ impl BackendDescriptor {
         self.set_attribute_raw(
             name,
             BackendAttributeType::BackendDescriptor,
-            i64::try_from(inner_descriptors.len())
-                .map_err(|_| Error::out_of_range("descriptor count"))?,
+            to_i64(inner_descriptors.len(), "descriptor count")?,
             inner_descriptors.as_ptr().cast(),
         )
     }

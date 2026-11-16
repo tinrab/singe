@@ -2,17 +2,19 @@ use std::{mem::ManuallyDrop, ptr, sync::Arc};
 
 use singe_cuda_sys::runtime;
 
-use super::{
-    ExecutableGraph, ExecutableGraphLaunchOperation, ExecutableGraphUpdate, Graph, GraphBuffer,
-    GraphId, GraphInner, GraphInstantiateFlags, GraphNode, MemorySetNodeParams, RawExecutableGraph,
-    RawExecutableGraphParts, RetainedResources,
-    raw::{MemoryCopy1DNodeParams, MemoryCopy3DNodeParams},
-};
 use crate::{
     context::Context,
     error::{Error, Result},
     event::Event,
-    graph::raw::{HostNodeParams, MemoryCopyFromSymbolNodeParams, MemoryCopyToSymbolNodeParams},
+    graph::{
+        ExecutableGraph, ExecutableGraphLaunchOperation, ExecutableGraphUpdate, Graph, GraphBuffer,
+        GraphId, GraphInner, GraphInstantiateFlags, GraphNode, MemorySetNodeParams,
+        RawExecutableGraph, RawExecutableGraphParts, RetainedResources,
+        raw::{
+            HostNodeParams, MemoryCopy1DNodeParams, MemoryCopy3DNodeParams,
+            MemoryCopyFromSymbolNodeParams, MemoryCopyToSymbolNodeParams,
+        },
+    },
     memory::MemoryCopyKind,
     module::{KernelLaunchArgs, LaunchGeometry, Module},
     stream::Stream,

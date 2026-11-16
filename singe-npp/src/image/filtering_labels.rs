@@ -15,7 +15,7 @@ use crate::{
             roi_area, validate_batch_label_output, validate_block_segment_inputs,
             validate_contours_geometry_image_host, validate_geometry_list_buffers,
             validate_geometry_list_id_range, validate_marker_label_info_host_output,
-            validate_marker_label_info_output, validate_same_size, validate_typed_output_len,
+            validate_marker_label_info_output, validate_typed_output_len,
             validate_u32_label_marker_step, validate_u32_list_dev_output,
             validate_u32_list_device_and_host_output, validate_u32_list_host_output,
             validate_u32_list_output,
@@ -28,7 +28,7 @@ use crate::{
         ContourPixelGeometryInfo, ContourTotalsInfo, DataTypeLike, ImageNormalization, Point32f,
         Point64f, Size,
     },
-    utility::to_usize,
+    utility::{to_i32, to_usize, validate_same_size},
 };
 
 /// Returns the required scratch capacity in bytes for union-find labeling of `roi`.
@@ -916,8 +916,7 @@ pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place(
         batch_size as usize,
         per_image_bytes,
     )?;
-    let per_image_bytes =
-        i32::try_from(per_image_bytes).map_err(|_| Error::out_of_range("buffer size"))?;
+    let per_image_bytes = to_i32(per_image_bytes, "buffer size")?;
 
     // SAFETY: `nppiCompressMarkerLabelsUFBatch_32u_C1IR_Ctx` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     stream_context.sync_scope(|| unsafe {
@@ -983,8 +982,7 @@ pub unsafe fn compress_marker_labels_uf_batch_u32_c1_in_place_advanced(
             stream_context.cuda_context(),
             source_destinations,
         )?;
-    let largest_per_image_bytes =
-        i32::try_from(largest_per_image_bytes).map_err(|_| Error::out_of_range("buffer size"))?;
+    let largest_per_image_bytes = to_i32(largest_per_image_bytes, "buffer size")?;
 
     // SAFETY: `nppiCompressMarkerLabelsUFBatch_32u_C1IR_Advanced_Ctx` receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
     stream_context.sync_scope(|| unsafe {
@@ -1404,11 +1402,11 @@ macro_rules! impl_contours_image_marching_squares_interpolation {
             stream_context.validate_region(contours_pixels_starting_offset_dev)?;
             stream_context.validate_region(contours_block_segment_list_dev)?;
 
-            validate_same_size(
+            $crate::utility::validate_same_size(
                 contours_image_dev.size(),
                 contours_interpolated_image_dev.size(),
             )?;
-            validate_same_size(
+            $crate::utility::validate_same_size(
                 contours_image_dev.size(),
                 contours_direction_image_dev.size(),
             )?;

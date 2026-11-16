@@ -31,7 +31,7 @@ macro_rules! impl_filter_box {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -84,7 +84,7 @@ macro_rules! impl_filter_neighborhood {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -150,7 +150,7 @@ macro_rules! impl_filter_box_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -219,7 +219,7 @@ macro_rules! impl_filter_neighborhood_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_mask(mask_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

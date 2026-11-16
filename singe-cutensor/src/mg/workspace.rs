@@ -1,7 +1,7 @@
 use crate::{
     error::{Error, Result},
     mg::context::ContextRef,
-    utility::to_i64,
+    utility::{to_i64, to_usize},
 };
 
 /// Per-context-device and host workspace byte requirements.
@@ -60,9 +60,7 @@ impl Workspace {
         self.device_sizes
             .iter()
             .copied()
-            .map(|size| {
-                usize::try_from(size).map_err(|_| Error::out_of_range("device workspace size"))
-            })
+            .map(|size| to_usize(size, "device workspace size"))
             .collect()
     }
 
@@ -72,7 +70,7 @@ impl Workspace {
     ///
     /// Returns an error if a byte count does not fit `usize`.
     pub fn host_size_bytes(&self) -> Result<usize> {
-        usize::try_from(self.host_size).map_err(|_| Error::out_of_range("host workspace size"))
+        to_usize(self.host_size, "host workspace size")
     }
 
     pub(crate) fn validate_for_context(&self, context: &ContextRef) -> Result<()> {

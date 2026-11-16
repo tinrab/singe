@@ -28,7 +28,7 @@ macro_rules! impl_copy {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -163,7 +163,7 @@ macro_rules! impl_copy_masked {
             stream_context.validate_region(destination)?;
             stream_context.validate_region(mask)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_mask_size(source.size(), mask.size())?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -348,7 +348,7 @@ macro_rules! impl_copy_channel {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_channel_index(source_channel, $channels)?;
             validate_channel_index(destination_channel, $channels)?;
 
@@ -503,7 +503,7 @@ macro_rules! impl_extract_channel {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_channel_index(channel, $channels)?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -554,7 +554,7 @@ macro_rules! impl_insert_channel {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_channel_index(channel, $channels)?;
 
             // SAFETY: the caller upholds this function's safety contract.
@@ -865,7 +865,7 @@ macro_rules! impl_copy_packed_to_planar {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.size(), destination.planes()[0].size())?;
+            $crate::utility::validate_same_size(source.size(), destination.planes()[0].size())?;
 
             let destination_planes = destination
                 .planes_mut()
@@ -920,7 +920,7 @@ macro_rules! impl_copy_planar_to_packed {
                 stream_context.validate_region(plane)?;
             }
 
-            validate_same_size(source.planes()[0].size(), destination.size())?;
+            $crate::utility::validate_same_size(source.planes()[0].size(), destination.size())?;
 
             let source_planes = source.planes().map(|plane| plane.as_ptr());
 

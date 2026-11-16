@@ -27,7 +27,6 @@ use crate::{
             color_batch_advanced_descriptors, color_batch_descriptors,
             color_planar_batch_advanced_descriptors, color_planar_batch_descriptors,
             subsampled_color_batch_advanced_descriptors, subsampled_color_batch_descriptors,
-            validate_same_size,
         },
         view::{AC4, C1, C3, ImageOutputView, ImageView, PlanarImageOutputView, PlanarImageView},
     },

@@ -2,15 +2,14 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
-        filtering_validation::{
-            validate_advanced_filter_kernel, validate_border_roi, validate_same_size,
-        },
+        filtering_validation::validate_advanced_filter_kernel,
         view::{AC4, C1, C3, C4, ChannelLayout, ImageOutputView, ImageView},
     },
     try_ffi,
     types::{BorderType, DataTypeLike, Point},
+    utility::to_i32,
 };
 
 impl_filter_advanced!(

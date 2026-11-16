@@ -5,11 +5,12 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        color_descriptors::{lookup_table_trilinear_descriptors, validate_same_size},
+        color_descriptors::lookup_table_trilinear_descriptors,
         view::{AC4, C4, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,
     types::DataTypeLike,
+    utility::validate_same_size,
 };
 
 /// Converts colors through a three-dimensional lookup table using trilinear interpolation.

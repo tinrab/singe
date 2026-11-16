@@ -275,7 +275,7 @@ macro_rules! impl_jpeg_subsampled_packed_inverse {
                 $horizontal_subsampling,
                 $vertical_subsampling,
             )?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             let source_planes = [
                 source_y.as_ptr().cast(),
@@ -345,7 +345,7 @@ macro_rules! impl_jpeg_subsampled_packed_inverse_constant_alpha {
                 $horizontal_subsampling,
                 $vertical_subsampling,
             )?;
-            validate_same_size(roi, destination.size())?;
+            $crate::utility::validate_same_size(roi, destination.size())?;
 
             let source_planes = [
                 source_y.as_ptr().cast(),

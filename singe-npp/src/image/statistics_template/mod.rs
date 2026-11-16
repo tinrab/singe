@@ -146,7 +146,7 @@ macro_rules! impl_template_match_same_scaled {
             stream_context.validate_region(template)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -198,7 +198,7 @@ macro_rules! impl_template_match_same {
             stream_context.validate_region(template)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -568,7 +568,7 @@ macro_rules! impl_template_match_norm_level_same_scaled {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let required_bytes = $buffer_size_name(stream_context, source.size())?;
             let scratch =
                 DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
@@ -657,7 +657,7 @@ macro_rules! impl_template_match_norm_level_same {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let required_bytes = $buffer_size_name(stream_context, source.size())?;
             let scratch =
                 DeviceMemory::<u8>::create_uninit(stream_context.cuda_context(), required_bytes)?;
@@ -880,8 +880,8 @@ macro_rules! impl_advanced_template_match_buffer_size {
             destination_element_bytes: usize,
             channels: i32,
         ) -> Result<usize> {
-            let destination_element_bytes = i32::try_from(destination_element_bytes)
-                .map_err(|_| Error::out_of_range("destination element bytes"))?;
+            let destination_element_bytes =
+                to_i32(destination_element_bytes, "destination element bytes")?;
             let mut bytes = 0;
             // SAFETY: the `ffi` entry point receives valid output locations.
             unsafe {
@@ -1026,7 +1026,7 @@ macro_rules! impl_template_match_norm_level_advanced_same {
             stream_context.validate_region(destination)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let norm_level_bytes = $norm_level_buffer_size_name(stream_context, source.size())?;
             let advanced_bytes = $advanced_buffer_size_name(
                 source.size(),

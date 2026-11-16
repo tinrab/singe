@@ -5,12 +5,13 @@ use crate::{
     error::Result,
     image::{
         statistics_validation::{
-            validate_integral_destination_size, validate_rect_std_dev_sources, validate_same_size,
+            validate_integral_destination_size, validate_rect_std_dev_sources,
         },
         view::{C1, ImageOutputView, ImageView},
     },
     try_ffi,
     types::{DataTypeLike, Rectangle},
+    utility::validate_same_size,
 };
 
 /// Computes an integral image, including its top and left borders.

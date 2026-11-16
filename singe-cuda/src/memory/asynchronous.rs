@@ -11,19 +11,16 @@ use singe_cuda_sys::runtime;
 use crate::{
     context::Context,
     error::{Error, Result},
+    memory::{AsyncDeviceMemory, DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryPool},
     stream::Stream,
     submission::{AccessMode, Execution, Resources},
     try_ffi,
     types::DevicePtr,
+    utility::checked_bytes,
     view::{
         AnyBitPatternDeviceRepr, DeviceOutputView, DeviceRegion, DeviceRegionProvider, DeviceRepr,
         DeviceView, DeviceViewMut, NoUninitDeviceRepr, ZeroableDeviceRepr, cast_length,
     },
-};
-
-use super::{
-    AsyncDeviceMemory, DeviceAllocation, DeviceDeallocation, DeviceMemory, MemoryPool,
-    checked_bytes,
 };
 
 impl<T> AsyncDeviceMemory<T> {

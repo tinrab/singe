@@ -14,6 +14,7 @@ use crate::{
     error::{Error, Result},
     try_ffi,
     types::{AtomicsMode, EmulationStrategy, MathMode, PointerMode},
+    utility::to_size_t,
 };
 
 /// A stateful cuBLAS handle.
@@ -204,8 +205,7 @@ impl Context {
         } else {
             (ptr::null_mut(), 0_usize)
         };
-        let workspace_size =
-            u64::try_from(workspace_size).map_err(|_| Error::out_of_range("workspace size"))?;
+        let workspace_size = to_size_t(workspace_size, "workspace size")?;
 
         // SAFETY: `cublasSetWorkspace_v2` receives live handles owned by the wrappers.
         unsafe {

@@ -4,7 +4,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        morphology::{validate_mask, validate_same_size},
+        morphology::validate_mask,
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,
@@ -46,7 +46,7 @@ macro_rules! impl_morphology_mask {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_mask(mask, mask_size, anchor)?;
 
             // SAFETY: the caller upholds this function's safety contract.

@@ -31,23 +31,25 @@ pub(crate) const MAX_IMAGE_COMPONENTS: usize = 4;
 
 /// Common imports for JPEG 2000 decoding and encoding.
 pub mod prelude {
-    pub use super::{
-        decode::{
-            CodeStream, DecodeArea, DecodeOptions, DecodeParams, DecodedComponent,
-            DecodedComponentSpec, DecodedImage, Decoder, DecoderBuilder,
-        },
-        encode::{
-            EncodeConfig, EncodeConfigBuilder, EncodeOptions, EncodeParams, EncodeQuality, Encoder,
-            EncoderBuilder,
-        },
-        error::Status,
-        image::{EncodeInput, Image},
-        types::{
-            Backend, BitstreamType, ColorSpace, ImageComponentInfo, ImageFormat, ImageInfo,
-            ImageType, ProgressionOrder, QualityType, TileDecode,
+    pub use crate::{
+        image::Size,
+        k2::{
+            decode::{
+                CodeStream, DecodeArea, DecodeOptions, DecodeParams, DecodedComponent,
+                DecodedComponentSpec, DecodedImage, Decoder, DecoderBuilder,
+            },
+            encode::{
+                EncodeConfig, EncodeConfigBuilder, EncodeOptions, EncodeParams, EncodeQuality,
+                Encoder, EncoderBuilder,
+            },
+            error::Status,
+            image::{EncodeInput, Image},
+            types::{
+                Backend, BitstreamType, ColorSpace, ImageComponentInfo, ImageFormat, ImageInfo,
+                ImageType, ProgressionOrder, QualityType, TileDecode,
+            },
         },
     };
-    pub use crate::image::Size;
 }
 
 /// Returns the major version, minor version, or patch level of the loaded nvJPEG 2000 library.

@@ -37,7 +37,7 @@ macro_rules! impl_filter_separable {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_filter_kernel_any(kernel, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -48,8 +48,7 @@ macro_rules! impl_filter_separable {
                     destination.step(),
                     source.size().into(),
                     kernel.as_ptr().cast(),
-                    i32::try_from(kernel.len())
-                        .map_err(|_| Error::out_of_range("kernel length"))?,
+                    to_i32(kernel.len(), "kernel length")?,
                     anchor,
                     divisor,
                     stream_context.as_raw(),
@@ -97,7 +96,7 @@ macro_rules! impl_filter_separable_float {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_filter_kernel_f32(kernel, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -108,8 +107,7 @@ macro_rules! impl_filter_separable_float {
                     destination.step(),
                     source.size().into(),
                     kernel.as_ptr().cast(),
-                    i32::try_from(kernel.len())
-                        .map_err(|_| Error::out_of_range("kernel length"))?,
+                    to_i32(kernel.len(), "kernel length")?,
                     anchor,
                     stream_context.as_raw(),
                 ))?;
@@ -156,7 +154,7 @@ macro_rules! impl_filter_separable_float_typed {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_filter_kernel_any(kernel, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -167,8 +165,7 @@ macro_rules! impl_filter_separable_float_typed {
                     destination.step(),
                     source.size().into(),
                     kernel.as_ptr().cast(),
-                    i32::try_from(kernel.len())
-                        .map_err(|_| Error::out_of_range("kernel length"))?,
+                    to_i32(kernel.len(), "kernel length")?,
                     anchor,
                     stream_context.as_raw(),
                 ))?;
@@ -213,7 +210,7 @@ macro_rules! impl_sum_window {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             validate_filter_axis_mask(mask_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -280,7 +277,7 @@ macro_rules! impl_sum_window_border {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_border_roi(source.size(), source_offset, destination.size())?;
+            $crate::utility::validate_border_roi(source.size(), source_offset, destination.size())?;
             validate_filter_axis_mask(mask_size, anchor)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {

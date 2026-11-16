@@ -20,7 +20,7 @@ use crate::{
     context::Context,
     data_type::DataType,
     error::{Error, Result},
-    frontend::{graph::TensorRecord, logging::logger},
+    frontend::{graph::TensorRecord, logging::logger, operation::TensorAccess},
     utility::to_usize,
 };
 
@@ -142,9 +142,7 @@ pub unsafe fn log_variant_pack(
         };
         if !record.indexes_memory
             || !record.reads_initial_state
-            || record
-                .access
-                .is_some_and(super::super::operation::TensorAccess::writes)
+            || record.access.is_some_and(TensorAccess::writes)
             || record.tensor.is_workspace()
             || !matches!(record.tensor.data_type, DataType::I32 | DataType::I64)
         {
@@ -223,10 +221,7 @@ fn written_ranges(
         let Some(record) = records.get(&uid) else {
             continue;
         };
-        if !record
-            .access
-            .is_some_and(super::super::operation::TensorAccess::writes)
-        {
+        if !record.access.is_some_and(TensorAccess::writes) {
             continue;
         }
 

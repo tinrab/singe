@@ -7,7 +7,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 use singe_core::{impl_enum_conversion, impl_enum_display};
 use singe_nvtiff_sys as sys;
 
-use crate::error::{Error, Result};
+use crate::{error::Result, utility::to_usize};
 
 bitflags::bitflags! {
     /// Image type, from the `NewSubfileType` (254) TIFF tag.
@@ -526,8 +526,7 @@ impl GeoKeyInfo {
 }
 
 fn value_byte_len(size: u32, count: u32) -> Result<usize> {
-    usize::try_from(u64::from(size) * u64::from(count))
-        .map_err(|_| Error::out_of_range("value size"))
+    to_usize(u64::from(size) * u64::from(count), "value size")
 }
 
 /// TIFF tag value.

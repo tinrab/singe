@@ -5,7 +5,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        statistics_validation::{validate_metric_output, validate_same_size},
+        statistics_validation::validate_metric_output,
         view::{C1, C3, C4, ImageView},
     },
     try_ffi,
@@ -76,7 +76,7 @@ macro_rules! impl_image_pair_metric {
             stream_context.validate_region(output)?;
             stream_context.stream().ensure_not_capturing()?;
 
-            validate_same_size(source_1.size(), source_2.size())?;
+            $crate::utility::validate_same_size(source_1.size(), source_2.size())?;
             validate_metric_output(output, 1, $channels)?;
             let required_bytes = $buffer_size_name(stream_context, source_1.size())?;
             let scratch =

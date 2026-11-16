@@ -28,7 +28,7 @@ macro_rules! impl_add_constant_scaled_scalar {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -120,7 +120,7 @@ macro_rules! impl_add_constant_scaled_array {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -214,7 +214,7 @@ macro_rules! impl_add_constant_scalar {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -313,7 +313,7 @@ macro_rules! impl_add_constant_array {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the `ffi` entry point receives live handles owned by the wrappers, valid output locations and pointers into buffers borrowed for the call.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -405,7 +405,7 @@ macro_rules! impl_add_device_constant_scaled {
             stream_context.validate_region(constants)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let constants = device_constant_ptr(constants, $constant_len)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -504,7 +504,7 @@ macro_rules! impl_add_device_constant {
             stream_context.validate_region(constants)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             let constants = device_constant_ptr(constants, $constant_len)?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
@@ -598,8 +598,8 @@ macro_rules! impl_binary_scaled {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -648,7 +648,7 @@ macro_rules! impl_binary_scaled_in_place {
             stream_context.validate_region(source)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -697,8 +697,8 @@ macro_rules! impl_binary_round_scaled {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -749,7 +749,7 @@ macro_rules! impl_binary_round_scaled_in_place {
             stream_context.validate_region(source)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -797,8 +797,8 @@ macro_rules! impl_binary {
             stream_context.validate_region(source2)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source1.size(), source2.size())?;
-            validate_same_size(source1.size(), destination.size())?;
+            $crate::utility::validate_same_size(source1.size(), source2.size())?;
+            $crate::utility::validate_same_size(source1.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -845,7 +845,7 @@ macro_rules! impl_binary_in_place {
             stream_context.validate_region(source)?;
             stream_context.validate_region(source_destination)?;
 
-            validate_same_size(source.size(), source_destination.size())?;
+            $crate::utility::validate_same_size(source.size(), source_destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -889,7 +889,7 @@ macro_rules! impl_unary_operation {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(
@@ -972,7 +972,7 @@ macro_rules! impl_unary_operation_scaled {
             stream_context.validate_region(source)?;
             stream_context.validate_region(destination)?;
 
-            validate_same_size(source.size(), destination.size())?;
+            $crate::utility::validate_same_size(source.size(), destination.size())?;
             // SAFETY: the caller upholds this function's safety contract.
             unsafe {
                 try_ffi!(sys::$ffi(

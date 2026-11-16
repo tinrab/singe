@@ -5,9 +5,7 @@ use crate::{
     context::StreamContext,
     error::Result,
     image::{
-        statistics_validation::{
-            validate_coi, validate_mask_size, validate_same_size, validate_statistic_output,
-        },
+        statistics_validation::{validate_coi, validate_mask_size, validate_statistic_output},
         view::{C1, C3, ImageView},
     },
     try_ffi,

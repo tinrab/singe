@@ -19,9 +19,9 @@ pub use self::{
 };
 use crate::{
     error::{Error, Result},
-    image::{Image, ImageView, MAX_COMPONENTS, Size},
+    image::{Image, ImageView, MAX_COMPONENTS, Plane, Size},
     types::{ChromaSubsampling, InputFormat, JpegEncoding},
-    utility::{ceil_div_u32, ceil_to_multiple_u32, to_i32},
+    utility::{ceil_div_u32, ceil_to_multiple_u32, to_i32, to_quality},
 };
 
 /// Settings for an [`Encoder`]; unset values keep nvJPEG's defaults.
@@ -138,9 +138,7 @@ impl EncodeOptions {
     ///
     /// Returns an error if `quality` is not a valid [`Quality`].
     pub fn with_quality(mut self, quality: impl TryInto<Quality>) -> Result<Self> {
-        self.quality = Some(quality.try_into().map_err(|_| Error::OutOfRange {
-            name: "quality".into(),
-        })?);
+        self.quality = Some(to_quality(quality, "quality")?);
         Ok(self)
     }
 
@@ -328,11 +326,7 @@ impl<'a> EncodeInput<'a> {
             validate_encode_plane_size(index, plane.size(), size, input_format, input_subsampling)?;
         }
 
-        let regions = view
-            .planes()
-            .iter()
-            .map(super::image::Plane::region)
-            .collect();
+        let regions = view.planes().iter().map(Plane::region).collect();
         // SAFETY: read-only planes establish initialized pixels and source borrows.
         unsafe {
             Self::from_raw_parts(

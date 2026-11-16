@@ -2,16 +2,16 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
         filtering_validation::{
             validate_filter_axis_mask, validate_filter_kernel_any, validate_filter_kernel_f32,
-            validate_same_size,
         },
         view::{AC4, C1, C3, C4, ImageOutputView, ImageView},
     },
     try_ffi,
     types::DataTypeLike,
+    utility::to_i32,
 };
 
 impl_filter_separable!(

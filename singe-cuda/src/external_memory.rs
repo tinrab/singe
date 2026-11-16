@@ -20,6 +20,7 @@ use crate::{
     error::{Error, Result},
     module::{KernelParameters, PushKernelArg},
     try_ffi,
+    utility::checked_bytes,
     view::{
         AllocationId, AnyBitPatternDeviceRepr, DeviceInput, DeviceOutput, DeviceOutputView,
         DeviceRegion, DeviceRegionProvider, DeviceRepr, DeviceSlice, DeviceSliceMut, DeviceView,
@@ -665,15 +666,6 @@ fn handle_desc(
         flags: flags.bits(),
         reserved: [0; 16],
     })
-}
-
-fn checked_bytes<T>(length: usize) -> Result<usize> {
-    if length != 0 && size_of::<T>() == 0 {
-        return Err(Error::InvalidMemoryAllocationRequest);
-    }
-    length
-        .checked_mul(size_of::<T>())
-        .ok_or(Error::InvalidMemoryAllocationRequest)
 }
 
 impl_enum_display!(ExternalMemoryHandleType, {

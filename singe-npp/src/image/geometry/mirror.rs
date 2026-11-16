@@ -2,15 +2,14 @@ use singe_npp_sys as sys;
 
 use crate::{
     context::StreamContext,
-    error::{Error, Result},
+    error::Result,
     image::{
-        geometry_helpers::{
-            mirror_batch_descriptors, mirror_batch_in_place_descriptors, validate_same_size,
-        },
+        geometry_helpers::{mirror_batch_descriptors, mirror_batch_in_place_descriptors},
         view::{AC4, C1, C3, C4, ChannelLayout, ImageOutputView, ImageView, ImageViewMut},
     },
     try_ffi,
     types::{Axis, DataTypeLike},
+    utility::to_i32,
 };
 
 impl_mirror!(
