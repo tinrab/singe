@@ -190,9 +190,9 @@ pub enum cufftXtWorkAreaPolicy_t {
 }
 pub use self::cufftXtWorkAreaPolicy_t as cufftXtWorkAreaPolicy;
 singe_loader::functions! { crate::LIBRARY;
-    /// [`cufftXtSetGPUs`] identifies which GPUs are to be used with the plan. As in the single GPU case [`cufftCreate`] creates a plan and `cufftMakePlan*()` does the plan generation. In cuFFT prior to 10.4.0, this call will return an error if a non-default stream has been associated with the plan.
+    /// [`cufftXtSetGPUs`] identifies which GPUs are to be used with the plan. As in the single GPU case [`cufftCreate`](super::cufftCreate) creates a plan and `cufftMakePlan*()` does the plan generation. In cuFFT prior to 10.4.0, this call will return an error if a non-default stream has been associated with the plan.
     ///
-    /// Note that the call to [`cufftXtSetGPUs`] must occur after the call to [`cufftCreate`] and prior to the call to `cufftMakePlan*()`. Parameter `whichGPUs` of [`cufftXtSetGPUs`] function determines ordering of the GPUs with respect to data decomposition (first data chunk is placed on GPU denoted by first element of `whichGPUs`).
+    /// Note that the call to [`cufftXtSetGPUs`] must occur after the call to [`cufftCreate`](super::cufftCreate) and prior to the call to `cufftMakePlan*()`. Parameter `whichGPUs` of [`cufftXtSetGPUs`] function determines ordering of the GPUs with respect to data decomposition (first data chunk is placed on GPU denoted by first element of `whichGPUs`).
     ///
     /// # Parameters
     ///
@@ -220,7 +220,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `descriptor`: Pointer to a pointer to a `cudaLibXtDesc` object.
     /// - `format`: cufftXtSubFormat`` value.
     ///
@@ -241,11 +241,11 @@ singe_loader::functions! { crate::LIBRARY;
 singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtMemcpy`] copies data between buffers on the host and GPUs or between GPUs. The enumerated parameter [`cufftXtCopyType_t`] indicates the type and direction of transfer. Calling [`cufftXtMemcpy`] function for multi-GPU batched FFT plans with [`cufftXtCopyType::CUFFT_COPY_DEVICE_TO_DEVICE`] transfer type is not supported.
     ///
-    /// Note that starting from CUDA 11.2 (cuFFT 10.4.0), [`cufftSetStream`] is supported on multi-GPU plans. When associating a stream with a plan, [`cufftXtMemcpy`] remains synchronous across the multiple GPUs.
+    /// Note that starting from CUDA 11.2 (cuFFT 10.4.0), [`cufftSetStream`](super::cufftSetStream) is supported on multi-GPU plans. When associating a stream with a plan, [`cufftXtMemcpy`] remains synchronous across the multiple GPUs.
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `dstPointer`: Pointer to the destination address(es).
     /// - `srcPointer`: Pointer to the source address(es).
     /// - `type_`: `cufftXtCopyType `value.
@@ -283,7 +283,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `workArea`: Pointer to the pointers to workArea.
     ///
     /// # Return value
@@ -303,7 +303,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     ///
     /// Contains the complex Fourier coefficients.
@@ -331,7 +331,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     ///
     /// Contains the complex Fourier coefficients.
@@ -357,7 +357,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     ///
     /// Contains the complex Fourier coefficients.
@@ -383,7 +383,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     ///
     /// Contains the complex Fourier coefficients.
@@ -411,7 +411,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     ///
     /// Contains the complex Fourier coefficients.
@@ -437,7 +437,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     ///
     /// Contains the complex Fourier coefficients.
@@ -463,7 +463,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `queryStruct`: Pointer to structure that hold information returned by [`cufftXtQueryPlan`].
     ///
     /// Contains query specific plan information.
@@ -512,7 +512,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     ///
     /// # Return value
     ///
@@ -534,7 +534,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     ///
     /// # Return value
     ///
@@ -551,7 +551,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `sharedSize`: Amount of shared memory requested.
     ///
     /// # Return value
@@ -569,13 +569,13 @@ singe_loader::functions! { crate::LIBRARY;
 singe_loader::functions! { crate::LIBRARY;
     /// [`cufftXtSetJITCallback`] specifies a load or store LTO callback to be used with the plan.
     ///
-    /// This call is valid only after a call to [`cufftCreate`], but before calling `cufftMakePlan*()`, which does the plan generation.
+    /// This call is valid only after a call to [`cufftCreate`](super::cufftCreate), but before calling `cufftMakePlan*()`, which does the plan generation.
     ///
     /// If there was already an LTO callback of this type associated with the plan, this new callback routine replaces it. If the new callback requires shared memory, you must call [`cufftXtSetCallbackSharedSize`] with the amount of shared memory the callback function needs. cuFFT will not retain the amount of shared memory associated with the previous callback if the callback function is changed.
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `type_`: Type of callback routine.
     ///
     /// # Return value
@@ -597,7 +597,7 @@ singe_loader::functions! { crate::LIBRARY;
     ) -> cufftResult;
 }
 singe_loader::functions! { crate::LIBRARY;
-    /// Following a call to [`cufftCreate`] makes an FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.
+    /// Following a call to [`cufftCreate`](super::cufftCreate) makes an FFT plan configuration of dimension `rank`, with sizes specified in the array `n`. The `batch` input parameter tells cuFFT how many transforms to configure. With this function, batched plans of 1, 2, or 3 dimensions may be created.
     ///
     /// Type specifiers `inputtype`, `outputtype` and `executiontype` dictate type and precision of transform to be performed. Not all combinations of parameters are supported. Currently all three parameters need to match precision. Parameters `inputtype` and `outputtype` need to match transform type complex-to-complex, real-to-complex or complex-to-real. Parameter `executiontype` needs to match precision and be of a complex type. Example: for a half-precision real-to-complex transform, parameters `inputtype`, `outputtype` and `executiontype` would have values of `cudaDataType::CUDA_R_16F`, `cudaDataType::CUDA_C_16F` and `cudaDataType::CUDA_C_16F` respectively. Similarly, a bfloat16 complex-to-real transform would use `cudaDataType::CUDA_C_16BF` for `inputtype` and `executiontype`, and `cudaDataType::CUDA_R_16BF` for `outputtype`.
     ///
@@ -611,7 +611,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `rank`: Dimensionality of the transform (1, 2, or 3).
     /// - `n`: Array of size `rank`, describing the size of each dimension, `n\[0\]` being the size of the outermost and `n\[rank-1\]` innermost (contiguous) dimension of a transform. For multiple GPUs and rank equal to 1, the sizes must be a power of 2. For multiple GPUs and rank equal to 2 or 3, the sizes must be factorable into primes less than or equal to 127.
     /// - `inembed`: Pointer of size `rank` that indicates the storage dimensions of the input data in memory, `inembed\[0\]` being the storage dimension of the outermost dimension. If set to NULL all other advanced data layout parameters are ignored.
@@ -664,7 +664,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `rank`: Dimensionality of the transform (1, 2, or 3).
     /// - `n`: Array of size `rank`, describing the size of each dimension.
     /// - `inembed`: Pointer of size `rank` that indicates the storage dimensions of the input data in memory. If set to NULL all other advanced data layout parameters are ignored.
@@ -709,7 +709,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the input data (in GPU memory) to transform.
     /// - `output`: Pointer to the output data (in GPU memory). Contains the complex Fourier coefficients.
     /// - `direction`: The transform direction: [`CUFFT_FORWARD`] or [`CUFFT_INVERSE`]. Ignored for complex-to-real and real-to-complex transforms.
@@ -719,7 +719,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// - [`cufftResult::CUFFT_EXEC_FAILED`]: cuFFT failed to execute the transform on the GPU.
     /// - [`cufftResult::CUFFT_INTERNAL_ERROR`]: An internal driver error was detected.
     /// - [`cufftResult::CUFFT_INVALID_PLAN`]: The `plan` parameter is not a valid handle.
-    /// - [`cufftResult::CUFFT_INVALID_VALUE`]: At least one of the parameters `idata`, `odata`, and `direction` is not valid, or the work area provided in [`cufftSetWorkArea`] is not valid.
+    /// - [`cufftResult::CUFFT_INVALID_VALUE`]: At least one of the parameters `idata`, `odata`, and `direction` is not valid, or the work area provided in [`cufftSetWorkArea`](super::cufftSetWorkArea) is not valid.
     /// - [`cufftResult::CUFFT_SETUP_FAILED`]: The cuFFT library failed to initialize.
     /// - [`cufftResult::CUFFT_SUCCESS`]: cuFFT successfully executed the FFT plan.
     pub fn cufftXtExec(
@@ -734,7 +734,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `input`: Pointer to the complex input data (in GPU memory) to transform.
     /// - `output`: Pointer to the complex output data (in GPU memory).
     ///
@@ -747,7 +747,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// - [`cufftResult::CUFFT_INTERNAL_ERROR`]: An internal driver error was detected.
     /// - [`cufftResult::CUFFT_INVALID_DEVICE`]: An invalid GPU index was specified in a descriptor.
     /// - [`cufftResult::CUFFT_INVALID_PLAN`]: The `plan` parameter is not a valid handle.
-    /// - [`cufftResult::CUFFT_INVALID_VALUE`]: At least one of the parameters `idata` and `direction` is not valid, or the work area provided in [`cufftSetWorkArea`] is not valid.
+    /// - [`cufftResult::CUFFT_INVALID_VALUE`]: At least one of the parameters `idata` and `direction` is not valid, or the work area provided in [`cufftSetWorkArea`](super::cufftSetWorkArea) is not valid.
     /// - [`cufftResult::CUFFT_SETUP_FAILED`]: The cuFFT library failed to initialize.
     /// - [`cufftResult::CUFFT_SUCCESS`]: cuFFT successfully executed the FFT plan.
     pub fn cufftXtExecDescriptor(
@@ -766,7 +766,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Parameters
     ///
-    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`].
+    /// - `plan`: [`cufftHandle`] returned by [`cufftCreate`](super::cufftCreate).
     /// - `policy`: Type of work area policy to apply.
     /// - `workSize`: Reserved for future use.
     ///

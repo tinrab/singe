@@ -7,10 +7,15 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
+use proc_macro2::Span;
 use serde::Deserialize;
 use syn::{
-    Attribute, Field, File, ForeignItemFn, ImplItem, ImplItemConst, ImplItemFn, ItemConst,
-    ItemEnum, ItemImpl, ItemStatic, ItemStruct, ItemType, ItemUnion, Variant, parse_file,
+    Attribute, Field, File, ForeignItem, ForeignItemFn, ImplItem, ImplItemConst, ImplItemFn,
+    ItemConst, ItemEnum, ItemForeignMod, ItemImpl, ItemStatic, ItemStruct, ItemType, ItemUnion,
+    Token, Variant,
+    parse::ParseStream,
+    parse_file, parse_quote,
+    token::Brace,
     visit_mut::{self, VisitMut},
 };
 
@@ -20,7 +25,7 @@ use crate::utility::workspace_root;
 ///
 /// An empty `paths` slice selects every entry in the binding documentation catalog.
 /// Paths are relative to the workspace root.
-/// With `comments_only`, existing deprecation attributes remain unchanged.
+/// Existing deprecation attributes always remain; without `comments_only`, an item the docs mark deprecated also gains one.
 ///
 /// # Errors
 ///
@@ -288,6 +293,12 @@ fn document_binding_file(target: &DocumentTarget, comments_only: bool) -> Result
     let preamble = generated_preamble(&source);
     let mut file = parse_file(&source)
         .with_context(|| format!("failed to parse {}", target.rust_path.display()))?;
+    let loader_blocks = expand_loader_blocks(&mut file).with_context(|| {
+        format!(
+            "failed to parse loader blocks in {}",
+            target.rust_path.display()
+        )
+    })?;
     let symbols = load_symbols(
         &file,
         &target.rust_path,
@@ -303,7 +314,7 @@ fn document_binding_file(target: &DocumentTarget, comments_only: bool) -> Result
     }
     .visit_file_mut(&mut file);
 
-    let rendered = render_file(&file, preamble);
+    let rendered = restore_loader_blocks(&render_file(&file, preamble), &loader_blocks);
     write_if_changed(&target.rust_path, &rendered)?;
 
     let root = workspace_root()?;
@@ -336,39 +347,52 @@ fn load_symbols(
     };
 
     let scope_file = parse_rust_file(scope_path)?;
-    symbols.extend(collect_symbols_from_prior_includes(
-        scope_file.items.as_slice(),
-        scope_path,
-        rust_path,
-    )?);
-
-    let scope_items = if let Some(module_name) = scope_module {
-        scope_file
-            .items
-            .iter()
-            .find_map(|item| match item {
-                syn::Item::Mod(module) if module.ident == module_name => {
-                    module.content.as_ref().map(|(_, items)| items.as_slice())
-                }
-                _ => None,
-            })
-            .with_context(|| {
-                format!(
-                    "failed to find module {module_name} in {}",
-                    scope_path.display()
-                )
-            })?
-    } else {
-        scope_file.items.as_slice()
+    let outer = collect_symbols_from_prior_includes(&scope_file.items, scope_path, rust_path)?;
+    let Some(module_name) = scope_module else {
+        symbols.extend(collect_symbols_from_items(&scope_file.items));
+        symbols.extend(outer);
+        return Ok(symbols);
     };
 
-    symbols.extend(collect_symbols_from_items(scope_items));
+    let module_items = scope_file
+        .items
+        .iter()
+        .find_map(|item| match item {
+            syn::Item::Mod(module) if module.ident == module_name => {
+                module.content.as_ref().map(|(_, items)| items.as_slice())
+            }
+            _ => None,
+        })
+        .with_context(|| {
+            format!(
+                "failed to find module {module_name} in {}",
+                scope_path.display()
+            )
+        })?;
+    let module = collect_symbols_from_items(module_items);
+    let mut parent = collect_symbols_from_items(&scope_file.items);
+    parent.extend(outer);
+    // A file included inside a module sees the outer file's items through the module's imports, and links the rest through `super`.
+    if imports_all_of_super(module_items) {
+        symbols.extend(parent);
+    } else {
+        symbols.extend(parent.clone().restricted_to(&module.names));
+        symbols.parent = Some(Box::new(parent));
+    }
+
     symbols.extend(collect_symbols_from_prior_includes(
-        scope_items,
+        module_items,
         scope_path,
         rust_path,
     )?);
+    symbols.extend(module);
     Ok(symbols)
+}
+
+fn imports_all_of_super(items: &[syn::Item]) -> bool {
+    items.iter().any(|item| {
+        matches!(item, syn::Item::Use(item) if matches!(&item.tree, syn::UseTree::Path(path) if path.ident == "super" && matches!(*path.tree, syn::UseTree::Glob(_))))
+    })
 }
 
 fn collect_symbols_from_prior_includes(
@@ -443,10 +467,10 @@ fn collect_symbols_from_item(item: &syn::Item, symbols: &mut SymbolIndex) {
         syn::Item::ForeignMod(item) => {
             for foreign_item in &item.items {
                 match foreign_item {
-                    syn::ForeignItem::Fn(function) => {
+                    ForeignItem::Fn(function) => {
                         symbols.insert_name(function.sig.ident.to_string());
                     }
-                    syn::ForeignItem::Static(item) => {
+                    ForeignItem::Static(item) => {
                         symbols.insert_name(item.ident.to_string());
                     }
                     _ => {}
@@ -480,6 +504,18 @@ fn collect_symbols_from_item(item: &syn::Item, symbols: &mut SymbolIndex) {
         }
         syn::Item::Union(item) => {
             symbols.insert_name(item.ident.to_string());
+        }
+        // bindgen emits a duplicate enum discriminant as an associated const, which a doc link names like a variant.
+        syn::Item::Impl(item) if item.trait_.is_none() => {
+            if let syn::Type::Path(self_type) = item.self_ty.as_ref()
+                && let Some(owner) = self_type.path.get_ident()
+            {
+                for impl_item in &item.items {
+                    if let ImplItem::Const(constant) = impl_item {
+                        symbols.insert_variant(constant.ident.to_string(), owner.to_string());
+                    }
+                }
+            }
         }
         syn::Item::Use(item) => collect_symbols_from_use_tree(&item.tree, symbols),
         _ => {}
@@ -573,7 +609,79 @@ fn load_docs(paths: &[PathBuf]) -> Result<DocDatabase> {
 fn parse_rust_file(path: &Path) -> Result<File> {
     let source =
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    parse_file(&source).with_context(|| format!("failed to parse {}", path.display()))
+    let mut file =
+        parse_file(&source).with_context(|| format!("failed to parse {}", path.display()))?;
+    expand_loader_blocks(&mut file)
+        .with_context(|| format!("failed to parse loader blocks in {}", path.display()))?;
+    Ok(file)
+}
+
+// The bindgen recipes rewrite each `extern "C"` block into a `singe_loader::functions!` block, whose functions the documenter must still see.
+// Each block becomes an `extern "C"` block again, and the returned headers, one per top-level foreign block in order, restore it after rendering.
+fn expand_loader_blocks(file: &mut File) -> Result<Vec<Option<String>>> {
+    let mut headers = Vec::new();
+    for item in &mut file.items {
+        match item {
+            syn::Item::ForeignMod(_) => headers.push(None),
+            syn::Item::Macro(block) if is_loader_macro(&block.mac.path) => {
+                let (library, items) = block.mac.parse_body_with(parse_loader_body)?;
+                headers.push(Some(format!("singe_loader::functions! {{ {library};")));
+                *item = syn::Item::ForeignMod(ItemForeignMod {
+                    attrs: block.attrs.clone(),
+                    unsafety: Some(Token![unsafe](Span::call_site())),
+                    abi: parse_quote!(extern "C"),
+                    brace_token: Brace::default(),
+                    items,
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(headers)
+}
+
+fn is_loader_macro(path: &syn::Path) -> bool {
+    let segments = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>();
+    segments == ["singe_loader", "functions"]
+}
+
+fn parse_loader_body(input: ParseStream<'_>) -> syn::Result<(String, Vec<ForeignItem>)> {
+    let library = input.parse::<syn::Path>()?;
+    input.parse::<Token![;]>()?;
+    let mut items = Vec::new();
+    while !input.is_empty() {
+        items.push(input.parse()?);
+    }
+
+    let library = library
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::");
+    Ok((library, items))
+}
+
+fn restore_loader_blocks(rendered: &str, headers: &[Option<String>]) -> String {
+    let mut headers = headers.iter();
+    rendered
+        .lines()
+        .map(|line| {
+            if line == "unsafe extern \"C\" {"
+                && let Some(Some(header)) = headers.next()
+            {
+                header.as_str()
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn generated_preamble(source: &str) -> Option<&str> {
@@ -779,12 +887,14 @@ struct MemberRangeDoc {
     deprecated: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 struct SymbolIndex {
     names: BTreeSet<String>,
     aliases: BTreeMap<String, String>,
     variant_owners: BTreeMap<String, BTreeSet<String>>,
     bitfield_records: BTreeSet<String>,
+    // Items of the parent module that a file included inside a module reaches only as `super::name`.
+    parent: Option<Box<Self>>,
 }
 
 impl SymbolIndex {
@@ -813,6 +923,10 @@ impl SymbolIndex {
         self.aliases.contains_key(name)
     }
 
+    fn alias_target(&self, alias: &str) -> Option<&str> {
+        self.aliases.get(alias).map(String::as_str)
+    }
+
     fn aliases_for_target(&self, target: &str) -> Vec<&str> {
         self.aliases
             .iter()
@@ -838,6 +952,39 @@ impl SymbolIndex {
         self.variant_owners
             .get(variant)
             .is_some_and(|owners| owners.contains(owner))
+    }
+
+    fn restricted_to(self, visible: &BTreeSet<String>) -> Self {
+        let aliases = self
+            .aliases
+            .into_iter()
+            .filter(|(alias, _)| visible.contains(alias))
+            .collect::<BTreeMap<_, _>>();
+        let owner_visible = |owner: &String| {
+            visible.contains(owner) || aliases.values().any(|target| target == owner)
+        };
+        let variant_owners = self
+            .variant_owners
+            .into_iter()
+            .filter_map(|(variant, owners)| {
+                let owners = owners
+                    .into_iter()
+                    .filter(owner_visible)
+                    .collect::<BTreeSet<_>>();
+                (!owners.is_empty()).then_some((variant, owners))
+            })
+            .collect();
+        Self {
+            names: self.names.intersection(visible).cloned().collect(),
+            bitfield_records: self
+                .bitfield_records
+                .intersection(visible)
+                .cloned()
+                .collect(),
+            aliases,
+            variant_owners,
+            parent: None,
+        }
     }
 
     fn extend(&mut self, other: Self) {
@@ -1314,8 +1461,8 @@ impl BindingDocumenter<'_> {
             return;
         }
 
-        attrs.retain(|attr| !attr.path().is_ident("deprecated"));
-        if deprecated {
+        // bindgen copies deprecation from the C headers, so the docs can add it but their silence never removes it.
+        if deprecated && !attrs.iter().any(|attr| attr.path().is_ident("deprecated")) {
             attrs.insert(0, syn::parse_quote!(#[deprecated]));
         }
     }
@@ -1520,8 +1667,7 @@ fn format_return_value_label(
         }
     }
 
-    resolve_doc_symbol(name, symbols)
-        .map_or_else(|| format!("`{name}`"), |symbol| format!("[`{symbol}`]"))
+    doc_link(name, symbols).unwrap_or_else(|| format!("`{name}`"))
 }
 
 impl VisitMut for BindingDocumenter<'_> {
@@ -1762,10 +1908,7 @@ fn normalize_emphasized_identifier(content: &str, symbols: &SymbolIndex) -> Opti
         return None;
     }
 
-    Some(
-        resolve_doc_symbol(symbol, symbols)
-            .map_or_else(|| format!("`{content}`"), |symbol| format!("[`{symbol}`]")),
-    )
+    Some(doc_link(symbol, symbols).unwrap_or_else(|| format!("`{content}`")))
 }
 
 fn escape_code_fence_brackets(text: &str) -> String {
@@ -1802,16 +1945,16 @@ fn link_simple_use_replacement_lines(text: &str, symbols: &SymbolIndex) -> Strin
         };
 
         let symbol = replacement.trim().trim_end_matches('.');
-        let Some(symbol) = resolve_doc_symbol(symbol, symbols) else {
+        let Some(link) = doc_link(symbol, symbols) else {
             out.push_str(line);
             continue;
         };
 
         let indent_len = line.len() - trimmed.len();
         out.push_str(&line[..indent_len]);
-        out.push_str("use [`");
-        out.push_str(&symbol);
-        out.push_str("`].");
+        out.push_str("use ");
+        out.push_str(&link);
+        out.push('.');
     }
 
     out
@@ -1847,13 +1990,16 @@ fn demote_unresolved_qualified_links(text: &str, symbols: &SymbolIndex) -> Strin
             continue;
         }
 
-        if let Some(resolved) = resolve_doc_symbol(symbol, symbols) {
-            out.push_str("[`");
-            out.push_str(&resolved);
-            out.push_str("`]");
+        if let Some(link) = doc_link(symbol, symbols) {
+            out.push_str(&link);
         } else if let Some((owner, _)) = symbol.split_once("::")
-            && symbols.contains_alias(owner)
+            && symbols
+                .alias_target(owner)
+                .is_some_and(|target| !symbols.contains_name(target))
         {
+            // The alias names a type defined elsewhere, whose variants this file cannot check.
+            // A local target's variants are known, so a member not among them is no link.
+
             out.push_str("[`");
             out.push_str(symbol);
             out.push_str("`]");
@@ -1983,7 +2129,7 @@ fn rewrite_backticked_symbol(content: &str, symbols: &SymbolIndex) -> Option<Str
     if matches!(symbol, "size_t") {
         return None;
     }
-    resolve_doc_symbol(symbol, symbols).map(|symbol| format!("[`{symbol}`]"))
+    doc_link(symbol, symbols)
 }
 
 fn rewrite_internal_markdown_links(
@@ -2035,7 +2181,14 @@ fn rewrite_internal_markdown_links(
 
         let label = &after_start[..end_label];
         let target = &after_bracket[..end_target];
-        if let Some(link) = rewrite_internal_doc_link(label, target, type_token, symbols) {
+        if target.starts_with("super::") {
+            // An earlier pass linked an item of the parent module.
+            out.push('[');
+            out.push_str(label);
+            out.push_str("](");
+            out.push_str(target);
+            out.push(')');
+        } else if let Some(link) = rewrite_internal_doc_link(label, target, type_token, symbols) {
             out.push_str(&link);
         } else if is_external_markdown_target(target)
             && let Some(link) = rewrite_symbol_markdown_link(label, type_token, symbols)
@@ -2095,14 +2248,12 @@ fn rewrite_external_code_symbol_links(text: &str, symbols: &SymbolIndex) -> Stri
         };
 
         let target = &after_target_start[..end_target];
-        out.push_str("[`");
         if is_external_markdown_target(target)
-            && let Some(symbol) =
-                resolve_doc_symbol(label.strip_suffix("()").unwrap_or(label), symbols)
+            && let Some(link) = doc_link(label.strip_suffix("()").unwrap_or(label), symbols)
         {
-            out.push_str(&symbol);
-            out.push_str("`]");
+            out.push_str(&link);
         } else {
+            out.push_str("[`");
             out.push_str(label);
             out.push_str("`](");
             out.push_str(target);
@@ -2127,8 +2278,7 @@ fn rewrite_symbol_markdown_link(
     }
 
     let bare_label = label.trim_matches('`');
-    let symbol = resolve_doc_symbol(bare_label.strip_suffix("()").unwrap_or(bare_label), symbols)?;
-    Some(format!("[`{symbol}`]"))
+    doc_link(bare_label.strip_suffix("()").unwrap_or(bare_label), symbols)
 }
 
 fn format_markdown_label_as_text(
@@ -2142,8 +2292,8 @@ fn format_markdown_label_as_text(
     }
 
     let bare_label = label.trim_matches('`');
-    if let Some(symbol) =
-        resolve_doc_symbol(bare_label.strip_suffix("()").unwrap_or(bare_label), symbols)
+    if let Some((symbol, _)) =
+        resolve_doc_target(bare_label.strip_suffix("()").unwrap_or(bare_label), symbols)
     {
         return format!("`{symbol}`");
     }
@@ -2166,8 +2316,26 @@ fn rewrite_internal_doc_link(
         label = expand_type_placeholder(&label, type_token);
     }
 
-    let symbol = resolve_doc_symbol(label.strip_suffix("()").unwrap_or(&label), symbols)?;
-    Some(format!("[`{symbol}`]"))
+    doc_link(label.strip_suffix("()").unwrap_or(&label), symbols)
+}
+
+// Returns the resolved symbol and whether only the parent module holds it.
+fn resolve_doc_target(symbol: &str, symbols: &SymbolIndex) -> Option<(String, bool)> {
+    resolve_doc_symbol(symbol, symbols)
+        .map(|resolved| (resolved, false))
+        .or_else(|| {
+            let parent = symbols.parent.as_deref()?;
+            resolve_doc_symbol(symbol, parent).map(|resolved| (resolved, true))
+        })
+}
+
+fn doc_link(symbol: &str, symbols: &SymbolIndex) -> Option<String> {
+    let (resolved, in_parent) = resolve_doc_target(symbol, symbols)?;
+    Some(if in_parent {
+        format!("[`{resolved}`](super::{resolved})")
+    } else {
+        format!("[`{resolved}`]")
+    })
 }
 
 fn resolve_doc_symbol(symbol: &str, symbols: &SymbolIndex) -> Option<String> {

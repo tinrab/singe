@@ -9778,7 +9778,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// | Algorithm | Notes |
     /// | --- | --- |
-    /// | [`cusparseCsr2CscAlg_t::CUSPARSE_CSR2CSC_ALG_DEFAULT`], `CUSPARSE_CSR2CSC_ALG1` | Default algorithm |
+    /// | [`cusparseCsr2CscAlg_t::CUSPARSE_CSR2CSC_ALG_DEFAULT`], [`cusparseCsr2CscAlg_t::CUSPARSE_CSR2CSC_ALG1`] | Default algorithm |
     ///
     /// | Action | Notes |
     /// | --- | --- |

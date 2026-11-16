@@ -14,7 +14,7 @@ use crate::{
     cuda::{
         cutile::{
             DeviceOpExt, TileKernel,
-            kernel::{common::fill_i32, moe as kernel_moe, moe_routing},
+            kernel::{moe as kernel_moe, moe_routing, vector::fill_i32},
             utility::{checked_device_pointer, raw_vector_grid},
         },
         moe::MoeAlignBlockSizeConfig,

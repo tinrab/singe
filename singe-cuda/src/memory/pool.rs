@@ -21,7 +21,7 @@ impl MemoryPool {
     ///
     /// To create a memory pool for host memory not targeting a specific NUMA node, applications must set [`MemoryPoolProps::location`] to [`MemoryLocation::Host`].
     /// [`MemoryLocation`] is ignored for such pools.
-    /// Pools created with [`MemoryLocation::Host`] are not IPC-capable and [`MemoryPoolProps::handle_type`] must be [`MemoryAllocationHandleType::None`]; any other value returns [`crate::error::Status::InvalidValue`].
+    /// Pools created with [`MemoryLocation::Host`] are not IPC-capable and [`MemoryPoolProps::handle_type`] must be [`MemoryAllocationHandleType::None`](crate::memory::MemoryAllocationHandleType::None); any other value returns [`crate::error::Status::InvalidValue`].
     /// To create a memory pool targeting a specific host NUMA node, applications must set [`MemoryLocation`] to [`MemoryLocation::Numa`] and [`MemoryLocation`] must specify the NUMA ID of the host memory node.
     /// Specifying [`MemoryLocation::NumaCurrent`] as [`MemoryLocation`] returns [`crate::error::Status::InvalidValue`].
     /// By default, the pool's memory is accessible from the device where it is allocated.
@@ -29,7 +29,7 @@ impl MemoryPool {
     /// Applications can control the maximum size of the pool by specifying a non-zero value for [`MemoryPoolProps::max_size`].
     /// A value of 0 uses a system-dependent maximum pool size.
     ///
-    /// Callers that intend to use [`MemoryAllocationHandleType::Fabric`] based memory sharing must ensure: (1) the `nvidia-caps-imex-channels` character device is created by the driver and is listed under `/proc/devices`; (2) at least one IMEX channel file is accessible to the process.
+    /// Callers that intend to use [`MemoryAllocationHandleType::Fabric`](crate::memory::MemoryAllocationHandleType::Fabric) based memory sharing must ensure: (1) the `nvidia-caps-imex-channels` character device is created by the driver and is listed under `/proc/devices`; (2) at least one IMEX channel file is accessible to the process.
     ///
     /// When exporter and importer CUDA processes have been granted access to the same IMEX channel, they can securely share memory.
     ///
@@ -40,7 +40,7 @@ impl MemoryPool {
     /// These channel files exist in `/dev/nvidia-caps-imex-channels/channel*` and can be created using standard OS native calls like `mknod` on Linux.
     ///
     /// To create a managed memory pool, applications must set [`MemoryPoolProps::alloc_type`] to [`MemoryAllocationType::Managed`].
-    /// [`MemoryPoolProps::handle_type`] must also be [`MemoryAllocationHandleType::None`] because IPC is not supported.
+    /// [`MemoryPoolProps::handle_type`] must also be [`MemoryAllocationHandleType::None`](crate::memory::MemoryAllocationHandleType::None) because IPC is not supported.
     /// For managed memory pools, [`MemoryPoolProps::location`] is treated as the preferred location for all allocations created from the pool.
     /// An application can also set [`MemoryLocation::Unspecified`] to indicate no preferred location.
     /// [`MemoryPoolProps::max_size`] must be set to zero for managed memory pools.
@@ -48,7 +48,7 @@ impl MemoryPool {
     /// For managed memory pools, all devices on the system must have non-zero concurrentManagedAccess.
     /// If not, this call returns [`crate::error::Status::NotSupported`].
     ///
-    /// Specifying [`MemoryAllocationHandleType::None`] creates a memory pool that does not support IPC.
+    /// Specifying [`MemoryAllocationHandleType::None`](crate::memory::MemoryAllocationHandleType::None) creates a memory pool that does not support IPC.
     ///
     /// # Errors
     ///

@@ -177,7 +177,7 @@ pub fn candidates(kernel: &Kernel, arguments: &[u64], tile: bool) -> Vec<Schedul
 
 /// Returns how many elements of each operand a launch with argument sizes `arguments` addresses: one past its largest offset, or zero for an operand no access reaches.
 ///
-/// Returns `None` when an access adds an indexed term whose largest value [`index_bound`] cannot find, as for indices loaded from memory, or `arguments` does not match the kernel.
+/// Returns `None` when an access adds an indexed term whose largest value `index_bound` cannot find, as for indices loaded from memory, or `arguments` does not match the kernel.
 #[must_use]
 pub fn operand_lengths(kernel: &Kernel, arguments: &[u64]) -> Option<Vec<u64>> {
     let sizes = size_values(kernel, arguments).ok()?;

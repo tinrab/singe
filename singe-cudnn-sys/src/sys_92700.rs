@@ -329,7 +329,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: Invalid input argument.
     /// - [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`]: A stream blocking synchronization or a non-blocking stream query failed.
-    /// - `CUDNN_STATUS_MAPPING_ERROR`: The device cannot access zero-copy memory to report kernel errors.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`]: The device cannot access zero-copy memory to report kernel errors.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: No errors detected (`rstatus` holds a valid value).
     pub fn cudnnQueryRuntimeError(
         handle: cudnnHandle_t,
@@ -370,8 +370,8 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: Host memory allocation failed.
-    /// - `CUDNN_STATUS_ARCH_MISMATCH`: NVIDIA GPU architecture is too old.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: Host memory allocation failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ARCH_MISMATCH`]: NVIDIA GPU architecture is too old.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: Invalid (`NULL`) input pointer supplied.
     /// - [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`]: CUDA resource allocation failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_LICENSE_ERROR`]: cuDNN license validation failed (only when the feature is enabled).
@@ -3929,7 +3929,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The memory allocation failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The memory allocation failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]: Creating a descriptor of a given type is not supported.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The creation was successful.
     pub fn cudnnBackendCreateDescriptor(
@@ -3946,7 +3946,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The destruction of memory failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The destruction of memory failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The memory was destroyed successfully.
     /// - `Undefined`: The value pointed by the `descriptor` will be `Undefined` after the memory is free and done.
     /// - `Undefined Behavior`: The `descriptor` was altered between the `Create` and `Destroy Descriptor`.
@@ -4269,7 +4269,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: Invalid input argument.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateTensorDescriptor(
@@ -4546,7 +4546,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The memory allocation failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The memory allocation failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: The `transformDesc` is `NULL`.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The descriptor object was created successfully.
     #[deprecated]
@@ -4763,7 +4763,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: Memory allocation for this tensor pointwise math descriptor failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: Memory allocation for this tensor pointwise math descriptor failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: Tensor pointwise math descriptor passed to the function is invalid.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The function returned successfully.
     pub fn cudnnCreateOpTensorDescriptor(
@@ -4932,7 +4932,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: `reduceTensorDesc` is a `NULL` pointer.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateReduceTensorDescriptor(
@@ -5159,7 +5159,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     #[deprecated]
     pub fn cudnnCreateFilterDescriptor(
@@ -5503,7 +5503,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreatePoolingDescriptor(
         poolingDesc: *mut cudnnPoolingDescriptor_t,
@@ -5747,7 +5747,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateActivationDescriptor(
         activationDesc: *mut cudnnActivationDescriptor_t,
@@ -5892,7 +5892,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateLRNDescriptor(
         normDesc: *mut cudnnLRNDescriptor_t,
@@ -6441,7 +6441,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateSpatialTransformerDescriptor(
         stDesc: *mut cudnnSpatialTransformerDescriptor_t,
@@ -6575,7 +6575,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateDropoutDescriptor(
         dropoutDesc: *mut cudnnDropoutDescriptor_t,
@@ -6630,7 +6630,7 @@ singe_loader::functions! { crate::LIBRARY;
 singe_loader::functions! { crate::LIBRARY;
     /// This function initializes a previously created dropout descriptor object. If the `states` argument is equal to `NULL`, then the random number generator states won’t be initialized, and only the `dropout` value will be set. The user is expected not to change the memory pointed at by `states` for the duration of the computation.
     ///
-    /// When the `states` argument is not `NULL`, a cuRAND initialization kernel is invoked by [`cudnnSetDropoutDescriptor`]. This kernel requires a substantial amount of GPU memory for the stack. Memory is released when the kernel finishes. The `CUDNN_STATUS_ALLOC_FAILED` status is returned when no sufficient free memory is available for the GPU stack.
+    /// When the `states` argument is not `NULL`, a cuRAND initialization kernel is invoked by [`cudnnSetDropoutDescriptor`]. This kernel requires a substantial amount of GPU memory for the stack. Memory is released when the kernel finishes. The [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`] status is returned when no sufficient free memory is available for the GPU stack.
     ///
     /// # Parameters
     ///
@@ -6643,7 +6643,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The function failed to temporarily extend the GPU stack.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The function failed to temporarily extend the GPU stack.
     /// - [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`]: The function failed to launch on the GPU.
     /// - [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`]: Internally used CUDA functions returned an error status.
     /// - [`cudnnStatus_t::CUDNN_STATUS_INVALID_VALUE`]: The `sizeInBytes` argument is less than the value returned by [`cudnnDropoutGetStatesSize`].
@@ -8413,7 +8413,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: The `rnnDesc` argument is `NULL`.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     pub fn cudnnCreateRNNDescriptor(rnnDesc: *mut cudnnRNNDescriptor_t) -> cudnnStatus_t;
@@ -8635,12 +8635,12 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
-    /// - `CUDNN_STATUS_MAPPING_ERROR`: A GPU/CUDA resource, such as a texture object, shared memory, or zero-copy memory is not available in the required size or there is a mismatch between the user resource and cuDNN internal resources. A resource mismatch may occur, for example, when calling [`cudnnSetStream`]. There could be a mismatch between the user provided CUDA stream and the internal CUDA events instantiated in the cuDNN handle when [`cudnnCreate`] was invoked.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`]: A GPU/CUDA resource, such as a texture object, shared memory, or zero-copy memory is not available in the required size or there is a mismatch between the user resource and cuDNN internal resources. A resource mismatch may occur, for example, when calling [`cudnnSetStream`]. There could be a mismatch between the user provided CUDA stream and the internal CUDA events instantiated in the cuDNN handle when [`cudnnCreate`] was invoked.
     ///
-    /// This error status may not be correctable when it is related to texture dimensions, shared memory size, or zero-copy memory availability. If `CUDNN_STATUS_MAPPING_ERROR` is returned by [`cudnnSetStream`], then it is typically correctable, however, it means that the cuDNN handle was created on one GPU and the user stream passed to this function is associated with another GPU.
+    /// This error status may not be correctable when it is related to texture dimensions, shared memory size, or zero-copy memory availability. If [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`] is returned by [`cudnnSetStream`], then it is typically correctable, however, it means that the cuDNN handle was created on one GPU and the user stream passed to this function is associated with another GPU.
     /// - [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]: The current hyper-parameters are invalid.
-    /// - `CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING`: The prerequisite runtime library could not be found.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_RUNTIME_PREREQUISITE_MISSING`]: The prerequisite runtime library could not be found.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The code was built and linked successfully.
     pub fn cudnnBuildRNNDynamic(
         handle: cudnnHandle_t,
@@ -8775,7 +8775,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: The `RNNDataDesc` argument is `NULL`.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The RNN data descriptor object was created successfully.
     pub fn cudnnCreateRNNDataDescriptor(
@@ -8814,7 +8814,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The allocation of internal array storage has failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The allocation of internal array storage has failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: Any one of these have occurred:
     ///
     /// * `RNNDataDesc` is `NULL`.
@@ -8923,7 +8923,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The function was unable to allocate CPU memory.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The function was unable to allocate CPU memory.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid or incompatible input argument was encountered. Some examples include:
     ///
     /// * some input descriptors are `NULL`
@@ -9021,7 +9021,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The memory allocation failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The memory allocation failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid input argument was encountered (`seqDataDesc=NULL`).
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The descriptor object was created successfully.
     #[deprecated]
@@ -9091,7 +9091,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: Failed to allocate storage for the sequence data descriptor object.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: Failed to allocate storage for the sequence data descriptor object.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid input argument was found. Some examples include:
     ///
     /// * `seqDataDesc=NULL`
@@ -9180,7 +9180,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The memory allocation failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The memory allocation failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid input argument was encountered (`attnDesc=NULL`).
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The descriptor object was created successfully.
     #[deprecated]
@@ -9496,7 +9496,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: Insufficient amount of shared memory to launch a GPU kernel.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: Insufficient amount of shared memory to launch a GPU kernel.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid or incompatible input argument was encountered. Some examples include:
     ///
     /// * a required input pointer was `NULL`
@@ -9624,16 +9624,16 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The function was unable to allocate CPU memory.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The function was unable to allocate CPU memory.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid or incompatible input argument was encountered. Some examples include:
     ///
     /// * some descriptors or data buffer addresses are `NULL`
     /// * settings in `rnnDesc`, `xDesc`, `yDesc`, `hDesc`, or `cDesc` descriptors are invalid
     /// * `weightSpaceSize`, `workSpaceSize`, or `reserveSpaceSize` is too small.
     /// - [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`]: The process of launching a GPU kernel returned an error, or an earlier kernel did not complete successfully.
-    /// - `CUDNN_STATUS_MAPPING_ERROR`: A GPU/CUDA resource, such as a texture object, shared memory, or zero-copy memory is not available in the required size or there is a mismatch between the user resource and cuDNN internal resources. A resource mismatch may occur, for example, when calling [`cudnnSetStream`]. There could be a mismatch between the user provided CUDA stream and the internal CUDA events instantiated in the cuDNN handle when [`cudnnCreate`] was invoked.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`]: A GPU/CUDA resource, such as a texture object, shared memory, or zero-copy memory is not available in the required size or there is a mismatch between the user resource and cuDNN internal resources. A resource mismatch may occur, for example, when calling [`cudnnSetStream`]. There could be a mismatch between the user provided CUDA stream and the internal CUDA events instantiated in the cuDNN handle when [`cudnnCreate`] was invoked.
     ///
-    /// This error status may not be correctable when it is related to texture dimensions, shared memory size, or zero-copy memory availability. If `CUDNN_STATUS_MAPPING_ERROR` is returned by [`cudnnSetStream`], then it is typically correctable, however, it means that the cuDNN handle was created on one GPU and the user stream passed to this function is associated with another GPU.
+    /// This error status may not be correctable when it is related to texture dimensions, shared memory size, or zero-copy memory availability. If [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`] is returned by [`cudnnSetStream`], then it is typically correctable, however, it means that the cuDNN handle was created on one GPU and the user stream passed to this function is associated with another GPU.
     /// - [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]: At least one of the following conditions are met:
     ///
     /// * variable sequence length input is passed while [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC`], [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_DYNAMIC`], or [`cudnnRNNAlgo_t::CUDNN_RNN_ALGO_PERSIST_STATIC_SMALL_H`] is specified
@@ -9697,7 +9697,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The function was unable to allocate CPU memory.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The function was unable to allocate CPU memory.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid or incompatible input argument was encountered. Some examples include:
     ///
     /// * some descriptors or data buffer addresses are `NULL`
@@ -9757,7 +9757,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: Insufficient amount of shared memory to launch a GPU kernel.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: Insufficient amount of shared memory to launch a GPU kernel.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: An invalid or incompatible input argument was encountered.
     /// - [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`]: The process of launching a GPU kernel returned an error, or an earlier kernel did not complete successfully.
     /// - [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`]: An inconsistent internal state was encountered.
@@ -9878,7 +9878,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: Memory allocation for this CTC loss descriptor failed.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: Memory allocation for this CTC loss descriptor failed.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: The CTC loss descriptor passed to the function is invalid.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The function returned successfully.
     pub fn cudnnCreateCTCLossDescriptor(
@@ -10301,7 +10301,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The object was created successfully.
     #[deprecated]
     pub fn cudnnCreateConvolutionDescriptor(
@@ -10717,7 +10717,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: This function was unable to allocate memory to store sample input, filters, and output.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: This function was unable to allocate memory to store sample input, filters, and output.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: At least one of the following conditions are met:
     ///
     /// * `handle` is not allocated properly
@@ -10944,7 +10944,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// * `xDesc`, `wDesc`, and `yDesc` have a non-matching data type
     /// * For some spatial dimension, `wDesc` has a spatial size that is larger than the input spatial size (including zero-padding size).
     /// - [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`]: The function failed to launch on the GPU.
-    /// - `CUDNN_STATUS_MAPPING_ERROR`: An error occurs during the texture object creation associated with the filter data.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`]: An error occurs during the texture object creation associated with the filter data.
     /// - [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]: At least one of the following conditions are met:
     ///
     /// ```text
@@ -11105,7 +11105,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: This function was unable to allocate memory to store sample input, filters, and output.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: This function was unable to allocate memory to store sample input, filters, and output.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: At least one of the following conditions are met:
     ///
     /// * `handle` is not allocated properly
@@ -11296,7 +11296,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// * `wDesc` and `dxDesc` have a non-matching number of input feature maps per image (or group in case of grouped convolutions)
     /// * `dyDesc` spatial sizes do not match with the expected size as determined by [`cudnnGetConvolutionNdForwardOutputDim`].
     /// - [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`]: The function failed to launch on the GPU.
-    /// - `CUDNN_STATUS_MAPPING_ERROR`: An error occurs during the texture binding of texture object creation associated with the filter data or the input differential tensor data.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`]: An error occurs during the texture binding of texture object creation associated with the filter data or the input differential tensor data.
     /// - [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]: At least one of the following conditions are met:
     ///
     /// ```text
@@ -11784,7 +11784,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// Memory is allocated via `cudaMalloc()`. The performance metrics are returned in the user-allocated array of [cudnnConvolutionBwdFilterAlgoPerf_t](https://docs.nvidia.com/deeplearning/cudnn/backend/v9.27.0/api/cudnn-cnn-library.html#cudnnconvolutionbwdfilteralgoperf-t). These metrics are written in a sorted fashion where the first element has the lowest compute time. The total number of resulting algorithms can be queried through the API [`cudnnGetConvolutionBackwardFilterAlgorithmMaxCount`].
     ///
-    /// `CUDNN_STATUS_ALLOC_FAILED`
+    /// [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]
     /// This function was unable to allocate memory to store sample input, filters and output.
     ///
     /// [`cudnnStatus_t::CUDNN_STATUS_INTERNAL_ERROR`]
@@ -11989,7 +11989,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// * `xDesc` and `dwDesc` have a non-matching number of input feature maps per image (or group in case of grouped convolutions)
     /// * `yDesc` or `dwDesc` indicate an output channel count that isn’t a multiple of group count (if group count has been set in convDesc).
     /// - [`cudnnStatus_t::CUDNN_STATUS_EXECUTION_FAILED`]: The function failed to launch on the GPU.
-    /// - `CUDNN_STATUS_MAPPING_ERROR`: An error occurs during the texture object creation associated with the filter data.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_MAPPING_ERROR`]: An error occurs during the texture object creation associated with the filter data.
     /// - [`cudnnStatus_t::CUDNN_STATUS_NOT_SUPPORTED`]: At least one of the following conditions are met:
     ///
     /// ```text
@@ -12058,7 +12058,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: If either `constPack` or `ops` is `NULL`.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: If the descriptor is created successfully.
     #[deprecated]
@@ -12136,7 +12136,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: If any input is invalid.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The descriptor was destroyed successfully.
     #[deprecated]
@@ -12213,7 +12213,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// # Return value
     ///
-    /// - `CUDNN_STATUS_ALLOC_FAILED`: The resources could not be allocated.
+    /// - [`cudnnStatus_t::CUDNN_STATUS_ALLOC_FAILED`]: The resources could not be allocated.
     /// - [`cudnnStatus_t::CUDNN_STATUS_BAD_PARAM`]: If either the input `*plan` is `NULL` or the `ops` input is not a valid `cudnnFusedOp` enum.
     /// - [`cudnnStatus_t::CUDNN_STATUS_SUCCESS`]: The plan descriptor is created successfully.
     #[deprecated]

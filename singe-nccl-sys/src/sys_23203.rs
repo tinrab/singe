@@ -396,7 +396,7 @@ impl Default for ncclConfig_v23100 {
     }
 }
 /// A structure-based configuration users can set to initialize a communicator; a
-/// newly created configuration must be initialized by [`ncclConfig_t::NCCL_CONFIG_INITIALIZER`].
+/// newly created configuration must be initialized by `ncclConfig_t::NCCL_CONFIG_INITIALIZER`.
 pub type ncclConfig_t = ncclConfig_v23100;
 /// A single vendor-specific option expressed as a key-value pair. Multiple options can be chained into a non-circular linked list through the next pointer and attached to a ncclCollConfig_t via its ext member. The official NCCL library ignores every extension; a vendor library should assign a unique value to key.vendorId to avoid collision among vendor libraries. It can usually be done by picking a random number. Vendors should choose a non-zero vendorId (less than 2^24) that is unlikely to collide with other vendor libraries. The list is unordered and must not contain duplicate keys.
 #[repr(C)]
@@ -1186,7 +1186,7 @@ singe_loader::functions! { crate::LIBRARY;
     /// [`ncclCollConfig_t`](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#c.ncclCollConfig_t "ncclCollConfig_t") argument for per-call customization (algorithm
     /// selection, CTA counts, and similar overrides described under
     /// [ncclCollConfig_t](https://docs.nvidia.com/deeplearning/nccl/archives/nccl_2323/user-guide/docs/api/types.html#ncclcollconfig)). Initialize the config with
-    /// [`ncclCollConfig_t::NCCL_COLLCONFIG_INITIALIZER`] and set it identically on every rank.
+    /// `ncclCollConfig_t::NCCL_COLLCONFIG_INITIALIZER` and set it identically on every rank.
     /// Passing `config == NULL` is equivalent to calling the plain API.
     ///
     /// Configurable variant of [`ncclAllReduce`].
@@ -1482,7 +1482,7 @@ impl Default for ncclEncryptionConfig_v23200 {
     }
 }
 /// A structure-based configuration used by [`ncclSetEncryption`]; a newly created configuration must be
-/// initialized by [`ncclEncryptionConfig_t::NCCL_ENCRYPTION_CONFIG_INITIALIZER`].
+/// initialized by `ncclEncryptionConfig_t::NCCL_ENCRYPTION_CONFIG_INITIALIZER`.
 pub type ncclEncryptionConfig_t = ncclEncryptionConfig_v23200;
 singe_loader::functions! { crate::LIBRARY;
     /// Configures process-global encryption for NCCL-owned TCP sockets. A configuration with `mode` set to

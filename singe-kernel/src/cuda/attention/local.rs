@@ -24,7 +24,7 @@ use crate::{
 #[cfg(feature = "dtype_f16")]
 /// Causal left-window attention.
 ///
-/// See [`sliding_window_attention_f32`] for mask and grouped-query semantics.
+/// See [`sliding_window_attention_f32`](super::sliding_window_attention_f32) for mask and grouped-query semantics.
 ///
 /// # Safety
 ///
@@ -77,7 +77,7 @@ pub unsafe fn sliding_window_attention_f16(
 #[cfg(feature = "dtype_bf16")]
 /// Causal left-window attention.
 ///
-/// See [`sliding_window_attention_f32`] for mask and grouped-query semantics.
+/// See [`sliding_window_attention_f32`](super::sliding_window_attention_f32) for mask and grouped-query semantics.
 ///
 /// # Safety
 ///

@@ -280,7 +280,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn instantiate_with_flags(&self, flags: GraphInstantiateFlags) -> Result<ExecutableGraph> {
         self.bind_context()?;
         let mut handle = ptr::null_mut();
@@ -317,7 +317,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn try_clone(&self) -> Result<Self> {
         self.bind_context()?;
         let mut handle = ptr::null_mut();
@@ -416,7 +416,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn add_dependencies_with_data(
         &mut self,
         from: &[GraphNode],
@@ -491,7 +491,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn remove_dependencies_with_data(
         &mut self,
         from: &[GraphNode],
@@ -579,7 +579,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation or reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn add_empty_node(&mut self, dependencies: &[GraphNode]) -> Result<GraphNode> {
         self.check_nodes(dependencies)?;
         let mut handle = ptr::null_mut();
@@ -609,7 +609,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn add_event_record_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -648,7 +648,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn add_event_wait_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -687,7 +687,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub unsafe fn add_host_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -741,7 +741,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub unsafe fn add_kernel_node<'a, P>(
         &mut self,
         dependencies: &[GraphNode],
@@ -803,7 +803,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub unsafe fn add_memory_copy_node_1d(
         &mut self,
         dependencies: &[GraphNode],
@@ -937,7 +937,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub unsafe fn add_memory_copy_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -1042,7 +1042,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub unsafe fn add_memory_set_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -1078,7 +1078,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn add_child_graph_node(
         &mut self,
         dependencies: &[GraphNode],
@@ -1254,7 +1254,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn nodes(&self) -> Result<Vec<GraphNode>> {
         // SAFETY: `cudaGraphGetNodes` first reports the count, then fills arrays sized to it.
         unsafe {
@@ -1291,7 +1291,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn root_nodes(&self) -> Result<Vec<GraphNode>> {
         // SAFETY: `cudaGraphGetRootNodes` first reports the count, then fills arrays sized to it.
         unsafe {
@@ -1328,7 +1328,7 @@ impl Graph {
     /// # Errors
     ///
     /// Returns an error if CUDA rejects the graph operation, if a previous asynchronous launch reported an error, or if CUDA reports runtime initialization diagnostics.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn edges(&self) -> Result<Vec<GraphEdge>> {
         // SAFETY: `cudaGraphGetEdges` first reports the count, then fills arrays sized to it.
         unsafe {

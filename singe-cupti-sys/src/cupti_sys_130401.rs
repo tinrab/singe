@@ -7620,7 +7620,7 @@ pub struct CUpti_ActivityDeviceAttribute {
     pub deviceId: u32,
     /// The attribute, either a CUpti_DeviceAttribute or CUdevice_attribute.
     ///
-    /// Flag `CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_DEVICE_ATTRIBUTE_CUDEVICE` is used to indicate what kind of attribute this is. If `CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_DEVICE_ATTRIBUTE_CUDEVICE` is 1 then CUdevice_attribute field is value, otherwise CUpti_DeviceAttribute field is valid.
+    /// Flag [`CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_DEVICE_ATTRIBUTE_CUDEVICE`] is used to indicate what kind of attribute this is. If [`CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_DEVICE_ATTRIBUTE_CUDEVICE`] is 1 then CUdevice_attribute field is value, otherwise CUpti_DeviceAttribute field is valid.
     pub attribute: CUpti_ActivityDeviceAttribute__bindgen_ty_1,
     /// The value for the attribute.
     ///
@@ -11756,7 +11756,7 @@ singe_loader::functions! { crate::LIBRARY;
     ///
     /// This is a blocking call but it doesn’t issue any CUDA synchronization calls implicitly thus it’s not guaranteed that all activities are completed on the underlying devices. Activity record is considered as completed if it has all the information filled up including the timestamps if any. It is the client’s responsibility to issue necessary CUDA synchronization calls before calling this function if all activity records with complete information are expected to be delivered.
     ///
-    /// Behavior of the function based on the input flag: (-)::For default flush i.e. when flag is set as 0, it returns all the activity buffers which have all the activity records completed, buffers need not to be full though. It doesn’t return buffers which have one or more incomplete records. Default flush can be done at a regular interval in a separate thread. (-)::For forced flush i.e. when flag `CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_FLUSH_FORCED` is passed to the function, it returns all the activity buffers including the ones which have one or more incomplete activity records. It’s suggested for clients to do the force flush before the termination of the profiling session to allow remaining buffers to be delivered. In general, it can be done in the at-exit handler.
+    /// Behavior of the function based on the input flag: (-)::For default flush i.e. when flag is set as 0, it returns all the activity buffers which have all the activity records completed, buffers need not to be full though. It doesn’t return buffers which have one or more incomplete records. Default flush can be done at a regular interval in a separate thread. (-)::For forced flush i.e. when flag [`CUpti_ActivityFlag::CUPTI_ACTIVITY_FLAG_FLUSH_FORCED`] is passed to the function, it returns all the activity buffers including the ones which have one or more incomplete activity records. It’s suggested for clients to do the force flush before the termination of the profiling session to allow remaining buffers to be delivered. In general, it can be done in the at-exit handler.
     ///
     /// Before calling this function, the buffer handling callback api must be activated by calling cuptiActivityRegisterCallbacks.
     ///

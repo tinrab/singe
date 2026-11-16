@@ -213,7 +213,7 @@ impl ExecutableGraph {
     ///   + Conditional handle flags and default values are updated as part of the graph update.
     ///
     /// CUDA may add further restrictions in future releases.
-    /// [`ExecutableGraph::update`] sets the update result to [`GraphExecUpdateResult::ErrorTopologyChanged`] under the following conditions:
+    /// [`ExecutableGraph::update`] sets the update result to [`GraphExecUpdateResult::ErrorTopologyChanged`](crate::graph::GraphExecUpdateResult::ErrorTopologyChanged) under the following conditions:
     ///
     /// * The count of nodes directly in the executable graph and the source graph differ.
     /// * The source graph has more exit nodes.
@@ -223,17 +223,17 @@ impl ExecutableGraph {
     ///
     /// [`ExecutableGraph::update`] sets the update result to:
     ///
-    /// * [`GraphExecUpdateResult::Error`] if passed an invalid value.
-    /// * [`GraphExecUpdateResult::ErrorTopologyChanged`] if the graph topology changed.
-    /// * [`GraphExecUpdateResult::ErrorNodeTypeChanged`] if the type of a node changed.
-    /// * [`GraphExecUpdateResult::ErrorFunctionChanged`] if the kernel function of a node changed (CUDA driver before 11.2).
-    /// * [`GraphExecUpdateResult::ErrorUnsupportedFunctionChange`] if the kernel function changed in an unsupported way.
-    /// * [`GraphExecUpdateResult::ErrorParametersChanged`] if any parameters to a node changed in a way that is not supported.
-    /// * [`GraphExecUpdateResult::ErrorAttributesChanged`] if any attributes of a node changed in a way that is not supported.
-    /// * [`GraphExecUpdateResult::ErrorNotSupported`] if something about a node is unsupported, like the node's type or configuration.
+    /// * [`GraphExecUpdateResult::Error`](crate::graph::GraphExecUpdateResult::Error) if passed an invalid value.
+    /// * [`GraphExecUpdateResult::ErrorTopologyChanged`](crate::graph::GraphExecUpdateResult::ErrorTopologyChanged) if the graph topology changed.
+    /// * [`GraphExecUpdateResult::ErrorNodeTypeChanged`](crate::graph::GraphExecUpdateResult::ErrorNodeTypeChanged) if the type of a node changed.
+    /// * [`GraphExecUpdateResult::ErrorFunctionChanged`](crate::graph::GraphExecUpdateResult::ErrorFunctionChanged) if the kernel function of a node changed (CUDA driver before 11.2).
+    /// * [`GraphExecUpdateResult::ErrorUnsupportedFunctionChange`](crate::graph::GraphExecUpdateResult::ErrorUnsupportedFunctionChange) if the kernel function changed in an unsupported way.
+    /// * [`GraphExecUpdateResult::ErrorParametersChanged`](crate::graph::GraphExecUpdateResult::ErrorParametersChanged) if any parameters to a node changed in a way that is not supported.
+    /// * [`GraphExecUpdateResult::ErrorAttributesChanged`](crate::graph::GraphExecUpdateResult::ErrorAttributesChanged) if any attributes of a node changed in a way that is not supported.
+    /// * [`GraphExecUpdateResult::ErrorNotSupported`](crate::graph::GraphExecUpdateResult::ErrorNotSupported) if something about a node is unsupported, like the node's type or configuration.
     ///
-    /// If the update fails for a reason not listed above, the result is [`GraphExecUpdateResult::Error`].
-    /// If the update succeeds, the result is [`GraphExecUpdateResult::Success`].
+    /// If the update fails for a reason not listed above, the result is [`GraphExecUpdateResult::Error`](crate::graph::GraphExecUpdateResult::Error).
+    /// If the update succeeds, the result is [`GraphExecUpdateResult::Success`](crate::graph::GraphExecUpdateResult::Success).
     ///
     /// [`ExecutableGraph::update`] succeeds when the update was performed successfully.
     /// It returns [`crate::error::Status::GraphExecUpdateFailure`] if the graph update was not performed because it included changes which violated constraints specific to instantiated graph update.

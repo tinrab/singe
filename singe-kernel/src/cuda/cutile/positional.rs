@@ -17,7 +17,7 @@ use crate::{
         cutile::{
             DeviceOpExt, TileKernel,
             kernel::{
-                common as vector_kernels, positional_structured as kernel_positional_structured,
+                positional_structured as kernel_positional_structured, vector as vector_kernels,
             },
             utility::{VectorLaunch, checked_device_pointer, raw_vector_grid},
         },

@@ -532,7 +532,7 @@ impl Display for Size {
 /// Position and dimensions in the native NPP rectangle format.
 ///
 /// Geometry operations treat `width` and `height` as extents from the upper-left origin.
-/// Connected-region output uses the endpoint convention documented on [`ConnectedRegion`](crate::types::ConnectedRegion).
+/// Connected-region output uses the endpoint convention documented on [`ConnectedRegion`].
 #[repr(C)]
 #[derive(
     Debug,

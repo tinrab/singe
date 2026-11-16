@@ -73,7 +73,7 @@ impl GraphNode {
     ///
     /// Returns an error if CUDA cannot query the node type or if a previous asynchronous launch reported an error.
     /// CUDA may also return initialization-related errors such as [`crate::error::Status::NotInitialized`], [`crate::error::Status::CallRequiresNewerDriver`], or [`crate::error::Status::NoDevice`] if this call initializes internal runtime state.
-    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`].
+    /// Callbacks must not call CUDA functions; see [`Stream::add_callback`](crate::stream::Stream::add_callback).
     pub fn node_type(&self) -> Result<GraphNodeType> {
         self.bind_context()?;
         let mut kind = runtime::cudaGraphNodeType::CU_GRAPH_NODE_TYPE_KERNEL;

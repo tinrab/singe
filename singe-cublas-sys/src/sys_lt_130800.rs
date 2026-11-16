@@ -2619,13 +2619,13 @@ pub enum cublasLtMatmulDescAttributes_t {
     CUBLASLT_MATMUL_DESC_SCALE_TYPE = 1,
     /// Specifies `alpha` and `beta` are passed by reference, whether they are scalars on the host or on the device, or device vectors. Default value is: [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_HOST`] (i.e., on the host). See [`cublasLtPointerMode_t`].
     CUBLASLT_MATMUL_DESC_POINTER_MODE = 2,
-    /// Specifies the type of transformation operation that should be performed on matrix A. Default value is: [`cublasOperation_t::CUBLAS_OP_N`] (i.e., non-transpose operation). See [`cublasOperation_t`].
+    /// Specifies the type of transformation operation that should be performed on matrix A. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
     CUBLASLT_MATMUL_DESC_TRANSA = 3,
-    /// Specifies the type of transformation operation that should be performed on matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`] (i.e., non-transpose operation). See [`cublasOperation_t`].
+    /// Specifies the type of transformation operation that should be performed on matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
     CUBLASLT_MATMUL_DESC_TRANSB = 4,
-    /// Specifies the type of transformation operation that should be performed on matrix C. Currently only [`cublasOperation_t::CUBLAS_OP_N`] is supported. Default value is: [`cublasOperation_t::CUBLAS_OP_N`] (i.e., non-transpose operation). See [`cublasOperation_t`].
+    /// Specifies the type of transformation operation that should be performed on matrix C. Currently only [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) is supported. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
     CUBLASLT_MATMUL_DESC_TRANSC = 5,
-    /// Indicates whether the lower or upper part of the dense matrix was filled, and consequently should be used by the function. Currently this flag is not supported for bfloat16 or FP8 data types and is not supported on the following GPUs: Hopper, Blackwell. Default value is: [`cublasFillMode_t::CUBLAS_FILL_MODE_FULL`]. See [`cublasFillMode_t`].
+    /// Indicates whether the lower or upper part of the dense matrix was filled, and consequently should be used by the function. Currently this flag is not supported for bfloat16 or FP8 data types and is not supported on the following GPUs: Hopper, Blackwell. Default value is: [`cublasFillMode_t::CUBLAS_FILL_MODE_FULL`](super::cublasFillMode_t::CUBLAS_FILL_MODE_FULL). See [`cublasFillMode_t`](super::cublasFillMode_t).
     CUBLASLT_MATMUL_DESC_FILL_MODE = 6,
     /// Epilogue function. See [`cublasLtEpilogue_t`]. Default value is: [`cublasLtEpilogue_t::CUBLASLT_EPILOGUE_DEFAULT`].
     CUBLASLT_MATMUL_DESC_EPILOGUE = 7,
@@ -2816,9 +2816,9 @@ pub enum cublasLtMatrixTransformDescAttributes_t {
     CUBLASLT_MATRIX_TRANSFORM_DESC_SCALE_TYPE = 0,
     /// Specifies the scalars alpha and beta are passed by reference whether on the host or on the device. Default value is: [`cublasLtPointerMode_t::CUBLASLT_POINTER_MODE_HOST`] (i.e., on the host). See [`cublasLtPointerMode_t`].
     CUBLASLT_MATRIX_TRANSFORM_DESC_POINTER_MODE = 1,
-    /// Specifies the type of operation that should be performed on the matrix A. Default value is: [`cublasOperation_t::CUBLAS_OP_N`] (i.e., non-transpose operation). See [`cublasOperation_t`].
+    /// Specifies the type of operation that should be performed on the matrix A. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
     CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSA = 2,
-    /// Specifies the type of operation that should be performed on the matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`] (i.e., non-transpose operation). See [`cublasOperation_t`].
+    /// Specifies the type of operation that should be performed on the matrix B. Default value is: [`cublasOperation_t::CUBLAS_OP_N`](super::cublasOperation_t::CUBLAS_OP_N) (i.e., non-transpose operation). See [`cublasOperation_t`](super::cublasOperation_t).
     CUBLASLT_MATRIX_TRANSFORM_DESC_TRANSB = 3,
 }
 singe_loader::functions! { crate::LT;
@@ -2927,7 +2927,7 @@ singe_loader::functions! { crate::LT;
     IntoPrimitive,
 )]
 pub enum cublasLtEmulationDescAttributes_t {
-    /// Strategy, see [`cublasEmulationStrategy_t`]. Defines when to use floating point emulation algorithms. Default: EMULATION_STRATEGY_DEFAULT.
+    /// Strategy, see [`cublasEmulationStrategy_t`](super::cublasEmulationStrategy_t). Defines when to use floating point emulation algorithms. Default: EMULATION_STRATEGY_DEFAULT.
     CUBLASLT_EMULATION_DESC_STRATEGY = 0,
     /// Special values support, see [cudaEmulationSpecialValuesSupport_t](https://docs.nvidia.com/cuda/archive/13.4.2/cublas/index.html#cudaemulationspecialvaluessupport-t). Defines a bit mask of special cases in floating-point representations that must be supported. Default: EMULATION_SPECIAL_VALUES_SUPPORT_DEFAULT.
     CUBLASLT_EMULATION_DESC_SPECIAL_VALUES_SUPPORT = 1,

@@ -591,14 +591,14 @@ impl<T> DeviceMemory<T> {
     /// Returns the attributes of `ptr`.
     /// If `ptr` was not allocated in, mapped by, or registered with a context that supports unified addressing, [`crate::error::Status::InvalidValue`] is returned.
     ///
-    /// In CUDA 11.0 and later, passing a host pointer reports [`MemoryType::Unregistered`] in [`PointerAttributes::memory_type`].
+    /// In CUDA 11.0 and later, passing a host pointer reports [`MemoryType::Unregistered`](crate::memory::MemoryType::Unregistered) in [`PointerAttributes::memory_type`].
     ///
     /// * [`PointerAttributes::memory_type`] identifies the type of memory.
-    ///   It can be [`MemoryType::Unregistered`] for unregistered host memory, [`MemoryType::Host`] for registered host memory, [`MemoryType::Device`] for device memory, or [`MemoryType::Managed`] for managed memory.
+    ///   It can be [`MemoryType::Unregistered`](crate::memory::MemoryType::Unregistered) for unregistered host memory, [`MemoryType::Host`](crate::memory::MemoryType::Host) for registered host memory, [`MemoryType::Device`](crate::memory::MemoryType::Device) for device memory, or [`MemoryType::Managed`](crate::memory::MemoryType::Managed) for managed memory.
     ///
     /// * [`PointerAttributes::device`] is the device against which `ptr` was allocated.
-    ///   If `ptr` has memory type [`MemoryType::Device`], this identifies the device on which the memory physically resides.
-    ///   If `ptr` has memory type [`MemoryType::Host`], this identifies the device that was current when the allocation was made, and if that device is deinitialized then this allocation will vanish with that device's state.
+    ///   If `ptr` has memory type [`MemoryType::Device`](crate::memory::MemoryType::Device), this identifies the device on which the memory physically resides.
+    ///   If `ptr` has memory type [`MemoryType::Host`](crate::memory::MemoryType::Host), this identifies the device that was current when the allocation was made, and if that device is deinitialized then this allocation will vanish with that device's state.
     ///
     /// * [`PointerAttributes::device_pointer`] is the device pointer alias through which the memory referred to by `ptr` may be accessed on the current device.
     ///   If the memory referred to by `ptr` cannot be accessed directly by the current device then this is null.

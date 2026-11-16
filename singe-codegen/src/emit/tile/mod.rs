@@ -2,7 +2,7 @@
 //!
 //! The kernel is one entry function named after the IR kernel, whose parameters are [`abi::parameters`](crate::abi::parameters) in order: a pointer per operand, then each scalar and argument size as a zero-dimensional tile.
 //! Every value is a one-dimensional tile whose elements are the points one tile block covers.
-//! Under [`TileSchedule::Tiles`](crate::schedule::TileSchedule::Tiles) those are consecutive points of the flattened parallel axes; under [`TileSchedule::TileRows`](crate::schedule::TileSchedule::TileRows) they are one row: a point of the parallel axes and the flattened reduction axes, whose reductions fold the whole tile with `reduce`.
+//! Under [`TileSchedule::Tiles`] those are consecutive points of the flattened parallel axes; under [`TileSchedule::TileRows`] they are one row: a point of the parallel axes and the flattened reduction axes, whose reductions fold the whole tile with `reduce`.
 //! Accesses become tiles of pointers that loads and stores address under a mask of the points in range, so any strided or indexed access is one gather or scatter.
 //!
 //! Index checks and requirements report their status code with an atomic compare-and-swap on the status word, skipped when its address is null, and adding stores are atomic adds.
